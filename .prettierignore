@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist/
+android/
+ios/
+*.lock
+package-lock.json
+expo-env.d.ts

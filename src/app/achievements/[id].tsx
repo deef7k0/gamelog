@@ -1,0 +1,269 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { FlatList, StyleSheet, View } from 'react-native';
+
+import { Button } from '@/components/ui/button';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { Card } from '@/components/ui/surface';
+import { Text } from '@/components/ui/text';
+import { Radius, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import {
+  cacheGameAchievements,
+  getAchievementsForGame,
+  setAchievementUnlocked,
+  syncSteamAchievements,
+} from '@/lib/api';
+import { getGameById, isSteamAchievementSyncAvailable, parseGameId } from '@/lib/games';
+import { useAuth } from '@/store/auth';
+
+export default function AchievementsScreen() {
+  const theme = useTheme();
+  const queryClient = useQueryClient();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const userId = useAuth((state) => state.session?.user.id);
+  const steamId = useAuth((state) => state.profile?.steam_id);
+
+  const game = useQuery({
+    queryKey: ['game', id],
+    queryFn: ({ signal }) => getGameById(id!, signal),
+    enabled: !!id,
+    staleTime: 30 * 60_000,
+  });
+
+  const achievements = useQuery({
+    queryKey: ['game-achievements', id, userId],
+    queryFn: () => getAchievementsForGame(id!, userId ?? null),
+    enabled: !!id,
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ['game-achievements', id] });
+    queryClient.invalidateQueries({ queryKey: ['achievement-stats', userId] });
+  }
+
+  /** Fetch the catalogue from the provider the first time anyone opens this game. */
+  const load = useMutation({
+    mutationFn: async () => {
+      if (!game.data) throw new Error('Game details are still loading.');
+      return cacheGameAchievements(game.data);
+    },
+    onSuccess: invalidate,
+  });
+
+  const toggle = useMutation({
+    mutationFn: async ({
+      achievementId,
+      unlocked,
+    }: {
+      achievementId: string;
+      unlocked: boolean;
+    }) => {
+      if (!userId) throw new Error('You must be signed in.');
+      await setAchievementUnlocked(userId, achievementId, unlocked);
+    },
+    onSuccess: invalidate,
+  });
+
+  const sync = useMutation({
+    mutationFn: async () => {
+      if (!userId) throw new Error('You must be signed in.');
+      if (!steamId) throw new Error('Link your SteamID64 on your profile first.');
+      if (!game.data) throw new Error('Game details are still loading.');
+      return syncSteamAchievements(userId, steamId, game.data);
+    },
+    onSuccess: invalidate,
+  });
+
+  if (game.isLoading || achievements.isLoading) {
+    return (
+      <Screen edges={['bottom']} insetHeader>
+        <LoadingState />
+      </Screen>
+    );
+  }
+
+  if (achievements.isError) {
+    return (
+      <Screen edges={['bottom']} insetHeader>
+        <ErrorState error={achievements.error} />
+      </Screen>
+    );
+  }
+
+  const list = achievements.data ?? [];
+  const unlocked = list.filter((entry) => entry.unlocked_at).length;
+  const isSteamGame = parseGameId(id ?? '')?.source === 'steam';
+  const canSync = isSteamGame && isSteamAchievementSyncAvailable();
+  const error = load.error ?? sync.error ?? toggle.error;
+
+  return (
+    <Screen edges={['bottom']} insetHeader>
+      <Stack.Screen options={{ title: game.data?.title ?? 'Achievements' }} />
+
+      <FlatList
+        data={list}
+        keyExtractor={(entry) => entry.id}
+        contentContainerStyle={list.length === 0 ? styles.emptyContent : styles.content}
+        showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
+        ListHeaderComponent={
+          list.length > 0 ? (
+            <View style={styles.header}>
+              <Card elevation="none" style={{ backgroundColor: theme.surface }}>
+                <View style={styles.progressRow}>
+                  <View style={styles.progressText}>
+                    <Text variant="heading">
+                      {unlocked} / {list.length}
+                    </Text>
+                    <Text variant="caption" color="textMuted">
+                      {list.length > 0 ? Math.round((unlocked / list.length) * 100) : 0}% complete
+                    </Text>
+                  </View>
+                  {unlocked === list.length && list.length > 0 && (
+                    <Ionicons name="trophy" size={28} color={theme.platinum} />
+                  )}
+                </View>
+
+                <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
+                  <View
+                    style={[
+                      styles.fill,
+                      {
+                        backgroundColor: theme.success,
+                        width: `${list.length ? (unlocked / list.length) * 100 : 0}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </Card>
+
+              {canSync && (
+                <Button
+                  title={steamId ? 'Sync from Steam' : 'Link SteamID to sync'}
+                  variant="secondary"
+                  onPress={() => sync.mutate()}
+                  loading={sync.isPending}
+                  disabled={!steamId}
+                  fullWidth
+                />
+              )}
+
+              {sync.isSuccess && (
+                <Text variant="caption" color="success">
+                  Synced {sync.data.unlocked} of {sync.data.total} achievements from Steam.
+                </Text>
+              )}
+
+              {error && (
+                <Text variant="caption" color="danger">
+                  {error instanceof Error ? error.message : 'Something went wrong.'}
+                </Text>
+              )}
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => {
+          const isUnlocked = !!item.unlocked_at;
+          return (
+            <PressableScale
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isUnlocked }}
+              disabled={!userId || toggle.isPending}
+              onPress={() => toggle.mutate({ achievementId: item.id, unlocked: !isUnlocked })}
+              scaleTo={0.99}
+              style={[styles.row, { backgroundColor: theme.surface }]}>
+              {item.icon_url ? (
+                <Image
+                  source={{ uri: item.icon_url }}
+                  style={[
+                    styles.icon,
+                    { backgroundColor: theme.surfaceElevated, opacity: isUnlocked ? 1 : 0.35 },
+                  ]}
+                  contentFit="cover"
+                  transition={150}
+                  accessibilityIgnoresInvertColors
+                />
+              ) : (
+                <View style={[styles.icon, { backgroundColor: theme.surfaceElevated }]}>
+                  <Ionicons
+                    name="medal-outline"
+                    size={20}
+                    color={isUnlocked ? theme.accent : theme.textMuted}
+                  />
+                </View>
+              )}
+
+              <View style={styles.rowBody}>
+                <Text variant="bodyStrong" color={isUnlocked ? 'text' : 'textSecondary'}>
+                  {item.name}
+                </Text>
+                {item.description && (
+                  <Text variant="caption" color="textMuted" numberOfLines={2}>
+                    {item.description}
+                  </Text>
+                )}
+                {item.global_percent !== null && (
+                  <Text variant="micro" color="textMuted">
+                    {item.global_percent.toFixed(1)}% of players
+                  </Text>
+                )}
+              </View>
+
+              <Ionicons
+                name={isUnlocked ? 'checkmark-circle' : 'ellipse-outline'}
+                size={22}
+                color={isUnlocked ? theme.success : theme.borderStrong}
+              />
+            </PressableScale>
+          );
+        }}
+        ListEmptyComponent={
+          <EmptyState
+            title="No achievements loaded"
+            message={
+              isSteamGame
+                ? 'Fetch this game’s achievement list from Steam, then tick off the ones you have earned.'
+                : 'This provider does not publish achievement data. IGDB games have none; try the Steam or RAWG version of this game.'
+            }
+            action={
+              <Button
+                title="Load achievements"
+                onPress={() => load.mutate()}
+                loading={load.isPending}
+              />
+            }
+          />
+        }
+      />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { padding: Spacing.four, gap: Spacing.two, paddingBottom: Spacing.seven },
+  emptyContent: { flexGrow: 1 },
+  header: { gap: Spacing.three, marginBottom: Spacing.four },
+  progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressText: { gap: Spacing.half },
+  track: { height: 6, borderRadius: Radius.pill, marginTop: Spacing.three, overflow: 'hidden' },
+  fill: { height: '100%', borderRadius: Radius.pill },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: Radius.medium,
+  },
+  icon: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.small,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowBody: { flex: 1, gap: Spacing.half },
+});

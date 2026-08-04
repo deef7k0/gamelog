@@ -213,7 +213,7 @@ function StatisticsTab({
   return (
     <ScrollView contentContainerStyle={styles.statsBody} showsVerticalScrollIndicator={false}>
       <View style={styles.statsStack}>
-        <View style={[styles.statGrid, { backgroundColor: theme.surface }]}>
+        <View style={[styles.statGrid, { borderTopColor: theme.border }]}>
           <StatCell label="Games owned" value={data.totalGames.toLocaleString()} />
           <StatCell label="Total playtime" value={formatPlaytime(data.totalPlaytimeMinutes)} />
           <StatCell
@@ -299,8 +299,8 @@ const styles = StyleSheet.create({
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    borderRadius: Radius.large,
-    padding: Spacing.four,
+    paddingTop: Spacing.four,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   statCell: { width: '50%', gap: 1, paddingVertical: Spacing.two },
   section: { gap: Spacing.two },

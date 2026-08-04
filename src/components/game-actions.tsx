@@ -6,7 +6,7 @@ import { Share, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getListMembership, saveLog, toggleSingletonMembership } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
@@ -18,6 +18,31 @@ export type GameActionsProps = {
   /** The viewer's existing log, if any — drives the Playing/Played toggles. */
   log: GameLog | null;
 };
+
+/**
+ * Whether a game is still in the future.
+ *
+ * Derived at render from `releaseDate` rather than stored, which is what makes
+ * the page "update itself": the game query has a 30-minute `staleTime`, so the
+ * first visit after launch day refetches, the date is no longer ahead of now,
+ * and every hidden control reappears. No release-tracking service, no webhook,
+ * no polling — the answer was always in the data IGDB already returns.
+ *
+ * A missing date means *unknown*, not unreleased. A game with no announced date
+ * keeps its actions rather than being locked out on a technicality.
+ */
+export function isUnreleased(game: Pick<Game, 'releaseDate'>): boolean {
+  if (!game.releaseDate) return false;
+  const released = Date.parse(game.releaseDate);
+  return Number.isFinite(released) && released > Date.now();
+}
+
+/** "14 March 2027", or the year alone when IGDB only has that much. */
+export function formatReleaseDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 /**
  * The quick-action row on a game page: review, favourite, wishlist, mark
@@ -88,8 +113,30 @@ export function GameActions({ game, log }: GameActionsProps) {
   const wishlisted = membership.data?.wishlisted ?? false;
   const error = toggleList.error ?? setStatus.error;
 
+  /*
+   * An unreleased game drops everything that asserts you have played it.
+   *
+   * "Playing", "Played" and "Write a review" are all claims about a game nobody
+   * can have touched yet, and a status written now would be a lie the feed
+   * repeats. Favourite and Wishlist stay: wanting a game before it exists is
+   * exactly what a wishlist is for.
+   */
+  const unreleased = isUnreleased(game);
+
   return (
     <View style={styles.wrapper}>
+      {unreleased && game.releaseDate && (
+        <View style={[styles.unreleased, { borderColor: theme.border }]}>
+          <Ionicons name="calendar-outline" size={16} color={theme.textSecondary} />
+          <View style={styles.unreleasedText}>
+            <Text variant="micro" color="textMuted">
+              PLANNED RELEASE
+            </Text>
+            <Text variant="bodyStrong">{formatReleaseDate(game.releaseDate)}</Text>
+          </View>
+        </View>
+      )}
+
       <View style={styles.row}>
         <Action
           icon="star"
@@ -99,48 +146,56 @@ export function GameActions({ game, log }: GameActionsProps) {
           label="Favourite"
           onPress={() => toggleList.mutate({ kind: 'favorites', next: !favorited })}
         />
+        {/* No tint: a wishlist is a list you are on or off, with no verdict
+            attached, so it takes the same one-step-lighter selected state as
+            every other control in the app. */}
         <Action
           icon="bookmark"
           outline="bookmark-outline"
           active={wishlisted}
-          tint={theme.primary}
           label="Wishlist"
           onPress={() => toggleList.mutate({ kind: 'wishlist', next: !wishlisted })}
         />
-        <Action
-          icon="game-controller"
-          outline="game-controller-outline"
-          active={log?.status === 'playing'}
-          tint={theme.success}
-          label="Playing"
-          onPress={() => setStatus.mutate('playing')}
-        />
-        <Action
-          icon="checkmark-circle"
-          outline="checkmark-circle-outline"
-          active={log?.status === 'played'}
-          tint={theme.primary}
-          label="Played"
-          onPress={() => setStatus.mutate('played')}
-        />
+        {!unreleased && (
+          <Action
+            icon="game-controller"
+            outline="game-controller-outline"
+            active={log?.status === 'playing'}
+            tint={theme.success}
+            label="Playing"
+            onPress={() => setStatus.mutate('playing')}
+          />
+        )}
+        {!unreleased && (
+          <Action
+            icon="checkmark-circle"
+            outline="checkmark-circle-outline"
+            active={log?.status === 'played'}
+            label="Played"
+            onPress={() => setStatus.mutate('played')}
+          />
+        )}
+        {/* Never active — sharing is an act, not a state. */}
         <Action
           icon="paper-plane"
           outline="paper-plane-outline"
           active={false}
-          tint={theme.textSecondary}
           label="Share"
           onPress={share}
         />
       </View>
 
       {/* The one primary button on the page — writing a review is what this
-          screen is for, and everything above it is a one-tap toggle. */}
-      <Button
-        title={log ? 'Edit your review' : 'Write a review'}
-        icon="create-outline"
-        fullWidth
-        onPress={() => router.push({ pathname: '/log/[id]', params: { id: game.id } })}
-      />
+          screen is for, and everything above it is a one-tap toggle. Absent
+          before release: there is nothing to review yet. */}
+      {!unreleased && (
+        <Button
+          title={log ? 'Edit your review' : 'Write a review'}
+          icon="create-outline"
+          fullWidth
+          onPress={() => router.push({ pathname: '/log/[id]', params: { id: game.id } })}
+        />
+      )}
 
       {error && (
         <Text variant="micro" color="danger">
@@ -151,6 +206,17 @@ export function GameActions({ game, log }: GameActionsProps) {
   );
 }
 
+/**
+ * One quick-action toggle.
+ *
+ * `tint` is the exception, not the default. Two of these carry meaning a
+ * greyscale state cannot: Favourite is the same judgement the rating scale's
+ * warm colour expresses, and Playing is a live status the app colours `success`
+ * wherever else it appears. The rest — Wishlist, Played, Share — had borrowed
+ * `primary` for no semantic reason and now take the ordinary one-step-lighter
+ * selected state, so the strip reads as four quiet controls and two meanings
+ * rather than five competing colours.
+ */
 function Action({
   icon,
   outline,
@@ -162,11 +228,21 @@ function Action({
   icon: keyof typeof Ionicons.glyphMap;
   outline: keyof typeof Ionicons.glyphMap;
   active: boolean;
-  tint: string;
+  /** Only for states whose meaning is the colour. Omit for everything else. */
+  tint?: string;
   label: string;
   onPress: () => void;
 }) {
   const theme = useTheme();
+
+  const background = active
+    ? tint
+      ? withAlpha(tint, 0.12)
+      : theme.surfaceSelected
+    : theme.surfaceElevated;
+  const border = active ? (tint ? withAlpha(tint, 0.4) : theme.borderStrong) : theme.border;
+  const glyph = active ? (tint ?? theme.text) : theme.textMuted;
+
   return (
     <PressableScale
       accessibilityRole="button"
@@ -178,19 +254,8 @@ function Action({
       {/* Same rectangle as every other control; only the fill and the edge move
           when it turns on, so five of these in a row stay a quiet strip until
           one of them is active. */}
-      <View
-        style={[
-          styles.actionIcon,
-          {
-            backgroundColor: active ? `${tint}1F` : theme.surfaceElevated,
-            borderColor: active ? `${tint}66` : theme.border,
-          },
-        ]}>
-        <Ionicons
-          name={active ? icon : outline}
-          size={20}
-          color={active ? tint : theme.textMuted}
-        />
+      <View style={[styles.actionIcon, { backgroundColor: background, borderColor: border }]}>
+        <Ionicons name={active ? icon : outline} size={20} color={glyph} />
       </View>
       <Text variant="micro" color={active ? 'text' : 'textMuted'}>
         {label}
@@ -201,6 +266,16 @@ function Action({
 
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.three },
+  unreleased: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  unreleasedText: { gap: 1 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   action: { alignItems: 'center', gap: Spacing.one, flex: 1 },
   actionIcon: {

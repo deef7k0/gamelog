@@ -13,6 +13,7 @@ import { ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
 import { PostCard } from '@/components/post-card';
 import { AchievementsWidget, FavoritesWidget } from '@/components/profile-widgets';
+import { StarredSongWidget } from '@/components/starred-song-widget';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -394,6 +395,12 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
               <AchievementsWidget stats={achievementStats.data} profileId={profileId} />
             </View>
 
+            {/* Renders nothing until someone pins a track, so it costs no
+                vertical space on a profile that has not used the feature. */}
+            <View style={styles.widgets}>
+              <StarredSongWidget profileId={profileId} />
+            </View>
+
             {toggleFollow.isError && (
               <Text variant="caption" color="danger">
                 {toggleFollow.error instanceof Error
@@ -480,7 +487,7 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
 
           {tab === 'about' && (
             <View style={styles.rowWrap}>
-              <Card elevation="none" style={{ backgroundColor: theme.surface }}>
+              <Card>
                 <View style={styles.about}>
                   <AboutRow label="Username" value={`@${person.username}`} />
                   {person.favorite_platform && (

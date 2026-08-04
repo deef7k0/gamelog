@@ -1,3 +1,9 @@
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
@@ -9,7 +15,7 @@ import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { HeaderBackdrop } from '@/components/ui/header-backdrop';
-import { Colors, Type } from '@/constants/theme';
+import { Colors, FontFamily, Type } from '@/constants/theme';
 import { useAuth } from '@/store/auth';
 
 SplashScreen.preventAutoHideAsync();
@@ -41,7 +47,18 @@ export default function RootLayout() {
    * recovery path. One awaited load before first paint replaces all of that, and
    * icons no longer flash in blank while the font arrives.
    */
-  const [fontsLoaded, fontError] = useFonts(Ionicons.font);
+  const [fontsLoaded, fontError] = useFonts({
+    ...Ionicons.font,
+    /*
+     * Inter, in the four weights the type scale uses. Each weight is a separate
+     * family on purpose — Android will not synthesise a bold from a custom
+     * font, so `fontWeight` on Inter silently renders regular. See `FontFamily`.
+     */
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   // Boot anyway if the font cannot be fetched — tofu glyphs beat a dead splash
   // screen, and in dev this usually just means the bundler is restarting.
@@ -101,7 +118,10 @@ export default function RootLayout() {
               headerShadowVisible: false,
               headerBackground: () => <HeaderBackdrop />,
               headerTintColor: palette.text,
-              headerTitleStyle: { fontSize: Type.section.fontSize, fontWeight: '700' },
+              headerTitleStyle: {
+                fontSize: Type.section.fontSize,
+                fontFamily: FontFamily.semibold,
+              },
             }}>
             <Stack.Protected guard={!!session}>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

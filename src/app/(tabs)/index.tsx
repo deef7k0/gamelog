@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
+import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getDiscoverFeed,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  badgeText: { color: '#FFFFFF', fontWeight: '700' },
+  badgeText: { color: '#FFFFFF', fontFamily: FontFamily.semibold },
   tabs: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
   tab: { paddingVertical: Spacing.three, paddingHorizontal: Spacing.five, borderBottomWidth: 2 },
   listContent: { padding: Spacing.four, paddingBottom: Spacing.seven },

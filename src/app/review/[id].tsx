@@ -1,23 +1,20 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { EngagementBar } from '@/components/engagement-bar';
-import { GameCase } from '@/components/game-case';
+import { GameCaseDisplay } from '@/components/game-case-display';
+import { ReviewMeta } from '@/components/review-meta';
 import { ReviewMetricsBreakdown } from '@/components/review-metrics';
 import { Avatar } from '@/components/ui/avatar';
+import { HeroArt } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { caseKeysFor } from '@/constants/platform-cases';
 import { parseReviewMetrics } from '@/constants/review-metrics';
-import { STATUS_LABEL, statusColor } from '@/constants/status';
-import { HeroAspectRatio, Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -85,20 +82,7 @@ export default function ReviewScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Hero: landscape key art, faded into the page so the header floats. */}
         <View style={styles.hero}>
-          {game?.hero_url && (
-            <Image
-              source={{ uri: game.hero_url }}
-              style={styles.heroImage}
-              contentFit="cover"
-              transition={280}
-              accessibilityIgnoresInvertColors
-            />
-          )}
-          <LinearGradient
-            colors={['transparent', theme.background]}
-            style={styles.heroFade}
-            pointerEvents="none"
-          />
+          <HeroArt uri={game?.hero_url} scrim />
         </View>
 
         {/* Game identity + score. The score is the loudest thing here. */}
@@ -107,11 +91,11 @@ export default function ReviewScreen() {
               here — unlike the review *cards* in feeds, which stay flat. */}
           <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
             <PressableScale accessibilityRole="button" scaleTo={0.97}>
-              <GameCase
+              <GameCaseDisplay
                 coverUrl={game?.cover_url}
                 heroUrl={game?.hero_url}
                 title={game?.title}
-                platform={caseKeysFor(game?.platforms)[0]}
+                platforms={game?.platforms}
                 size="medium"
               />
             </PressableScale>
@@ -125,10 +109,10 @@ export default function ReviewScreen() {
               {[game?.release_year, game?.developer].filter(Boolean).join(' · ')}
             </Text>
 
+            {/* No status here — `ReviewMeta` below states it beside the score,
+                and saying it twice in adjacent blocks makes it look like two
+                different facts. */}
             <View style={styles.mastheadMeta}>
-              <Text variant="micro" style={{ color: statusColor(review.status, theme) }}>
-                {STATUS_LABEL[review.status].toUpperCase()}
-              </Text>
               {review.platinum && (
                 <View style={styles.badge}>
                   <Ionicons name="trophy" size={11} color={theme.platinum} />
@@ -146,11 +130,15 @@ export default function ReviewScreen() {
           </View>
         </View>
 
-        {review.rating !== null && (
-          <View style={[styles.scoreBlock, { backgroundColor: theme.surface }]}>
-            <ScorePill score={review.rating} size="hero" showLabel />
-          </View>
-        )}
+        {/* The same block the feed card leads with, so a review looks like
+            itself whether you meet it in a list or open it. */}
+        <View style={styles.scoreBlock}>
+          <ReviewMeta
+            score={review.rating}
+            gameTitle={game?.title ?? 'Unknown game'}
+            status={review.status}
+          />
+        </View>
 
         {/* Only present when the reviewer scored by category — the headline
             number above is the mean of exactly these. */}
@@ -214,8 +202,6 @@ export default function ReviewScreen() {
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.seven },
   hero: { width: '100%' },
-  heroImage: { width: '100%', aspectRatio: HeroAspectRatio },
-  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' },
   masthead: {
     flexDirection: 'row',
     gap: Spacing.four,
@@ -231,12 +217,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
   },
   badge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  scoreBlock: {
-    marginHorizontal: Spacing.four,
-    marginTop: Spacing.four,
-    padding: Spacing.four,
-    borderRadius: Radius.large,
-  },
+  /* No container: the score pill is already a coloured block, and wrapping a
+     block in a block was the clearest bubble on the page. */
+  scoreBlock: { marginHorizontal: Spacing.four, marginTop: Spacing.four },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',

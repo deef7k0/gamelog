@@ -19,7 +19,7 @@ import {
   MAX_POST_LENGTH,
   readingMinutes,
 } from '@/constants/article-tags';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTheme } from '@/hooks/use-theme';
 import { cacheGame, createPost, uploadImages } from '@/lib/api';
@@ -251,7 +251,7 @@ export default function CreatePostScreen() {
                 style={StyleSheet.flatten([
                   styles.spoilerToggle,
                   {
-                    backgroundColor: hasSpoilers ? `${theme.accent}22` : theme.surface,
+                    backgroundColor: hasSpoilers ? `${theme.accent}22` : 'transparent',
                     borderColor: hasSpoilers ? theme.accent : theme.border,
                   },
                 ])}>
@@ -301,7 +301,7 @@ export default function CreatePostScreen() {
           )}
 
           {taggedGame && (
-            <View style={[styles.tagged, { backgroundColor: theme.surfaceElevated }]}>
+            <View style={[styles.tagged, { borderColor: theme.border }]}>
               <Poster
                 coverUrl={taggedGame.coverUrl}
                 heroUrl={taggedGame.heroUrl}
@@ -358,8 +358,7 @@ export default function CreatePostScreen() {
               <ScrollView
                 style={styles.pickerList}
                 keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled
-                contentContainerStyle={styles.pickerContent}>
+                nestedScrollEnabled>
                 {(gameResults.data ?? []).map((item) => (
                   <PressableScale
                     key={item.id}
@@ -372,7 +371,7 @@ export default function CreatePostScreen() {
                     scaleTo={0.98}
                     style={StyleSheet.flatten([
                       styles.pickerRow,
-                      { backgroundColor: theme.surface },
+                      { borderTopColor: theme.border },
                     ])}>
                     <Poster
                       coverUrl={item.coverUrl}
@@ -448,7 +447,7 @@ function Tool({
       scaleTo={0.96}
       style={StyleSheet.flatten([
         styles.tool,
-        { backgroundColor: theme.surface, borderColor: theme.border, opacity: disabled ? 0.5 : 1 },
+        { borderColor: theme.border, opacity: disabled ? 0.5 : 1 },
       ])}>
       <Ionicons name={icon} size={18} color={theme.textSecondary} />
       <Text variant="caption" color="textSecondary">
@@ -463,7 +462,7 @@ const styles = StyleSheet.create({
   content: { gap: Spacing.four, paddingVertical: Spacing.four, paddingBottom: Spacing.seven },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   composer: { minHeight: 140 },
-  headline: { fontSize: 20, fontWeight: '800' },
+  headline: { fontSize: 20, fontFamily: FontFamily.bold },
   articleBody: { minHeight: 300 },
   modes: { flexDirection: 'row', gap: Spacing.two },
   modeButton: {
@@ -505,12 +504,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* An attachment, so it keeps an edge: it has to look stuck *to* the post
+     rather than being another paragraph of it. */
   tagged: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
     padding: Spacing.two,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   taggedText: { flex: 1, gap: 1 },
   tools: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
@@ -525,13 +527,12 @@ const styles = StyleSheet.create({
   },
   picker: { gap: Spacing.two },
   pickerList: { maxHeight: 260 },
-  pickerContent: { gap: Spacing.one },
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.two,
-    borderRadius: Radius.medium,
+    paddingVertical: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   pickerText: { flex: 1, gap: 1 },
 });

@@ -37,9 +37,12 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
 1. `cp .env.example .env` and fill in the Supabase URL + anon key.
    `src/lib/supabase.ts` throws a clear error at import time if these are
    missing, so the app will not start without them.
-2. Run **both** migrations in `supabase/migrations/` in order, in the Supabase
-   SQL editor. Nothing works before this: there are no tables and every query
-   404s.
+2. Run every migration in `supabase/migrations/` in order, in the Supabase SQL
+   editor. Nothing works before this: there are no tables and every query 404s.
+   `0001`–`0011` are already applied to the current project; `0012` and `0013`
+   are not — without `0013` the Reviews/Collections/People tabs 404 on their
+   RPCs and collections cannot be liked.
+   `0006` must run **alone** — see the note in the file.
 3. Env vars are **inlined at build time**. After editing `.env`, restart with
    `npx expo start --clear` — a hot reload will not pick up the change.
 4. Deploy the IGDB Edge Function — it is now the app's **only** game source, so
@@ -81,13 +84,16 @@ src/
       posts.ts       posts, likes, comments
       lists.ts       lists, tier lists, favourites, wishlist
       notifications.ts
+      songs.ts       the one starred track per profile
       storage.ts     image upload
     supabase.ts      client + session persistence
   store/auth.ts      zustand auth state
 supabase/
   migrations/        0001 core, 0002 media+achievements, 0003 social,
                      0004 0-100 reviews, 0005 friends+wall, 0006 article kind,
-                     0007 events+articles, 0008 review metrics
+                     0007 events+articles, 0008 review metrics,
+                     0009 gaming accounts, 0010 collection tags, 0011 diary,
+                     0012 starred song, 0013 collection likes + ranking fns
                      (0006 must run alone — see the note in the file)
   functions/igdb/    Edge Function proxying IGDB
 ```
@@ -223,7 +229,11 @@ a conditional — the UI renders from `provider.capabilities`.
 - **Sections sync independently** with their own TTLs, because `profile` is one
   request and `achievements` is two *per owned game*. `achievements_synced_at`
   doubles as the resume cursor.
-- **No pricing API, anywhere.** Inventory carries `market_hash_name` — the join
+- **Steam is the only source of a game price.** IGDB has none; `fetchSteamPrice`
+  reads Steam's `price_overview` using the appid from IGDB's `external_games`.
+  Every other storefront shows a link and no number, which is the honest shape of
+  the data — never fill the gap from another platform's price.
+- **No inventory pricing API, anywhere.** Inventory carries `market_hash_name` — the join
   key every price service uses — and nothing else. Adding valuation later must
   not require re-syncing or a schema change.
 
@@ -295,9 +305,14 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   it to type embedded selects (`select('*, profile:profiles(*)')`). Leave it `[]`
   and every embed resolves to `SelectQueryError` instead of the joined row. Add
   an `FK<…>` entry for each foreign key you actually embed across.
-- **Likes and comments are polymorphic** over `(target_type, target_id)` so they
-  work on both posts and logs. Postgres cannot FK a polymorphic column, so
-  integrity is enforced by the `assert_target_exists` trigger — not a constraint.
+- **Likes and comments are polymorphic** over `(target_type, target_id)`. Likes
+  work on posts, logs **and lists**; comments still only on posts and logs, so
+  the two CHECK constraints deliberately differ. Postgres cannot FK a
+  polymorphic column, so integrity is enforced by the `assert_target_exists`
+  trigger — extend that function whenever you widen a CHECK, or a like can point
+  at a row that does not exist. `TargetType` is declared **once**, in
+  `database.types.ts`; `api/types.ts` re-exports it. It was declared twice, and
+  the copy silently kept `list` out of the barrel.
 - **Notifications are written by triggers, never by the client.** There is
   deliberately no INSERT policy on `notifications`; only the SECURITY DEFINER
   functions in 0003 can create them, so a user cannot forge one.

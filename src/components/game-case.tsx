@@ -4,8 +4,12 @@ import { memo, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { CASE_TEMPLATES, type PlatformKey } from '@/constants/platform-cases';
-import { Spacing } from '@/constants/theme';
+import {
+  CASE_TEMPLATE_SIZE,
+  CASE_TEMPLATES,
+  type CasePlatformKey,
+} from '@/constants/platform-cases';
+import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type GameCaseSize = 'small' | 'medium' | 'large';
@@ -17,17 +21,37 @@ const WIDTHS: Record<GameCaseSize, number> = {
   large: 232,
 };
 
+/**
+ * How tall a case face renders at a given width.
+ *
+ * For callers that have to reserve or overlap space before the case mounts.
+ * Excludes the spine, which extends sideways rather than down.
+ */
+export function caseHeightFor(width: number): number {
+  return (width / CASE_TEMPLATE_SIZE.width) * CASE_TEMPLATE_SIZE.height;
+}
+
 export type GameCaseProps = {
   /** Portrait box art. Falls back to `heroUrl`, then to a lettered placeholder. */
   coverUrl?: string | null;
   heroUrl?: string | null;
   /** Drives which template is used. */
-  platform: PlatformKey;
+  /** Console only — PC and mobile have no case. `<GameCaseDisplay>` decides. */
+  platform: CasePlatformKey;
   /** Printed down the spine. */
   title?: string | null;
   /** Optional badge — "Collector's Edition", "Deluxe". */
   edition?: string | null;
   size?: GameCaseSize;
+  /**
+   * Exact rendered width, overriding `size`.
+   *
+   * The three named sizes are fixed dp, which on a 320pt phone made the large
+   * case 73% of the screen width while the hero above it scaled freely — two
+   * elements in the same composition disagreeing about how big the screen is.
+   * A caller that knows the viewport passes a measured width instead.
+   */
+  width?: number;
   /**
    * Slight 3D turn, in degrees. 0 renders flat-on.
    *
@@ -63,12 +87,13 @@ export const GameCase = memo(function GameCase({
   title,
   edition,
   size = 'medium',
+  width: widthOverride,
   tilt = 6,
   showSpine = true,
 }: GameCaseProps) {
   const theme = useTheme();
   const template = CASE_TEMPLATES[platform];
-  const width = WIDTHS[size];
+  const width = widthOverride ?? WIDTHS[size];
 
   // Template pixels → dp. Every offset below rides on this one factor.
   const geometry = useMemo(() => {
@@ -214,8 +239,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     transform: [{ rotate: '90deg' }],
   },
-  spineTitle: { fontWeight: '700', flexShrink: 1 },
-  spineBrand: { fontWeight: '800', opacity: 0.85, letterSpacing: 0.5 },
+  spineTitle: { fontFamily: FontFamily.semibold, flexShrink: 1 },
+  spineBrand: { fontFamily: FontFamily.bold, opacity: 0.85, letterSpacing: 0.5 },
   cover: { position: 'absolute', overflow: 'hidden' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   edition: {

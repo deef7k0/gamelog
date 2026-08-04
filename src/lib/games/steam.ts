@@ -69,6 +69,13 @@ type SteamAppDetailsEntry = {
     release_date?: { coming_soon?: boolean; date?: string };
     screenshots?: { path_full?: string }[];
     platforms?: { windows?: boolean; mac?: boolean; linux?: boolean };
+    is_free?: boolean;
+    /** Store-formatted for the requested country; absent for free/delisted apps. */
+    price_overview?: {
+      final_formatted?: string;
+      initial_formatted?: string;
+      discount_percent?: number;
+    };
   };
 };
 
@@ -314,6 +321,67 @@ export async function fetchSteamUnlocks(
 
 export function isSteamAchievementSyncAvailable(): boolean {
   return webApiKey() !== null;
+}
+
+/**
+ * What a game costs on Steam.
+ *
+ * The only real price in the app. Steam's `appdetails` publishes a
+ * `price_overview` per appid and every other storefront this app links to —
+ * PlayStation, Microsoft, Nintendo, the App Store, Google Play — has no public
+ * price API at all, so those platforms get a store link and no number rather
+ * than a number that came from somewhere else.
+ *
+ * Returns the store's own formatted string (`"$59.99"`, `"19,99€"`) rather than
+ * a parsed amount: the currency, separator and symbol placement are all decided
+ * by the storefront for the caller's region, and re-formatting cents locally is
+ * how a price ends up subtly wrong in half the world.
+ *
+ * `null` covers free games, delisted apps, and the rate-limited case. The UI
+ * treats all three the same way — no price shown — because it cannot tell them
+ * apart and guessing "Free" from a missing field would be a claim.
+ */
+export type SteamPrice = {
+  /** Store-formatted final price, discount included. */
+  formatted: string;
+  /** Percentage off, 0 when not discounted. */
+  discountPercent: number;
+  /** Store-formatted pre-discount price, when discounted. */
+  wasFormatted: string | null;
+  isFree: boolean;
+};
+
+export async function fetchSteamPrice(
+  appId: string,
+  signal?: AbortSignal
+): Promise<SteamPrice | null> {
+  const url =
+    `${STORE_BASE}/appdetails?appids=${encodeURIComponent(appId)}` +
+    `&filters=price_overview,is_free&cc=${COUNTRY}&l=${LANGUAGE}`;
+
+  try {
+    const json = await fetchJson<Record<string, SteamAppDetailsEntry>>(url, signal);
+    const data = json[appId]?.data;
+    if (!data) return null;
+
+    if (data.is_free) {
+      return { formatted: 'Free to play', discountPercent: 0, wasFormatted: null, isFree: true };
+    }
+
+    const price = data.price_overview;
+    if (!price?.final_formatted) return null;
+
+    return {
+      formatted: price.final_formatted,
+      discountPercent: price.discount_percent ?? 0,
+      wasFormatted: price.discount_percent ? (price.initial_formatted ?? null) : null,
+      isFree: false,
+    };
+  } catch {
+    // Rate limited, offline, or CORS-blocked on web. A page without a price is
+    // fine; a page that failed to load because of one is not.
+    return null;
+  }
 }
 
 export const steamProvider: GameProvider = {

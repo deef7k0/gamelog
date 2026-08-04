@@ -327,6 +327,67 @@ export async function getCompanyGames(
   return (raw ?? []).map(toGame).map(toSearchResult);
 }
 
+// ---------------------------------------------------------------------------
+// Storefronts
+// ---------------------------------------------------------------------------
+
+/** One storefront listing for a game, keyed by IGDB's `external_games.category`. */
+export type GameStoreLink = {
+  /** IGDB category: 1 Steam, 11 Microsoft, 13 Apple, 15 Android, 36 PlayStation. */
+  category: number;
+  /** The store's own id. For Steam this is the appid, which unlocks pricing. */
+  uid: string;
+  url: string | null;
+};
+
+type IgdbExternal = { category?: number; uid?: string; url?: string };
+
+/**
+ * Where a game can actually be bought, per storefront.
+ *
+ * Queried through `games` with a nested `external_games` expansion rather than
+ * the `external_games` endpoint directly, so the Edge Function allowlist needs
+ * no change and no redeploy.
+ *
+ * This is the closest thing to pricing IGDB offers: it says *where* a game is
+ * sold and gives each store's own identifier, but never what it costs. The
+ * Steam `uid` is the one that goes further — it is the appid, and Steam's own
+ * store endpoint will quote a price for it.
+ */
+export async function getGameStores(
+  sourceId: string,
+  signal?: AbortSignal
+): Promise<GameStoreLink[]> {
+  const numeric = Number(sourceId);
+  if (!Number.isFinite(numeric)) return [];
+
+  try {
+    const raw = await igdbQuery<{ external_games?: IgdbExternal[] }[]>(
+      'games',
+      `fields external_games.category, external_games.uid, external_games.url;
+       where id = ${numeric};
+       limit 1;`,
+      signal
+    );
+
+    const entries = raw?.[0]?.external_games ?? [];
+    const seen = new Set<number>();
+    const links: GameStoreLink[] = [];
+
+    for (const entry of entries) {
+      if (entry.category === undefined || !entry.uid) continue;
+      // A game can list the same store twice (regional SKUs); the first wins.
+      if (seen.has(entry.category)) continue;
+      seen.add(entry.category);
+      links.push({ category: entry.category, uid: entry.uid, url: entry.url ?? null });
+    }
+    return links;
+  } catch {
+    // A missing store row is not worth failing the page over.
+    return [];
+  }
+}
+
 export type GameCharacter = {
   id: number;
   name: string;

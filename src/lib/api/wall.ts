@@ -23,7 +23,8 @@ export type ActivityKind =
   | 'platinum'
   | 'watching_event'
   | 'attending_event'
-  | 'diary';
+  | 'diary'
+  | 'commented';
 
 export type ActivityEntry = {
   id: string;
@@ -39,6 +40,19 @@ export type ActivityEntry = {
   eventName: string | null;
   /** Review score, for 'reviewed'. */
   score: number | null;
+  /** The review's headline, for 'reviewed'. */
+  reviewTitle: string | null;
+  /**
+   * Two lines' worth of what they actually wrote — the review body for
+   * 'reviewed', the comment for 'commented'.
+   *
+   * Not truncated here: the row renders it with `numberOfLines={2}`, which cuts
+   * on the real rendered width and appends the ellipsis itself. Truncating at a
+   * character count in SQL would guess at a width it cannot know.
+   */
+  excerpt: string | null;
+  /** Whose review was commented on, for 'commented'. */
+  targetAuthor: string | null;
   /** Target for navigation — a log id for reviews, a game id for diary entries. */
   refId: string | null;
 };
@@ -102,10 +116,24 @@ type LogRow = {
   id: string;
   game_id: string;
   rating: number | null;
+  review_title: string | null;
   review: string | null;
   platinum: boolean;
   created_at: string;
   game: Pick<CachedGame, 'id' | 'title' | 'cover_url' | 'hero_url'> | null;
+};
+
+type CommentRow = {
+  id: string;
+  target_id: string;
+  body: string;
+  created_at: string;
+  log: {
+    id: string;
+    review_title: string | null;
+    game: Pick<CachedGame, 'id' | 'title' | 'cover_url' | 'hero_url'> | null;
+    profile: Pick<Profile, 'username' | 'display_name'> | null;
+  } | null;
 };
 
 type ListItemRow = {
@@ -143,10 +171,12 @@ type FriendRow = {
 };
 
 async function getActivity(userId: string): Promise<ActivityEntry[]> {
-  const [logs, listItems, friends, attendance, diary] = await Promise.all([
+  const [logs, listItems, friends, attendance, diary, comments] = await Promise.all([
     supabase
       .from('logs')
-      .select(`id, game_id, rating, review, platinum, created_at, game:games(${GAME_FIELDS})`)
+      .select(
+        `id, game_id, rating, review_title, review, platinum, created_at, game:games(${GAME_FIELDS})`
+      )
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(30),
@@ -183,6 +213,27 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(20),
+
+    /*
+     * Comments the owner left on other people's reviews.
+     *
+     * Only `log` targets. A comment on a post has no game and no review behind
+     * it, so it would render as a bare sentence with nothing to show — and the
+     * post itself is already on its author's wall. The embed reaches through
+     * `comments.target_id` to the log, its game and its author in one request;
+     * the FK hint is needed because `target_id` is polymorphic and PostgREST
+     * cannot infer which table it points at.
+     */
+    supabase
+      .from('comments')
+      .select(
+        `id, target_id, body, created_at,
+         log:logs!inner(id, review_title, game:games(${GAME_FIELDS}), profile:profiles(username, display_name))`
+      )
+      .eq('user_id', userId)
+      .eq('target_type', 'log')
+      .order('created_at', { ascending: false })
+      .limit(20),
   ]);
 
   if (logs.error) throw new Error(logs.error.message);
@@ -190,6 +241,10 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
   if (friends.error) throw new Error(friends.error.message);
   if (attendance.error) throw new Error(attendance.error.message);
   if (diary.error) throw new Error(diary.error.message);
+  /* Comments are additive detail, not the wall itself. If the embed fails —
+     most likely because 0013's FK hint is not there yet — the wall still
+     renders everything else rather than erroring out whole. */
+  const commentRows = comments.error ? [] : ((comments.data ?? []) as unknown as CommentRow[]);
 
   const entries: ActivityEntry[] = [];
 
@@ -205,7 +260,29 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       listTitle: null,
       eventName: null,
       score: log.rating,
+      reviewTitle: log.review_title,
+      excerpt: kind === 'reviewed' ? log.review : null,
+      targetAuthor: null,
       refId: log.id,
+    });
+  }
+
+  for (const comment of commentRows) {
+    if (!comment.log) continue;
+    const author = comment.log.profile;
+    entries.push({
+      id: `comment:${comment.id}`,
+      kind: 'commented',
+      createdAt: comment.created_at,
+      game: comment.log.game,
+      person: null,
+      listTitle: null,
+      eventName: null,
+      score: null,
+      reviewTitle: comment.log.review_title,
+      excerpt: comment.body,
+      targetAuthor: author?.display_name ?? author?.username ?? null,
+      refId: comment.log.id,
     });
   }
 
@@ -224,6 +301,9 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       listTitle: list.kind === 'wishlist' ? null : list.title,
       eventName: null,
       score: null,
+      reviewTitle: null,
+      excerpt: null,
+      targetAuthor: null,
       refId: null,
     });
   }
@@ -241,6 +321,9 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       listTitle: null,
       eventName: null,
       score: null,
+      reviewTitle: null,
+      excerpt: null,
+      targetAuthor: null,
       refId: other.id,
     });
   }
@@ -256,6 +339,9 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       listTitle: null,
       eventName: event?.name ?? 'an event',
       score: null,
+      reviewTitle: null,
+      excerpt: null,
+      targetAuthor: null,
       refId: row.event_id,
     });
   }
@@ -271,6 +357,10 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       listTitle: null,
       eventName: null,
       score: null,
+      reviewTitle: null,
+      // A diary entry is writing too — preview it the way a review is.
+      excerpt: row.body,
+      targetAuthor: null,
       // The diary screen is keyed by (user, game), so the game id is what the
       // row needs to navigate — the entry's own id would not locate anything.
       refId: row.game_id,

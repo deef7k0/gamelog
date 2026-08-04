@@ -1,23 +1,26 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { gridItemWidth } from '@/components/gaming/game-tile';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { ListItem } from '@/lib/api';
 import type { ProfileAchievementStats } from '@/lib/database.types';
 
-const FAVORITE_POSTER = 52;
+/** Four across, edge to edge — the same rule every poster grid in the app uses. */
+const FAVORITE_COLUMNS = 4;
+const FAVORITE_GAP = Spacing.two;
 
 /**
- * Compact profile widgets.
+ * Profile widgets.
  *
- * Both sit between the profile header and the tab bar, so they have to earn
- * their vertical space — each is a single short row rather than a full section
- * with its own heading and horizontal rail.
+ * Neither sits in a card. They are sections of the profile, not objects
+ * floating on it, so a hairline and their own space separate them — which also
+ * hands the favourites row the full page width it needs.
  */
 
 export function FavoritesWidget({
@@ -30,9 +33,25 @@ export function FavoritesWidget({
   isSelf: boolean;
 }) {
   const theme = useTheme();
+  const { width } = useWindowDimensions();
+
+  /*
+   * Four covers spanning the page.
+   *
+   * They were a fixed 52dp, which left most of a phone's width empty and made
+   * someone's top four look like a footnote. This is the one thing on a profile
+   * people screenshot, so it takes the same width the collection and library
+   * grids take — about 83dp a cover on a 390dp phone rather than 52.
+   */
+  const posterWidth = gridItemWidth(
+    Math.min(width, MaxContentWidth),
+    FAVORITE_COLUMNS,
+    Spacing.four,
+    FAVORITE_GAP
+  );
 
   return (
-    <View style={[styles.widget, { backgroundColor: theme.surface }]}>
+    <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.widgetHead}>
         <View style={styles.widgetTitle}>
           <Ionicons name="star" size={13} color={theme.accent} />
@@ -54,29 +73,38 @@ export function FavoritesWidget({
 
       {items.length > 0 ? (
         <View style={styles.posters}>
-          {items.slice(0, 4).map((item) => (
+          {items.slice(0, FAVORITE_COLUMNS).map((item) => (
             <Link
               key={item.game_id}
               href={{ pathname: '/game/[id]', params: { id: item.game_id } }}
               asChild>
-              <PressableScale accessibilityRole="button" scaleTo={0.94}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={item.game?.title ?? 'Favourite game'}
+                scaleTo={0.94}>
                 <Poster
                   coverUrl={item.game?.cover_url}
                   heroUrl={item.game?.hero_url}
                   title={item.game?.title}
-                  width={FAVORITE_POSTER}
+                  width={posterWidth}
                   rounded="small"
                 />
               </PressableScale>
             </Link>
           ))}
+
           {/* Empty slots so the row keeps its shape below four picks. */}
-          {Array.from({ length: Math.max(0, 4 - items.length) }).map((_, index) => (
+          {Array.from({ length: Math.max(0, FAVORITE_COLUMNS - items.length) }).map((_, index) => (
             <View
               key={`slot-${index}`}
               style={[
                 styles.emptySlot,
-                { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+                {
+                  width: posterWidth,
+                  height: posterWidth / (2 / 3),
+                  backgroundColor: theme.surfaceElevated,
+                  borderColor: theme.border,
+                },
               ]}
             />
           ))}
@@ -108,7 +136,7 @@ export function AchievementsWidget({
   const theme = useTheme();
 
   const body = (
-    <View style={[styles.widget, { backgroundColor: theme.surface }]}>
+    <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.widgetHead}>
         <View style={styles.widgetTitle}>
           <Ionicons name="trophy" size={13} color={theme.platinum} />
@@ -126,7 +154,7 @@ export function AchievementsWidget({
         <Stat
           value={stats ? Math.round(stats.hours_played) : undefined}
           label="Hours"
-          tint={theme.primary}
+          tint={theme.text}
         />
       </View>
     </View>
@@ -162,13 +190,16 @@ function Stat({ value, label, tint }: { value?: number; label: string; tint: str
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  widget: { borderRadius: Radius.medium, padding: Spacing.three, gap: Spacing.two, flex: 1 },
+  widget: {
+    flex: 1,
+    gap: Spacing.three,
+    paddingTop: Spacing.four,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   widgetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   widgetTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  posters: { flexDirection: 'row', gap: Spacing.one + 2 },
+  posters: { flexDirection: 'row', gap: FAVORITE_GAP },
   emptySlot: {
-    width: FAVORITE_POSTER,
-    height: FAVORITE_POSTER / (2 / 3),
     borderRadius: Radius.small,
     borderWidth: StyleSheet.hairlineWidth,
     borderStyle: 'dashed',

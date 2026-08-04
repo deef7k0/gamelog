@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { FlatList, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CollectionHeader } from '@/components/collection-header';
+import { EngagementBar } from '@/components/engagement-bar';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
@@ -16,6 +17,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   deleteList,
+  getEngagement,
   getList,
   getProfile,
   removeFromList,
@@ -73,6 +75,13 @@ export default function ListDetailScreen() {
     queryKey: ['profile', list.data?.user_id],
     queryFn: () => getProfile(list.data!.user_id),
     enabled: !!list.data?.user_id,
+  });
+
+  // `getEngagement` is keyed by target, so one call covers this collection.
+  const engagement = useQuery({
+    queryKey: ['engagement', 'list', id, userId ?? null],
+    queryFn: async () => (await getEngagement('list', [id!], userId ?? null))[id!],
+    enabled: !!id,
   });
 
   function invalidate() {
@@ -218,6 +227,21 @@ export default function ListDetailScreen() {
         onDelete={isOwner ? () => destroy.mutate() : undefined}
       />
 
+      {/* Collections are likeable, and the like is what ranks them in Search →
+          Collections. The same polymorphic `likes` row a post or a review uses;
+          only the target type differs. Comments are deliberately not offered —
+          a collection is a shelf, not a thread. */}
+      {!isTierList && data.kind === 'list' && (
+        <View style={styles.controls}>
+          <EngagementBar
+            targetType="list"
+            targetId={data.id}
+            engagement={engagement.data}
+            shareMessage={`${data.title} — ${items.length} games on GameLog`}
+          />
+        </View>
+      )}
+
       {/* "Add games" is in the header's action row now, beside Share and
           Delete. A second full-width copy of it here was the same button
           twice, forty pixels apart.
@@ -308,10 +332,9 @@ export default function ListDetailScreen() {
         keyExtractor={(item) => item.game_id}
         contentContainerStyle={items.length === 0 ? styles.empty : styles.content}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
         ListHeaderComponent={header}
         renderItem={({ item, index }) => (
-          <View style={[styles.row, { backgroundColor: theme.surface }]}>
+          <View style={[styles.row, { borderTopColor: theme.border }]}>
             {data.is_ranked && !isTierList && (
               <Text variant="heading" color="textMuted" style={styles.rank}>
                 {index + 1}
@@ -452,8 +475,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   rank: { minWidth: 26, textAlign: 'center' },
   tierBadge: {

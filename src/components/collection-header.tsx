@@ -1,13 +1,12 @@
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { HeroArt } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { HeroAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { displayNameFor } from '@/lib/format';
 import type { ListItem, ListWithItems } from '@/lib/api';
@@ -52,32 +51,7 @@ export function CollectionHeader({
 
   return (
     <View>
-      <View style={styles.hero}>
-        {banner ? (
-          <Image
-            source={{ uri: banner }}
-            style={styles.heroImage}
-            contentFit="cover"
-            transition={260}
-            accessibilityIgnoresInvertColors
-          />
-        ) : (
-          <View style={[styles.heroImage, { backgroundColor: theme.surfaceElevated }]} />
-        )}
-
-        {/* Fades the art into the page so the title never sits on a busy crop. */}
-        <LinearGradient
-          colors={[withAlpha(theme.background, 0), theme.background]}
-          style={styles.heroFade}
-          pointerEvents="none"
-        />
-        {/* Keeps the floating back arrow and title readable over bright art. */}
-        <LinearGradient
-          colors={[withAlpha('#000000', 0.45), withAlpha('#000000', 0)]}
-          style={styles.heroScrim}
-          pointerEvents="none"
-        />
-      </View>
+      <HeroArt uri={banner} scrim />
 
       <View style={styles.body}>
         {owner && (
@@ -118,9 +92,7 @@ export function CollectionHeader({
         {tags.length > 0 && (
           <View style={styles.tags}>
             {tags.map((tag) => (
-              <View
-                key={tag}
-                style={[styles.tag, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View key={tag} style={[styles.tag, { borderColor: theme.border }]}>
                 <Text variant="micro" color="textSecondary">
                   {tag}
                 </Text>
@@ -181,10 +153,6 @@ function bannerFrom(items: ListItem[]): string | null {
 }
 
 const styles = StyleSheet.create({
-  hero: { width: '100%' },
-  heroImage: { width: '100%', aspectRatio: HeroAspectRatio },
-  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '65%' },
-  heroScrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '45%' },
   body: {
     paddingHorizontal: Spacing.four,
     gap: Spacing.three,

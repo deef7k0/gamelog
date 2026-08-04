@@ -8,7 +8,7 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { FontFamily, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Engagement, PostWithRelations } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
     marginTop: Spacing.one,
   },
   gameTagText: { flex: 1, gap: 1 },
-  strong: { fontWeight: '700' },
+  strong: { fontFamily: FontFamily.semibold },
 });

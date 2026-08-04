@@ -6,6 +6,7 @@
  */
 export * from './core';
 export * from './diary';
+export * from './discover';
 export * from './events';
 export * from './feed';
 export * from './friends';
@@ -14,5 +15,6 @@ export * from './wall';
 export * from './lists';
 export * from './notifications';
 export * from './posts';
+export * from './songs';
 export * from './storage';
 export * from './types';

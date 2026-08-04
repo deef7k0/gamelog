@@ -103,7 +103,7 @@ export function SteamSection({
   return (
     <View style={styles.section}>
       {/* --- Steam profile ------------------------------------------------ */}
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <View style={[styles.card, { borderTopColor: theme.border }]}>
         <View style={styles.identity}>
           <Avatar uri={account.avatarUrl} name={account.handle ?? 'Steam'} size={54} />
 
@@ -180,7 +180,7 @@ export function SteamSection({
       </View>
 
       {isPrivate && (
-        <View style={[styles.notice, { backgroundColor: theme.surface }]}>
+        <View style={[styles.notice, { borderColor: theme.border }]}>
           <Ionicons name="lock-closed-outline" size={15} color={theme.textMuted} />
           <Text variant="caption" color="textMuted" style={styles.noticeText}>
             Profile is Private — only what Steam shares publicly is shown here.
@@ -193,9 +193,9 @@ export function SteamSection({
 
       {/* --- Gaming stats ------------------------------------------------- */}
       {stats.isLoading ? (
-        <Skeleton width="100%" height={84} radius={Radius.large} />
+        <Skeleton width="100%" height={84} radius={Radius.small} />
       ) : stats.data ? (
-        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+        <View style={[styles.card, { borderTopColor: theme.border }]}>
           <View style={styles.statRow}>
             <Stat value={formatPlaytime(stats.data.totalPlaytimeMinutes)} label="Hours" />
             <Stat value={stats.data.gamesOwned.toLocaleString()} label="Games" />
@@ -553,7 +553,7 @@ function RailSkeleton({ size, portrait = false }: { size: number; portrait?: boo
 
 const styles = StyleSheet.create({
   section: { gap: Spacing.four, paddingTop: Spacing.four },
-  card: { borderRadius: Radius.large, padding: Spacing.four, gap: Spacing.three },
+  card: { paddingTop: Spacing.four, gap: Spacing.three, borderTopWidth: StyleSheet.hairlineWidth },
   identity: { flexDirection: 'row', gap: Spacing.three, alignItems: 'center' },
   identityBody: { flex: 1, gap: 2 },
   handleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
@@ -576,11 +576,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
   },
+  /* Still outlined: a privacy warning is an exception in the flow, not another
+     section of it, and a rule alone would file it as one. */
   notice: {
     flexDirection: 'row',
     gap: Spacing.two,
     padding: Spacing.three,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'flex-start',
   },
   noticeText: { flex: 1 },

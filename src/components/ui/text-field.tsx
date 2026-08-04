@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type TextFieldProps = TextInputProps & {
@@ -49,7 +49,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.two },
-  label: { fontSize: 14, fontWeight: '600' },
+  label: { fontSize: 13, fontFamily: FontFamily.semibold },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.medium,

@@ -196,7 +196,18 @@ export type ReviewMetricKey =
 /** Scores 0-100 by metric. An absent key means that metric was not scored. */
 export type ReviewMetrics = Partial<Record<ReviewMetricKey, number>>;
 
-export type TargetType = 'post' | 'log';
+/**
+ * What a like or a comment points at.
+ *
+ * `list` is likes-only — collections are likeable but not commentable, and the
+ * CHECK on `comments.target_type` still allows only the first two. Keeping one
+ * union means a comment call with a list id is a *runtime* rejection rather
+ * than a compile error; `LIKE_ONLY_TARGETS` below is the reminder.
+ */
+export type TargetType = 'post' | 'log' | 'list';
+
+/** Target types that accept likes but not comments. */
+export const LIKE_ONLY_TARGETS: readonly TargetType[] = ['list'];
 
 export type PostRow = {
   id: string;
@@ -282,6 +293,27 @@ export type DiaryEntryRow = {
   body: string;
   /** The day the entry is about, which may predate created_at. */
   entry_date: string;
+  created_at: string;
+  updated_at: string;
+};
+
+// --- 0012_starred_song.sql --------------------------------------------------
+
+/**
+ * One pinned track per profile. `user_id` is the primary key, which is what
+ * enforces the limit of one — see the migration.
+ */
+export type StarredSongRow = {
+  user_id: string;
+  /** iTunes track id. Not a foreign key: soundtracks are not in `games`. */
+  track_id: string;
+  title: string;
+  artist: string;
+  artwork_url: string | null;
+  /** 30-second AAC clip; null when iTunes has no preview for the track. */
+  preview_url: string | null;
+  game_id: string | null;
+  game_title: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -626,6 +658,15 @@ export type Database = {
           FK<'diary_entries_game_id_fkey', 'game_id', 'games', 'id'>,
         ];
       };
+      starred_songs: {
+        Row: StarredSongRow;
+        Insert: Insert<StarredSongRow, 'created_at' | 'updated_at'>;
+        Update: Partial<StarredSongRow>;
+        Relationships: [
+          FK<'starred_songs_user_id_fkey', 'user_id', 'profiles', 'id'>,
+          FK<'starred_songs_game_id_fkey', 'game_id', 'games', 'id'>,
+        ];
+      };
       // --- 0009 linked gaming accounts ---------------------------------------
       // No Insert/Update reaches these from the client: they have no INSERT or
       // UPDATE policies, because `external_id` is only trustworthy when the
@@ -691,7 +732,34 @@ export type Database = {
         Relationships: [];
       };
     };
-    Functions: Record<never, never>;
+    /*
+     * The discovery functions from 0013. PostgREST cannot order a resource by
+     * an aggregate over an embedded one, so "most-liked collections" has to be
+     * a function; each returns ids plus a ranking number and the client
+     * re-selects the rows it already knows how to select.
+     */
+    Functions: {
+      popular_reviews: {
+        Args: { p_limit?: number };
+        Returns: { log_id: string; like_count: number }[];
+      };
+      popular_collections: {
+        Args: { p_limit?: number };
+        Returns: { list_id: string; like_count: number; item_count: number }[];
+      };
+      top_reviewers: {
+        Args: { p_limit?: number };
+        Returns: { user_id: string; review_count: number }[];
+      };
+      popular_users: {
+        Args: { p_limit?: number };
+        Returns: { user_id: string; like_count: number }[];
+      };
+      recommended_users: {
+        Args: { p_viewer: string; p_limit?: number };
+        Returns: { user_id: string; shared_games: number; affinity: number }[];
+      };
+    };
     Enums: { log_status: LogStatus };
     CompositeTypes: Record<never, never>;
   };

@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, StyleSheet, Text, View, type PressableProps } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
      enough to explain why it is there. */
   inert: { opacity: 0.45 },
   content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  label: { fontSize: 15, fontWeight: '600' },
+  label: { fontSize: 15, fontFamily: FontFamily.semibold },
   labelSmall: { fontSize: 13 },
   count: {
     minWidth: 22,
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countLabel: { fontSize: 11, fontWeight: '600' },
+  countLabel: { fontSize: 11, fontFamily: FontFamily.semibold },
   spinner: {
     position: 'absolute',
     top: 0,

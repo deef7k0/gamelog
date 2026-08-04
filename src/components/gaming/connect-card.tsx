@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAccountLink } from '@/hooks/use-gaming';
 import type { GamingProvider } from '@/lib/database.types';
@@ -45,7 +45,7 @@ export function ConnectAccountCard({
   const error = link.error ?? unlink.error;
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View style={[styles.card, { borderTopColor: theme.border }]}>
       <View style={styles.head}>
         <Ionicons name={PROVIDER_ICONS[provider]} size={22} color={theme.text} />
         <View style={styles.headText}>
@@ -94,7 +94,11 @@ export function ConnectAccountCard({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: Radius.large, padding: Spacing.four, gap: Spacing.three },
+  card: {
+    paddingVertical: Spacing.four,
+    gap: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   head: { flexDirection: 'row', gap: Spacing.three, alignItems: 'flex-start' },
   headText: { flex: 1, gap: 2 },
 });

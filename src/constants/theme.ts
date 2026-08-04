@@ -126,24 +126,38 @@ export function withAlpha(color: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/**
+ * Inter, in four weights, and nothing else.
+ *
+ * **Weight is a family here, not a `fontWeight`.** React Native on Android will
+ * not synthesise a bold from a custom font: `fontFamily: 'Inter_400Regular'`
+ * plus `fontWeight: '700'` renders regular, silently, and the bug only shows on
+ * one platform. Every weight is therefore a separate loaded family, and nothing
+ * in the app should set `fontWeight` on text again — reach for one of these.
+ *
+ * Four weights because the system uses three: 400 for reading, 500 for small
+ * dense metadata, 600 for anything that has to be picked out of a page. 700 is
+ * reserved for the two largest steps, which are page titles.
+ */
+export const FontFamily = {
+  regular: 'Inter_400Regular',
+  medium: 'Inter_500Medium',
+  semibold: 'Inter_600SemiBold',
+  bold: 'Inter_700Bold',
+} as const;
+
 export const Fonts = Platform.select({
   ios: {
-    sans: 'system-ui',
+    sans: FontFamily.regular,
     serif: 'ui-serif',
-    rounded: 'ui-rounded',
+    rounded: FontFamily.regular,
     mono: 'ui-monospace',
   },
   default: {
-    sans: 'normal',
+    sans: FontFamily.regular,
     serif: 'serif',
-    rounded: 'normal',
+    rounded: FontFamily.regular,
     mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
   },
 });
 
@@ -163,8 +177,9 @@ export const Spacing = {
   eight: 64,
 } as const;
 
-/** Generous radii — the brief calls for rounded corners throughout. */
 export const Radius = {
+  /** Box art. Just enough to not be a hard corner — a real case is nearly square. */
+  xs: 4,
   small: 8,
   /**
    * Buttons, icon buttons, segmented controls.
@@ -182,18 +197,32 @@ export const Radius = {
 } as const;
 
 /**
- * Type scale. Hierarchy matters more than raw size, so each step pairs a size
- * with a line height and weight that hold together.
+ * Type scale — Inter, deliberately small.
+ *
+ * Each step pairs a size, a line height and a *family* (see `FontFamily`: on
+ * Android the weight has to be the family or it is ignored).
+ *
+ * The scale ran a step larger for one revision and it was wrong on a phone: a
+ * single feed card filled the screen, and a review card's own score outweighed
+ * the box art beside it. This is a dense app — a feed row carries a name, a
+ * headline, a score, a verdict, a game, a cover and four lines of prose — and
+ * density is only legible if the type stays quiet. Body sits at 14, not 16.
+ *
+ * 700 appears exactly twice, on the two steps that are page titles. Everything
+ * else is 400 for prose, 500 for dense metadata, 600 for anything that has to
+ * be picked out of a page. Hierarchy is carried by size and colour; reaching
+ * for a heavier weight to make something matter is how a screen ends up with
+ * six competing emphases.
  */
 export const Type = {
-  display: { fontSize: 34, lineHeight: 40, fontWeight: '800' },
-  title: { fontSize: 26, lineHeight: 32, fontWeight: '800' },
-  heading: { fontSize: 20, lineHeight: 26, fontWeight: '700' },
-  section: { fontSize: 17, lineHeight: 22, fontWeight: '700' },
-  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
-  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
-  caption: { fontSize: 13, lineHeight: 18, fontWeight: '500' },
-  micro: { fontSize: 11, lineHeight: 14, fontWeight: '600' },
+  display: { fontSize: 30, lineHeight: 36, fontFamily: FontFamily.bold },
+  title: { fontSize: 22, lineHeight: 28, fontFamily: FontFamily.bold },
+  heading: { fontSize: 18, lineHeight: 23, fontFamily: FontFamily.semibold },
+  section: { fontSize: 15, lineHeight: 20, fontFamily: FontFamily.semibold },
+  body: { fontSize: 14, lineHeight: 21, fontFamily: FontFamily.regular },
+  bodyStrong: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.semibold },
+  caption: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.medium },
+  micro: { fontSize: 11, lineHeight: 14, fontFamily: FontFamily.semibold },
 } as const;
 
 /**
@@ -240,5 +269,19 @@ export const Motion = {
 export const PosterAspectRatio = 2 / 3;
 /** Landscape key art (Steam headers, IGDB artworks). */
 export const HeroAspectRatio = 16 / 9;
+
+/**
+ * How much of the display a full-bleed hero fills.
+ *
+ * Sized against the screen rather than the art's own 16:9, because the hero is
+ * the page's opening statement and 16:9 on a tall phone is a 26%-high band — a
+ * banner above the content rather than a backdrop behind it. At 38% the art
+ * carries the top of the screen the way it does on a store page.
+ *
+ * The trade is a centre crop: a 16:9 source shown at ~1.2:1 loses its outer
+ * thirds. Key art is composed centrally, and `heroHeightFor` never returns less
+ * than the untouched 16:9 height, so wide displays keep the whole frame.
+ */
+export const HeroHeightRatio = 0.38;
 
 export const MaxContentWidth = 800;

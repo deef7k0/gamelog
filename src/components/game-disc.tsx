@@ -120,7 +120,7 @@ export const GameDisc = memo(function GameDisc({
           pointerEvents="none"
         />
         <LinearGradient
-          colors={['transparent', 'rgba(120,190,255,0.16)', 'transparent']}
+          colors={['rgba(120,190,255,0)', 'rgba(120,190,255,0.16)', 'rgba(120,190,255,0)']}
           start={{ x: 1, y: 0.1 }}
           end={{ x: 0, y: 0.9 }}
           style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]}

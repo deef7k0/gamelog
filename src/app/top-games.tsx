@@ -1,16 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
+import { HeroArt } from '@/components/ui/hero-art';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { HeroAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { getPopularGames } from '@/lib/news';
 import type { ChartBasis } from '@/lib/news';
 
@@ -35,7 +33,6 @@ const GAP = Spacing.three;
  * with the word "week" quietly contradicting them.
  */
 export default function TopGamesScreen() {
-  const theme = useTheme();
   const { width } = useWindowDimensions();
 
   const chart = useQuery({
@@ -79,30 +76,7 @@ export default function TopGamesScreen() {
         )}
         ListHeaderComponent={
           <View style={styles.hero}>
-            {lead?.heroUrl || lead?.coverUrl ? (
-              <Image
-                source={{ uri: lead.heroUrl ?? lead.coverUrl! }}
-                style={styles.heroImage}
-                contentFit="cover"
-                transition={280}
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <View style={[styles.heroImage, { backgroundColor: theme.surfaceElevated }]} />
-            )}
-
-            {/* Two ramps: one to sink the art into the page, one to hold the
-                headline up against whatever the number one's art happens to be. */}
-            <LinearGradient
-              colors={[withAlpha(theme.background, 0), theme.background]}
-              style={styles.heroFade}
-              pointerEvents="none"
-            />
-            <LinearGradient
-              colors={[withAlpha('#000000', 0.55), withAlpha('#000000', 0)]}
-              style={styles.heroScrim}
-              pointerEvents="none"
-            />
+            <HeroArt uri={lead?.heroUrl ?? lead?.coverUrl} scrim />
 
             <View style={styles.headline}>
               <Text variant="micro" style={styles.onImage}>
@@ -154,9 +128,6 @@ const styles = StyleSheet.create({
   column: { gap: GAP },
   /* Cancels the list's own padding so the art reaches both edges. */
   hero: { marginHorizontal: -Spacing.four, marginBottom: Spacing.four },
-  heroImage: { width: '100%', aspectRatio: HeroAspectRatio },
-  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '65%' },
-  heroScrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '45%' },
   headline: { position: 'absolute', left: Spacing.four, right: Spacing.four, bottom: Spacing.four },
   onImage: { color: '#FFFFFF' },
   skeleton: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },

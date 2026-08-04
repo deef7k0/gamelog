@@ -9,7 +9,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   addComment,
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   commentBody: { flex: 1, gap: Spacing.one },
   commentHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   commentActions: { flexDirection: 'row', gap: Spacing.four, marginTop: 2 },
-  strong: { fontWeight: '700' },
+  strong: { fontFamily: FontFamily.semibold },
   composer: { padding: Spacing.three, gap: Spacing.two, borderTopWidth: StyleSheet.hairlineWidth },
   replyingTo: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.two },

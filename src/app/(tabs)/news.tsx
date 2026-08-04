@@ -1,27 +1,18 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { Fragment, useState } from 'react';
-import {
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { useState } from 'react';
+import { FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CoverTile } from '@/components/cover-tile';
-import { RecommendationRail, TopTenWidget } from '@/components/discover';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { GameListItem } from '@/components/game-list-item';
 import { ArticleCard, EventCard, TrailerCard } from '@/components/news-cards';
-import { Dock, DockItem, DockSeparator } from '@/components/ui/dock';
+import { Dock, DockItem } from '@/components/ui/dock';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
-  getDiscoverGames,
   getGameEvents,
   getGamingNews,
   getNewReleases,
@@ -29,16 +20,13 @@ import {
   getRecentTrailers,
   getUpcomingReleases,
 } from '@/lib/news';
-import { getRecommendations } from '@/lib/news/recommendations';
-import { useAuth } from '@/store/auth';
 
-type NewsTab = 'news' | 'trailers' | 'releases' | 'charts' | 'events' | 'discover';
+type NewsTab = 'news' | 'trailers' | 'releases' | 'charts' | 'events';
 
 const TABS: { key: NewsTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  // Discover leads: it is the only tab personalised to the reader, so it is what
-  // the screen should open on. The rest are chronological firehoses that are
-  // equally useful whenever you reach them — hence the separator after it.
-  { key: 'discover', label: 'Discover', icon: 'sparkles' },
+  // Chronological firehoses, all equally useful whenever you reach them.
+  // Discover moved to the Search tab: it answers "what should I play",
+  // which is a search question, not a news one.
   { key: 'news', label: 'News', icon: 'newspaper' },
   { key: 'trailers', label: 'Trailers', icon: 'play-circle' },
   { key: 'releases', label: 'Releases', icon: 'calendar' },
@@ -63,28 +51,7 @@ const CHART_GAP = Spacing.three;
 export default function NewsScreen() {
   const theme = useTheme();
   const { width } = useWindowDimensions();
-  const [tab, setTab] = useState<NewsTab>('discover');
-
-  const viewerId = useAuth((state) => state.session?.user.id) ?? null;
-
-  /*
-   * The Top 10 widget shares its query key with the standalone Top 10 screen,
-   * so tapping through to it is instant and neither can show a different ten
-   * from the other.
-   */
-  const topTen = useQuery({
-    queryKey: ['popular-games', 10],
-    queryFn: ({ signal }) => getPopularGames(10, signal),
-    enabled: tab === 'discover',
-    staleTime: 30 * 60_000,
-  });
-
-  const recommendations = useQuery({
-    queryKey: ['discover-recommendations', viewerId],
-    queryFn: ({ signal }) => getRecommendations(viewerId!, signal),
-    enabled: tab === 'discover' && !!viewerId,
-    staleTime: 15 * 60_000,
-  });
+  const [tab, setTab] = useState<NewsTab>('news');
 
   const news = useQuery({
     queryKey: ['news', 'articles'],
@@ -128,29 +95,11 @@ export default function NewsScreen() {
     staleTime: 60 * 60_000,
   });
 
-  const discover = useQuery({
-    queryKey: ['news', 'discover'],
-    queryFn: ({ signal }) => getDiscoverGames(signal),
-    enabled: tab === 'discover',
-    staleTime: 60 * 60_000,
-  });
-
-  const active = {
-    news,
-    trailers,
-    releases: newReleases,
-    charts,
-    events,
-    discover,
-  }[tab];
+  const active = { news, trailers, releases: newReleases, charts, events }[tab];
 
   function renderBody() {
-    // Discover composes several independent queries and skeletons them
-    // individually, so it must not be gated on one aggregate loading flag.
-    if (tab !== 'discover') {
-      if (active.isLoading) return <LoadingState />;
-      if (active.isError) return <ErrorState error={active.error} />;
-    }
+    if (active.isLoading) return <LoadingState />;
+    if (active.isError) return <ErrorState error={active.error} />;
 
     switch (tab) {
       case 'news':
@@ -251,41 +200,6 @@ export default function NewsScreen() {
             empty="No events listed. If this stays empty, redeploy the igdb Edge Function so it permits the events endpoint."
           />
         );
-
-      case 'discover':
-        return (
-          <ScrollView
-            contentContainerStyle={styles.discover}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={discover.isRefetching || topTen.isRefetching}
-                onRefresh={() => {
-                  discover.refetch();
-                  topTen.refetch();
-                  recommendations.refetch();
-                }}
-                tintColor={theme.primary}
-              />
-            }>
-            <TopTenWidget entries={topTen.data?.entries ?? []} loading={topTen.isLoading} />
-
-            {(recommendations.data ?? []).map((module) => (
-              <RecommendationRail key={module.id} module={module} />
-            ))}
-
-            {/* Falls back to critically-acclaimed titles for a reader with
-                nothing logged yet, so Discover is never an empty screen. */}
-            <View style={styles.discoverSection}>
-              <Text variant="bodyStrong">
-                {(recommendations.data ?? []).length > 0 ? 'Highly rated' : 'Start here'}
-              </Text>
-              {(discover.data ?? []).slice(0, 20).map((game) => (
-                <GameListItem key={game.id} game={game} />
-              ))}
-            </View>
-          </ScrollView>
-        );
     }
   }
 
@@ -302,21 +216,18 @@ export default function NewsScreen() {
 
       <View style={styles.dockRow}>
         <Dock>
-          {TABS.map((entry, index) => (
-            <Fragment key={entry.key}>
-              {/* Discover is personalised; everything after it is a feed. */}
-              {index === 1 && <DockSeparator />}
-              <DockItem
-                active={tab === entry.key}
-                onPress={() => setTab(entry.key)}
-                accessibilityLabel={entry.label}>
-                <Ionicons
-                  name={entry.icon}
-                  size={19}
-                  color={tab === entry.key ? theme.text : theme.textMuted}
-                />
-              </DockItem>
-            </Fragment>
+          {TABS.map((entry) => (
+            <DockItem
+              key={entry.key}
+              active={tab === entry.key}
+              onPress={() => setTab(entry.key)}
+              accessibilityLabel={entry.label}>
+              <Ionicons
+                name={entry.icon}
+                size={19}
+                color={tab === entry.key ? theme.text : theme.textMuted}
+              />
+            </DockItem>
           ))}
         </Dock>
       </View>
@@ -363,12 +274,6 @@ function List<T>({
 }
 
 const styles = StyleSheet.create({
-  discover: {
-    padding: Spacing.four,
-    paddingBottom: Spacing.seven,
-    gap: Spacing.five,
-  },
-  discoverSection: { gap: Spacing.two },
   appBar: { paddingHorizontal: Spacing.four, paddingTop: Spacing.three },
   dockRow: { paddingVertical: Spacing.three },
   content: { padding: Spacing.four, paddingBottom: Spacing.seven },

@@ -1,63 +1,85 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { GameCase, type GameCaseSize } from '@/components/game-case';
-import { PressableScale } from '@/components/ui/pressable-scale';
-import { Text } from '@/components/ui/text';
-import { CASE_TEMPLATES, caseKeysFor, platformKeyFor } from '@/constants/platform-cases';
-import { Radius, Spacing } from '@/constants/theme';
+import { GameCase, caseHeightFor, type GameCaseSize } from '@/components/game-case';
+import { Poster } from '@/components/ui/poster';
+import {
+  hasCase,
+  platformKeyFor,
+  platformKeysFor,
+  type PlatformKey,
+} from '@/constants/platform-cases';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+
+/** Case widths, mirrored so a cover can stand in at the same visual size. */
+const COVER_WIDTHS: Record<GameCaseSize, number> = {
+  small: 108,
+  medium: 168,
+  large: 232,
+};
 
 export type GameCaseDisplayProps = {
   coverUrl?: string | null;
   heroUrl?: string | null;
   title?: string | null;
-  /** Every platform the game is on; drives which cases are offered. */
+  /** Every platform the game is on. Used only when `platform` is not given. */
   platforms?: string[] | null;
   /**
-   * The platform the viewer actually played on, if they logged one. Used as the
-   * initial selection so your own copy shows in your own format.
+   * Which platform to present as. Controlled — the game page owns this so the
+   * price and the store link change with the artwork.
    */
+  platform?: PlatformKey;
+  /** Fallback initial platform: the format the viewer logged, if any. */
   playedOn?: string | null;
   edition?: string | null;
   size?: GameCaseSize;
+  width?: number;
+  /** 3D turn on the case, in degrees. Ignored when the platform has no case. */
+  tilt?: number;
 };
 
 /**
- * A game case plus its platform switcher.
+ * A game's artwork, presented the way that platform actually ships.
  *
- * The case itself is a controlled, presentational component; selection state
- * lives here so the same picker works on every dedicated game screen without
- * each one reimplementing it.
+ * Console gets the physical case. PC and mobile get the bare portrait cover,
+ * because neither has had a box in years and rendering one is a costume rather
+ * than a memory — a PC player has never held that object.
+ *
+ * The cover is not left naked: on a near-black page a 2:3 crop of dark key art
+ * dissolves into the background, so it carries a hairline stroke and a soft
+ * ambient shadow. Enough to seat it on the page, not enough to imitate the
+ * case's physicality — the case has to stay the special one.
  */
 export function GameCaseDisplay({
   coverUrl,
   heroUrl,
   title,
   platforms,
+  platform,
   playedOn,
   edition,
   size = 'large',
+  width,
+  tilt,
 }: GameCaseDisplayProps) {
   const theme = useTheme();
 
-  const available = useMemo(() => caseKeysFor(platforms), [platforms]);
+  const available = useMemo(() => platformKeysFor(platforms), [platforms]);
 
-  // Prefer the format the viewer owns, but only if the game is actually on it.
-  const initial = useMemo(() => {
+  /*
+   * Uncontrolled fallback, for the screens that show artwork without a switcher
+   * (a review masthead, the log form). Prefers the format the viewer owns.
+   */
+  const fallback = useMemo(() => {
     const played = playedOn ? platformKeyFor(playedOn) : null;
     return played && available.includes(played) ? played : available[0];
   }, [playedOn, available]);
 
-  const [selected, setSelected] = useState(initial);
+  const active = platform ?? fallback;
 
-  // `platforms` can arrive after the first render (the detail query resolves
-  // later than the cached summary), so fall back rather than render a case the
-  // game is not on.
-  const active = available.includes(selected) ? selected : available[0];
-
-  return (
-    <View style={styles.wrapper}>
+  if (hasCase(active)) {
+    return (
       <GameCase
         coverUrl={coverUrl}
         heroUrl={heroUrl}
@@ -65,50 +87,38 @@ export function GameCaseDisplay({
         title={title}
         edition={edition}
         size={size}
+        width={width}
+        {...(tilt === undefined ? {} : { tilt })}
       />
+    );
+  }
 
-      {/* Only worth showing when there is genuinely a choice. */}
-      {available.length > 1 && (
-        <View style={styles.chips}>
-          {available.map((key) => {
-            const template = CASE_TEMPLATES[key];
-            const isActive = key === active;
-            return (
-              <PressableScale
-                key={key}
-                accessibilityRole="button"
-                accessibilityLabel={`Show ${template.label} case`}
-                accessibilityState={{ selected: isActive }}
-                onPress={() => setSelected(key)}
-                scaleTo={0.92}
-                style={StyleSheet.flatten([
-                  styles.chip,
-                  {
-                    backgroundColor: isActive ? `${template.accent}26` : theme.surface,
-                    borderColor: isActive ? template.accent : theme.border,
-                  },
-                ])}>
-                <Text
-                  variant="micro"
-                  style={{ color: isActive ? template.accent : theme.textMuted }}>
-                  {template.spineLabel}
-                </Text>
-              </PressableScale>
-            );
-          })}
-        </View>
-      )}
+  const coverWidth = width ?? COVER_WIDTHS[size];
+
+  return (
+    /* Matched to the case's rendered height so switching platforms does not
+       jump the whole masthead up and down. */
+    <View style={[styles.cover, { minHeight: caseHeightFor(coverWidth) }]}>
+      <View style={[styles.frame, Elevation.card, { borderColor: theme.borderStrong }]}>
+        <Poster
+          coverUrl={coverUrl}
+          heroUrl={heroUrl}
+          title={title}
+          width={coverWidth}
+          rounded="small"
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { alignItems: 'center', gap: Spacing.three },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, justifyContent: 'center' },
-  chip: {
-    paddingVertical: Spacing.one + 2,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Radius.pill,
+  cover: { alignItems: 'center', justifyContent: 'center' },
+  frame: {
+    borderRadius: Radius.small + 1,
     borderWidth: StyleSheet.hairlineWidth,
+    padding: 1,
+    overflow: 'hidden',
   },
+  wrapper: { alignItems: 'center', gap: Spacing.three },
 });

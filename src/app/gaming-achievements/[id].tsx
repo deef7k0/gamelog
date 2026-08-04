@@ -104,13 +104,12 @@ export default function GamingAchievementsScreen() {
         data={games}
         keyExtractor={(game) => game.appId}
         renderItem={({ item }) => <GameProgressRow game={item} userId={id} />}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.three }} />}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.header}>
             {stats.isLoading ? (
-              <Skeleton width="100%" height={96} radius={Radius.large} />
+              <Skeleton width="100%" height={96} radius={Radius.small} />
             ) : overall ? (
               <OverallCard stats={overall} />
             ) : null}
@@ -169,7 +168,7 @@ function OverallCard({
   const percent = completionPercent(stats.achievementsUnlocked, stats.achievementsTotal);
 
   return (
-    <View style={[styles.overall, { backgroundColor: theme.surface }]}>
+    <View style={[styles.overall, { borderTopColor: theme.border }]}>
       <View style={styles.overallRow}>
         <Metric value={stats.achievementsUnlocked.toLocaleString()} label="Unlocked" />
         <Metric value={`${percent}%`} label="Completion" tint={theme.success} />
@@ -287,7 +286,7 @@ function GameProgressRow({ game, userId }: { game: GameAchievementProgress; user
   });
 
   return (
-    <View style={[styles.gameCard, { backgroundColor: theme.surface }]}>
+    <View style={[styles.gameCard, { borderTopColor: theme.border }]}>
       <PressableScale
         accessibilityRole="button"
         accessibilityLabel={`${game.name}, ${game.unlocked} of ${game.total} unlocked`}
@@ -426,7 +425,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.seven },
   header: { gap: Spacing.five, paddingVertical: Spacing.four },
   listSkeleton: { gap: Spacing.three },
-  overall: { borderRadius: Radius.large, padding: Spacing.four, gap: Spacing.three },
+  overall: { paddingBottom: Spacing.four, gap: Spacing.three },
   overallRow: { flexDirection: 'row', justifyContent: 'space-between' },
   metric: { alignItems: 'center', gap: 1, flex: 1 },
   track: { height: 6, borderRadius: Radius.pill, overflow: 'hidden' },
@@ -445,11 +444,11 @@ const styles = StyleSheet.create({
   },
   showcaseImage: { width: '100%', height: '100%' },
   showcaseName: { textAlign: 'center' },
-  gameCard: { borderRadius: Radius.medium, overflow: 'hidden' },
+  gameCard: { borderTopWidth: StyleSheet.hairlineWidth },
   gameRow: {
     flexDirection: 'row',
     gap: Spacing.three,
-    padding: Spacing.three,
+    paddingVertical: Spacing.three,
     alignItems: 'center',
   },
   gameBody: { flex: 1, gap: Spacing.one + 2 },

@@ -154,7 +154,6 @@ export default function DiaryScreen() {
             keyExtractor={(entry) => entry.id}
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
-            ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
             renderItem={({ item }) => (
               <EntryRow entry={item} canDelete={isSelf} onDelete={() => remove.mutate(item.id)} />
             )}
@@ -243,7 +242,7 @@ function EntryRow({
   const { day, month, year } = diaryDateParts(entry.entry_date);
 
   return (
-    <View style={[styles.entry, { backgroundColor: theme.surface }]}>
+    <View style={[styles.entry, { borderTopColor: theme.border }]}>
       <View style={[styles.dateSquare, { backgroundColor: theme.surfaceElevated }]}>
         <Text variant="bodyStrong">
           {day}/{month}
@@ -293,7 +292,7 @@ function StatsTab({
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.stats}>
         {log && (
-          <View style={[styles.statCard, { backgroundColor: theme.surface }]}>
+          <View style={[styles.statCard, { borderTopColor: theme.border }]}>
             <View style={styles.statHead}>
               <Text variant="bodyStrong" style={{ color: statusColor(log.status, theme) }}>
                 {STATUS_LABEL[log.status]}
@@ -323,7 +322,7 @@ function StatsTab({
               hand-entered log so it is obvious which numbers are measured and
               which are self-reported. */}
         {owned && (
-          <View style={[styles.statCard, { backgroundColor: theme.surface }]}>
+          <View style={[styles.statCard, { borderTopColor: theme.border }]}>
             <View style={styles.statHead}>
               <Ionicons name="logo-steam" size={15} color={theme.textSecondary} />
               <Text variant="micro" color="textSecondary">
@@ -375,8 +374,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   dateSquare: {
     width: 58,
@@ -395,7 +394,11 @@ const styles = StyleSheet.create({
   composerInput: { minHeight: 64 },
   composerFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stats: { gap: Spacing.three },
-  statCard: { borderRadius: Radius.large, padding: Spacing.four, gap: Spacing.three },
+  statCard: {
+    paddingVertical: Spacing.four,
+    gap: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   statHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.five },
   stat: { gap: 1 },

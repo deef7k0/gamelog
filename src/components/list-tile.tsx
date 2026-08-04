@@ -28,7 +28,7 @@ export function ListTile({ list }: { list: ListSummary }) {
         accessibilityRole="button"
         accessibilityLabel={list.title}
         scaleTo={0.98}
-        style={StyleSheet.flatten([styles.row, { backgroundColor: theme.surface }])}>
+        style={StyleSheet.flatten([styles.row, { borderTopColor: theme.border }])}>
         <View style={[styles.collage, { backgroundColor: theme.surfaceElevated }]}>
           {quadrants.map((cover, index) => {
             const uri = cover?.cover_url ?? cover?.hero_url ?? null;
@@ -93,8 +93,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.four,
-    padding: Spacing.three,
-    borderRadius: Radius.large,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   collage: {
     width: COLLAGE,

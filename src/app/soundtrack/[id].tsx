@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
@@ -11,7 +11,9 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { getStarredSong, starSong, unstarSong } from '@/lib/api';
 import { formatDuration, getAlbumTracks, type SoundtrackTrack } from '@/lib/soundtracks';
+import { useAuth } from '@/store/auth';
 
 /** Previews are always 30 seconds; used to draw the progress bar. */
 const PREVIEW_SECONDS = 30;
@@ -46,6 +48,43 @@ export default function SoundtrackScreen() {
     queryFn: ({ signal }) => getAlbumTracks(params.id!, signal),
     enabled: !!params.id,
     staleTime: 60 * 60_000,
+  });
+
+  const userId = useAuth((state) => state.session?.user.id);
+  const queryClient = useQueryClient();
+
+  const starred = useQuery({
+    queryKey: ['starred-song', userId],
+    queryFn: () => getStarredSong(userId!),
+    enabled: !!userId,
+  });
+
+  const starredId = starred.data?.track_id ?? null;
+
+  /*
+   * One mutation for both directions.
+   *
+   * Starring the track that is already starred clears it — with a limit of one
+   * there has to be a way back to none, and a separate "unstar" control would
+   * be a second button for the same star.
+   */
+  const star = useMutation({
+    mutationFn: async (track: SoundtrackTrack) => {
+      if (!userId) throw new Error('You must be signed in.');
+      if (starredId === track.id) {
+        await unstarSong(userId);
+        return;
+      }
+      await starSong(userId, track, {
+        artworkUrl: params.artwork ?? null,
+        // The album is a game soundtrack, so the credit is the album's own
+        // title — this screen never knows the game id it was opened from.
+        gameTitle: params.title ?? null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['starred-song', userId] });
+    },
   });
 
   /*
@@ -149,7 +188,8 @@ export default function SoundtrackScreen() {
               style={StyleSheet.flatten([
                 styles.row,
                 {
-                  backgroundColor: isCurrent ? theme.primaryMuted : theme.surface,
+                  backgroundColor: isCurrent ? theme.primaryMuted : 'transparent',
+                  borderTopColor: theme.border,
                   opacity: playable ? 1 : 0.45,
                 },
               ])}>
@@ -187,6 +227,30 @@ export default function SoundtrackScreen() {
               <Text variant="micro" color="textMuted">
                 {formatDuration(item.durationMs)}
               </Text>
+
+              {/* Star. Only for signed-in viewers — there is no profile to pin
+                  it to otherwise. Tapping the starred track again clears it,
+                  because "one song" needs a way back to none. */}
+              {userId && (
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    starredId === item.id
+                      ? `Unstar ${item.title}`
+                      : `Star ${item.title} on your profile`
+                  }
+                  accessibilityState={{ selected: starredId === item.id }}
+                  onPress={() => star.mutate(item)}
+                  disabled={star.isPending}
+                  scaleTo={0.85}
+                  style={styles.star}>
+                  <Ionicons
+                    name={starredId === item.id ? 'star' : 'star-outline'}
+                    size={18}
+                    color={starredId === item.id ? theme.accent : theme.textMuted}
+                  />
+                </PressableScale>
+              )}
             </PressableScale>
           );
         }}
@@ -210,9 +274,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
+  star: { padding: Spacing.one },
   trackNumber: { width: 26, alignItems: 'center' },
   trackBody: { flex: 1, gap: 2 },
   track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.one },

@@ -109,11 +109,10 @@ export default function AchievementsScreen() {
         keyExtractor={(entry) => entry.id}
         contentContainerStyle={list.length === 0 ? styles.emptyContent : styles.content}
         showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
         ListHeaderComponent={
           list.length > 0 ? (
             <View style={styles.header}>
-              <Card elevation="none" style={{ backgroundColor: theme.surface }}>
+              <Card>
                 <View style={styles.progressRow}>
                   <View style={styles.progressText}>
                     <Text variant="heading">
@@ -175,7 +174,7 @@ export default function AchievementsScreen() {
               disabled={!userId || toggle.isPending}
               onPress={() => toggle.mutate({ achievementId: item.id, unlocked: !isUnlocked })}
               scaleTo={0.99}
-              style={[styles.row, { backgroundColor: theme.surface }]}>
+              style={[styles.row, { borderTopColor: theme.border }]}>
               {item.icon_url ? (
                 <Image
                   source={{ uri: item.icon_url }}
@@ -244,7 +243,7 @@ export default function AchievementsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.four, gap: Spacing.two, paddingBottom: Spacing.seven },
+  content: { padding: Spacing.four, paddingBottom: Spacing.seven },
   emptyContent: { flexGrow: 1 },
   header: { gap: Spacing.three, marginBottom: Spacing.four },
   progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -255,8 +254,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   icon: {
     width: 44,

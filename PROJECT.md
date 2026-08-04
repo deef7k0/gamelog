@@ -9,29 +9,32 @@ Solo project, one semester, React Native + Expo.
 
 ## ⚠️ Where this actually stands
 
-**Everything below "The social layer" has been written but never executed.** It
-typechecks, lints and bundles clean (`npx expo export` verified each time), but
-no migration past `0005` is confirmed applied, the Steam Edge Functions have
-never been deployed, and none of it has been exercised on a device.
+The schema is live: **migrations `0001` – `0011` are applied.** What remains
+unexecuted is the Edge Function layer — the Steam functions have never been
+deployed, and no Steam Web API key has been obtained.
 
-The next working session is **execution and repair**, not new features.
-
-### 1. Migrations — run in the Supabase SQL editor, in order
+### 1. Migrations
 
 | File | Status |
 |---|---|
-| `0001` – `0005` | Applied |
-| `0006_add_article_kind` | **Unconfirmed** — must run *alone*, before 0007 |
-| `0007_events_and_articles` | **Unconfirmed** |
-| `0008_review_metrics` | **Unconfirmed** |
-| `0009_gaming_accounts` | **Outstanding** |
-| `0010_collection_tags` | **Outstanding** |
-| `0011_diary` | **Outstanding** |
+| `0001` – `0011` | **Applied** |
+| `0012_starred_song` | **Outstanding** — one pinned track per profile |
+| `0013_discovery` | **Outstanding** — likes on collections + the five ranking functions behind the search tabs |
 
-`0006` must be a **separate execution** from `0007`. Postgres refuses to let a
-new enum value be *used* in the transaction that added it, and 0007's CHECK
-constraints compare `kind` against `'article'`. That is the `ERROR: 55P04` you
-already hit once.
+Historical note worth keeping: `0006` had to be a **separate execution** from
+`0007`. Postgres refuses to let a new enum value be *used* in the transaction
+that added it, and 0007's CHECK constraints compare `kind` against `'article'`.
+That was the `ERROR: 55P04`. Any future migration adding an enum value has the
+same trap, which is why `provider` in 0009 is `text` + CHECK rather than an enum.
+
+`0012` and `0013` make no enum changes, so each runs as a single script. `0013`
+widens the `likes.target_type` CHECK rather than adding an enum value —
+deliberately, for exactly the reason above.
+
+Until `0013` is applied, the Reviews / Collections / People tabs in Search will
+error: `supabase.rpc('popular_reviews')` and its four siblings 404 when the
+function does not exist, and liking a collection is rejected by the old CHECK.
+Discover works regardless — it reads IGDB, not Postgres.
 
 ### 2. Edge Functions — none of the new ones are deployed
 
@@ -69,23 +72,28 @@ server-side sync supersedes them.
 
 ### 4. Expect these to break first
 
-Reasoned-through, never run:
+`0001`–`0011` applying clean means Postgres accepted the SQL — including the two
+IMMUTABLE-function CHECKs (`is_valid_review_metrics`, `is_valid_collection_tags`)
+and the `link_gaming_owned_games` RPC, which were the parse risks. Still unproven:
 
-- **SQL** — the two IMMUTABLE-function CHECKs (`is_valid_review_metrics`,
-  `is_valid_collection_tags`) and the `link_gaming_owned_games` RPC. No Postgres
-  was available to parse them.
 - **Edge Functions** — never typechecked; Deno is not installed locally. The
   OpenID round trip in particular can only be tested deployed.
 - **PostgREST embed hints** — e.g.
   `profiles!gaming_provider_friends_matched_user_id_fkey` assumes Postgres
-  auto-named that foreign key exactly as expected.
+  auto-named that foreign key exactly as expected. Applying the migration proves
+  the FK exists, not that it carries the name the client's `select` string
+  guesses; a wrong guess surfaces as a `SelectQueryError` at runtime, not at
+  migrate time.
+- **RLS in practice** — the policies parsed, but nothing has yet confirmed that
+  a signed-in user can write their own row and cannot write anyone else's.
 
 ---
 
 ## Status
 
-**Core** — auth; game search (IGDB only — see below); game detail
-with hero art, physical `<GameCase />`, synopsis, screenshots; logging with
+**Core** — auth; game search (IGDB only — see below); game detail with hero art,
+a physical `<GameCase />` on console (PC and mobile show bare cover art), the
+platform's price and store link, synopsis, screenshots; logging with
 status, score, completion %, platinum, hours, played-on; per-game achievements
 with Steam sync; profile with banner, bio, follow counts and stats; feed with
 Following / Everyone scopes.
@@ -99,16 +107,23 @@ collections, ranked lists and tier lists; favourites; wishlist; friends
 plus **advanced review metrics** (14 categories, score averaged from the ones you
 fill in). **Articles** are a second post type with tags and spoiler blurring.
 
-**News** — Discover (default) with a Top 10 This Month widget and "because you
-played…" recommendation rails; X-style news feed; trailers, releases, the IGDB
-popularity chart, industry events with RSVP and local reminders; soundtracks with
-30s previews.
+**News** — X-style news feed; trailers, releases, the IGDB popularity chart,
+industry events with RSVP and local reminders; soundtracks with 30s previews.
+
+**Discover** — lives under the Search field, as the empty state before you type:
+a Top 10 This Month widget, "because you played…" recommendation rails, and a
+highly-rated fallback. It answers "what should I play next", which is a search
+question rather than a news one.
 
 **Linked accounts** — Steam via OpenID, as one implementation of a generic
 provider (see below). Library, achievements, inventory, badges, friends.
 
 **Diary** — per-game dated notes, surfaced on the wall and reachable from a game
 page, a library cover, or a wall row.
+
+**Starred song** — one track from a game soundtrack, pinned to a profile and
+playable there. The limit of one is enforced by the primary key on `user_id`,
+not by the client.
 
 ---
 
@@ -120,9 +135,9 @@ npm install
 npm start                 # scan the QR with Expo Go
 ```
 
-Then run **every** migration in `supabase/migrations/` in order — see the table
-above, and note that `0006` runs alone. Until they are applied there are no
-tables and every query fails.
+`0001`–`0011` are already applied to the project database. A fresh Supabase
+project needs them run in order, and `0006` must run alone — see the table above.
+`0012_starred_song` and `0013_discovery` are still outstanding everywhere.
 
 Test on a **phone or emulator**, not the browser — see the Steam/CORS note below.
 
@@ -186,6 +201,12 @@ Worth recording so they are not re-attempted:
   API sits behind Cloudflare's bot challenge, and its per-game credit list has no
   character mapping either.
 - **PSN has no public trophy API.** `logs.platinum` is a self-reported boolean.
+- **Only Steam quotes a game price.** IGDB publishes none at all. Steam's
+  `appdetails` returns a real `price_overview`, and IGDB's `external_games` gives
+  the appid to ask with — so PC shows a live price and every other platform shows
+  its store link with no number. PlayStation, Microsoft, Nintendo, Apple and
+  Google have no public price API, and Nintendo has no IGDB store category
+  either, so a Switch game gets neither a price nor a link.
 
 ### Two Steam caveats
 
@@ -229,7 +250,18 @@ events / event_attendance
 game_achievements / user_achievements
 gaming_*              linked accounts — see below
 diary_entries         user_id, game_id, body, entry_date
+starred_songs         user_id PK (one per profile), track_id, title, artist,
+                      artwork_url, preview_url, game_title
+likes                 polymorphic over (target_type, target_id):
+                      'post' | 'log' | 'list'. Collections are likeable;
+                      comments are still post/log only.
 ```
+
+**Ranking functions** (0013). `popular_reviews`, `popular_collections`,
+`top_reviewers`, `popular_users`, `recommended_users` — all SECURITY INVOKER, so
+RLS still decides what is visible. They exist because PostgREST cannot order a
+resource by an aggregate over an embedded one; each returns ids plus a ranking
+number, and the client re-selects the rows with its normal embeds.
 
 Ratings are stored as an integer **0–100**; `constants/score.ts` maps that to a
 verdict band ("Excellent", "Mixed") and a colour. `logs.rating` is the **only**
@@ -254,7 +286,7 @@ Two deliberate choices:
   trustworthy because `steam-auth` verified an OpenID assertion for it, so writes
   happen in Edge Functions with the service role. Clients SELECT and DELETE only.
 
-No pricing API is referenced anywhere. Inventory carries `market_hash_name` — the
+No *inventory* pricing API is referenced anywhere. Inventory carries `market_hash_name` — the
 join key every price service uses — and nothing else.
 
 ### Security

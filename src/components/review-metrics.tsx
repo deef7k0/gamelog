@@ -12,7 +12,7 @@ import {
   type ReviewMetricKey,
   type ReviewMetrics,
 } from '@/constants/review-metrics';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -115,7 +115,7 @@ export function ReviewMetricsEditor({
       </Pressable>
 
       {enabled && (
-        <View style={[styles.panel, { backgroundColor: theme.surface }]}>
+        <View style={[styles.panel, { borderTopColor: theme.border }]}>
           <View style={styles.panelHead}>
             <Text variant="micro" color="textMuted" style={styles.panelHint}>
               Score each out of 100 — how well the game does it, not how much of it there is. Leave
@@ -225,7 +225,7 @@ export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) 
   if (rows.length === 0) return null;
 
   return (
-    <View style={[styles.breakdown, { backgroundColor: theme.surface }]}>
+    <View style={[styles.breakdown, { borderTopColor: theme.border }]}>
       <Text variant="micro" color="textMuted">
         SCORE BREAKDOWN · {rows.length} {rows.length === 1 ? 'METRIC' : 'METRICS'}
       </Text>
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   tickText: { flex: 1, gap: Spacing.half },
 
-  panel: { borderRadius: Radius.large, padding: Spacing.four, gap: Spacing.three },
+  panel: { paddingTop: Spacing.four, gap: Spacing.three, borderTopWidth: StyleSheet.hairlineWidth },
   panelHead: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.three },
   panelHint: { flex: 1 },
 
@@ -288,17 +288,17 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     textAlign: 'center',
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: FontFamily.semibold,
     // Android centres text differently in a fixed-height input.
     paddingVertical: 0,
   },
 
   breakdown: {
     marginHorizontal: Spacing.four,
-    marginTop: Spacing.three,
-    padding: Spacing.four,
-    borderRadius: Radius.large,
+    marginTop: Spacing.four,
+    paddingTop: Spacing.four,
     gap: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   breakdownRows: { gap: Spacing.two },
   breakdownRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },

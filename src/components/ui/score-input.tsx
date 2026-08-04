@@ -5,7 +5,7 @@ import { StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { MAX_SCORE, MIN_SCORE, clampScore, labelFor, scoreColor } from '@/constants/score';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 const TRACK_HEIGHT = 14;
@@ -127,10 +127,7 @@ function Nudge({ label, onPress }: { label: string; onPress: () => void }) {
       accessibilityLabel={`Adjust score by ${label}`}
       onPress={onPress}
       scaleTo={0.9}
-      style={StyleSheet.flatten([
-        styles.nudge,
-        { backgroundColor: theme.surface, borderColor: theme.border },
-      ])}>
+      style={StyleSheet.flatten([styles.nudge, { borderColor: theme.border }])}>
       <Text variant="caption" color="textSecondary">
         {label}
       </Text>
@@ -141,7 +138,7 @@ function Nudge({ label, onPress }: { label: string; onPress: () => void }) {
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.three },
   readout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
-  number: { fontSize: 52, fontWeight: '800', minWidth: 86 },
+  number: { fontSize: 46, fontFamily: FontFamily.bold, minWidth: 86 },
   readoutText: { flex: 1, gap: 1 },
   track: {
     height: TRACK_HEIGHT,

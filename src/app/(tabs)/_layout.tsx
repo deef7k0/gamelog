@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 
-import { Radius } from '@/constants/theme';
+import { FontFamily, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -29,7 +29,7 @@ export default function TabsLayout() {
           paddingTop: 6,
         },
         headerStyle: { backgroundColor: theme.background },
-        headerTitleStyle: { color: theme.text, fontSize: 20, fontWeight: '800' },
+        headerTitleStyle: { color: theme.text, fontSize: 20, fontFamily: FontFamily.bold },
         headerShadowVisible: false,
       }}>
       <Tabs.Screen

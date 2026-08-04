@@ -45,7 +45,7 @@ export function LibraryWidget({
         accessibilityRole="button"
         accessibilityLabel="Open Steam library"
         scaleTo={0.98}
-        style={StyleSheet.flatten([styles.widget, { backgroundColor: theme.surface }])}>
+        style={StyleSheet.flatten([styles.widget, { borderTopColor: theme.border }])}>
         <View style={styles.head}>
           <View style={styles.title}>
             <Ionicons name="library" size={13} color={theme.primary} />
@@ -109,7 +109,14 @@ export function LibraryWidget({
 }
 
 const styles = StyleSheet.create({
-  widget: { borderRadius: Radius.medium, padding: Spacing.three, gap: Spacing.two, flex: 1 },
+  /* Matches `FavoritesWidget` exactly — same rule, same top padding. The two sit
+     in one stack, and a card next to a section would read as two systems. */
+  widget: {
+    flex: 1,
+    gap: Spacing.two,
+    paddingTop: Spacing.four,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   posters: { flexDirection: 'row', gap: Spacing.one + 2 },

@@ -144,7 +144,7 @@ export default function ArticleScreen() {
             <PressableScale
               accessibilityRole="button"
               scaleTo={0.98}
-              style={StyleSheet.flatten([styles.gameTag, { backgroundColor: theme.surface }])}>
+              style={StyleSheet.flatten([styles.gameTag, { borderColor: theme.border }])}>
               <Poster
                 coverUrl={article.game.cover_url}
                 heroUrl={article.game.hero_url}
@@ -214,12 +214,15 @@ const styles = StyleSheet.create({
     padding: Spacing.five,
   },
   centered: { textAlign: 'center' },
+  /* Outlined rather than filled — it is the one thing on an article page you
+     can tap through to, and it has to read as a destination. */
   gameTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
     padding: Spacing.three,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   gameTagText: { flex: 1, gap: 1 },
   footer: { paddingTop: Spacing.four, borderTopWidth: StyleSheet.hairlineWidth },

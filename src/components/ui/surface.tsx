@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { Elevation, Radius, Spacing, type ThemeColor } from '@/constants/theme';
+import { FontFamily, Radius, Spacing, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 // ---------------------------------------------------------------------------
@@ -11,25 +11,32 @@ import { useTheme } from '@/hooks/use-theme';
 
 export type CardProps = {
   children: ReactNode;
-  /** `flat` for list rows, `card` for feed items, `raised` for modals/heroes. */
-  elevation?: keyof typeof Elevation;
   padded?: boolean;
   style?: ViewStyle | ViewStyle[];
 };
 
-/** Rounded surface with soft elevation. The default container for content. */
-export function Card({ children, elevation = 'card', padded = true, style }: CardProps) {
+/**
+ * A block of content, separated by a rule rather than by a container.
+ *
+ * This used to be a filled, rounded, shadowed surface. It is now a hairline and
+ * some space, and that is the point: a feed of rounded cards turns every post,
+ * collection and widget into a floating object with its own edge, and twenty
+ * objects stacked on a near-black page read as twenty containers rather than as
+ * a list of things to read. The rule does the same job — "this ends, that
+ * begins" — using one pixel instead of a shape.
+ *
+ * There is no `selected` tone any more. It existed to mark a block as *yours* —
+ * your log on a game page — with a fill, and the fill was the problem: on a page
+ * of near-black the one filled rectangle read as a notice the app was showing
+ * you rather than as your own writing. What is yours is said in words and in the
+ * score's colour, which is enough.
+ */
+export function Card({ children, padded = true, style }: CardProps) {
   const theme = useTheme();
 
   return (
     <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.surface },
-        padded && styles.cardPadded,
-        Elevation[elevation],
-        style,
-      ]}>
+      style={[styles.card, { borderTopColor: theme.border }, padded && styles.cardPadded, style]}>
       {children}
     </View>
   );
@@ -125,7 +132,9 @@ export function ScoreBadge({
         small && styles.scoreSmall,
         { backgroundColor: `${tone}22`, borderColor: tone },
       ]}>
-      <Text variant={small ? 'micro' : 'caption'} style={{ color: tone, fontWeight: '700' }}>
+      <Text
+        variant={small ? 'micro' : 'caption'}
+        style={{ color: tone, fontFamily: FontFamily.semibold }}>
         {Math.round(score)}
       </Text>
     </View>
@@ -156,8 +165,8 @@ export function Skeleton({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: Radius.large, overflow: 'hidden' },
-  cardPadded: { padding: Spacing.four },
+  card: { borderTopWidth: StyleSheet.hairlineWidth },
+  cardPadded: { paddingVertical: Spacing.four },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

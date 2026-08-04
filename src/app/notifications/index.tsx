@@ -133,7 +133,7 @@ export default function NotificationsScreen() {
               accessibilityRole="button"
               onPress={() => markRead.mutate()}
               scaleTo={0.98}
-              style={StyleSheet.flatten([styles.markRead, { backgroundColor: theme.surface }])}>
+              style={StyleSheet.flatten([styles.markRead, { borderColor: theme.border }])}>
               <Text variant="caption" color="primary">
                 Mark all as read
               </Text>
@@ -197,11 +197,14 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.four, gap: Spacing.one, paddingBottom: Spacing.seven },
   empty: { flexGrow: 1 },
   sectionTitle: { marginTop: Spacing.four, marginBottom: Spacing.two },
+  /* Outlined, not filled: it is a button, and the fill it used to have is the
+     one thing the de-bubble reserved for content that is *yours*. */
   markRead: {
     alignSelf: 'flex-start',
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   row: {
     flexDirection: 'row',

@@ -10,7 +10,7 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { postToWall, type ActivityEntry, type ActivityKind, type WallPost } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -28,7 +28,21 @@ const ACTIVITY_ICON: Record<ActivityKind, keyof typeof Ionicons.glyphMap> = {
   watching_event: 'tv',
   attending_event: 'location',
   diary: 'book',
+  commented: 'chatbubble',
 };
+
+/**
+ * Kinds that carry writing, and therefore earn a preview and a bigger cover.
+ *
+ * A row saying "wishlisted X" has nothing to excerpt and shrinking it back to a
+ * line is the point — the wall should make the things someone *wrote* look
+ * different from the things they merely clicked.
+ */
+const WRITTEN_KINDS: readonly ActivityKind[] = ['reviewed', 'commented', 'diary'];
+
+/** Poster width for a row with writing behind it, and for one without. */
+const WRITTEN_POSTER = 54;
+const PLAIN_POSTER = 30;
 
 /**
  * Composer for a wall.
@@ -90,7 +104,7 @@ export function WallPostRow({ post }: { post: WallPost }) {
   const theme = useTheme();
 
   return (
-    <View style={[styles.postCard, { backgroundColor: theme.surface }]}>
+    <View style={[styles.postCard, { borderTopColor: theme.border }]}>
       <Link href={{ pathname: '/profile/[id]', params: { id: post.author_id } }} asChild>
         <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.postHead}>
           <Avatar uri={post.author?.avatar_url} name={displayNameFor(post.author)} size={34} />
@@ -140,12 +154,19 @@ export function ActivityRow({
     watching_event: theme.accent,
     attending_event: theme.accent,
     diary: theme.primary,
+    commented: theme.textSecondary,
   }[entry.kind];
+
+  const written = WRITTEN_KINDS.includes(entry.kind) && !!entry.excerpt?.trim();
 
   function description() {
     switch (entry.kind) {
       case 'reviewed':
         return `reviewed ${entry.game?.title ?? 'a game'}`;
+      case 'commented':
+        return entry.targetAuthor
+          ? `commented on ${entry.targetAuthor}'s review of ${entry.game?.title ?? 'a game'}`
+          : `commented on a review of ${entry.game?.title ?? 'a game'}`;
       case 'platinum':
         return `platinumed ${entry.game?.title ?? 'a game'}`;
       case 'wishlisted':
@@ -166,7 +187,7 @@ export function ActivityRow({
   }
 
   const body = (
-    <View style={styles.activityRow}>
+    <View style={[styles.activityRow, written && styles.activityRowWritten]}>
       <View style={[styles.activityIcon, { backgroundColor: `${tint}22` }]}>
         <Ionicons name={ACTIVITY_ICON[entry.kind]} size={14} color={tint} />
       </View>
@@ -179,6 +200,26 @@ export function ActivityRow({
           {description()}
           {entry.score !== null ? ` · ${entry.score}/100` : ''}
         </Text>
+
+        {/* The headline, when the writing has one. Quoted rather than styled as
+            a title: at this size a second bold line would compete with the
+            sentence above it for what the row is even about. */}
+        {written && entry.reviewTitle && (
+          <Text variant="caption" numberOfLines={1} style={styles.strong}>
+            “{entry.reviewTitle}”
+          </Text>
+        )}
+
+        {/* Two lines of what they actually said. `numberOfLines` truncates on
+            the real rendered width and appends the ellipsis itself, so the cut
+            lands mid-word exactly where the column ends — no guessing at a
+            character count that would be wrong on every other screen size. */}
+        {written && (
+          <Text variant="caption" color="textMuted" numberOfLines={2} ellipsizeMode="tail">
+            {entry.excerpt!.trim()}
+          </Text>
+        )}
+
         <Text variant="micro" color="textMuted">
           {timeAgo(entry.createdAt)}
         </Text>
@@ -189,8 +230,8 @@ export function ActivityRow({
           coverUrl={entry.game.cover_url}
           heroUrl={entry.game.hero_url}
           title={entry.game.title}
-          width={30}
-          rounded="small"
+          width={written ? WRITTEN_POSTER : PLAIN_POSTER}
+          rounded="xs"
         />
       )}
     </View>
@@ -239,7 +280,11 @@ const styles = StyleSheet.create({
   composer: { gap: Spacing.two },
   composerInput: { minHeight: 84 },
   composerFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  postCard: { borderRadius: Radius.medium, padding: Spacing.three, gap: Spacing.two },
+  postCard: {
+    paddingVertical: Spacing.three,
+    gap: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   postHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   postHeadText: { flex: 1, gap: 1 },
   activityRow: {
@@ -249,6 +294,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.one,
   },
+  /* A row with writing in it is three or four lines tall, so its cover and icon
+     hang from the top rather than floating in the vertical middle of a
+     paragraph. */
+  activityRowWritten: { alignItems: 'flex-start', paddingVertical: Spacing.three },
   activityIcon: {
     width: 28,
     height: 28,
@@ -256,6 +305,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activityText: { flex: 1, gap: 1 },
-  strong: { fontWeight: '700' },
+  activityText: { flex: 1, gap: Spacing.one },
+  strong: { fontFamily: FontFamily.semibold },
 });

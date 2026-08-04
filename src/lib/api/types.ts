@@ -6,18 +6,17 @@ import type {
   PostKind,
   PostRow,
   Profile,
+  TargetType,
 } from '../database.types';
-
-/** What likes and comments can attach to. */
-export type TargetType = 'post' | 'log';
 
 /*
  * These mirror database enums, so they are re-exported rather than restated.
  * Declaring them here as well shadowed the real definitions through the
  * `@/lib/api` barrel, which silently stripped the friend/wall notification
- * kinds added in 0005.
+ * kinds added in 0005 — and did it again to `TargetType` when 0013 added
+ * `list`, which is why that one is now imported above rather than written out.
  */
-export type { ListKind, NotificationKind, PostKind };
+export type { ListKind, NotificationKind, PostKind, TargetType };
 
 export type Tier = 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
 

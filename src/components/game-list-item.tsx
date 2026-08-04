@@ -5,7 +5,7 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Chip, ScoreBadge } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { GameSearchResult } from '@/lib/games';
 
@@ -54,7 +54,7 @@ export type GameListItemProps = {
 };
 
 /**
- * One search result. A premium card rather than a text row: poster on the left,
+ * One search result: poster on the left,
  * title and metadata stacked to the right, score pinned top-right.
  */
 export function GameListItem({ game, badge, onPress, disabled }: GameListItemProps) {
@@ -72,7 +72,7 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
       // array style prop — it throws rather than guessing a precedence.
       style={StyleSheet.flatten([
         styles.row,
-        { backgroundColor: theme.surface },
+        { borderTopColor: theme.border },
         disabled && styles.disabled,
       ])}>
       <Poster
@@ -129,12 +129,14 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
 }
 
 const styles = StyleSheet.create({
+  /* A rule, not a container — see the note on <Card>. Rows in a list are a
+     list, and giving each one an edge makes twenty objects out of one. */
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.four,
-    padding: Spacing.three,
-    borderRadius: Radius.large,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   disabled: { opacity: 0.55 },
   body: { flex: 1, gap: Spacing.two },

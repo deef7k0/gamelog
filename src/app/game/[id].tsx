@@ -1,25 +1,28 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link, Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ExternalLink } from '@/components/external-link';
-import { GameActions } from '@/components/game-actions';
+import { GameActions, formatReleaseDate } from '@/components/game-actions';
+import { GamePrice, PlatformPicker } from '@/components/game-availability';
+import { caseHeightFor } from '@/components/game-case';
 import { GameCaseDisplay } from '@/components/game-case-display';
 import { GameListItem } from '@/components/game-list-item';
 import { CastRail, GamePosterRail } from '@/components/game-rail';
 import { LogCard } from '@/components/log-card';
 import { SoundtrackAlbums } from '@/components/soundtrack-section';
 import { Button } from '@/components/ui/button';
+import { HeroArt } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
-import { Card, Chip, ScoreBadge, SectionHeader } from '@/components/ui/surface';
+import { Chip, ScoreBadge, SectionHeader } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
+import { platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { STATUS_LABEL } from '@/constants/status';
 import { HeroAspectRatio, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -43,6 +46,28 @@ const TABS = [
 ];
 
 /**
+ * The case, sized against the screen rather than a fixed width.
+ *
+ * 38% leaves the remaining ~55% of the column for the title, the price and the
+ * platform buttons beside it. Everything on this page is a ratio of the window
+ * for the same reason: the masthead is a *proportion* — art this wide, copy
+ * that wide, this much overlap — and a fixed number would make the same
+ * composition read as two different designs on a phone and a tablet.
+ */
+const CASE_WIDTH_RATIO = 0.38;
+const CASE_MAX_WIDTH = 200;
+
+/**
+ * How far the case rises *into* the hero, as a fraction of its own height.
+ *
+ * Not "below the art, tucked under the fade" — the case genuinely overlaps it,
+ * standing in front of the key art like a boxed copy propped against a poster.
+ * Nearly half, so the overlap is unmistakably an overlap; at a third it read as
+ * two stacked bands that happened to touch.
+ */
+const CASE_OVERLAP_RATIO = 0.46;
+
+/**
  * A game's dedicated page.
  *
  * The masthead — hero art, physical case, score, actions — stays fixed while
@@ -53,9 +78,25 @@ const TABS = [
 export default function GameDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [tab, setTab] = useState<GameTab>('overview');
+
+  /*
+   * One platform selection for the whole page.
+   *
+   * The artwork, the price and the store link are three views of the same
+   * choice, so the choice lives here rather than inside any of them. `null`
+   * means "not chosen yet" and defers to the game's own priority order, which
+   * cannot be computed until the detail query resolves.
+   */
+  const [platform, setPlatform] = useState<PlatformKey | null>(null);
+
+  const caseWidth = Math.min(CASE_MAX_WIDTH, Math.round(width * CASE_WIDTH_RATIO));
+  // Also swallows the header's group gap, so the overlap is measured from the
+  // hero's edge rather than from the gap below it.
+  const caseOverlap = Math.round(caseHeightFor(caseWidth) * CASE_OVERLAP_RATIO) + Spacing.five;
 
   const game = useQuery({
     queryKey: ['game', id],
@@ -161,6 +202,11 @@ export default function GameDetailScreen() {
 
   const data = game.data;
   const logged = myLog.data;
+
+  // Resolved after the query, so the fallback knows what the game is actually on.
+  const availablePlatforms = platformKeysFor(data.platforms);
+  const activePlatform =
+    platform && availablePlatforms.includes(platform) ? platform : availablePlatforms[0];
   const unlockedCount = (achievements.data ?? []).filter((entry) => entry.unlocked_at).length;
   const achievementTotal = achievements.data?.length ?? 0;
 
@@ -168,52 +214,80 @@ export default function GameDetailScreen() {
   const header = (
     <View style={styles.header}>
       <View style={styles.hero}>
-        {data.heroUrl && (
-          <Image
-            source={{ uri: data.heroUrl }}
-            style={styles.heroImage}
-            contentFit="cover"
-            transition={280}
-            accessibilityIgnoresInvertColors
-          />
-        )}
-        <LinearGradient
-          colors={['transparent', theme.background]}
-          style={styles.heroFade}
-          pointerEvents="none"
-        />
+        <HeroArt uri={data.heroUrl} scrim />
       </View>
 
-      <View style={styles.identity}>
+      {/* Group 1 — identity, as one row: the boxed copy on the left standing in
+          front of the key art, everything the game *is* set beside it. Stacked
+          and centred, this block was two full screens before the first review;
+          side by side it is one. */}
+      <View style={[styles.identity, { marginTop: -caseOverlap }]}>
         <GameCaseDisplay
           coverUrl={data.coverUrl}
           heroUrl={data.heroUrl}
           title={data.title}
-          platforms={data.platforms}
-          playedOn={logged?.played_on}
-          size="large"
+          platform={activePlatform}
+          width={caseWidth}
         />
 
         <View style={styles.identityText}>
-          <Text variant="title" numberOfLines={3} style={styles.centered}>
+          <Text variant="title" numberOfLines={3}>
             {data.title}
           </Text>
-          <Text variant="caption" color="textMuted" style={styles.centered}>
-            {[data.releaseYear, data.developer].filter(Boolean).join(' · ')}
-          </Text>
+
+          <GamePrice gameId={data.id} selected={activePlatform} />
+
+          {data.releaseDate ? (
+            <Text variant="caption" color="textMuted">
+              {formatReleaseDate(data.releaseDate)}
+            </Text>
+          ) : data.releaseYear ? (
+            <Text variant="caption" color="textMuted">
+              {data.releaseYear}
+            </Text>
+          ) : null}
+
+          {/* Developer and publisher are different facts and are frequently
+              different companies, so they get a line each rather than being
+              joined by a dot that implies one relationship. */}
+          {data.developer && (
+            <Text variant="micro" color="textMuted" numberOfLines={2}>
+              {data.developer}
+            </Text>
+          )}
+          {data.publisher && data.publisher !== data.developer && (
+            <Text variant="micro" color="textMuted" numberOfLines={2}>
+              {data.publisher}
+            </Text>
+          )}
+
           {data.score !== null && (
             <View style={styles.scoreRow}>
-              <ScoreBadge score={data.score} />
+              <ScoreBadge score={data.score} size="small" />
               <Text variant="micro" color="textMuted">
                 COMMUNITY
               </Text>
             </View>
           )}
+
+          <PlatformPicker
+            available={availablePlatforms}
+            selected={activePlatform}
+            onSelect={setPlatform}
+          />
         </View>
       </View>
 
-      {logged && (
-        <Card elevation="none" style={{ backgroundColor: theme.primaryMuted }}>
+      {/* Group 2 — your record. What you already logged and how to change it
+          are the same subject, so they sit in one tight group. The actions run
+          the full width below both columns rather than being squeezed into the
+          right one: they act on the game, not on its metadata. */}
+      <View style={styles.record}>
+        {/* Your own log — no surface behind it. It used to sit on a filled
+            `tone="selected"` block, which made the one thing on this page that
+            is *yours* look like a notice the app was showing you. The score and
+            the status are already coloured; they do not need a box as well. */}
+        {logged && (
           <View style={styles.myLog}>
             <View style={styles.myLogHead}>
               <Text variant="bodyStrong" color="primary">
@@ -224,41 +298,47 @@ export default function GameDetailScreen() {
             {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
             {logged.review_title && <Text variant="bodyStrong">{logged.review_title}</Text>}
           </View>
-        </Card>
-      )}
+        )}
 
-      <GameActions game={data} log={logged ?? null} />
-
-      {/* Diary. Sits below the log actions because it is a running record
-          rather than a one-off action, and it is only offered to signed-in
-          users — there is no diary to open without an account. */}
-      {userId && (
-        <Link
-          href={{
-            pathname: '/diary/[user]/[game]',
-            params: { user: userId, game: data.id, tab: 'diary' },
-          }}
-          asChild>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Open your diary for this game"
-            scaleTo={0.98}
-            style={StyleSheet.flatten([styles.diaryButton, { backgroundColor: theme.surface }])}>
-            <Ionicons name="book-outline" size={18} color={theme.primary} />
-            <View style={styles.diaryText}>
-              <Text variant="bodyStrong">Diary</Text>
-              <Text variant="micro" color="textMuted">
-                {diaryCount.data
-                  ? `${diaryCount.data} ${diaryCount.data === 1 ? 'entry' : 'entries'}`
-                  : 'Write about your playthrough'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-          </PressableScale>
-        </Link>
-      )}
+        <GameActions game={data} log={logged ?? null} />
+      </View>
     </View>
   );
+
+  /*
+   * The diary moved out of the masthead and into Overview.
+   *
+   * It was 85dp of chrome sitting between the primary action and the tab bar —
+   * directly in the path to the reviews this screen exists to lead to — for a
+   * feature PRODUCT.md explicitly does not rank among the differentiators. In
+   * Overview it sits with the other per-game sections, which is where it
+   * belonged: it is a record *about* this game, not an action on it.
+   */
+  const diaryRow = userId ? (
+    <Link
+      href={{
+        pathname: '/diary/[user]/[game]',
+        params: { user: userId, game: data.id, tab: 'diary' },
+      }}
+      asChild>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel="Open your diary for this game"
+        scaleTo={0.98}
+        style={StyleSheet.flatten([styles.diaryButton, { borderColor: theme.border }])}>
+        <Ionicons name="book-outline" size={18} color={theme.primary} />
+        <View style={styles.diaryText}>
+          <Text variant="bodyStrong">Diary</Text>
+          <Text variant="micro" color="textMuted">
+            {diaryCount.data
+              ? `${diaryCount.data} ${diaryCount.data === 1 ? 'entry' : 'entries'}`
+              : 'Write about your playthrough'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+      </PressableScale>
+    </Link>
+  ) : null;
 
   function renderTab() {
     switch (tab) {
@@ -315,6 +395,8 @@ export default function GameDetailScreen() {
       default:
         return (
           <View style={styles.tabBody}>
+            {diaryRow}
+
             {data.platforms.length > 0 && (
               <View style={styles.chips}>
                 {data.platforms.slice(0, 8).map((platform) => (
@@ -361,7 +443,7 @@ export default function GameDetailScreen() {
                         scaleTo={0.95}
                         style={StyleSheet.flatten([
                           styles.studioChip,
-                          { backgroundColor: theme.surface, borderColor: theme.border },
+                          { borderColor: theme.border },
                         ])}>
                         <Text variant="caption">{company.name}</Text>
                         <Text variant="micro" color="textMuted">
@@ -438,7 +520,7 @@ export default function GameDetailScreen() {
                     router.push({ pathname: '/achievements/[id]', params: { id: data.id } })
                   }
                   scaleTo={0.98}
-                  style={StyleSheet.flatten([styles.linkRow, { backgroundColor: theme.surface }])}>
+                  style={StyleSheet.flatten([styles.linkRow, { borderColor: theme.border }])}>
                   <Text variant="bodyStrong">View all {achievementTotal}</Text>
                   <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
                 </PressableScale>
@@ -489,7 +571,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.three,
     padding: Spacing.four,
-    borderRadius: Radius.large,
+    borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   diaryText: { flex: 1, gap: 1 },
   studioChip: {
@@ -502,19 +585,24 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   content: { paddingBottom: Spacing.seven },
-  header: { gap: Spacing.four, paddingHorizontal: Spacing.four, marginBottom: Spacing.four },
+  /*
+   * `five` between groups, not `four` between every child.
+   *
+   * The masthead used one 16dp gap for all seven siblings, which is the failure
+   * where a single repeated interval gives hero, identity, status, actions and
+   * diary exactly equal weight. Three groups separated generously, tight
+   * inside — the rhythm now says what belongs with what.
+   */
+  header: { gap: Spacing.five, paddingHorizontal: Spacing.four, marginBottom: Spacing.five },
   hero: { marginHorizontal: -Spacing.four },
-  heroImage: { width: '100%', aspectRatio: HeroAspectRatio },
-  heroFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%' },
-  identity: { alignItems: 'center', gap: Spacing.four, marginTop: -Spacing.five },
-  identityText: { alignSelf: 'stretch', gap: Spacing.one, alignItems: 'center' },
-  centered: { textAlign: 'center' },
-  scoreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    marginTop: Spacing.one,
-  },
+  /* `marginTop` is supplied inline — it scales with the case.
+     `flex-end` so the two columns share a baseline at the bottom: the case is a
+     fixed shape and the copy is not, and aligning their tops would leave the
+     title floating against nothing whenever a game has a short one. */
+  identity: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.four },
+  identityText: { flex: 1, gap: Spacing.two, paddingBottom: Spacing.one },
+  record: { gap: Spacing.three },
+  scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   myLog: { gap: Spacing.two },
   myLogHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -528,6 +616,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: Spacing.four,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
   },
 });

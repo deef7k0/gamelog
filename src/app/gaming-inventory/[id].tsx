@@ -95,7 +95,6 @@ export default function GamingInventoryScreen() {
         renderSectionHeader={({ section }) => (
           <SectionHeading title={section.title} count={section.data.length} />
         )}
-        ItemSeparatorComponent={() => <View style={{ height: Spacing.two }} />}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false}
@@ -153,7 +152,7 @@ function ItemRow({ item }: { item: InventoryItem }) {
   const tint = rarityColor(item.rarityColor) ?? theme.borderStrong;
 
   return (
-    <View style={[styles.item, { backgroundColor: theme.surface }]}>
+    <View style={[styles.item, { borderTopColor: theme.border }]}>
       {/* Rarity as a colour stripe — Steam's own hex, so a Covert skin reads red
           and a Mil-Spec reads blue exactly as it does in game. */}
       <View style={[styles.rarityStripe, { backgroundColor: tint }]} />
@@ -218,11 +217,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
-    borderRadius: Radius.medium,
-    paddingRight: Spacing.three,
-    overflow: 'hidden',
+    paddingVertical: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  rarityStripe: { width: 3, alignSelf: 'stretch' },
+  /* The rarity stripe survived the de-bubble: it is data — Steam's own colour
+     for the item — not decoration on a container. */
+  rarityStripe: { width: 3, alignSelf: 'stretch', borderRadius: Radius.pill },
   itemIcon: {
     width: ITEM_ICON,
     height: ITEM_ICON,

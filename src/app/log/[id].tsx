@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 
 import { Button } from '@/components/ui/button';
-import { GameCase } from '@/components/game-case';
+import { GameCaseDisplay } from '@/components/game-case-display';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import {
   ReviewMetricsEditor,
@@ -25,9 +25,8 @@ import { ScoreInput } from '@/components/ui/score-input';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { LOG_STATUSES, STATUS_LABEL, statusColor } from '@/constants/status';
-import { caseKeysFor } from '@/constants/platform-cases';
 import { averageMetrics, countMetrics, parseReviewMetrics } from '@/constants/review-metrics';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteLog, getMyLog, saveLog } from '@/lib/api';
 import type { GameLog, LogStatus } from '@/lib/database.types';
@@ -125,6 +124,10 @@ function LogForm({ game, existing, userId }: LogFormProps) {
   const metricCount = countMetrics(metrics);
   const effectiveRating = advanced ? averageMetrics(metrics) : rating;
 
+  /* Touching either review field commits you to both. Derived rather than a
+     separate mode toggle: the intent is already legible from what was typed. */
+  const writingReview = !!reviewTitle.trim() || !!review.trim();
+
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['feed'] });
     queryClient.invalidateQueries({ queryKey: ['my-log', userId, game.id] });
@@ -144,8 +147,13 @@ function LogForm({ game, existing, userId }: LogFormProps) {
         throw new Error('Hours played must be a positive number.');
       }
 
+      /* A review is both halves or neither. Touching one field commits you to
+         the other — see the note beside the fields. */
       if (reviewTitle.trim() && !review.trim()) {
         throw new Error('Your review has a headline but no body.');
+      }
+      if (review.trim() && !reviewTitle.trim()) {
+        throw new Error('Your review needs a headline.');
       }
 
       await saveLog(userId, {
@@ -192,11 +200,11 @@ function LogForm({ game, existing, userId }: LogFormProps) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={styles.gameHead}>
-            <GameCase
+            <GameCaseDisplay
               coverUrl={game.coverUrl}
               heroUrl={game.heroUrl}
               title={game.title}
-              platform={caseKeysFor(game.platforms)[0]}
+              platforms={game.platforms}
               size="small"
               tilt={4}
             />
@@ -227,7 +235,7 @@ function LogForm({ game, existing, userId }: LogFormProps) {
                     style={[
                       styles.status,
                       {
-                        backgroundColor: selected ? tint : theme.surface,
+                        backgroundColor: selected ? tint : 'transparent',
                         borderColor: selected ? tint : theme.border,
                       },
                     ]}>
@@ -316,20 +324,29 @@ function LogForm({ game, existing, userId }: LogFormProps) {
             </View>
           </View>
 
-          {/* Long-form review. The headline is optional — a score with a short
-              note is still a valid log — but a headline without a body is not,
-              which `save` rejects. */}
+          {/* Long-form review — all or nothing.
+              You can log a game without writing about it, but a *review* is a
+              headline and a body together. Half a review has nowhere to render:
+              the feed card leads with the headline and previews the body, so a
+              body with no headline arrives as an untitled block and a headline
+              with no body as a promise of writing that is not there. */}
           <View style={styles.section}>
             <Text variant="caption" color="textSecondary">
               Review
+            </Text>
+            <Text variant="micro" color="textMuted">
+              {writingReview
+                ? 'A review needs both a headline and a body.'
+                : 'Optional — leave both blank to log this without writing a review.'}
             </Text>
 
             <TextField
               value={reviewTitle}
               onChangeText={setReviewTitle}
-              placeholder="Headline (optional)"
+              placeholder="Headline"
               maxLength={140}
               style={styles.reviewTitle}
+              error={writingReview && !reviewTitle.trim() ? 'Your review needs a headline.' : null}
             />
 
             <TextField
@@ -339,7 +356,8 @@ function LogForm({ game, existing, userId }: LogFormProps) {
               multiline
               maxLength={40000}
               style={styles.reviewBody}
-              hint={review.trim() ? `${review.trim().length} characters` : 'Optional'}
+              hint={review.trim() ? `${review.trim().length} characters` : undefined}
+              error={writingReview && !review.trim() ? 'Your review needs a body.' : null}
             />
           </View>
 
@@ -400,7 +418,7 @@ function Toggle({
       style={[
         styles.toggle,
         {
-          backgroundColor: value ? `${tint}22` : theme.surface,
+          backgroundColor: value ? `${tint}22` : 'transparent',
           borderColor: value ? tint : theme.border,
           opacity: disabled ? 0.6 : 1,
         },
@@ -429,7 +447,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  reviewTitle: { fontSize: 17, fontWeight: '700' },
+  reviewTitle: { fontSize: 18, fontFamily: FontFamily.semibold },
   // Tall by default: a short box invites a short review.
   reviewBody: { minHeight: 260 },
   toggles: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },

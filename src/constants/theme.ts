@@ -1,28 +1,23 @@
 /**
  * Design tokens.
  *
- * The visual language is content-first: the interface is a near-black neutral so
- * that game artwork supplies essentially all of the colour.
+ * Dark only, and never true black. The page is #121212 and depth is built from
+ * *surface steps* — background → surface → surfaceElevated → surfaceSelected —
+ * rather than from shadows, which are close to invisible on a dark screen
+ * anyway. A card looks lifted because it is lighter than what is behind it.
  *
- * **The interface is monochrome.** `primary` is near-white in dark mode and
- * near-black in light mode — it is a *value*, not a hue. A blue accent used to
- * sit here, and on a screen whose whole job is showing cover art it competed
- * with every poster it sat next to: a blue button beside orange key art reads as
- * a second, louder piece of art. Ranking by lightness instead means the only
- * colours on screen are the game's own, plus three semantic exceptions that
- * carry meaning nothing else can: `accent` for ratings, `danger`, `success`.
+ * **One accent: PlayStation blue.** It appears on selected navigation, primary
+ * buttons, active states, badges and links, and nowhere else. Roughly 90% of
+ * the interface is greyscale so that the blue is genuinely directive and the
+ * game artwork stays the only other source of colour. The score ramp
+ * (`scoreHigh` / `scoreMid` / `scoreLow`) is the deliberate exception: it is
+ * data rather than chrome — see the note beside it.
  *
- * Chrome is separated by **surface steps and a hairline outline**, not by fill
- * colour: `background` → `surface` → `surfaceElevated`, each with `border`
- * around anything interactive. That is why every control looks like a slightly
- * lighter rectangle with an edge rather than a coloured slab.
+ * Everything is a token. Colours, spacing, radii, type, motion and the minimum
+ * tap target all live here, and a value typed directly into a component is a
+ * bug rather than a shortcut.
  *
- * Every colour is defined for both light and dark — `ThemeColor` is derived from
- * the intersection of the two, so a key missing from either side is a type error
- * rather than a runtime hole.
- *
- * Read colours through `useTheme()` rather than importing `Colors` directly,
- * unless you genuinely need a specific scheme.
+ * Read colours through `useTheme()` rather than importing `Colors` directly.
  */
 
 import '@/global.css';
@@ -30,79 +25,83 @@ import '@/global.css';
 import { Platform } from 'react-native';
 
 export const Colors = {
-  light: {
-    text: '#0A0A0A',
-    textSecondary: '#5A5A5A',
-    /** Deliberately low contrast — timestamps, counts, captions. */
-    textMuted: '#8C8C8C',
-
-    /** Page background. */
-    background: '#FFFFFF',
-    /** Cards: one step off the page. */
-    surface: '#FAFAFA',
-    /** Controls and nested surfaces (a button, a chip on a card). */
-    surfaceElevated: '#F4F4F4',
-    /** Pressed / selected state. */
-    surfaceSelected: '#E8E8E8',
-    /** Legacy alias kept so older components keep compiling. */
-    backgroundElement: '#FAFAFA',
-    backgroundSelected: '#E8E8E8',
-
-    /** Control outlines. Every button carries one. */
-    border: '#E4E4E4',
-    borderStrong: '#D0D0D0',
-
-    /** The accent, and the fill of a primary button. */
-    primary: '#111111',
-    onPrimary: '#FAFAFA',
-    /** Selected-control fill: a wash of `primary`, not a tint of it. */
-    primaryMuted: '#EFEFEF',
-
-    /** Ratings and stars. The one warm colour in the palette. */
-    accent: '#E8940C',
-    /** Platinum trophies. */
-    platinum: '#7C8AA5',
-
-    danger: '#DC2626',
-    success: '#16A34A',
-
-    /** Scrim over hero artwork so text stays legible on any cover. */
-    scrim: 'rgba(0,0,0,0.55)',
-    /** Skeleton placeholder fill. */
-    skeleton: '#EDEDED',
-  },
+  /*
+   * Dark only.
+   *
+   * `light` exists so the `ThemeColor` type stays honest and so nothing has to
+   * branch, but it holds the same values: this app is a dark room by design and
+   * a light counterpart would be a second product. `APP_SCHEME` in
+   * `hooks/use-theme` is the single place that says so.
+   */
   dark: {
-    text: '#FAFAFA',
-    textSecondary: '#A3A3A3',
-    textMuted: '#6E6E6E',
+    text: '#F5F5F5',
+    textSecondary: '#A8A8A8',
+    /** Deliberately low contrast — timestamps, counts, captions. */
+    textMuted: '#767676',
 
-    background: '#0A0A0A',
-    surface: '#141414',
-    surfaceElevated: '#1C1C1C',
-    surfaceSelected: '#282828',
-    backgroundElement: '#141414',
-    backgroundSelected: '#282828',
+    /** The page. Never true black: #000 on OLED smears on scroll and kills the
+     *  sense of depth the surface steps are built on. */
+    background: '#121212',
+    /** Cards and the tab bar. One perceptible step off the page. */
+    surface: '#1C1C1C',
+    /** Nested surfaces — a block inside a card, a chip, a thumbnail well. */
+    surfaceElevated: '#242424',
+    /** Selected / pressed surface, and the chip fill. */
+    surfaceSelected: '#2A2A2A',
+    /** Text fields and the search bar: darker than a card, so an input reads as
+     *  a recess rather than as another card. */
+    input: '#202020',
 
-    border: '#262626',
-    borderStrong: '#383838',
+    /** Overlays for touch feedback. Layered *over* a surface, never instead. */
+    hover: 'rgba(255, 255, 255, 0.04)',
+    pressed: 'rgba(255, 255, 255, 0.07)',
 
-    primary: '#FAFAFA',
-    onPrimary: '#0A0A0A',
-    primaryMuted: '#1F1F1F',
+    /** Dividers. Barely there on purpose — separation is the surface step's job. */
+    border: 'rgba(255, 255, 255, 0.05)',
+    borderStrong: 'rgba(255, 255, 255, 0.12)',
 
-    accent: '#F5A524',
+    /** The one accent. PlayStation blue. Selected nav, primary buttons, active
+     *  states, badges, links — and nothing else. */
+    primary: '#0070CC',
+    onPrimary: '#FFFFFF',
+    /** A wash of the accent, for the fill behind an active chip or badge. */
+    primaryMuted: 'rgba(0, 112, 204, 0.16)',
+    accent: '#0070CC',
+
+    /*
+     * The score ramp. Three colours that are *data*, not chrome.
+     *
+     * They are exempt from the one-accent rule because a 0-100 score has to be
+     * readable as good/mixed/bad before the digits are, and blue cannot say
+     * that. They appear on numerals and their labels — never on a fill, an
+     * outline or a control.
+     */
+    scoreHigh: '#4ADE80',
+    scoreMid: '#F5A524',
+    scoreLow: '#EF4444',
+
+    /** Platinum trophies. */
     platinum: '#A9B6CC',
 
     danger: '#EF4444',
     success: '#4ADE80',
 
-    scrim: 'rgba(0,0,0,0.65)',
-    skeleton: '#1C1C1C',
+    /** Scrim over hero artwork so text stays legible on any cover. */
+    scrim: 'rgba(0, 0, 0, 0.6)',
+    /** Skeleton placeholder fill. */
+    skeleton: '#242424',
+
+    /** Legacy aliases kept so older call sites keep compiling. */
+    backgroundElement: '#202020',
+    backgroundSelected: '#2A2A2A',
   },
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
-export type ThemePalette = (typeof Colors)['light' | 'dark'];
+/** Dark-only: the light palette is the dark one. See the note above. */
+export const Palette = Colors.dark;
+
+export type ThemeColor = keyof typeof Colors.dark;
+export type ThemePalette = typeof Colors.dark;
 
 /**
  * A palette colour at a given opacity.
@@ -162,37 +161,42 @@ export const Fonts = Platform.select({
 });
 
 /**
- * 4pt scale. Names are deliberately numeric rather than t-shirt sizes so that
- * `Spacing[4]` reads as "4 units" and stays orderable.
+ * The 8-point scale, named for the value.
+ *
+ * `Spacing.x16` is sixteen pixels — there is nothing to remember and nothing to
+ * misread, which the old ordinal names (`four` = 16) could not claim. The ladder
+ * is fixed: 4, 8, 12, 16, 20, 24, 32, 40, 48. A gap that is not on it is a bug,
+ * not a decision.
  */
 export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 12,
-  four: 16,
-  five: 24,
-  six: 32,
-  seven: 48,
-  eight: 64,
+  x4: 4,
+  x8: 8,
+  x12: 12,
+  x16: 16,
+  x20: 20,
+  x24: 24,
+  x32: 32,
+  x40: 40,
+  x48: 48,
 } as const;
 
+/**
+ * Radii, named for what they wrap rather than for how big they are.
+ *
+ * Four rounded primitives and a pill, and every surface in the app is one of
+ * them. Naming by role is what keeps it that way: `Radius.card` cannot drift
+ * onto a button the way `large` could.
+ */
 export const Radius = {
-  /** Box art. Just enough to not be a hard corner — a real case is nearly square. */
-  xs: 4,
-  small: 8,
-  /**
-   * Buttons, icon buttons, segmented controls.
-   *
-   * Its own step because controls sit between the two: `small` makes a 44pt
-   * button look boxy and `medium` makes it look like a card that happens to be
-   * tappable. Every interactive rectangle in the app uses this one value, which
-   * is most of what makes them read as a family.
-   */
-  control: 10,
-  medium: 12,
-  large: 18,
-  xlarge: 24,
+  /** Game covers, screenshots, thumbnails — anything rectangular and pictorial. */
+  image: 12,
+  /** Every button, icon button and control. */
+  control: 18,
+  /** Cards and modular surfaces. */
+  card: 20,
+  /** Text fields and the search bar. */
+  input: 24,
+  /** Chips, badges, progress tracks, avatars. */
   pill: 999,
 } as const;
 
@@ -215,19 +219,24 @@ export const Radius = {
  * six competing emphases.
  */
 export const Type = {
-  display: { fontSize: 30, lineHeight: 36, fontFamily: FontFamily.bold },
-  title: { fontSize: 22, lineHeight: 28, fontFamily: FontFamily.bold },
-  heading: { fontSize: 18, lineHeight: 23, fontFamily: FontFamily.semibold },
-  section: { fontSize: 15, lineHeight: 20, fontFamily: FontFamily.semibold },
-  body: { fontSize: 14, lineHeight: 21, fontFamily: FontFamily.regular },
-  bodyStrong: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.semibold },
-  caption: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.medium },
-  micro: { fontSize: 11, lineHeight: 14, fontFamily: FontFamily.semibold },
+  display: { fontSize: 32, lineHeight: 40, fontFamily: FontFamily.bold },
+  title: { fontSize: 24, lineHeight: 30, fontFamily: FontFamily.bold },
+  heading: { fontSize: 18, lineHeight: 24, fontFamily: FontFamily.semibold },
+  section: { fontSize: 16, lineHeight: 22, fontFamily: FontFamily.semibold },
+  body: { fontSize: 15, lineHeight: 23, fontFamily: FontFamily.regular },
+  bodyStrong: { fontSize: 15, lineHeight: 22, fontFamily: FontFamily.semibold },
+  caption: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.medium },
+  micro: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.medium },
 } as const;
 
 /**
- * Elevation through shadow rather than borders. Android only reads
- * `elevation`; iOS needs the shadow* group, so both are always set together.
+ * Elevation is a *surface step*, not a shadow.
+ *
+ * `background` → `surface` → `surfaceElevated` → `surfaceSelected` is the whole
+ * depth model: a card looks lifted because it is lighter than the page, and on
+ * a dark screen that reads far better than a shadow nobody can see against
+ * #121212. The two shadow entries survive for the one thing that genuinely
+ * casts — a depicted physical object, i.e. the game case and its poster.
  */
 export const Elevation = {
   none: {},
@@ -254,16 +263,18 @@ export const Elevation = {
 } as const;
 
 /**
- * Motion. Soft and short — the brief asks for polished, not flashy.
- * Anything above ~250ms starts to feel sluggish on a feed.
+ * Motion. Short and ease-out, and only where it helps you understand what moved.
  */
 export const Motion = {
-  fast: 140,
-  normal: 220,
-  slow: 320,
-  /** Scale applied while a card is held down. */
-  pressScale: 0.97,
+  fast: 150,
+  normal: 200,
+  slow: 300,
+  /** Scale applied while a card or button is held down. */
+  pressScale: 0.98,
 } as const;
+
+/** Minimum tap target, per both platforms' guidelines. Nothing tappable is smaller. */
+export const TapTarget = 44;
 
 /** Portrait box art. Every poster in the app uses this ratio. */
 export const PosterAspectRatio = 2 / 3;

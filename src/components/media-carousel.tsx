@@ -44,7 +44,7 @@ export function MediaCarousel({ media, width, rounded = true }: MediaCarouselPro
           width,
           height,
           backgroundColor: theme.surfaceElevated,
-          borderRadius: rounded ? Radius.medium : 0,
+          borderRadius: rounded ? Radius.image : 0,
         },
       ]}>
       <FlatList
@@ -96,21 +96,21 @@ const styles = StyleSheet.create({
   wrapper: { position: 'relative', overflow: 'hidden' },
   counter: {
     position: 'absolute',
-    top: Spacing.three,
-    right: Spacing.three,
-    paddingHorizontal: Spacing.two,
+    top: Spacing.x12,
+    right: Spacing.x12,
+    paddingHorizontal: Spacing.x8,
     paddingVertical: 3,
     borderRadius: Radius.pill,
   },
   counterText: { color: '#FFFFFF' },
   dots: {
     position: 'absolute',
-    bottom: Spacing.three,
+    bottom: Spacing.x12,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: Spacing.one + 2,
+    gap: Spacing.x4 + 2,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
 });

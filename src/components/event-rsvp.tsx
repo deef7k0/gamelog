@@ -217,16 +217,16 @@ function ModeButton({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { gap: Spacing.two, marginTop: Spacing.one },
-  modes: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
+  wrapper: { gap: Spacing.x8, marginTop: Spacing.x4 },
+  modes: { flexDirection: 'row', gap: Spacing.x8, flexWrap: 'wrap' },
   mode: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one + 2,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.x4 + 2,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  attendanceLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  attendanceLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 });

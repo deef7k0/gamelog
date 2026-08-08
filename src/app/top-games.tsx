@@ -16,7 +16,7 @@ const TOP_N = 10;
 
 /** Two across: the tile is art *plus* a caption, so four would truncate titles. */
 const COLUMNS = 2;
-const GAP = Spacing.three;
+const GAP = Spacing.x12;
 
 /**
  * Top 10 most popular games this month.
@@ -43,7 +43,7 @@ export default function TopGamesScreen() {
 
   const entries = chart.data?.entries ?? [];
   const lead = entries[0];
-  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.four, GAP);
+  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
   return (
     /*
@@ -99,7 +99,7 @@ export default function TopGamesScreen() {
           chart.isLoading ? (
             <View style={styles.skeleton}>
               {Array.from({ length: TOP_N }).map((_, index) => (
-                <Skeleton key={index} width={tileWidth} height={96} radius={Radius.small} />
+                <Skeleton key={index} width={tileWidth} height={96} radius={Radius.image} />
               ))}
             </View>
           ) : chart.isError ? (
@@ -124,12 +124,12 @@ const FOOTNOTE: Record<ChartBasis, string> = {
 };
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.seven, gap: GAP },
+  content: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
   /* Cancels the list's own padding so the art reaches both edges. */
-  hero: { marginHorizontal: -Spacing.four, marginBottom: Spacing.four },
-  headline: { position: 'absolute', left: Spacing.four, right: Spacing.four, bottom: Spacing.four },
+  hero: { marginHorizontal: -Spacing.x16, marginBottom: Spacing.x16 },
+  headline: { position: 'absolute', left: Spacing.x16, right: Spacing.x16, bottom: Spacing.x16 },
   onImage: { color: '#FFFFFF' },
   skeleton: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
-  footnote: { paddingTop: Spacing.five },
+  footnote: { paddingTop: Spacing.x24 },
 });

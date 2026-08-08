@@ -131,12 +131,12 @@ export default function NewListScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { gap: Spacing.four, paddingVertical: Spacing.five },
-  section: { gap: Spacing.two },
-  shapes: { gap: Spacing.two },
+  content: { gap: Spacing.x16, paddingVertical: Spacing.x24 },
+  section: { gap: Spacing.x8 },
+  shapes: { gap: Spacing.x8 },
   shape: {
-    padding: Spacing.four,
-    borderRadius: Radius.medium,
+    padding: Spacing.x16,
+    borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,
     gap: 2,
   },

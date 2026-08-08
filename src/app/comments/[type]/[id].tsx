@@ -125,7 +125,7 @@ export default function CommentsScreen() {
           contentContainerStyle={threads.length === 0 ? styles.empty : styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ItemSeparatorComponent={() => <View style={{ height: Spacing.four }} />}
+          ItemSeparatorComponent={() => <View style={{ height: Spacing.x16 }} />}
           renderItem={({ item }) => (
             <View style={styles.thread}>
               <CommentRow
@@ -271,23 +271,23 @@ function CommentRow({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { padding: Spacing.four, paddingBottom: Spacing.five },
+  content: { padding: Spacing.x16, paddingBottom: Spacing.x24 },
   empty: { flexGrow: 1 },
-  thread: { gap: Spacing.three },
+  thread: { gap: Spacing.x12 },
   replies: {
-    marginLeft: Spacing.five,
-    paddingLeft: Spacing.three,
+    marginLeft: Spacing.x24,
+    paddingLeft: Spacing.x12,
     borderLeftWidth: 1,
-    gap: Spacing.three,
+    gap: Spacing.x12,
   },
-  commentRow: { flexDirection: 'row', gap: Spacing.three },
-  commentBody: { flex: 1, gap: Spacing.one },
-  commentHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  commentActions: { flexDirection: 'row', gap: Spacing.four, marginTop: 2 },
+  commentRow: { flexDirection: 'row', gap: Spacing.x12 },
+  commentBody: { flex: 1, gap: Spacing.x4 },
+  commentHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  commentActions: { flexDirection: 'row', gap: Spacing.x16, marginTop: 2 },
   strong: { fontFamily: FontFamily.semibold },
-  composer: { padding: Spacing.three, gap: Spacing.two, borderTopWidth: StyleSheet.hairlineWidth },
-  replyingTo: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.two },
+  composer: { padding: Spacing.x12, gap: Spacing.x8, borderTopWidth: StyleSheet.hairlineWidth },
+  replyingTo: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.x8 },
   composerField: { flex: 1 },
   input: { minHeight: 44, maxHeight: 120 },
   send: {

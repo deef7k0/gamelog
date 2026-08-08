@@ -1,16 +1,23 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 
-import { FontFamily, Radius } from '@/constants/theme';
+import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * Bottom navigation.
+ * Bottom navigation. Five tabs, icons above labels.
  *
- * Notifications used to live here; it now opens from an icon in the home feed's
- * header instead, freeing the slot for News. That matches how Instagram and X
- * treat notifications — reachable from the feed rather than occupying permanent
- * navigation real estate.
+ * Labels are shown, not hidden. An icon-only bar asks every new user to guess
+ * what a newspaper glyph leads to; five words cost 14px of height and remove
+ * the guessing entirely. Five is also the ceiling — a sixth destination means
+ * something belongs one level down, not that the bar should get denser.
+ *
+ * Selection is the accent blue, on both the glyph and the label. That is the
+ * single loudest use of colour in the app and it is deliberate: where you are
+ * is the one thing the chrome should always be shouting.
+ *
+ * Notifications used to live here; it now opens from an icon in Home's header
+ * instead, freeing the slot for News.
  */
 export default function TabsLayout() {
   const theme = useTheme();
@@ -18,18 +25,22 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: theme.text,
+        tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textMuted,
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: { fontSize: 11, fontFamily: FontFamily.medium, marginTop: 2 },
+        tabBarItemStyle: { paddingVertical: Spacing.x4 },
         tabBarStyle: {
-          backgroundColor: theme.background,
-          borderTopColor: theme.border,
-          borderTopWidth: 0.5,
-          height: 62,
-          paddingTop: 6,
+          // The bar is a *surface*, one step up from the page, rather than the
+          // page colour with a line drawn on it.
+          backgroundColor: theme.surface,
+          borderTopWidth: 0,
+          height: 68,
+          paddingTop: Spacing.x8,
+          paddingBottom: Spacing.x8,
         },
         headerStyle: { backgroundColor: theme.background },
-        headerTitleStyle: { color: theme.text, fontSize: 20, fontFamily: FontFamily.bold },
+        headerTitleStyle: { color: theme.text, fontSize: 24, fontFamily: FontFamily.bold },
         headerShadowVisible: false,
       }}>
       <Tabs.Screen
@@ -39,7 +50,7 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarAccessibilityLabel: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={25} color={color} />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -51,7 +62,7 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarAccessibilityLabel: 'Search',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'search' : 'search-outline'} size={25} color={color} />
+            <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -64,9 +75,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? 'add-circle' : 'add-circle-outline'}
-              size={30}
+              size={26}
               color={color}
-              style={{ borderRadius: Radius.small }}
             />
           ),
         }}

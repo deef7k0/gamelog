@@ -190,7 +190,7 @@ export function EventCard({ event }: { event: GameEvent }) {
 }
 
 const styles = StyleSheet.create({
-  feedRow: { flexDirection: 'row', gap: Spacing.three, paddingVertical: Spacing.three },
+  feedRow: { flexDirection: 'row', gap: Spacing.x12, paddingVertical: Spacing.x12 },
   sourceBadge: {
     width: 38,
     height: 38,
@@ -198,13 +198,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  feedBody: { flex: 1, gap: Spacing.one },
-  feedContent: { flexDirection: 'row', gap: Spacing.three, alignItems: 'flex-start' },
-  feedText: { flex: 1, gap: Spacing.one },
-  feedThumb: { width: 76, height: 76, borderRadius: Radius.medium },
+  feedBody: { flex: 1, gap: Spacing.x4 },
+  feedContent: { flexDirection: 'row', gap: Spacing.x12, alignItems: 'flex-start' },
+  feedText: { flex: 1, gap: Spacing.x4 },
+  feedThumb: { width: 76, height: 76, borderRadius: Radius.image },
   articleImage: { width: '100%', aspectRatio: HeroAspectRatio },
-  articleBody: { padding: Spacing.four, gap: Spacing.two },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  articleBody: { padding: Spacing.x16, gap: Spacing.x8 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   playBadge: {
     position: 'absolute',
     top: '50%',
@@ -217,9 +217,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  eventBody: { gap: Spacing.two },
+  eventBody: { gap: Spacing.x8 },
   pill: {
-    paddingHorizontal: Spacing.two,
+    paddingHorizontal: Spacing.x8,
     paddingVertical: 2,
     borderRadius: Radius.pill,
   },

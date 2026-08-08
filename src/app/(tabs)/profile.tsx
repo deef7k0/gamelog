@@ -47,6 +47,6 @@ export default function MyProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  actions: { flexDirection: 'row', gap: Spacing.three },
+  actions: { flexDirection: 'row', gap: Spacing.x12 },
   action: { flex: 1 },
 });

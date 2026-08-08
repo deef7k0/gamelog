@@ -13,7 +13,7 @@ import type { ProfileAchievementStats } from '@/lib/database.types';
 
 /** Four across, edge to edge — the same rule every poster grid in the app uses. */
 const FAVORITE_COLUMNS = 4;
-const FAVORITE_GAP = Spacing.two;
+const FAVORITE_GAP = Spacing.x8;
 
 /**
  * Profile widgets.
@@ -46,7 +46,7 @@ export function FavoritesWidget({
   const posterWidth = gridItemWidth(
     Math.min(width, MaxContentWidth),
     FAVORITE_COLUMNS,
-    Spacing.four,
+    Spacing.x16,
     FAVORITE_GAP
   );
 
@@ -87,7 +87,7 @@ export function FavoritesWidget({
                   heroUrl={item.game?.hero_url}
                   title={item.game?.title}
                   width={posterWidth}
-                  rounded="small"
+                  rounded="image"
                 />
               </PressableScale>
             </Link>
@@ -192,15 +192,15 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   widget: {
     flex: 1,
-    gap: Spacing.three,
-    paddingTop: Spacing.four,
+    gap: Spacing.x12,
+    paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   widgetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  widgetTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  widgetTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   posters: { flexDirection: 'row', gap: FAVORITE_GAP },
   emptySlot: {
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,
     borderStyle: 'dashed',
   },

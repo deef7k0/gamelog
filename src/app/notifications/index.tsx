@@ -194,24 +194,24 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.four, gap: Spacing.one, paddingBottom: Spacing.seven },
+  content: { padding: Spacing.x16, gap: Spacing.x4, paddingBottom: Spacing.x48 },
   empty: { flexGrow: 1 },
-  sectionTitle: { marginTop: Spacing.four, marginBottom: Spacing.two },
+  sectionTitle: { marginTop: Spacing.x16, marginBottom: Spacing.x8 },
   /* Outlined, not filled: it is a button, and the fill it used to have is the
      one thing the de-bubble reserved for content that is *yours*. */
   markRead: {
     alignSelf: 'flex-start',
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
+    gap: Spacing.x12,
+    padding: Spacing.x12,
+    borderRadius: Radius.image,
   },
   rowText: { flex: 1, gap: 2 },
   badge: {

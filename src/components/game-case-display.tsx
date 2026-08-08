@@ -105,7 +105,7 @@ export function GameCaseDisplay({
           heroUrl={heroUrl}
           title={title}
           width={coverWidth}
-          rounded="small"
+          rounded="image"
         />
       </View>
     </View>
@@ -115,10 +115,10 @@ export function GameCaseDisplay({
 const styles = StyleSheet.create({
   cover: { alignItems: 'center', justifyContent: 'center' },
   frame: {
-    borderRadius: Radius.small + 1,
+    borderRadius: Radius.image + 1,
     borderWidth: StyleSheet.hairlineWidth,
     padding: 1,
     overflow: 'hidden',
   },
-  wrapper: { alignItems: 'center', gap: Spacing.three },
+  wrapper: { alignItems: 'center', gap: Spacing.x12 },
 });

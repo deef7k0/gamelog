@@ -160,15 +160,15 @@ function Section({
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.four, paddingBottom: Spacing.seven, gap: Spacing.five },
-  section: { gap: Spacing.one },
-  sectionHead: { gap: 1, paddingBottom: Spacing.two },
+  content: { padding: Spacing.x16, paddingBottom: Spacing.x48, gap: Spacing.x24 },
+  section: { gap: Spacing.x4 },
+  sectionHead: { gap: 1, paddingBottom: Spacing.x8 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  rowText: { flex: 1, gap: Spacing.half },
+  rowText: { flex: 1, gap: Spacing.x4 },
 });

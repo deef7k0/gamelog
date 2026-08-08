@@ -154,17 +154,17 @@ function bannerFrom(items: ListItem[]): string | null {
 
 const styles = StyleSheet.create({
   body: {
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.three,
-    marginTop: -Spacing.five,
+    paddingHorizontal: Spacing.x16,
+    gap: Spacing.x12,
+    marginTop: -Spacing.x24,
   },
-  creator: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  metaRow: { flexDirection: 'row', gap: Spacing.four, flexWrap: 'wrap' },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  creator: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  metaRow: { flexDirection: 'row', gap: Spacing.x16, flexWrap: 'wrap' },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   tag: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + 1,
-    borderRadius: Radius.small,
+    paddingHorizontal: Spacing.x12,
+    paddingVertical: Spacing.x4 + 1,
+    borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,
   },
   /* No top rule any more: each button carries its own outline, and a divider
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
-    marginTop: Spacing.one,
+    gap: Spacing.x8,
+    marginTop: Spacing.x4,
   },
 });

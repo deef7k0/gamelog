@@ -15,7 +15,7 @@ import { displayNameFor, timeAgo } from '@/lib/format';
 
 const GAME_TAG_POSTER = 40;
 /** Horizontal padding the feed list applies on each side. */
-const LIST_INSET = Spacing.four * 2;
+const LIST_INSET = Spacing.x16 * 2;
 
 export type PostCardProps = {
   post: PostWithRelations;
@@ -129,7 +129,7 @@ export function PostCard({ post, engagement, showAuthor = true }: PostCardProps)
                 heroUrl={post.game.hero_url}
                 title={post.game.title}
                 width={GAME_TAG_POSTER}
-                rounded="small"
+                rounded="image"
               />
               <View style={styles.gameTagText}>
                 <Text variant="caption" numberOfLines={1} style={styles.strong}>
@@ -151,22 +151,22 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
+    gap: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    paddingVertical: Spacing.x12,
   },
   // Without an image butting up against it, the header needs less bottom space.
-  headerNoMedia: { paddingBottom: Spacing.one },
+  headerNoMedia: { paddingBottom: Spacing.x4 },
   headerText: { flex: 1, gap: 1 },
-  textOnly: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.three },
-  footer: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.three, gap: Spacing.two },
+  textOnly: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x12 },
+  footer: { paddingHorizontal: Spacing.x16, paddingVertical: Spacing.x12, gap: Spacing.x8 },
   gameTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.two,
-    borderRadius: Radius.medium,
-    marginTop: Spacing.one,
+    gap: Spacing.x12,
+    padding: Spacing.x8,
+    borderRadius: Radius.image,
+    marginTop: Spacing.x4,
   },
   gameTagText: { flex: 1, gap: 1 },
   strong: { fontFamily: FontFamily.semibold },

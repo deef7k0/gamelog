@@ -2,17 +2,50 @@ import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type ScoreSize = 'small' | 'medium' | 'large' | 'hero';
+export type ScoreSize = 'inline' | 'medium' | 'large' | 'hero';
 
-const SIZES: Record<ScoreSize, { box: number; number: number; radius: number }> = {
-  small: { box: 32, number: 15, radius: Radius.small },
-  medium: { box: 44, number: 20, radius: Radius.medium },
-  large: { box: 62, number: 28, radius: Radius.medium },
-  hero: { box: 84, number: 40, radius: Radius.large },
+/**
+ * The 0-100 score is a **coloured numeral and nothing else**.
+ *
+ * No box, no outline, no fill. Digits wrapped in a bordered capsule read as a
+ * button you could press, and at the sizes a feed needs, the container was
+ * consistently larger than the number inside it — a two-character fact wearing
+ * an 80px badge. The verdict colour does everything the box was doing: good,
+ * mixed or bad is legible before the digits are.
+ *
+ * The three ramp colours are the one exception to the app's single-accent rule,
+ * and they earn it by being *data*. They appear on numerals and their labels,
+ * never on a control, a fill or an edge.
+ */
+const SIZES: Record<ScoreSize, number> = {
+  /** Body height. A review card, a list row — anywhere the score is one fact among several. */
+  inline: 15,
+  medium: 22,
+  large: 32,
+  /** The headline number on a review page. */
+  hero: 44,
 };
+
+export type ScoreNumberProps = {
+  score: number;
+  size?: ScoreSize;
+};
+
+/** Just the number, in its verdict colour. */
+export function ScoreNumber({ score, size = 'inline' }: ScoreNumberProps) {
+  const theme = useTheme();
+
+  return (
+    <Text
+      accessibilityLabel={`Scored ${Math.round(score)} out of 100 — ${labelFor(score)}`}
+      style={[styles.number, { fontSize: SIZES[size], color: scoreColor(score, theme) }]}>
+      {Math.round(score)}
+    </Text>
+  );
+}
 
 export type ScorePillProps = {
   score: number;
@@ -22,45 +55,25 @@ export type ScorePillProps = {
 };
 
 /**
- * The 0-100 score, colour-coded by verdict.
+ * The number with its verdict word beside it, for a masthead or a stat block.
  *
- * A filled tinted block rather than an outline — at `hero` size this is meant to
- * be the loudest element on a review, per the design brief.
+ * Keeps the old name because it is still "the score, presented large" — it
+ * simply no longer draws a pill. Callers wanting only digits use `ScoreNumber`.
  */
 export function ScorePill({ score, size = 'medium', showLabel = false }: ScorePillProps) {
   const theme = useTheme();
   const tint = scoreColor(score, theme);
-  const dimensions = SIZES[size];
-  const label = labelFor(score);
 
-  const box = (
-    <View
-      style={[
-        styles.box,
-        {
-          minWidth: dimensions.box,
-          height: dimensions.box,
-          borderRadius: dimensions.radius,
-          backgroundColor: `${tint}22`,
-          borderColor: tint,
-        },
-      ]}>
-      <Text style={[styles.number, { fontSize: dimensions.number, color: tint }]}>
-        {Math.round(score)}
-      </Text>
-    </View>
-  );
-
-  if (!showLabel) return box;
+  if (!showLabel) return <ScoreNumber score={score} size={size} />;
 
   return (
     <View style={styles.withLabel}>
-      {box}
+      <ScoreNumber score={score} size={size} />
       <View style={styles.labelBlock}>
         <Text variant="bodyStrong" style={{ color: tint }}>
-          {label}
+          {labelFor(score)}
         </Text>
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           out of 100
         </Text>
       </View>
@@ -68,47 +81,14 @@ export function ScorePill({ score, size = 'medium', showLabel = false }: ScorePi
   );
 }
 
-/** The review card's badge. See `ReviewMeta` — these numbers are its spec. */
-export const SCORE_SQUARE = { size: 54, radius: 12, border: 1.5, number: 24 } as const;
-
 /**
- * The square score badge: the review's anchor.
+ * The score as a phrase: the number, then the word for it. "82 VERY GOOD".
  *
- * 54×54 with a 24px numeral. It was 80 with a 40px numeral for one revision and
- * that was a mistake worth recording: at 80 the badge plus its padding stood
- * taller than the 2:3 cover beside it, so the block that is supposed to *sit
- * under* the artwork hung below it instead. The score leads the reading order;
- * it does not have to be the biggest object on screen to do that, and the cover
- * is the one element allowed to win on size.
- *
- * Outlined with a barely-there tint rather than filled: a solid block of Ember
- * would be the loudest thing on the page, and the box art is meant to be the
- * only thing carrying real colour.
+ * Both halves carry the verdict colour, so the line is parseable at a glance
+ * the way five green stars are — but a 100-point scale has fifteen verdicts,
+ * and the word is what stops 82 and 88 reading as the same opinion.
  */
-export function ScoreSquare({ score }: { score: number }) {
-  const theme = useTheme();
-  const tint = scoreColor(score, theme);
-
-  return (
-    <View
-      accessibilityLabel={`Scored ${Math.round(score)} out of 100 — ${labelFor(score)}`}
-      style={[styles.square, { backgroundColor: `${tint}1A`, borderColor: tint }]}>
-      <Text style={[styles.number, { fontSize: SCORE_SQUARE.number, color: tint }]}>
-        {Math.round(score)}
-      </Text>
-    </View>
-  );
-}
-
-/**
- * The score as a phrase: the number, then the word for it. "82 Very Good".
- *
- * For rows too tight for the square badge — a compact list, a diary entry. Both
- * halves carry the verdict colour, so the line is parseable at a glance the way
- * five green stars are, but a 100-point scale has fifteen verdicts and the word
- * is what stops 82 and 88 reading as the same opinion.
- */
-export function ScoreLine({ score, size = 'small' }: { score: number; size?: 'small' | 'medium' }) {
+export function ScoreLine({ score, size = 'inline' }: { score: number; size?: ScoreSize }) {
   const theme = useTheme();
   const tint = scoreColor(score, theme);
 
@@ -116,39 +96,21 @@ export function ScoreLine({ score, size = 'small' }: { score: number; size?: 'sm
     <View
       style={styles.line}
       accessibilityLabel={`Rated ${Math.round(score)} out of 100 — ${labelFor(score)}`}>
-      <Text style={[styles.number, { fontSize: size === 'small' ? 17 : 21, color: tint }]}>
-        {Math.round(score)}
-      </Text>
-      <Text
-        variant={size === 'small' ? 'caption' : 'bodyStrong'}
-        style={{ color: tint, fontFamily: FontFamily.semibold }}>
-        {labelFor(score)}
+      <ScoreNumber score={score} size={size} />
+      <Text variant="caption" style={{ color: tint, fontFamily: FontFamily.semibold }}>
+        {labelFor(score).toUpperCase()}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  /* Bold is reserved for page titles *and* for scores: a score is the one piece
-     of data in this app that has to be readable at arm's length. */
+  /* Bold, and the only place bold appears below display size: a score has to be
+     readable at arm's length and it no longer has a box helping it. */
   number: { fontFamily: FontFamily.bold },
-  box: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    paddingHorizontal: Spacing.two,
-  },
-  square: {
-    width: SCORE_SQUARE.size,
-    height: SCORE_SQUARE.size,
-    borderRadius: SCORE_SQUARE.radius,
-    borderWidth: SCORE_SQUARE.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  withLabel: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  withLabel: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   labelBlock: { gap: 1 },
-  /* `baseline` rather than `center`: the number is twice the label's size, and
+  /* `baseline` rather than `center`: the number is larger than the word, and
      centring them makes the word look like it is floating. */
-  line: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.two },
+  line: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.x8 },
 });

@@ -136,14 +136,14 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, gap: Spacing.three },
-  listContent: { padding: Spacing.four, paddingBottom: Spacing.seven },
+  header: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x16, gap: Spacing.x12 },
+  listContent: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   personRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  personText: { flex: 1, gap: Spacing.half },
+  personText: { flex: 1, gap: Spacing.x4 },
 });

@@ -1,731 +1,462 @@
 ---
 name: GameLog
-description: A near-black shelf for videogames — the room is dark so the boxes are the only thing lit.
+description: A premium, calm, information-dense gaming social platform. Dark, greyscale, one blue accent, and a lot of games.
+scheme: dark-only
 colors:
-  ink: "#0A0A0A"
-  slate: "#141414"
-  graphite: "#1C1C1C"
-  iron: "#282828"
-  seam: "#262626"
-  ridge: "#383838"
-  bone: "#FAFAFA"
-  ash: "#A3A3A3"
-  smoke: "#6E6E6E"
-  amber: "#F5A524"
-  ember: "#EF4444"
-  moss: "#4ADE80"
-  pewter: "#A9B6CC"
+  background: "#121212"
+  surface: "#1C1C1C"
+  surfaceElevated: "#242424"
+  surfaceSelected: "#2A2A2A"
+  input: "#202020"
+  hover: "rgba(255,255,255,0.04)"
+  pressed: "rgba(255,255,255,0.07)"
+  border: "rgba(255,255,255,0.05)"
+  borderStrong: "rgba(255,255,255,0.12)"
+  primary: "#0070CC"
+  onPrimary: "#FFFFFF"
+  primaryMuted: "rgba(0,112,204,0.16)"
+  text: "#F5F5F5"
+  textSecondary: "#A8A8A8"
+  textMuted: "#767676"
+  scoreHigh: "#4ADE80"
+  scoreMid: "#F5A524"
+  scoreLow: "#EF4444"
+  platinum: "#A9B6CC"
 typography:
   display:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
-    fontSize: "30px"
+    fontFamily: "Inter"
+    fontSize: "32px"
     fontWeight: 700
-    lineHeight: "36px"
+    lineHeight: "40px"
   title:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
-    fontSize: "22px"
+    fontFamily: "Inter"
+    fontSize: "24px"
     fontWeight: 700
-    lineHeight: "28px"
+    lineHeight: "30px"
   heading:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "Inter"
     fontSize: "18px"
     fontWeight: 600
-    lineHeight: "23px"
+    lineHeight: "24px"
   section:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "Inter"
+    fontSize: "16px"
+    fontWeight: 600
+    lineHeight: "22px"
+  body:
+    fontFamily: "Inter"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: "23px"
+  bodyStrong:
+    fontFamily: "Inter"
     fontSize: "15px"
     fontWeight: 600
-    lineHeight: "20px"
-  body:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: "21px"
-  bodyStrong:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
-    fontSize: "14px"
-    fontWeight: 600
-    lineHeight: "20px"
+    lineHeight: "22px"
   caption:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
+    fontFamily: "Inter"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: "18px"
+  micro:
+    fontFamily: "Inter"
     fontSize: "12px"
     fontWeight: 500
-    lineHeight: "17px"
-  micro:
-    fontFamily: "Inter, system-ui, -apple-system, Roboto, sans-serif"
-    fontSize: "11px"
-    fontWeight: 600
-    lineHeight: "14px"
-rounded:
-  xs: "4px"
-  small: "8px"
-  control: "10px"
-  medium: "12px"
-  large: "18px"
-  xlarge: "24px"
-  pill: "999px"
+    lineHeight: "16px"
 spacing:
-  half: "2px"
-  one: "4px"
-  two: "8px"
-  three: "12px"
-  four: "16px"
-  five: "24px"
-  six: "32px"
-  seven: "48px"
-  eight: "64px"
+  x4: "4px"
+  x8: "8px"
+  x12: "12px"
+  x16: "16px"
+  x20: "20px"
+  x24: "24px"
+  x32: "32px"
+  x40: "40px"
+  x48: "48px"
+rounded:
+  image: "12px"
+  control: "18px"
+  card: "20px"
+  input: "24px"
+  pill: "999px"
+motion:
+  fast: "150ms"
+  normal: "200ms"
+  slow: "300ms"
+  easing: "ease-out"
+  pressScale: 0.98
 components:
+  card:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.card}"
+    padding: "16px"
+    border: none
+    shadow: none
+  card-elevated:
+    backgroundColor: "{colors.surfaceElevated}"
+  chip:
+    backgroundColor: "{colors.surfaceSelected}"
+    textColor: "{colors.textSecondary}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    height: "34px"
+    padding: "0 14px"
+  chip-active:
+    backgroundColor: "{colors.primaryMuted}"
+    textColor: "{colors.primary}"
   button-primary:
-    backgroundColor: "{colors.bone}"
-    textColor: "{colors.ink}"
-    typography: "{typography.bodyStrong}"
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.onPrimary}"
     rounded: "{rounded.control}"
-    padding: "11px 16px"
+    padding: "12px 20px"
     height: "46px"
   button-secondary:
-    backgroundColor: "{colors.graphite}"
-    textColor: "{colors.bone}"
-    typography: "{typography.bodyStrong}"
+    backgroundColor: "{colors.surfaceElevated}"
+    textColor: "{colors.text}"
     rounded: "{rounded.control}"
-    padding: "11px 16px"
-    height: "46px"
-  button-secondary-pressed:
-    backgroundColor: "{colors.iron}"
-  button-danger:
-    backgroundColor: "{colors.graphite}"
-    textColor: "{colors.ember}"
-    typography: "{typography.bodyStrong}"
-    rounded: "{rounded.control}"
-    padding: "11px 16px"
+    padding: "12px 20px"
     height: "46px"
   button-ghost:
     backgroundColor: "transparent"
-    textColor: "{colors.bone}"
-    typography: "{typography.bodyStrong}"
-    rounded: "{rounded.control}"
-    padding: "11px 16px"
-    height: "46px"
+    textColor: "{colors.text}"
   button-small:
-    typography: "{typography.caption}"
-    rounded: "{rounded.control}"
-    padding: "7px 12px"
-    height: "34px"
+    padding: "8px 16px"
+    height: "40px"
   icon-button:
-    backgroundColor: "{colors.graphite}"
-    textColor: "{colors.ash}"
+    backgroundColor: "{colors.surfaceElevated}"
     rounded: "{rounded.control}"
-    size: "40px"
-  icon-button-small:
-    rounded: "{rounded.control}"
-    size: "32px"
-  sort-pill:
-    backgroundColor: "{colors.graphite}"
-    textColor: "{colors.ash}"
-    typography: "{typography.micro}"
-    rounded: "{rounded.control}"
-    padding: "8px 12px"
-  sort-pill-selected:
-    backgroundColor: "{colors.iron}"
-    textColor: "{colors.bone}"
-  chip:
-    backgroundColor: "{colors.graphite}"
-    textColor: "{colors.ash}"
-    typography: "{typography.micro}"
-    rounded: "{rounded.pill}"
-    padding: "6px 12px"
+    size: "44px"
   input:
-    backgroundColor: "{colors.slate}"
-    textColor: "{colors.bone}"
-    rounded: "{rounded.medium}"
-    padding: "10px 12px"
-    height: "48px"
-  card:
-    backgroundColor: "transparent"
-    borderTop: "1px {colors.seam}"
-    textColor: "{colors.bone}"
-    rounded: "0"
-    padding: "16px 0"
-  review-meta:
-    backgroundColor: "{colors.slate}"
-    rounded: "12px"
-    padding: "12px"
-    gap: "12px"
-  score-square:
-    borderColor: "{score ramp}"
-    borderWidth: "1.5px"
-    rounded: "12px"
-    size: "54px"
-    fontSize: "24px"
-    fontWeight: 700
-  tab:
-    backgroundColor: "transparent"
-    textColor: "{colors.smoke}"
-    typography: "{typography.bodyStrong}"
+    backgroundColor: "{colors.input}"
+    rounded: "{rounded.input}"
     padding: "12px 16px"
-  tab-selected:
-    textColor: "{colors.bone}"
+    height: "48px"
+  search-bar:
+    backgroundColor: "{colors.input}"
+    rounded: "{rounded.input}"
+    height: "56px"
+    iconPosition: "leading"
+  bottom-nav:
+    backgroundColor: "{colors.surface}"
+    height: "68px"
+    selectedColor: "{colors.primary}"
+    unselectedColor: "{colors.textMuted}"
+  score:
+    display: "bare numeral, verdict colour"
+    typography: "700"
+    sizes: "inline 15 / medium 22 / large 32 / hero 44"
 ---
 
 # Design System: GameLog
 
 ## Overview
 
-**Creative North Star: "The Unlit Shelf"**
+**A premium gaming social platform, built for long sessions.**
 
-The room is dark so the boxes are the only thing lit. GameLog's interface is a
-near-black room — `Ink` (#0A0A0A) walls, `Slate` (#141414) shelving you sense
-rather than look at — and everything with colour in it belongs to a game, not to
-the app. Box art is the content on nearly every screen, so the chrome's job is to
-be a frame that never argues with what it frames.
+The people who use this app spend hours browsing games, reviews, collections and
+profiles. Everything here follows from that: the interface has to be calm enough
+to sit in for an hour, dense enough to be worth scrolling, and readable enough
+that none of it is work.
 
-The temperament is quiet and exacting. Confidence here is expressed through
-consistency and tight detail, not through statements: every interactive rectangle
-is the same rectangle at the same radius, every selected thing is exactly one
-step lighter than an unselected one, every hero image fades into the page on the
-same ramp. Nothing is loud unless it is artwork. The components are refined and
-restrained — low contrast, generous padding, controls that ask for attention only
-when you go looking for them — while the game case, the one object the app
-renders as a physical thing, is allowed to be as present as a real boxed copy on
-a shelf.
+Quality comes from spacing, typography, consistency, hierarchy and proportion —
+never from effects. There are no gradients (except as fades over artwork), no
+glass, no glow, no neumorphism, no skeuomorphism. If something looks expensive
+here it is because the spacing is right, not because it is doing a trick.
 
-The system replaced a blue-accented predecessor, and that predecessor is the
-named anti-reference. A blue button beside orange key art read as a second,
-louder piece of artwork; the whole point of moving to a monochrome scale was to
-stop the interface competing for the eye it is supposed to be directing.
+**Key characteristics:**
 
-**Key Characteristics:**
+- Dark only, and never true black. `#121212` is the floor.
+- Depth is a *surface step*, not a shadow: background → surface → elevated.
+- One accent — PlayStation blue — on selected nav, primary actions, active
+  states and badges. Nothing else.
+- ~90% of any screen is greyscale. Artwork and the accent are the colour.
+- Medium-high density, achieved with chips and spacing, never by shrinking text.
+- Four geometric primitives: rounded rectangle, circle, pill, rounded square.
 
-- Near-black, monochrome chrome; every hue on screen is borrowed from a game.
-- Separation by tonal step plus a hairline edge — never by fill colour.
-- One rectangle for every control: 10px radius, hairline outline. Box art gets 4px.
-- Emphasis is a change in *value*, not in hue: selected is one step lighter.
-- Interface is flat; depicted objects cast real shadows.
-- Inter throughout, in four weights; hierarchy comes from size, weight and colour.
+## Colours
 
-## Colors
+### The room
 
-A near-black monochrome scale named for the materials it evokes, with exactly
-three signal colours and nothing else.
+Six neutral steps, and each one has a job. Separation between them is what
+replaces every border and every shadow in the app.
 
-### Primary
+- **Background** `#121212` — the page. Never `#000`: true black smears on OLED
+  during scroll and removes the contrast the whole depth model is built on.
+- **Surface** `#1C1C1C` — cards and the bottom bar. One clear step off the page.
+- **Surface elevated** `#242424` — a block inside a card, a secondary button, a
+  thumbnail well.
+- **Surface selected** `#2A2A2A` — chips, and the resting state of anything
+  selected.
+- **Input** `#202020` — text fields and the search bar. Deliberately *darker*
+  than a card: an input is a well you type into, not an object sitting on the
+  page, and inverting that relationship is what makes a form read as a form.
+- **Hover** `rgba(255,255,255,0.04)` / **Pressed** `rgba(255,255,255,0.07)` —
+  layered *over* a surface, never replacing it.
+- **Border** `rgba(255,255,255,0.05)` — dividers only. Barely visible on purpose.
 
-- **Bone** (#FAFAFA): The accent and the primary fill in one. It is text at full
-  strength, the fill of the single most important button on a screen, the active
-  tab's underline, and the active tab's label. It is a *value*, not a brand hue —
-  in light mode this role inverts to near-black (#111111) and nothing else about
-  the system changes.
+### The accent
 
-### Secondary
+**PlayStation blue** `#0070CC`, and there is only one.
 
-The three signal colours. Each carries information no other treatment can, which
-is the only reason any of them is allowed to exist.
+It appears on: selected navigation, primary buttons, active states, badges,
+links, and the "See all" affordance. It appears nowhere else. The rule is
+absolute because the accent only directs attention while it is rare — a screen
+with six blue things has no primary action, it has six.
 
-- **Amber** (#F5A524): Ratings and the middle of the score ramp. The warm colour
-  in the palette, used for the star on a favourite and for scores in the 45–69
-  band ("Mixed" through "Decent").
-- **Ember** (#EF4444): Destructive actions, errors, unseen counts, and the bottom
-  of the score ramp (0–34). On a `Delete` button it colours the label and tints
-  the edge — never the fill.
-- **Moss** (#4ADE80): Success, "Playing" status, and the top of the score ramp
-  (70–100).
+`primaryMuted` (blue at 16%) is the fill behind an *active* chip or badge. It is
+the only tinted fill in the system.
 
-### Tertiary
+### Text
 
-- **Pewter** (#A9B6CC): Platinum trophies, and only those. A cold metallic that
-  reads as achievement without joining the signal set.
+`#F5F5F5` primary, `#A8A8A8` secondary, `#767676` muted. Three steps, and
+hierarchy within a block is expressed by moving between them before it is
+expressed by changing size.
 
-### Neutral
+### The score ramp
 
-The room, in six steps. Each is one perceptible increment from the last, which is
-what lets the system separate surfaces without drawing a single line.
+`scoreHigh` `#4ADE80` · `scoreMid` `#F5A524` · `scoreLow` `#EF4444`
 
-- **Ink** (#0A0A0A): The page. Every screen's floor.
-- **Slate** (#141414): Sheets and text field fills. One step off the page. It no
-  longer backs cards or list rows — see Cards / Containers.
-- **Graphite** (#1C1C1C): Control fill — buttons, icon buttons, sort pills, chips.
-  Sits above a card so a button on a card is still visible.
-- **Iron** (#282828): The selected state of any control, and the dock's moving
-  pill. One step above Graphite; that step *is* the selection.
-- **Seam** (#262626): The hairline around anything interactive.
-- **Ridge** (#383838): The hairline around anything interactive *and selected*.
-- **Ash** (#A3A3A3): Secondary text — an unselected control's label, a subtitle.
-- **Smoke** (#6E6E6E): Muted text — timestamps, counts, captions, inactive tabs.
+The one exception to the single-accent rule, and it earns the exemption by being
+**data rather than chrome**. A 0-100 score has to read as good, mixed or bad
+before the digits are parsed, and blue cannot say that. The ramp appears on
+numerals and their verdict labels — never on a fill, an outline or a control.
 
-### Light mode
+### Named rules
 
-Every token has a counterpart and the register inverts rather than shifting. The
-frontmatter carries the dark values because dark is this system's home; these are
-the light pairs: Ink → #FFFFFF, Slate → #FAFAFA, Graphite → #F4F4F4, Iron →
-#E8E8E8, Seam → #E4E4E4, Ridge → #D0D0D0, Bone → #111111, Ash → #5A5A5A, Smoke →
-#8C8C8C. Amber deepens to #E8940C, Ember to #DC2626, Moss to #16A34A, Pewter to
-#7C8AA5.
+**The One Accent Rule.** Blue means "this, here, now". If a second thing on the
+screen is blue, one of them is wrong.
 
-### Named Rules
-
-**The Borrowed Colour Rule.** Every colour on a screen belongs to a game, not to
-the app. Amber, Ember and Moss are the only exceptions, and each is licensed by a
-single job — ratings, danger, success. A fourth app-owned hue is a bug.
-
-A control may wear one of the three **only when the control's meaning is that
-colour's job**. Two do: Favourite takes Amber, because marking a game a
-favourite is the same judgement the rating scale's warm colour already carries;
-Playing takes Moss, because it is a live status the app colours `success`
-everywhere else it appears. Wishlist, Played and Share do not — a wishlist is a
-list you are on or off, and those three previously borrowed the accent for no
-meaning at all. The test is not "is this state important" but "would the reader
-lose information if it were grey".
-
-**The Value-Not-Hue Rule.** Selection, emphasis and primacy are expressed by
-moving one step lighter — Graphite → Iron for the fill, Seam → Ridge for the
-edge, Ash → Bone for the label. Never by changing hue. This is what makes a row
-of five sort pills stay quiet while still showing which one is on.
+**The Borrowed Colour Rule.** Every other hue on screen belongs to a game's
+artwork. The interface supplies greyscale and one blue; the covers supply the
+rest.
 
 ## Typography
 
-**Display Font:** Inter
-**Body Font:** Inter
-**Label/Mono Font:** none distinct
+**Inter**, in four weights, and nothing else.
 
-**Character:** Inter and nothing else, in four weights. It is a neutral grotesque
-with a tall x-height and unambiguous figures, and figures are the point: this app
-sets a lot of numbers small — scores, years, playtimes, like counts — and a face
-whose `1`, `7` and `9` are legible at 11px does more for it than any amount of
-personality would. The register is editorial and quiet; type is asked to organise
-the page, not to decorate it.
-
-**The scale is small on purpose.** It ran one step larger for a revision and was
-wrong on a phone: a single feed card filled the screen and a review's own score
-outweighed the box art beside it. This is a dense app — one feed row carries a
-name, a headline, a score, a verdict, a game, a cover and four lines of prose —
-and density is only legible if the type stays quiet. Body sits at 14.
-
-**Weight is a family, not a number.** React Native on Android will not synthesise
-a bold from a custom font — `fontFamily: 'Inter_400Regular'` with
+**Weight is a family, not a number.** React Native on Android will not
+synthesise a bold from a custom font — `fontFamily: 'Inter_400Regular'` with
 `fontWeight: '700'` silently renders regular, on one platform only. Every weight
 is a separately loaded family (`FontFamily.regular` / `.medium` / `.semibold` /
 `.bold`) and **nothing in the app sets `fontWeight` on text**.
 
 ### Hierarchy
 
-- **display** (700, 30/36): The one headline on a screen that has one — the Top 10
-  masthead, a long-form review's title. Never twice on a screen.
-- **title** (700, 22/28): A game's name on its own page, a collection's name. The
-  subject of the screen.
-- **heading** (600, 18/23): Section headings inside a scroll; a game's name in a
-  masthead beside its case; a review's headline on a feed card.
-- **section** (600, 15/20): `SectionHeader` — "About", "Screenshots", "Cast".
-- **body** (400, 14/21): Reading copy. Synopses and review text.
-- **bodyStrong** (600, 14/20): The same size promoted — a row's title, a button's
-  label, a username. Pairs beside `caption` in a two-line row.
-- **caption** (500, 12/17): Metadata and timestamps. Subtitles under a title, the
-  second line of a list row, like and comment counts, an activity excerpt.
-- **micro** (600, 11/14): Counts and classification labels, usually in caps.
+- **display** (700, 32/40) — the app name on Home, a review's own title.
+- **title** (700, 24/30) — page titles. A game's name on its page.
+- **heading** (600, 18/24) — card titles, a review's headline in a feed.
+- **section** (600, 16/22) — section headings: "Latest releases", "News".
+- **body** (400, 15/23) — reading copy. Review text, synopses.
+- **bodyStrong** (600, 15/22) — a row's title, a button's label, a username.
+- **caption** (500, 13/18) — metadata, timestamps, counts.
+- **micro** (500, 12/16) — small labels, usually in caps.
 
-### Named Rules
+Line heights are generous relative to size — 23 on 15 for body — because the
+thing being read is usually a paragraph somebody wrote about a game.
 
-**The One Family Rule.** Inter is the only typeface. Hierarchy is built from size,
-weight and colour, and a ninth step must be justified against the eight that
-exist rather than added beside them.
+### Named rules
 
 **The Three Weights Rule.** 400 for prose, 500 for dense metadata, 600 for
-anything that has to be picked out of a page. **700 is reserved** for the two
-largest steps — which are page titles — and for a score, the one number in this
-app that has to be readable at arm's length. Reaching for a heavier weight to
-make something matter is how a screen ends up with six competing emphases; go up
-a step or change the colour instead.
+anything that must be picked out of a page. 700 belongs to `display`, `title`
+and a score — nothing else. To make something matter, go up a step or change its
+colour; do not reach for a heavier weight.
 
-**The Caps-For-Counting Rule.** `micro` set in caps is for labels that count or
-classify — `12 GAMES`, `COMMUNITY`, `THIS MONTH`, `RANKED`. It is never used for
-a sentence, and sentence-case `micro` is never used for a classification. Caps
-always carry positive letter spacing; set tight, capitals read as one long word
-rather than as a label.
+**Density Without Shrinking.** Medium-high density is the target, and it is
+reached with chips, spacing and alignment. Never by reducing type size. If a
+layout only fits at 11px, the layout is wrong.
 
 ## Layout
 
-Phone-first, single column, with a centred `MaxContentWidth` (800px) cap so the
-app stays readable on a tablet or in `react-native-web` without becoming a
-desktop layout.
+**8-point spacing**, named for the value: `Spacing.x16` is sixteen pixels. The
+ladder is fixed — 4, 8, 12, 16, 20, 24, 32, 40, 48 — and a gap that is not on it
+is a bug rather than a decision.
 
-**Spacing** is a 4pt scale with numeric names (`one` = 4 … `eight` = 64) rather
-than t-shirt sizes, so the steps stay orderable and `Spacing.four` reads as "four
-units". Screen gutters are `four` (16px); the gap between related controls is
-`two` (8px); the gap between sections is `four` or `five`; every scroll ends in
-`seven` (48px) of bottom padding so the last row clears the tab bar.
+- Outer page padding: **16**
+- Card padding: **16**
+- Between sections: **24**
+- Scroll tails end in **48**
 
-**Grids** are derived from one helper (`gridItemWidth`) so every grid in the app
-resolves the same way: four across for poster grids (a collection, a studio
-catalogue, a Steam library), two across for cover tiles that carry a caption
-beside the art (the Top 10, the popularity chart). Artwork holds two fixed
-ratios and only two: `2/3` portrait for box art, `16/9` landscape for key art.
+Phone-first, single column, with a centred `MaxContentWidth` (800px) cap so a
+tablet or `react-native-web` stays readable without becoming a desktop layout.
 
 **Heroes bleed.** A screen that opens on artwork — a game, a collection, a
-review, the Top 10 — cancels its scroll container's horizontal padding with a
-negative margin so the image reaches both edges and runs up under the transparent
-header, off the top of the display. The identity block below it is pulled back up
-over the tail of the fade by `-Spacing.five`.
+review, the Top 10 — cancels its container's horizontal padding so the image
+reaches both edges and runs under the transparent header.
 
-**Heroes are sized against the display, not the art.** One component (`HeroArt`)
-serves all four screens at `HeroHeightRatio` (38%) of the window height, floored
-at the art's own 16:9 height so a wide screen never crops a frame that already
-fits. 16:9 on a tall phone is a 26%-high band — a banner above the content rather
-than a backdrop behind it. The cost is a centre crop, which key art survives
-because key art is composed centrally.
+## Elevation
 
-### Named Rules
+**There are no interface shadows.**
 
-**The Bleed Rule.** Hero artwork always reaches both edges and always runs under
-the header. A hero inset by its container's padding is a hero that has been
-turned into a picture of a hero.
+Depth is `background` → `surface` → `surfaceElevated` → `surfaceSelected`. A card
+looks lifted because it is lighter than what is behind it, and on a dark screen
+that reads far better than a shadow nobody can see against `#121212`.
 
-## Elevation & Depth
+The two shadow tokens that remain are for the one thing that genuinely casts: a
+**depicted physical object** — the game case, and the poster it derives from.
 
-Flat chrome, lit objects. Interface surfaces cast nothing: a card, a button, a
-sheet and a dock are separated from what is behind them by a tonal step
-(`Ink → Slate → Graphite → Iron`) plus a hairline edge, and by nothing else. On a
-near-black page a drop shadow is close to invisible anyway, so paying for one
-would buy separation you cannot see.
-
-Real shadows are reserved for the things the app *depicts* rather than the things
-it is built from — above all the game case, which carries its own 45%-opacity
-shadow, offset and blurred as an object on a shelf would be. The floating header
-is the one piece of chrome that darkens what is beneath it, and even there the
-shadow is drawn as a gradient rather than cast, because a transparent view has
-nothing to cast from.
-
-### Shadow Vocabulary
-
-- **Object** (`shadowOpacity: 0.45, shadowRadius: 18, shadowOffset: 6/12,
-  elevation: 12`): The game case and the disc. Depicted physical objects only.
-- **Card** (`shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: 0/4,
-  elevation: 3`): No longer reachable from `Card`, which has no fill to cast
-  from. It survives on `Poster` and on the framed cover the game page shows for
-  PC and mobile, where a faint lift is what separates portrait art from the page.
-- **Raised** (`shadowOpacity: 0.28, shadowRadius: 20, shadowOffset: 0/8,
-  elevation: 8`): Reserved for a future lifted surface. Not currently applied.
-- **Header tail** (a black gradient from 28% to 0% across the bottom fifth of the
-  header): Drawn, not cast, so the floating bar has an edge over artwork.
-
-### Named Rules
-
-**The Object Rule.** If it depicts a physical object, it casts a shadow. If it is
-interface, it does not. There is no third case, and "this card feels flat" is not
-one.
+**The Object Rule.** If it depicts a physical object, it may cast a shadow. If it
+is interface, it may not. There is no third case, and "this card feels flat" is
+not one — that is what the surface step is for.
 
 ## Shapes
 
-One rectangle, repeated. Every interactive element — button, icon button, sort
-pill, segmented control, tag picker, RSVP toggle, log status, dock pill — is a
-rounded rectangle at `control` (10px) with a hairline outline. That single shared
-silhouette is most of what makes the controls read as a family. `control` shares
-its value with `small` and keeps its own name anyway: a control should say it is
-a control at the call site rather than borrowing a size token that happens to
-match today.
+Four primitives and a pill. Everything in the app is one of them.
 
-The scale, smallest first:
+- **image** (12px) — game covers, screenshots, thumbnails. Never stretched;
+  always the true aspect ratio, portrait 2:3 for covers.
+- **control** (18px) — every button and icon button.
+- **card** (20px) — cards and modular surfaces.
+- **input** (24px) — text fields and the search bar.
+- **pill** (999px) — chips, badges, progress tracks. Avatars are circles.
 
-- **xs** (4px): Box art, and only box art. A real game case has a corner you can
-  barely see, so anything more reads as a sticker of one. See the Box Art Rule.
-- **small** (8px): Small posters, thumbnails, tiles.
-- **control** (10px): Every control. Its own step because `small` makes a 44pt
-  button look boxy and `medium` makes it look like a card that happens to be
-  tappable.
-- **medium** (12px): Text fields, screenshots, the review card's meta surface and
-  its score square.
-- **large** (18px): Sheets and the dock shell.
-- **xlarge** (24px): Held in reserve.
-
-List rows and cards are not on this scale at all — they are hairlines, and a
-hairline has no radius. The score square keeps its numbers in `SCORE_SQUARE`
-rather than reading `Radius` even where the values coincide, so that changing
-the global scale cannot silently redraw a component that was specified.
-
-`pill` (999px) has one meaning and it is *not* "button": it marks things that are
-not controls. Progress tracks, count badges, avatars, and `Chip` — the metadata
-tag for genres and platforms. Shape is now the only thing distinguishing a tag
-from a control, so it has to keep doing that job.
-
-Borders are always `StyleSheet.hairlineWidth`, never a whole pixel. The
-2px underline beneath an active tab is the single exception, and it is a marker
-rather than an outline.
-
-### Named Rules
-
-**The One Rectangle Rule.** Every control is `Radius.control`. If you are
-reaching for `Radius.pill` on something tappable, you are about to make a tag
-look like a button.
-
-**The Box Art Rule.** Cover art is `xs` (6px) and never more. The app depicts
-physical boxed copies; a rounded cover is a picture of an app icon. Portrait art
-in a *control* — a picker row, a tappable tile — may take `small`, because there
-the rounding belongs to the control, not to the artwork.
+Radii are named for **what they wrap**, not for how big they are. That is what
+keeps them in place: `Radius.card` cannot drift onto a button the way `large`
+could.
 
 ## Components
 
-### Buttons
+### Cards
 
-Refined and restrained: a slightly-lifted rectangle with a hairline outline, no
-flourish, and a press that sinks 3% rather than dimming. Opacity feedback is
-useless on near-black, so press state is scale plus a fill step.
-
-- **Shape:** Gently rounded (10px), hairline outline in `Seam`.
-- **Primary:** `Bone` fill with an `Ink` label (11px/16px padding, 46px tall).
-  At most one per screen.
-- **Secondary:** `Graphite` fill, `Bone` label, `Seam` edge. The default for
-  everything; pressed it steps to `Iron`.
-- **Ghost:** No fill, `Seam` edge, `Bone` label. For actions that must not draw
-  the eye at all.
-- **Danger:** `Graphite` fill, `Ember` label, `Ember`-at-33% edge. Deliberately
-  not a red slab — a filled red button is the loudest object possible on a dark
-  screen, and deleting a collection does not warrant outshouting the cover art
-  beside it.
-- **Small:** 34px tall, `caption` label, 7px/12px padding.
-- **Optional leading icon** (17px, 15px at small) and an **optional trailing
-  count** in a recessed pill — `Iron` on a dark button, white-at-10% on a
-  `Bone` one, because the recess has to go darker on a light fill.
-
-### Icon Buttons
-
-The same rectangle with equal sides (40px, or 32px small), so an overflow "…" or
-an "add" at the end of a row of labelled buttons reads as one of them rather than
-as a loose glyph. Square, not round: a circle would be a third control shape and
-the family only has one. A `plain` tone drops the fill and outline entirely, for
-glyphs inside an already-bordered row where a second outline around each would
-turn a tidy row into a grid of boxes.
+Filled `surface`, 20px corners, 16px padding, **no border and no shadow**. The
+card is the app's basic unit and it should feel modular — a thing you could pick
+up and move somewhere else. `elevated` puts it on `surfaceElevated`, for a card
+that sits on another card.
 
 ### Chips
 
-- **Style:** `Graphite` fill, `Seam` hairline, `Ash` label at `micro`, fully
-  rounded (999px).
-- **State:** A `primary`-toned chip steps to `Iron` with a `Bone` label. Chips are
-  not interactive; the pill shape is what says so.
+The metadata capsule, and the main reason this app is dense without being
+cramped: `📅 Played` · `⏱ 45h` · `🏁 Completed` · `🎮 Main Story`. Six facts in
+two rows of chips are scannable in a way six lines of small grey text are not.
 
-### Cards / Containers
+34px tall, 14px horizontal padding, fully rounded, on `surfaceSelected`. Active
+chips take `primaryMuted` with blue text.
 
-There is no card. `Card` is a hairline and some vertical space, and the name is
-now a historical accident.
+Chips are **not** buttons. The fully-round shape is what says so — every real
+control is an 18px rounded rectangle.
 
-- **Separator:** `borderTopWidth: hairlineWidth` in `Seam`.
-- **Background:** None. The page shows through.
-- **Corner Style:** None. A rule has no corners.
-- **Internal Padding:** `four` (16px) vertical; horizontal padding belongs to the
-  page, so a block runs the full column width.
-- **No fills at all.** There was a `tone="selected"` that marked a block as *the
-  viewer's own* with a `Graphite` fill. It is gone: on a page of near-black, the
-  one filled rectangle read as a notice the app was showing you rather than as
-  your own writing. What is yours is said in words and in the score's colour.
+### Buttons
 
-This replaced an 18px rounded `Slate` surface, and the reason is worth keeping.
-A feed of rounded cards turns every post, collection and widget into a floating
-object with its own edge, and twenty objects stacked on a near-black page read
-as twenty containers rather than as a list of things to read. The rule does the
-same job — *this ends, that begins* — using one pixel instead of a shape, and it
-hands every block the full page width that the inset was spending on nothing.
+Three styles, all filled, **no outlines**.
 
-**What kept an outline.** Three cases, and no fourth: a **control** (a button, a
-toggle, a tappable row that has to look tappable), an **exception in the flow**
-(the Steam privacy notice — a warning filed as another section stops being a
-warning), and an **attachment** (the game tagged onto a post, which must look
-stuck to the post rather than be another paragraph of it). Each is transparent
-with a hairline `Seam` edge at `Radius.control`, so they read as the same family
-as every other control on the screen.
+- **Primary** — filled accent blue, white label. At most one per screen.
+- **Secondary** — filled `surfaceElevated`. The default.
+- **Ghost** — no fill. For an action that must not draw the eye.
+- **Danger** — secondary's shape with a red label. Deliberately not a red slab:
+  a filled red button is the loudest thing a dark screen can show, and deleting
+  a collection does not warrant outshouting the artwork beside it.
 
-### Inputs / Fields
+46px tall (40 when small) so the tap target clears 44 without padding tricks.
 
-- **Style:** `Slate` fill, `Seam` hairline, `medium` radius (12px), 48px minimum
-  height, 16px text so iOS does not zoom on focus.
-- **Error:** The outline and the footnote both turn `Ember`; the fill does not
-  change.
-- **Multiline:** 120px minimum, top-aligned. Review bodies get 260px, because a
-  short box invites a short review.
+### Search bar
 
-### Navigation
+56px tall, `Radius.input`, filled `input`, magnifier on the left, placeholder
+vertically centred. It is the primary control on the screen it appears on and it
+is sized to say so.
 
-- **Tabs:** Scrollable underline tabs. Selected is `Bone` label over a 2px `Bone`
-  underline; unselected is `Smoke` with a transparent underline. Contrast between
-  states is a difference in *brightness*, which survives sitting over artwork in
-  a way a coloured underline does not. An optional `Ember` count badge marks
-  "something here you have not seen".
-- **Floating header:** Transparent app-wide, backed by a page-coloured ramp
-  (97% → 88% → 0% down its height) for legibility plus the drawn shadow tail
-  described in Elevation. Screens leading with artwork let content run under it;
-  everything else reserves the space. Modals opt out and take a solid bar.
-- **Dock:** A blurred, `large`-radius shell holding 44px icon items, with one
-  `Iron` pill that springs between them (stiffness 360, damping 32, mass 0.6).
-  Used where six destinations need to fit a narrow phone without scrolling.
+### Bottom navigation
 
-### Hero Art
+Five tabs, maximum. Icons above labels — labels shown, not hidden, because an
+icon-only bar asks every new user to guess what a newspaper glyph leads to, and
+five words cost 14px. Selected is blue on both glyph and label; unselected is
+`textMuted`. `surface`, no top border, 68px.
 
-Full-bleed key art that dissolves into the page, in two layers.
+Five is the ceiling. A sixth destination means something belongs one level down.
 
-- **Blur ramp:** one copy of the image blurred at radius 24, revealed through a
-  `MaskedView` whose mask is a transparent-to-opaque gradient — nothing across
-  the top half, then an eased ramp to full at the bottom edge. Blurring the
-  image's own pixels rather than reaching for `expo-blur`: a `BlurView` blurs its
-  *backdrop*, which needs the Dimezis implementation and API 31+ on Android and
-  degrades to a flat translucent panel everywhere else.
+### Review card
 
-  The first version stacked three clipped copies at increasing blur radius, and
-  it was wrong: rendered at the real 390×321 against high-contrast art, each band
-  boundary was a visible rectangular step. Adding bands does not fix it — twelve
-  looked worse than three, because every extra band is another edge rather than a
-  smaller one. Blend, don't stack.
-- **Colour fade:** a three-stop gradient over the bottom 62% ending on the page
-  colour, weighted dark at the middle stop. A straight ramp spends its first half
-  barely tinting anything and then closes the whole distance in the second, which
-  reads as the art dropping off a shelf.
-- **Scrim:** an optional 50%-black gradient across the top 40%, so the floating
-  back arrow survives bright art.
-
-### Score
-
-Two presentations of the same 0–100 number, and the choice between them is about
-volume.
-
-- **`ScoreSquare`** — the review header's anchor. 54×54, 12px radius, a 1.5px
-  outline in the verdict colour, the numeral at 24px/700 in the same colour, over
-  a 10%-opacity wash of it. Outlined rather than filled: a solid block of Ember
-  would be the loudest thing on the page, and the box art is meant to be the only
-  element carrying real colour.
-
-  It was 80 with a 40px numeral for one revision, and that is worth recording: at
-  80 the badge plus its padding stood taller than the 2:3 cover beside it, so the
-  block that is supposed to sit *under* the artwork hung below it instead. The
-  score leads the reading order; it does not have to be the biggest object on
-  screen to do that.
-- **`ScorePill`** — a tinted block in four sizes from 32px to an 84px `hero`. Used
-  where a score has to appear inside something else: a game page's own log, a
-  diary entry, a stat block.
-- **`ScoreLine`** — the number and the word for it, side by side on a baseline:
-  "82 Very Good". For rows too tight for the square. Both halves carry the verdict
-  colour so the line is parseable at a glance the way five green stars are, but a
-  100-point scale has fifteen verdicts and the word is what stops 82 and 88
-  reading as the same opinion.
-
-The colour comes from a three-stop ramp — Moss / Amber / Ember — rather than a
-per-band palette, because fifteen distinct colours would be noise and the tone is
-what a reader actually parses at a glance.
-
-### Review Card
-
-How a review looks everywhere it appears: the feed, a profile, a game's review
-list, the popular-reviews tab, and its own page. Editorial rather than card-like
-— four bands, top to bottom.
+The structure, top to bottom:
 
 ```
-avatar  username                            timestamp
-
-“Halo needs to die already”      ┌────────┐
-┌──────────────────────────────┐ │        │
-│ ┌────┐  Halo: Campaign Evo…  │ │ box art│
-│ │ 12 │  DROPPED   AWFUL      │ │  2:3   │
-│ └────┘                       │ │        │
-└──────────────────────────────┘ └────────┘
-
-Wow. This is… so sad. I cannot believe this is supposedly…
-
-♥  LIKED   12,109 likes
+avatar   username                              timestamp
+"The review's headline"
+82  Halo Infinite   PLAYED  GREAT              ┌────────┐
+                                               │ cover  │
+Three or four lines of what they actually      │  2:3   │
+wrote before it truncates…                     └────────┘
+♥  12  💬 4  ↗
 ```
 
-- **The top line is the review's headline, never the game's name.** The game is
-  named in the meta block below it, beside its score and verdict, where it
-  belongs. Printing it in both places made the card look like it was about two
-  different things. `heading` (18/600).
-- **A review must have a headline and a body.** The log form enforces both or
-  neither: half a review has nowhere to render — a body with no headline arrives
-  as an untitled block, a headline with no body is a promise of writing that is
-  not there. A log with no review at all is still fine; it simply gets no
-  headline rather than a borrowed one.
-- **Meta surface** (`ReviewMeta`): `Slate`, 12px radius, 12px padding, 12px
-  between badge and text. It groups; it does not frame — no border, no shadow.
-  Score badge and game identity read as one unit because they answer one question
-  together: *what did they think of what*.
-- **Status labels**: 11px/600, uppercase, +0.6 tracking, on one line. They take
-  the **score's** colour, not the status colour. A red 12 above a green "DROPPED"
-  would be two verdicts on the same line; the block is one opinion and reads as
-  one only if it is one colour. With no score there is no verdict, so they fall
-  back to `Smoke` — correct, because "PLAYED" without a rating is a fact rather
-  than a judgement.
-- **Box art**: 88px wide at 2:3 — 132 tall — `xs` radius, hanging from the top.
-  It is the tallest object in the block by design; the whole left column has to
-  finish inside its height or the composition reads as two things that failed to
-  line up.
-- **Everything else is quiet**: no borders, no gradients, no shadows.
+- The top line is the **review's headline**, never the game's name. The game is
+  named in the verdict row below it.
+- A review requires **both** a headline and a body. The log form enforces both
+  or neither: half a review has nowhere to render.
+- **The score is a bare coloured numeral at body size.** No box, no outline, no
+  fill. Digits in a bordered capsule read as a button, and at feed sizes the
+  container was consistently bigger than the number inside it.
+- Review text truncates at 3–4 lines.
+- Box art is 2:3, `image` radius, and is the tallest object in the card.
 
-The hierarchy is fixed and in this order: **the score first, the artwork second,
-the metadata third.** The score leads the *reading* order without being the
-largest thing on screen — that is the cover's job.
+Hierarchy, fixed and in this order: **game → rating → review → completion →
+playtime → interactions**. Nothing competes equally.
 
-### Game Case
+### Game page
 
-The signature component, and the reason the system exists in the shape it does. A
-game rendered as a physical boxed copy: a platform template PNG over the cover
-art, a coloured spine slab offset behind it with the title rotated to read
-bottom-to-top, a soft diagonal gloss across the plastic, a 6° turn on a 900px
-perspective, and a real drop shadow wrapping face and spine as one object. Three
-sizes (108 / 168 / 232px wide). All geometry derives from template metadata and
-scales from the rendered width.
+The masthead is unchanged and stays that way: full-bleed hero art with a heavy
+blur ramp, the physical case overlapping it on the left, and the game's identity
+— title, price, release date, developer, publisher, platform buttons — on the
+right. Actions run full width beneath both columns. Soundtrack, achievements,
+cast, franchise and screenshots follow in tabs.
 
-It appears **only** on a game's own dedicated pages — game detail, the log form,
-a review masthead, a shelf screen. Everywhere else uses flat cover art.
+The **physical case** is the app's signature object and the one thing allowed to
+look expensive. It appears on a game's own page, the log form and a review
+masthead — never in a feed, a search result or a list.
 
-### Cover Tile
+### Home
 
-Box art, then the title, then the year. Nothing else. The unit a chart or a
-curated shelf is built from: no card, no surface, no pill. Art takes a bit over a
-third of the column (38%, clamped 52–84px). An optional rank is set in muted
-`micro` beside the cover rather than as a numbered badge — the order is already
-legible from the layout, so the numeral is a confirmation, not the headline.
+Not a feed. A stack of independently-sourced bands, each answering one question:
+popular this month, from people you follow, news, latest releases, coming soon,
+fresh collections, newest reviews. Every band is its own query with its own
+ranking and its own failure — a dead RSS feed removes one section and leaves the
+page working.
+
+This is the **foundation for recommendations, not the recommender**. Adding a
+personalised band means adding a band, not unpicking a merged timeline.
+
+## Motion
+
+Subtle, short, ease-out.
+
+- Press: scale to **0.98**
+- Cards and transitions: **150–200ms**
+- Navigation: fade + scale
+- Loading: **skeleton placeholders**, never spinners unless unavoidable
+
+A spinner says "wait"; a skeleton says "here is what is coming". Prefer the
+second every time.
+
+## Interaction
+
+Every tap target is at least **44×44**. No exceptions and no tiny buttons — where
+a control looks smaller, padding is doing the work.
+
+Lists scroll with momentum. Cards are touch-friendly. Scanning is the priority:
+a user should understand a card without reading it.
 
 ## Do's and Don'ts
 
-### Do:
+### Do
 
-- **Do** express every selected, active or emphasised state as one step lighter —
-  `Graphite` → `Iron`, `Seam` → `Ridge`, `Ash`/`Smoke` → `Bone`.
-- **Do** give every interactive rectangle `Radius.control` (10px) and a
-  `hairlineWidth` outline in `Seam`.
-- **Do** let hero artwork bleed to both edges and run under the transparent
-  header, cancelling container padding with a negative margin.
-- **Do** end scroll containers with `Spacing.seven` (48px) of bottom padding.
+- **Do** separate surfaces with a tonal step before reaching for anything else.
+- **Do** put metadata in chips. It is how the app stays dense and calm at once.
+- **Do** keep the accent rare enough to mean something.
+- **Do** use skeletons for every loading state.
+- **Do** name spacing and radii from the tokens — `Spacing.x16`, `Radius.card`.
+- **Do** end scroll containers with 48px of bottom padding.
 - **Do** use `withAlpha(colour, 0)` as a gradient's transparent stop, never the
   keyword `transparent` — Android interpolates through black and leaves a grey
-  bruise across the middle of the ramp.
-- **Do** separate blocks of content with a hairline rule and vertical space.
-  Filling and rounding them is what the de-bubble removed.
-- **Do** reach for a tonal step before a border, and a border before a shadow.
-- **Do** keep the count badge on a tab in `Ember` and the count badge inside a
-  button recessed and colourless. One means "unseen"; the other means "how many".
+  bruise across the ramp.
 
-### Don't:
+### Don't
 
-- **Don't** introduce a coloured accent. No brand hue on buttons, links, tabs or
-  selected states — the blue-accented predecessor is the named anti-reference.
-  Only Amber (ratings), Ember (danger) and Moss (success) may carry colour, and
-  each only for its one job.
-- **Don't** make a control pill-shaped. `Radius.pill` means "this is not a
-  control" — progress tracks, count badges, avatars, metadata chips. Shape is the
-  only thing left telling a tag apart from a button.
-- **Don't** put the game case anywhere but a game's own dedicated page. Not in a
-  feed, a search result, a list tile, a comment, a notification or a widget —
-  those use flat cover art. Diluting it destroys the one moment in the app that
-  feels physical.
-- **Don't** give interface a drop shadow. Cards, buttons, sheets and docks are
-  flat; only depicted objects cast.
-- **Don't** put content in a filled, rounded box. A card, a stat panel, a list
-  row and a widget are separated by a rule, not by a container. The three
-  exceptions are a control, a warning, and an attachment — and each of those is
-  *outlined*, never filled. `Slate` on a block of content is the bug this rule
-  exists to catch.
-- **Don't** stretch landscape key art into a portrait poster slot. `Poster` crops
-  with `cover` and falls back to a lettered placeholder — that fallback is what
-  the missing cover is for.
-- **Don't** add a ninth step to the type scale, or a second typeface, without
-  first failing to express the idea with the eight steps that exist.
-- **Don't** set `fontWeight` on text. Inter's weights are separate loaded
-  families — `fontWeight` is ignored on Android and the bug shows on one platform
-  only. Use `FontFamily.regular` / `.medium` / `.semibold` / `.bold`.
-- **Don't** round cover art past `xs` (4px). The app depicts boxed copies, and a
-  rounded cover is a picture of an app icon.
-- **Don't** let a component's own block outgrow the artwork beside it. The cover
-  is the tallest object in a review card and the case is the tallest on a game
-  page; anything that overhangs them is oversized, not emphasised.
+- **Don't** use true black, gradients (outside artwork fades), glassmorphism,
+  neumorphism, skeuomorphism or glow. Any of them dates the app instantly.
+- **Don't** give interface a drop shadow. Only depicted objects cast.
+- **Don't** outline a button. Fills and surface steps already separate them.
+- **Don't** introduce a second accent colour. The score ramp is the only
+  exception and it is data, not chrome.
+- **Don't** set `fontWeight` on text — Inter's weights are separate families and
+  `fontWeight` is silently ignored on Android.
+- **Don't** shrink type to fit more in. Use chips, spacing and alignment.
+- **Don't** put the game case in a feed, a search result or a list tile.
+- **Don't** stretch cover art. 2:3, always, cropped rather than distorted.
+- **Don't** add a sixth bottom-nav tab.

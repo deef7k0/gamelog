@@ -80,7 +80,7 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
         heroUrl={game.heroUrl}
         title={game.title}
         width={POSTER_WIDTH}
-        rounded="small"
+        rounded="image"
       />
 
       <View style={styles.body}>
@@ -103,7 +103,7 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
               <Chip key={platform} label={platform} />
             ))}
             {game.genres.slice(0, 2).map((genre) => (
-              <Chip key={genre} label={genre} tone="primary" />
+              <Chip key={genre} label={genre} />
             ))}
           </View>
         )}
@@ -134,13 +134,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.four,
-    paddingVertical: Spacing.three,
+    gap: Spacing.x16,
+    paddingVertical: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   disabled: { opacity: 0.55 },
-  body: { flex: 1, gap: Spacing.two },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.two },
+  body: { flex: 1, gap: Spacing.x8 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x8 },
   title: { flex: 1 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one + 2 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x4 + 2 },
 });

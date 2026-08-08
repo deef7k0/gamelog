@@ -433,34 +433,34 @@ function Toggle({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { gap: Spacing.five, paddingVertical: Spacing.five },
-  gameHead: { flexDirection: 'row', gap: Spacing.four, alignItems: 'center' },
-  gameHeadText: { flex: 1, gap: Spacing.half },
-  section: { gap: Spacing.two },
+  content: { gap: Spacing.x24, paddingVertical: Spacing.x24 },
+  gameHead: { flexDirection: 'row', gap: Spacing.x16, alignItems: 'center' },
+  gameHeadText: { flex: 1, gap: Spacing.x4 },
+  section: { gap: Spacing.x8 },
   // A little air between the bar and the tick box so they read as two choices
   // rather than one control with a stray checkbox attached.
-  metrics: { marginTop: Spacing.two },
-  statuses: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  metrics: { marginTop: Spacing.x8 },
+  statuses: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   status: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x16,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
   reviewTitle: { fontSize: 18, fontFamily: FontFamily.semibold },
   // Tall by default: a short box invites a short review.
   reviewBody: { minHeight: 260 },
-  toggles: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
+  toggles: { flexDirection: 'row', gap: Spacing.x8, flexWrap: 'wrap' },
   toggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
+    gap: Spacing.x8,
+    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  row: { flexDirection: 'row', gap: Spacing.three },
+  row: { flexDirection: 'row', gap: Spacing.x12 },
   rowItem: { flex: 1 },
-  actions: { gap: Spacing.two },
+  actions: { gap: Spacing.x8 },
 });

@@ -119,5 +119,5 @@ export default function AddToListScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { padding: Spacing.four, gap: Spacing.two },
+  header: { padding: Spacing.x16, gap: Spacing.x8 },
 });

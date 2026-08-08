@@ -169,3 +169,103 @@ export async function getRecommendedPeople(viewerId: string, limit = 20): Promis
     }))
   );
 }
+
+// ---------------------------------------------------------------------------
+// Home
+// ---------------------------------------------------------------------------
+
+/**
+ * Reviews for the Home page: from people you follow, plus the newest overall.
+ *
+ * Two queries rather than one `.or()`, because they answer different questions
+ * and the app wants both answered. Following-only would leave a new account
+ * with an empty screen; newest-only would make Home identical for everybody and
+ * following would buy you nothing. Merging them means the page fills from day
+ * one and gets more personal as you follow people — which is the shape the
+ * eventual recommender should also have.
+ *
+ * `followed` is returned separately from `newest` so the caller can label them
+ * rather than presenting a blended list as if one rule produced it. Anything
+ * already in `followed` is removed from `newest`: seeing the same review twice
+ * under two headings is worse than a shorter second section.
+ */
+export type HomeReviews = {
+  followed: LogWithRelations[];
+  newest: LogWithRelations[];
+};
+
+export async function getHomeReviews(viewerId: string, limit = 10): Promise<HomeReviews> {
+  const follows = await supabase.from('follows').select('following_id').eq('follower_id', viewerId);
+  if (follows.error) throw new Error(follows.error.message);
+
+  const followedIds = (follows.data ?? []).map((row) => row.following_id);
+
+  /* Only logs that carry writing. A bare score is a log, not a review, and a
+     page of them would be a chart of games wearing their raters' names. */
+  const written = () =>
+    supabase
+      .from('logs')
+      .select(LOG_WITH_RELATIONS)
+      .not('review', 'is', null)
+      .neq('review', '')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+  const [followedRows, newestRows] = await Promise.all([
+    followedIds.length > 0 ? written().in('user_id', followedIds) : Promise.resolve(null),
+    written(),
+  ]);
+
+  if (followedRows?.error) throw new Error(followedRows.error.message);
+  if (newestRows.error) throw new Error(newestRows.error.message);
+
+  const followed = (followedRows?.data ?? []) as LogWithRelations[];
+  const seen = new Set(followed.map((log) => log.id));
+
+  return {
+    followed,
+    newest: ((newestRows.data ?? []) as LogWithRelations[]).filter((log) => !seen.has(log.id)),
+  };
+}
+
+/**
+ * Collections that changed most recently.
+ *
+ * `updated_at` rather than `created_at`: a collection someone is actively
+ * curating is the interesting one, and 0003's trigger already touches the
+ * column on every edit. Favourites and wishlists are excluded — they are
+ * per-user state the profile renders itself, not published collections.
+ */
+export async function getRecentCollections(limit = 10): Promise<ListSummary[]> {
+  const { data, error } = await supabase
+    .from('lists')
+    .select('*, items:list_items(position, game:games(cover_url, hero_url))')
+    .in('kind', ['list', 'tier'])
+    .order('updated_at', { ascending: false })
+    .limit(limit * 2);
+
+  type Row = GameList & {
+    items: {
+      position: number;
+      game: { cover_url: string | null; hero_url: string | null } | null;
+    }[];
+  };
+
+  return (
+    unwrap(data as Row[] | null, error)
+      // An empty collection is a draft, and PostgREST cannot filter on the
+      // embedded count — so it is dropped here, which is why the query
+      // over-fetches above.
+      .filter((row) => (row.items?.length ?? 0) > 0)
+      .slice(0, limit)
+      .map((row) => ({
+        ...row,
+        itemCount: row.items?.length ?? 0,
+        covers: (row.items ?? [])
+          .sort((a, b) => a.position - b.position)
+          .slice(0, 4)
+          .map((item) => item.game)
+          .filter((game): game is { cover_url: string | null; hero_url: string | null } => !!game),
+      }))
+  );
+}

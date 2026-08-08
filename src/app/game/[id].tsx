@@ -96,7 +96,7 @@ export default function GameDetailScreen() {
   const caseWidth = Math.min(CASE_MAX_WIDTH, Math.round(width * CASE_WIDTH_RATIO));
   // Also swallows the header's group gap, so the overlap is measured from the
   // hero's edge rather than from the gap below it.
-  const caseOverlap = Math.round(caseHeightFor(caseWidth) * CASE_OVERLAP_RATIO) + Spacing.five;
+  const caseOverlap = Math.round(caseHeightFor(caseWidth) * CASE_OVERLAP_RATIO) + Spacing.x24;
 
   const game = useQuery({
     queryKey: ['game', id],
@@ -408,7 +408,7 @@ export default function GameDetailScreen() {
             {data.genres.length > 0 && (
               <View style={styles.chips}>
                 {data.genres.slice(0, 6).map((genre) => (
-                  <Chip key={genre} label={genre} tone="primary" />
+                  <Chip key={genre} label={genre} />
                 ))}
               </View>
             )}
@@ -569,8 +569,8 @@ const styles = StyleSheet.create({
   diaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.four,
+    gap: Spacing.x12,
+    padding: Spacing.x16,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -578,13 +578,13 @@ const styles = StyleSheet.create({
   studioChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.x8,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  content: { paddingBottom: Spacing.seven },
+  content: { paddingBottom: Spacing.x48 },
   /*
    * `five` between groups, not `four` between every child.
    *
@@ -593,29 +593,29 @@ const styles = StyleSheet.create({
    * diary exactly equal weight. Three groups separated generously, tight
    * inside — the rhythm now says what belongs with what.
    */
-  header: { gap: Spacing.five, paddingHorizontal: Spacing.four, marginBottom: Spacing.five },
-  hero: { marginHorizontal: -Spacing.four },
+  header: { gap: Spacing.x24, paddingHorizontal: Spacing.x16, marginBottom: Spacing.x24 },
+  hero: { marginHorizontal: -Spacing.x16 },
   /* `marginTop` is supplied inline — it scales with the case.
      `flex-end` so the two columns share a baseline at the bottom: the case is a
      fixed shape and the copy is not, and aligning their tops would leave the
      title floating against nothing whenever a game has a short one. */
-  identity: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.four },
-  identityText: { flex: 1, gap: Spacing.two, paddingBottom: Spacing.one },
-  record: { gap: Spacing.three },
-  scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  myLog: { gap: Spacing.two },
+  identity: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.x16 },
+  identityText: { flex: 1, gap: Spacing.x8, paddingBottom: Spacing.x4 },
+  record: { gap: Spacing.x12 },
+  scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
+  myLog: { gap: Spacing.x8 },
   myLogHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tabBody: { padding: Spacing.four, gap: Spacing.four },
-  reviewRow: { marginBottom: Spacing.three },
-  section: { gap: Spacing.three },
-  shots: { gap: Spacing.three, paddingRight: Spacing.four },
-  shot: { width: 260, aspectRatio: HeroAspectRatio, borderRadius: Radius.medium },
+  tabBody: { padding: Spacing.x16, gap: Spacing.x16 },
+  reviewRow: { marginBottom: Spacing.x12 },
+  section: { gap: Spacing.x12 },
+  shots: { gap: Spacing.x12, paddingRight: Spacing.x16 },
+  shot: { width: 260, aspectRatio: HeroAspectRatio, borderRadius: Radius.image },
   linkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.four,
+    padding: Spacing.x16,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },

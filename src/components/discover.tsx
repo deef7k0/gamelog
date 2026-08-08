@@ -59,7 +59,7 @@ export function RecommendationRail({ module }: { module: RecommendationModule })
                   heroUrl={item.heroUrl}
                   title={item.title}
                   width={RAIL_POSTER}
-                  rounded="small"
+                  rounded="image"
                 />
                 <Text variant="micro" numberOfLines={2}>
                   {item.title}
@@ -74,8 +74,8 @@ export function RecommendationRail({ module }: { module: RecommendationModule })
 }
 
 const styles = StyleSheet.create({
-  rail: { gap: Spacing.two },
-  railHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  railBody: { gap: Spacing.three, paddingRight: Spacing.four },
+  rail: { gap: Spacing.x8 },
+  railHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  railBody: { gap: Spacing.x12, paddingRight: Spacing.x16 },
   railItem: { width: RAIL_POSTER, gap: 2 },
 });

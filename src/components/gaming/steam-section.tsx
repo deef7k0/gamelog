@@ -193,7 +193,7 @@ export function SteamSection({
 
       {/* --- Gaming stats ------------------------------------------------- */}
       {stats.isLoading ? (
-        <Skeleton width="100%" height={84} radius={Radius.small} />
+        <Skeleton width="100%" height={84} radius={Radius.image} />
       ) : stats.data ? (
         <View style={[styles.card, { borderTopColor: theme.border }]}>
           <View style={styles.statRow}>
@@ -544,7 +544,7 @@ function RailSkeleton({ size, portrait = false }: { size: number; portrait?: boo
           key={index}
           width={size}
           height={portrait ? size / (2 / 3) : size}
-          radius={Radius.small}
+          radius={Radius.image}
         />
       ))}
     </View>
@@ -552,25 +552,25 @@ function RailSkeleton({ size, portrait = false }: { size: number; portrait?: boo
 }
 
 const styles = StyleSheet.create({
-  section: { gap: Spacing.four, paddingTop: Spacing.four },
-  card: { paddingTop: Spacing.four, gap: Spacing.three, borderTopWidth: StyleSheet.hairlineWidth },
-  identity: { flexDirection: 'row', gap: Spacing.three, alignItems: 'center' },
+  section: { gap: Spacing.x16, paddingTop: Spacing.x16 },
+  card: { paddingTop: Spacing.x16, gap: Spacing.x12, borderTopWidth: StyleSheet.hairlineWidth },
+  identity: { flexDirection: 'row', gap: Spacing.x12, alignItems: 'center' },
   identityBody: { flex: 1, gap: 2 },
-  handleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  handleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   handle: { flexShrink: 1 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  playingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  playingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   cardActions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.three,
+    gap: Spacing.x12,
   },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   levelBadge: {
     minWidth: 26,
-    paddingHorizontal: Spacing.one + 1,
+    paddingHorizontal: Spacing.x4 + 1,
     paddingVertical: 1,
     borderRadius: Radius.pill,
     borderWidth: 1.5,
@@ -580,8 +580,8 @@ const styles = StyleSheet.create({
      section of it, and a rule alone would file it as one. */
   notice: {
     flexDirection: 'row',
-    gap: Spacing.two,
-    padding: Spacing.three,
+    gap: Spacing.x8,
+    padding: Spacing.x12,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'flex-start',
@@ -589,20 +589,20 @@ const styles = StyleSheet.create({
   noticeText: { flex: 1 },
   statRow: { flexDirection: 'row', justifyContent: 'space-between' },
   stat: { alignItems: 'center', gap: 1, flex: 1 },
-  statFooter: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.three },
-  block: { gap: Spacing.two },
+  statFooter: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.x12 },
+  block: { gap: Spacing.x8 },
   blockHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 1,
   },
-  rail: { gap: Spacing.two, paddingRight: Spacing.four },
+  rail: { gap: Spacing.x8, paddingRight: Spacing.x16 },
   showcaseItem: { alignItems: 'center', gap: 2, width: SHOWCASE_ICON },
   showcaseIcon: {
     width: SHOWCASE_ICON,
     height: SHOWCASE_ICON,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
   invItem: {
     width: 56,
     height: 56,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -622,20 +622,20 @@ const styles = StyleSheet.create({
     right: 2,
     bottom: 2,
     paddingHorizontal: 3,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
   },
   amountText: { color: '#FFFFFF' },
-  badgeSummary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  badgeSummary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   badgeItem: { alignItems: 'center', gap: 2 },
   badgeIcon: {
     width: 44,
     height: 44,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     borderWidth: 1.5,
   },
-  friendItem: { alignItems: 'center', gap: Spacing.one, width: 56 },
+  friendItem: { alignItems: 'center', gap: Spacing.x4, width: 56 },
   friendName: { textAlign: 'center' },
 });

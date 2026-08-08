@@ -145,7 +145,7 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
               heroUrl={game?.hero_url}
               title={game?.title}
               width={BOX_ART_WIDTH}
-              rounded="xs"
+              rounded="image"
             />
           </PressableScale>
         </Link>
@@ -172,13 +172,13 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
 }
 
 const styles = StyleSheet.create({
-  stack: { gap: Spacing.three },
-  authorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  stack: { gap: Spacing.x12 },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   author: { flex: 1 },
   /* `flex-start` so the box art hangs from the top of the block rather than
      centring itself against however many lines the headline happens to run to. */
-  body: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.four },
-  left: { flex: 1, gap: Spacing.two },
-  badges: { flexDirection: 'row', gap: Spacing.three, flexWrap: 'wrap' },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  body: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x16 },
+  left: { flex: 1, gap: Spacing.x8 },
+  badges: { flexDirection: 'row', gap: Spacing.x12, flexWrap: 'wrap' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 });

@@ -162,23 +162,23 @@ export function PlatformPicker({ available, selected, onSelect }: PlatformPicker
 }
 
 const styles = StyleSheet.create({
-  price: { gap: Spacing.one },
-  platforms: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  price: { gap: Spacing.x4 },
+  platforms: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   platform: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one + 1,
-    paddingVertical: Spacing.one + 2,
-    paddingHorizontal: Spacing.two,
+    gap: Spacing.x4 + 1,
+    paddingVertical: Spacing.x4 + 2,
+    paddingHorizontal: Spacing.x8,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  priceLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, flexWrap: 'wrap' },
+  priceLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, flexWrap: 'wrap' },
   struck: { textDecorationLine: 'line-through' },
   discount: {
-    paddingHorizontal: Spacing.two,
+    paddingHorizontal: Spacing.x8,
     paddingVertical: 1,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
   },
-  storeLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  storeLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 });

@@ -94,14 +94,14 @@ export function ErrorState({ error, action }: { error: unknown; action?: ReactNo
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   column: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
-  padded: { paddingHorizontal: Spacing.four },
+  padded: { paddingHorizontal: Spacing.x16 },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.five,
-    gap: Spacing.two,
+    padding: Spacing.x24,
+    gap: Spacing.x8,
   },
   centeredText: { textAlign: 'center' },
-  action: { marginTop: Spacing.three },
+  action: { marginTop: Spacing.x12 },
 });

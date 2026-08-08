@@ -46,7 +46,9 @@ export function Avatar({ uri, name, size = 40 }: AvatarProps) {
           width: size,
           height: size,
           borderRadius: size / 2,
-          backgroundColor: `hsl(${hueFor(label)}, 45%, ${theme.background === '#FFFFFF' ? 82 : 28}%)`,
+          // 28% lightness sits between `surface` and `surfaceElevated`, so a generated
+          // avatar reads as part of the same dark room as everything around it.
+          backgroundColor: `hsl(${hueFor(label)}, 45%, 28%)`,
         },
       ]}>
       <Text style={[styles.initial, { fontSize: size * 0.42, color: theme.text }]}>{initial}</Text>

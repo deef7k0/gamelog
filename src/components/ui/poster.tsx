@@ -32,7 +32,7 @@ export function Poster({
   title,
   width,
   elevated = false,
-  rounded = 'medium',
+  rounded = 'image',
 }: PosterProps) {
   const theme = useTheme();
   const source = coverUrl ?? heroUrl ?? null;

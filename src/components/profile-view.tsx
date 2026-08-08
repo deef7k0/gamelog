@@ -268,12 +268,12 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
       ItemSeparatorComponent={({ leadingItem }: { leadingItem?: Row }) =>
         tab === 'wall' ? (
           leadingItem?.kind === 'header' ? (
-            <View style={{ height: Spacing.one }} />
+            <View style={{ height: Spacing.x4 }} />
           ) : (
             <View style={[styles.wallDivider, { backgroundColor: theme.border }]} />
           )
         ) : (
-          <View style={{ height: Spacing.three }} />
+          <View style={{ height: Spacing.x12 }} />
         )
       }
       contentContainerStyle={styles.content}
@@ -633,39 +633,39 @@ function AboutRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.seven },
-  rowWrap: { paddingHorizontal: Spacing.four },
+  content: { paddingBottom: Spacing.x48 },
+  rowWrap: { paddingHorizontal: Spacing.x16 },
   banner: { width: '100%' },
   bannerImage: { width: '100%', aspectRatio: HeroAspectRatio / 2 },
-  headerBody: { paddingHorizontal: Spacing.four, gap: Spacing.three },
+  headerBody: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
   identity: { flexDirection: 'row', alignItems: 'flex-end', marginTop: -40 },
   avatarRing: { borderRadius: Radius.pill, borderWidth: 4 },
-  identityAction: { flex: 1, alignItems: 'flex-end', paddingBottom: Spacing.two },
+  identityAction: { flex: 1, alignItems: 'flex-end', paddingBottom: Spacing.x8 },
   nameBlock: { gap: 1 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.four },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  actionRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
-  counts: { flexDirection: 'row', gap: Spacing.four, flexWrap: 'wrap' },
-  count: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.one },
-  widgets: { flexDirection: 'row', gap: Spacing.three },
-  tabs: { borderBottomWidth: StyleSheet.hairlineWidth, marginTop: Spacing.four },
-  tabsContent: { paddingHorizontal: Spacing.two },
-  tab: { paddingVertical: Spacing.three, paddingHorizontal: Spacing.four, borderBottomWidth: 2.5 },
-  about: { gap: Spacing.three },
-  aboutRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.four },
-  steamStack: { gap: Spacing.four },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x16 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  actionRow: { flexDirection: 'row', gap: Spacing.x8, alignItems: 'center' },
+  counts: { flexDirection: 'row', gap: Spacing.x16, flexWrap: 'wrap' },
+  count: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.x4 },
+  widgets: { flexDirection: 'row', gap: Spacing.x12 },
+  tabs: { borderBottomWidth: StyleSheet.hairlineWidth, marginTop: Spacing.x16 },
+  tabsContent: { paddingHorizontal: Spacing.x8 },
+  tab: { paddingVertical: Spacing.x12, paddingHorizontal: Spacing.x16, borderBottomWidth: 2.5 },
+  about: { gap: Spacing.x12 },
+  aboutRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.x16 },
+  steamStack: { gap: Spacing.x16 },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.two,
+    gap: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    paddingTop: Spacing.x16,
+    paddingBottom: Spacing.x8,
   },
   groupRule: { flex: 1, height: StyleSheet.hairlineWidth },
   wallDivider: {
     height: StyleSheet.hairlineWidth,
-    marginHorizontal: Spacing.four,
-    marginVertical: Spacing.three,
+    marginHorizontal: Spacing.x16,
+    marginVertical: Spacing.x12,
   },
 });

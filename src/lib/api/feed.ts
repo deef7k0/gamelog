@@ -69,6 +69,17 @@ function merge(posts: PostWithRelations[], logs: LogRow[]): FeedItem[] {
   return items.slice(0, LIMIT);
 }
 
+/*
+ * Not currently mounted anywhere.
+ *
+ * Home replaced the chronological feed with independently-ranked bands, and
+ * reviews there come from `getHomeReviews`. These two are kept deliberately
+ * rather than deleted: "posts and logs from people you follow, newest first" is
+ * still a coherent surface, and the capability should outlive the screen that
+ * happened to use it. Delete them only when the product decides it does not
+ * want a chronological feed at all.
+ */
+
 /** Posts and logs from everyone the user follows, plus their own. */
 export async function getHomeFeed(userId: string): Promise<FeedItem[]> {
   const { data: follows, error } = await supabase

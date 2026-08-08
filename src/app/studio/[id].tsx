@@ -16,7 +16,7 @@ import { getCompanyGames } from '@/lib/games/igdb';
 
 /** Four across, matching the library and collection grids. */
 const COLUMNS = 4;
-const GAP = Spacing.two;
+const GAP = Spacing.x8;
 
 /**
  * How a catalogue can be ordered.
@@ -57,7 +57,7 @@ export default function StudioScreen() {
 
   const ordered = useMemo(() => sortGames(games.data ?? [], sort), [games.data, sort]);
 
-  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.four, GAP);
+  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
   if (!Number.isFinite(companyId)) {
     return (
@@ -92,7 +92,7 @@ export default function StudioScreen() {
                   heroUrl={item.heroUrl}
                   title={item.title}
                   width={tileWidth}
-                  rounded="small"
+                  rounded="image"
                 />
               </View>
             </PressableScale>
@@ -126,7 +126,7 @@ export default function StudioScreen() {
                   key={index}
                   width={tileWidth}
                   height={tileWidth / (2 / 3)}
-                  radius={Radius.small}
+                  radius={Radius.image}
                 />
               ))}
             </View>
@@ -142,8 +142,8 @@ export default function StudioScreen() {
 }
 
 const styles = StyleSheet.create({
-  grid: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.seven, gap: GAP },
+  grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
-  header: { paddingTop: Spacing.four, paddingBottom: Spacing.three, gap: Spacing.two },
+  header: { paddingTop: Spacing.x16, paddingBottom: Spacing.x12, gap: Spacing.x8 },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
 });

@@ -25,7 +25,7 @@ import { useAuth } from '@/store/auth';
 
 /** Four across, matching the poster grids elsewhere in the app. */
 const COLUMNS = 4;
-const GAP = Spacing.two;
+const GAP = Spacing.x8;
 
 type LibraryTab = 'games' | 'stats';
 
@@ -71,7 +71,7 @@ export default function LibraryScreen() {
     enabled: !!id && tab === 'stats',
   });
 
-  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.four, GAP);
+  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
   if (!id) {
     return (
@@ -201,7 +201,7 @@ function StatisticsTab({
     return (
       <View style={styles.statsBody}>
         {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} width="100%" height={64} radius={Radius.medium} />
+          <Skeleton key={index} width="100%" height={64} radius={Radius.image} />
         ))}
       </View>
     );
@@ -284,26 +284,26 @@ function GridSkeleton({ width }: { width: number }) {
   return (
     <View style={styles.skeletonGrid}>
       {Array.from({ length: 12 }).map((_, index) => (
-        <Skeleton key={index} width={width} height={width / (2 / 3)} radius={Radius.small} />
+        <Skeleton key={index} width={width} height={width / (2 / 3)} radius={Radius.image} />
       ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.seven, gap: GAP },
+  grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
-  controls: { gap: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
-  statsBody: { padding: Spacing.four, gap: Spacing.three, paddingBottom: Spacing.seven },
-  statsStack: { gap: Spacing.five },
+  controls: { gap: Spacing.x12, paddingTop: Spacing.x16, paddingBottom: Spacing.x12 },
+  statsBody: { padding: Spacing.x16, gap: Spacing.x12, paddingBottom: Spacing.x48 },
+  statsStack: { gap: Spacing.x24 },
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingTop: Spacing.four,
+    paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  statCell: { width: '50%', gap: 1, paddingVertical: Spacing.two },
-  section: { gap: Spacing.two },
+  statCell: { width: '50%', gap: 1, paddingVertical: Spacing.x8 },
+  section: { gap: Spacing.x8 },
   railRow: { flexDirection: 'row', gap: GAP },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
 });

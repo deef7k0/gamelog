@@ -243,26 +243,26 @@ export default function AchievementsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.four, paddingBottom: Spacing.seven },
+  content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   emptyContent: { flexGrow: 1 },
-  header: { gap: Spacing.three, marginBottom: Spacing.four },
+  header: { gap: Spacing.x12, marginBottom: Spacing.x16 },
   progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressText: { gap: Spacing.half },
-  track: { height: 6, borderRadius: Radius.pill, marginTop: Spacing.three, overflow: 'hidden' },
+  progressText: { gap: Spacing.x4 },
+  track: { height: 6, borderRadius: Radius.pill, marginTop: Spacing.x12, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: Radius.pill },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   icon: {
     width: 44,
     height: 44,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowBody: { flex: 1, gap: Spacing.half },
+  rowBody: { flex: 1, gap: Spacing.x4 },
 });

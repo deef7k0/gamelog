@@ -158,8 +158,8 @@ export default function EditProfileScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { gap: Spacing.four, paddingVertical: Spacing.five },
-  row: { flexDirection: 'row', gap: Spacing.three },
+  content: { gap: Spacing.x16, paddingVertical: Spacing.x24 },
+  row: { flexDirection: 'row', gap: Spacing.x12 },
   rowItem: { flex: 1 },
-  steamBlock: { gap: Spacing.two },
+  steamBlock: { gap: Spacing.x8 },
 });

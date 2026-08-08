@@ -7,15 +7,14 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { HeaderBackdrop } from '@/components/ui/header-backdrop';
-import { Colors, FontFamily, Type } from '@/constants/theme';
+import { FontFamily, Palette, Type } from '@/constants/theme';
 import { useAuth } from '@/store/auth';
 
 SplashScreen.preventAutoHideAsync();
@@ -33,8 +32,8 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const palette = colorScheme === 'dark' ? Colors.dark : Colors.light;
+  // Dark, always — see `APP_SCHEME`.
+  const palette = Palette;
   const session = useAuth((state) => state.session);
   const isRestoring = useAuth((state) => state.isRestoring);
 
@@ -99,8 +98,8 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <StatusBar style="auto" />
+        <ThemeProvider value={DarkTheme}>
+          <StatusBar style="light" />
 
           {/*
             The header floats over the page everywhere, not just on the game
@@ -133,6 +132,8 @@ export default function RootLayout() {
               <Stack.Screen name="studio/[id]" options={{ title: '' }} />
               {/* Titled by its own hero headline, so the bar stays empty. */}
               <Stack.Screen name="top-games" options={{ title: '' }} />
+              <Stack.Screen name="releases" options={{ title: 'Latest releases' }} />
+              <Stack.Screen name="upcoming" options={{ title: 'Coming soon' }} />
               <Stack.Screen
                 name="gaming-achievements/[id]"
                 options={{ title: 'Steam Achievements' }}

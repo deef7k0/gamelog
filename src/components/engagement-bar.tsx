@@ -157,12 +157,12 @@ function Action({
 }
 
 const styles = StyleSheet.create({
-  stack: { gap: Spacing.one },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.five },
+  stack: { gap: Spacing.x4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x24 },
   action: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.one,
+    gap: Spacing.x8,
+    paddingVertical: Spacing.x4,
   },
 });

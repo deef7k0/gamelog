@@ -120,9 +120,9 @@ export function SoundtrackAlbums({ gameTitle, layout = 'rail' }: SoundtrackAlbum
 }
 
 const styles = StyleSheet.create({
-  section: { gap: Spacing.three },
-  rail: { gap: Spacing.three, paddingRight: Spacing.four },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.four },
-  album: { width: ALBUM_SIZE, gap: Spacing.one },
-  artwork: { width: ALBUM_SIZE, height: ALBUM_SIZE, borderRadius: Radius.medium },
+  section: { gap: Spacing.x12 },
+  rail: { gap: Spacing.x12, paddingRight: Spacing.x16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x16 },
+  album: { width: ALBUM_SIZE, gap: Spacing.x4 },
+  artwork: { width: ALBUM_SIZE, height: ALBUM_SIZE, borderRadius: Radius.image },
 });

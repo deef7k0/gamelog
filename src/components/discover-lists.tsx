@@ -114,11 +114,11 @@ export function DiscoverCollections() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.four, paddingBottom: Spacing.seven },
+  content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   likes: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingBottom: Spacing.two,
+    gap: Spacing.x4,
+    paddingBottom: Spacing.x8,
   },
 });

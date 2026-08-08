@@ -99,13 +99,13 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: 'center',
-    gap: Spacing.five,
-    paddingVertical: Spacing.five,
+    gap: Spacing.x24,
+    paddingVertical: Spacing.x24,
   },
-  header: { gap: Spacing.two },
+  header: { gap: Spacing.x8 },
   title: { fontSize: 34, fontFamily: FontFamily.bold },
   subtitle: { fontSize: 16, lineHeight: 22 },
-  form: { gap: Spacing.three },
+  form: { gap: Spacing.x12 },
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   link: { fontFamily: FontFamily.semibold },
 });

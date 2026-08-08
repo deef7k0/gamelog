@@ -71,10 +71,10 @@ export function SortBar<T extends string>({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   pill: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     // `control`, not `pill` — these are buttons, and every button in the app is
     // the same rounded rectangle.
     borderRadius: Radius.control,

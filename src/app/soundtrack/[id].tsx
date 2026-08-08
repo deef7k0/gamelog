@@ -266,21 +266,21 @@ export default function SoundtrackScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.four, gap: Spacing.two, paddingBottom: Spacing.seven },
+  content: { padding: Spacing.x16, gap: Spacing.x8, paddingBottom: Spacing.x48 },
   empty: { flexGrow: 1 },
-  header: { alignItems: 'center', gap: Spacing.three, marginBottom: Spacing.four },
+  header: { alignItems: 'center', gap: Spacing.x12, marginBottom: Spacing.x16 },
   headerText: { alignItems: 'center', gap: 2 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.two,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  star: { padding: Spacing.one },
+  star: { padding: Spacing.x4 },
   trackNumber: { width: 26, alignItems: 'center' },
   trackBody: { flex: 1, gap: 2 },
-  track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.one },
+  track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.x4 },
   fill: { height: '100%', borderRadius: Radius.pill },
 });

@@ -231,7 +231,7 @@ export function ActivityRow({
           heroUrl={entry.game.hero_url}
           title={entry.game.title}
           width={written ? WRITTEN_POSTER : PLAIN_POSTER}
-          rounded="xs"
+          rounded="image"
         />
       )}
     </View>
@@ -277,27 +277,27 @@ export function ActivityRow({
 }
 
 const styles = StyleSheet.create({
-  composer: { gap: Spacing.two },
+  composer: { gap: Spacing.x8 },
   composerInput: { minHeight: 84 },
   composerFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   postCard: {
-    paddingVertical: Spacing.three,
-    gap: Spacing.two,
+    paddingVertical: Spacing.x12,
+    gap: Spacing.x8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  postHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  postHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   postHeadText: { flex: 1, gap: 1 },
   activityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.one,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x4,
   },
   /* A row with writing in it is three or four lines tall, so its cover and icon
      hang from the top rather than floating in the vertical middle of a
      paragraph. */
-  activityRowWritten: { alignItems: 'flex-start', paddingVertical: Spacing.three },
+  activityRowWritten: { alignItems: 'flex-start', paddingVertical: Spacing.x12 },
   activityIcon: {
     width: 28,
     height: 28,
@@ -305,6 +305,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activityText: { flex: 1, gap: Spacing.one },
+  activityText: { flex: 1, gap: Spacing.x4 },
   strong: { fontFamily: FontFamily.semibold },
 });

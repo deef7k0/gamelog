@@ -1,14 +1,16 @@
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
-
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+
+/**
+ * The app is dark, always.
+ *
+ * Not a default the OS can override: the design is a dark room, the surface
+ * steps that carry every bit of depth are tuned for it, and a light counterpart
+ * would be a second product rather than a second stylesheet. Exported so that
+ * anything needing to name the scheme — `expo-blur`'s `tint`, a status bar
+ * style — asks this constant instead of guessing.
+ */
+export const APP_SCHEME = 'dark' as const;
 
 export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
-
-  return Colors[theme];
+  return Colors[APP_SCHEME];
 }

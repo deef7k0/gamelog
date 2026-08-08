@@ -51,7 +51,7 @@ export function DiscoverCarousel({ entries, loading = false }: DiscoverCarouselP
     CARD_MAX_WIDTH,
     Math.round(Math.min(width, MaxContentWidth) * CARD_WIDTH_RATIO)
   );
-  const stride = cardWidth + Spacing.three;
+  const stride = cardWidth + Spacing.x12;
   // The tallest a card ever gets: art plus its caption, unscaled.
   const artHeight = Math.round(cardWidth / PosterAspectRatio);
 
@@ -61,9 +61,9 @@ export function DiscoverCarousel({ entries, loading = false }: DiscoverCarouselP
 
   if (loading) {
     return (
-      <View style={[styles.rail, { paddingLeft: Spacing.four }]}>
+      <View style={[styles.rail, { paddingLeft: Spacing.x16 }]}>
         {Array.from({ length: 3 }).map((_, index) => (
-          <Skeleton key={index} width={cardWidth} height={artHeight} radius={Radius.small} />
+          <Skeleton key={index} width={cardWidth} height={artHeight} radius={Radius.image} />
         ))}
       </View>
     );
@@ -143,7 +143,7 @@ function CarouselCard({
             heroUrl={entry.heroUrl}
             title={entry.title}
             width={width}
-            rounded="medium"
+            rounded="image"
           />
 
           <View style={styles.caption}>
@@ -169,8 +169,8 @@ const styles = StyleSheet.create({
    * the final card is still parked on the right at reduced size, permanently
    * unfocusable.
    */
-  content: { paddingLeft: Spacing.four, paddingRight: '100%', gap: Spacing.three },
-  rail: { flexDirection: 'row', gap: Spacing.three },
-  card: { gap: Spacing.two },
+  content: { paddingLeft: Spacing.x16, paddingRight: '100%', gap: Spacing.x12 },
+  rail: { flexDirection: 'row', gap: Spacing.x12 },
+  card: { gap: Spacing.x8 },
   caption: { gap: 1 },
 });

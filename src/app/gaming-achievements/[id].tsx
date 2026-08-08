@@ -109,7 +109,7 @@ export default function GamingAchievementsScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             {stats.isLoading ? (
-              <Skeleton width="100%" height={96} radius={Radius.small} />
+              <Skeleton width="100%" height={96} radius={Radius.image} />
             ) : overall ? (
               <OverallCard stats={overall} />
             ) : null}
@@ -133,7 +133,7 @@ export default function GamingAchievementsScreen() {
           progress.isLoading ? (
             <View style={styles.listSkeleton}>
               {Array.from({ length: 6 }).map((_, index) => (
-                <Skeleton key={index} width="100%" height={64} radius={Radius.medium} />
+                <Skeleton key={index} width="100%" height={64} radius={Radius.image} />
               ))}
             </View>
           ) : progress.isError ? (
@@ -299,7 +299,7 @@ function GameProgressRow({ game, userId }: { game: GameAchievementProgress; user
           heroUrl={steamHeaderUrl(game.appId)}
           title={game.name}
           width={GAME_POSTER}
-          rounded="small"
+          rounded="image"
         />
 
         <View style={styles.gameBody}>
@@ -337,7 +337,7 @@ function GameProgressRow({ game, userId }: { game: GameAchievementProgress; user
       {expanded && (
         <View style={[styles.detail, { borderTopColor: theme.border }]}>
           {detail.isLoading ? (
-            <Skeleton width="100%" height={40} radius={Radius.small} />
+            <Skeleton width="100%" height={40} radius={Radius.image} />
           ) : detail.data && detail.data.length > 0 ? (
             detail.data.map((achievement) => (
               <AchievementRow key={achievement.key} achievement={achievement} />
@@ -422,21 +422,21 @@ function AchievementRow({ achievement }: { achievement: ProviderAchievement }) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.seven },
-  header: { gap: Spacing.five, paddingVertical: Spacing.four },
-  listSkeleton: { gap: Spacing.three },
-  overall: { paddingBottom: Spacing.four, gap: Spacing.three },
+  content: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48 },
+  header: { gap: Spacing.x24, paddingVertical: Spacing.x16 },
+  listSkeleton: { gap: Spacing.x12 },
+  overall: { paddingBottom: Spacing.x16, gap: Spacing.x12 },
   overallRow: { flexDirection: 'row', justifyContent: 'space-between' },
   metric: { alignItems: 'center', gap: 1, flex: 1 },
   track: { height: 6, borderRadius: Radius.pill, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: Radius.pill },
-  section: { gap: Spacing.two },
-  rail: { gap: Spacing.three, paddingRight: Spacing.four },
-  showcaseItem: { width: SHOWCASE_ICON + 16, alignItems: 'center', gap: Spacing.one },
+  section: { gap: Spacing.x8 },
+  rail: { gap: Spacing.x12, paddingRight: Spacing.x16 },
+  showcaseItem: { width: SHOWCASE_ICON + 16, alignItems: 'center', gap: Spacing.x4 },
   showcaseIcon: {
     width: SHOWCASE_ICON,
     height: SHOWCASE_ICON,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -447,23 +447,23 @@ const styles = StyleSheet.create({
   gameCard: { borderTopWidth: StyleSheet.hairlineWidth },
   gameRow: {
     flexDirection: 'row',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x12,
     alignItems: 'center',
   },
-  gameBody: { flex: 1, gap: Spacing.one + 2 },
-  gameTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  gameBody: { flex: 1, gap: Spacing.x4 + 2 },
+  gameTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   gameName: { flex: 1 },
   detail: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.three,
-    gap: Spacing.two + 2,
+    padding: Spacing.x12,
+    gap: Spacing.x8 + 2,
   },
-  achievementRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  achievementRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   achievementIcon: {
     width: 28,
     height: 28,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

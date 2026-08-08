@@ -11,7 +11,7 @@ import { Card, Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { readingMinutes, tagLabel } from '@/constants/article-tags';
 import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { APP_SCHEME, useTheme } from '@/hooks/use-theme';
 import type { PostWithRelations } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
 
@@ -71,11 +71,7 @@ export function ArticleCard({
                 <>
                   {/* Blur strength varies by platform; the label below is what
                       actually guarantees the warning is understood. */}
-                  <BlurView
-                    intensity={28}
-                    tint={theme.background === '#FFFFFF' ? 'light' : 'dark'}
-                    style={StyleSheet.absoluteFill}
-                  />
+                  <BlurView intensity={28} tint={APP_SCHEME} style={StyleSheet.absoluteFill} />
                   <View style={styles.spoilerOverlay}>
                     <PressableScale
                       accessibilityRole="button"
@@ -99,9 +95,9 @@ export function ArticleCard({
             {(article.tags?.length || article.game) && (
               <View style={styles.tags}>
                 {article.tags?.map((tag) => (
-                  <Chip key={tag} label={tagLabel(tag)} tone="primary" />
+                  <Chip key={tag} label={tagLabel(tag)} />
                 ))}
-                {article.has_spoilers && <Chip label="Spoilers" tone="accent" />}
+                {article.has_spoilers && <Chip label="Spoilers" />}
               </View>
             )}
           </PressableScale>
@@ -121,7 +117,7 @@ export function ArticleCard({
                 heroUrl={article.game.hero_url}
                 title={article.game.title}
                 width={32}
-                rounded="small"
+                rounded="image"
               />
               <Text variant="micro" color="textSecondary" numberOfLines={1}>
                 {article.game.title}
@@ -135,11 +131,11 @@ export function ArticleCard({
 }
 
 const styles = StyleSheet.create({
-  stack: { gap: Spacing.three },
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  stack: { gap: Spacing.x12 },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   bylineText: { flex: 1 },
-  body: { gap: Spacing.two },
-  excerptWrap: { position: 'relative', overflow: 'hidden', borderRadius: Radius.small },
+  body: { gap: Spacing.x8 },
+  excerptWrap: { position: 'relative', overflow: 'hidden', borderRadius: Radius.image },
   spoilerOverlay: {
     position: 'absolute',
     top: 0,
@@ -152,17 +148,17 @@ const styles = StyleSheet.create({
   revealPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one + 2,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.x4 + 2,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     borderRadius: Radius.pill,
   },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   gameTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    padding: Spacing.two,
-    borderRadius: Radius.medium,
+    gap: Spacing.x8,
+    padding: Spacing.x8,
+    borderRadius: Radius.image,
   },
 });

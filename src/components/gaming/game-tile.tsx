@@ -63,7 +63,7 @@ export function GameTile({ game, width, showStats = true, ownerId }: GameTilePro
         heroUrl={steamHeaderUrl(game.appId)}
         title={game.name}
         width={width}
-        rounded="small"
+        rounded="image"
       />
 
       {showStats && (
@@ -133,7 +133,7 @@ export function gridItemWidth(
 }
 
 const styles = StyleSheet.create({
-  tile: { gap: Spacing.one },
-  stats: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: 1 },
+  tile: { gap: Spacing.x4 },
+  stats: { flexDirection: 'row', gap: Spacing.x8, paddingHorizontal: 1 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 2 },
 });

@@ -16,7 +16,7 @@ import { Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { readingMinutes, tagLabel } from '@/constants/article-tags';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { APP_SCHEME, useTheme } from '@/hooks/use-theme';
 import { getEngagement, getPost } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
 import { useAuth } from '@/store/auth';
@@ -84,7 +84,7 @@ export default function ArticleScreen() {
         {article.tags && article.tags.length > 0 && (
           <View style={styles.tags}>
             {article.tags.map((tag) => (
-              <Chip key={tag} label={tagLabel(tag)} tone="primary" />
+              <Chip key={tag} label={tagLabel(tag)} />
             ))}
           </View>
         )}
@@ -110,7 +110,7 @@ export default function ArticleScreen() {
         {article.media.length > 0 && (
           <MediaCarousel
             media={article.media}
-            width={Math.min(MaxContentWidth, 640) - Spacing.five * 2}
+            width={Math.min(MaxContentWidth, 640) - Spacing.x24 * 2}
           />
         )}
 
@@ -122,11 +122,7 @@ export default function ArticleScreen() {
 
           {hidden && (
             <>
-              <BlurView
-                intensity={40}
-                tint={theme.background === '#FFFFFF' ? 'light' : 'dark'}
-                style={StyleSheet.absoluteFill}
-              />
+              <BlurView intensity={40} tint={APP_SCHEME} style={StyleSheet.absoluteFill} />
               <View style={[styles.spoilerGate, { backgroundColor: `${theme.background}CC` }]}>
                 <Ionicons name="eye-off-outline" size={26} color={theme.textSecondary} />
                 <Text variant="bodyStrong">This article contains spoilers</Text>
@@ -150,7 +146,7 @@ export default function ArticleScreen() {
                 heroUrl={article.game.hero_url}
                 title={article.game.title}
                 width={44}
-                rounded="small"
+                rounded="image"
               />
               <View style={styles.gameTagText}>
                 <Text variant="micro" color="textMuted">
@@ -182,23 +178,23 @@ export default function ArticleScreen() {
 const styles = StyleSheet.create({
   // Generous side margins are what make it read as a page rather than a card.
   content: {
-    paddingHorizontal: Spacing.five,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.seven,
-    gap: Spacing.four,
+    paddingHorizontal: Spacing.x24,
+    paddingTop: Spacing.x16,
+    paddingBottom: Spacing.x48,
+    gap: Spacing.x16,
     width: '100%',
     maxWidth: 640,
     alignSelf: 'center',
   },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   bylineText: { flex: 1, gap: 1 },
   rule: { height: StyleSheet.hairlineWidth, width: '100%' },
   bodyWrap: {
     position: 'relative',
     minHeight: 220,
     overflow: 'hidden',
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
   },
   // Looser than app body copy — this is sustained reading.
   body: { fontSize: 17, lineHeight: 29 },
@@ -210,8 +206,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.two,
-    padding: Spacing.five,
+    gap: Spacing.x8,
+    padding: Spacing.x24,
   },
   centered: { textAlign: 'center' },
   /* Outlined rather than filled — it is the one thing on an article page you
@@ -219,11 +215,11 @@ const styles = StyleSheet.create({
   gameTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.three,
+    gap: Spacing.x12,
+    padding: Spacing.x12,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
   gameTagText: { flex: 1, gap: 1 },
-  footer: { paddingTop: Spacing.four, borderTopWidth: StyleSheet.hairlineWidth },
+  footer: { paddingTop: Spacing.x16, borderTopWidth: StyleSheet.hairlineWidth },
 });

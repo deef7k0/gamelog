@@ -307,7 +307,7 @@ export default function CreatePostScreen() {
                 heroUrl={taggedGame.heroUrl}
                 title={taggedGame.title}
                 width={38}
-                rounded="small"
+                rounded="image"
               />
               <View style={styles.taggedText}>
                 <Text variant="caption" numberOfLines={1}>
@@ -378,7 +378,7 @@ export default function CreatePostScreen() {
                       heroUrl={item.heroUrl}
                       title={item.title}
                       width={34}
-                      rounded="small"
+                      rounded="image"
                     />
                     <View style={styles.pickerText}>
                       <Text variant="caption" numberOfLines={1}>
@@ -459,41 +459,41 @@ function Tool({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { gap: Spacing.four, paddingVertical: Spacing.four, paddingBottom: Spacing.seven },
-  authorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  content: { gap: Spacing.x16, paddingVertical: Spacing.x16, paddingBottom: Spacing.x48 },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   composer: { minHeight: 140 },
   headline: { fontSize: 20, fontFamily: FontFamily.bold },
   articleBody: { minHeight: 300 },
-  modes: { flexDirection: 'row', gap: Spacing.two },
+  modes: { flexDirection: 'row', gap: Spacing.x8 },
   modeButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
+    gap: Spacing.x8,
+    padding: Spacing.x12,
+    borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,
   },
   modeText: { flex: 1, gap: 1 },
-  section: { gap: Spacing.two },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  section: { gap: Spacing.x8 },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   tag: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
   spoilerToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
+    gap: Spacing.x12,
+    padding: Spacing.x12,
+    borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  thumbs: { gap: Spacing.two },
+  thumbs: { gap: Spacing.x8 },
   thumbWrap: { position: 'relative' },
-  thumb: { width: THUMB, height: THUMB, borderRadius: Radius.medium },
+  thumb: { width: THUMB, height: THUMB, borderRadius: Radius.image },
   remove: {
     position: 'absolute',
     top: 4,
@@ -509,29 +509,29 @@ const styles = StyleSheet.create({
   tagged: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.two,
+    gap: Spacing.x12,
+    padding: Spacing.x8,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
   taggedText: { flex: 1, gap: 1 },
-  tools: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
+  tools: { flexDirection: 'row', gap: Spacing.x8, flexWrap: 'wrap' },
   tool: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.x8,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  picker: { gap: Spacing.two },
+  picker: { gap: Spacing.x8 },
   pickerList: { maxHeight: 260 },
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.two,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   pickerText: { flex: 1, gap: 1 },

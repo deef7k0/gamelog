@@ -136,8 +136,8 @@ function Nudge({ label, onPress }: { label: string; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { gap: Spacing.three },
-  readout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
+  wrapper: { gap: Spacing.x12 },
+  readout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16 },
   number: { fontSize: 46, fontFamily: FontFamily.bold, minWidth: 86 },
   readoutText: { flex: 1, gap: 1 },
   track: {
@@ -147,11 +147,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fill: { height: '100%', borderRadius: Radius.pill },
-  nudges: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  nudges: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   spacer: { flex: 1 },
   nudge: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     minWidth: 50,

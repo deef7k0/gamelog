@@ -28,25 +28,24 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 };
 
 /**
- * The app's button.
+ * The app's button. Three styles, and no outlines.
  *
- * One shape for every control: a slightly-lifted rectangle with a hairline
- * outline at `Radius.control`. Variants change the *value* — how light the fill
- * is — never the hue, because a coloured button next to a game's cover art
- * competes with the artwork the screen exists to show.
+ *  - `primary`   filled accent blue, white label. The one thing on a screen you
+ *                are most likely to want. At most one per screen.
+ *  - `secondary` filled `surfaceElevated`. The default for everything else.
+ *  - `ghost`     no fill at all. For an action that must not draw the eye —
+ *                "Cancel", a tertiary link.
+ *  - `danger`    secondary's shape with a red label.
  *
- *  - `primary`   near-white fill, dark label. One per screen at most.
- *  - `secondary` raised dark fill with an outline. The default for everything.
- *  - `ghost`     outline only, no fill. For actions that must not draw the eye.
- *  - `danger`    secondary's shape with a red label and a red-tinted edge.
+ * Filled, not outlined. An outline is a fourth signal in a system that already
+ * separates by surface step, and a screen of outlined rectangles reads as a form
+ * rather than as a set of choices. `danger` is deliberately not a red slab: a
+ * filled red button is the loudest thing a dark screen can show, and "delete a
+ * collection" does not warrant outshouting the cover art beside it.
  *
- * `danger` is deliberately *not* a red slab. A filled red button is the loudest
- * thing that can appear on a dark screen, and this app's destructive action is
- * "delete a collection", which does not warrant outshouting the cover art beside
- * it. Red type on a dark fill is unmistakable without dominating.
- *
- * Press feedback is a scale sink plus a fill step, both of which survive on
- * near-black where an opacity change is invisible.
+ * 46px tall so the tap target clears 44 on its own, without padding tricks.
+ * Press feedback is a 0.98 scale sink, which survives on near-black where an
+ * opacity change is invisible.
  */
 export function Button({
   title,
@@ -70,13 +69,6 @@ export function Button({
     danger: theme.surfaceElevated,
   }[variant];
 
-  const border = {
-    primary: theme.primary,
-    secondary: theme.border,
-    ghost: theme.border,
-    danger: `${theme.danger}55`,
-  }[variant];
-
   const foreground = {
     primary: theme.onPrimary,
     secondary: theme.text,
@@ -94,7 +86,7 @@ export function Button({
       style={StyleSheet.flatten([
         styles.base,
         small ? styles.small : styles.medium,
-        { backgroundColor: background, borderColor: border },
+        { backgroundColor: background },
         fullWidth && styles.fullWidth,
         isInert && styles.inert,
       ])}
@@ -139,34 +131,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   medium: {
-    paddingVertical: Spacing.three - 1,
-    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x20,
     minHeight: 46,
   },
+  /* Still 40, not 34: `small` is a size, not an excuse to go under the tap
+     target. The saving comes from padding, not from height. */
   small: {
-    paddingVertical: Spacing.two - 1,
-    paddingHorizontal: Spacing.three,
-    minHeight: 34,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x16,
+    minHeight: 40,
   },
   fullWidth: { alignSelf: 'stretch' },
   /* Dimmed rather than hidden — a disabled control still has to be readable
      enough to explain why it is there. */
   inert: { opacity: 0.45 },
-  content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   label: { fontSize: 15, fontFamily: FontFamily.semibold },
   labelSmall: { fontSize: 13 },
   count: {
     minWidth: 22,
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 6,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countLabel: { fontSize: 11, fontFamily: FontFamily.semibold },
+  countLabel: { fontSize: 12, fontFamily: FontFamily.semibold },
   spinner: {
     position: 'absolute',
     top: 0,

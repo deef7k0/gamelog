@@ -112,14 +112,14 @@ export function DiscoverFeed() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.seven, gap: Spacing.five },
-  lead: { gap: Spacing.three, paddingTop: Spacing.two },
+  content: { paddingBottom: Spacing.x48, gap: Spacing.x24 },
+  lead: { gap: Spacing.x12, paddingTop: Spacing.x8 },
   leadHead: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.x16,
   },
-  rails: { paddingHorizontal: Spacing.four, gap: Spacing.five },
-  section: { gap: Spacing.two },
+  rails: { paddingHorizontal: Spacing.x16, gap: Spacing.x24 },
+  section: { gap: Spacing.x8 },
 });

@@ -137,21 +137,21 @@ const styles = StyleSheet.create({
      sitting in the middle of the page. */
   widget: {
     flex: 1,
-    gap: Spacing.three,
-    paddingTop: Spacing.four,
+    gap: Spacing.x12,
+    paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   artwork: {
     width: ARTWORK,
     height: ARTWORK,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
   },
   body: { flex: 1, gap: 2 },
-  track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.one },
+  track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.x4 },
   fill: { height: '100%', borderRadius: Radius.pill },
   play: {
     width: 44,

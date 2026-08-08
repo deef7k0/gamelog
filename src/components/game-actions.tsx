@@ -265,19 +265,19 @@ function Action({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { gap: Spacing.three },
+  wrapper: { gap: Spacing.x12 },
   unreleased: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.four,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
   unreleasedText: { gap: 1 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
-  action: { alignItems: 'center', gap: Spacing.one, flex: 1 },
+  action: { alignItems: 'center', gap: Spacing.x4, flex: 1 },
   actionIcon: {
     width: 46,
     height: 46,

@@ -200,42 +200,42 @@ export default function ReviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.seven },
+  content: { paddingBottom: Spacing.x48 },
   hero: { width: '100%' },
   masthead: {
     flexDirection: 'row',
-    gap: Spacing.four,
-    paddingHorizontal: Spacing.four,
-    marginTop: -Spacing.six,
+    gap: Spacing.x16,
+    paddingHorizontal: Spacing.x16,
+    marginTop: -Spacing.x32,
   },
-  mastheadText: { flex: 1, gap: Spacing.one, justifyContent: 'flex-end' },
+  mastheadText: { flex: 1, gap: Spacing.x4, justifyContent: 'flex-end' },
   mastheadMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.x12,
     flexWrap: 'wrap',
-    marginTop: Spacing.one,
+    marginTop: Spacing.x4,
   },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   /* No container: the score pill is already a coloured block, and wrapping a
      block in a block was the clearest bubble on the page. */
-  scoreBlock: { marginHorizontal: Spacing.four, marginTop: Spacing.four },
+  scoreBlock: { marginHorizontal: Spacing.x16, marginTop: Spacing.x16 },
   chips: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    marginTop: Spacing.four,
+    gap: Spacing.x8,
+    paddingHorizontal: Spacing.x16,
+    marginTop: Spacing.x16,
   },
-  article: { paddingHorizontal: Spacing.four, marginTop: Spacing.five, gap: Spacing.four },
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  article: { paddingHorizontal: Spacing.x16, marginTop: Spacing.x24, gap: Spacing.x16 },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   bylineText: { flex: 1, gap: 1 },
   // Looser than default body copy — this is long-form reading, not UI text.
   body: { fontSize: 16, lineHeight: 26 },
   footer: {
-    marginTop: Spacing.six,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
+    marginTop: Spacing.x32,
+    paddingHorizontal: Spacing.x16,
+    paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

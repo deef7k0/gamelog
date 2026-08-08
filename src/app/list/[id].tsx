@@ -32,7 +32,7 @@ const POSTER = 58;
 
 /** Four across, matching the library, studio and Top 10 grids. */
 const GRID_COLUMNS = 4;
-const GRID_GAP = Spacing.two;
+const GRID_GAP = Spacing.x8;
 
 /**
  * `default` is the collection's own order — the sequence the owner arranged, or
@@ -62,7 +62,7 @@ export default function ListDetailScreen() {
   const [sort, setSort] = useState<GameSort>('default');
 
   const { width } = useWindowDimensions();
-  const gridWidth = gridItemWidth(width, GRID_COLUMNS, Spacing.four, GRID_GAP);
+  const gridWidth = gridItemWidth(width, GRID_COLUMNS, Spacing.x16, GRID_GAP);
 
   const list = useQuery({
     queryKey: ['list', id],
@@ -295,7 +295,7 @@ export default function ListDetailScreen() {
                     heroUrl={item.game?.hero_url}
                     title={item.game?.title}
                     width={gridWidth}
-                    rounded="small"
+                    rounded="image"
                   />
                   {data.is_ranked && (
                     <View style={[styles.rankPill, { backgroundColor: theme.scrim }]}>
@@ -356,7 +356,7 @@ export default function ListDetailScreen() {
                   heroUrl={item.game?.hero_url}
                   title={item.game?.title}
                   width={POSTER}
-                  rounded="small"
+                  rounded="image"
                 />
               </PressableScale>
             </Link>
@@ -452,10 +452,10 @@ export default function ListDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  grid: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.seven, gap: GRID_GAP },
+  grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GRID_GAP },
   column: { gap: GRID_GAP },
-  headerBleed: { marginHorizontal: -Spacing.four },
-  controls: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, gap: Spacing.three },
+  headerBleed: { marginHorizontal: -Spacing.x16 },
+  controls: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x16, gap: Spacing.x12 },
   rankPill: {
     position: 'absolute',
     top: 4,
@@ -463,38 +463,38 @@ const styles = StyleSheet.create({
     minWidth: 18,
     alignItems: 'center',
     paddingHorizontal: 4,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
   },
   rankPillText: { color: '#FFFFFF' },
-  content: { padding: Spacing.four, paddingBottom: Spacing.seven },
+  content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   empty: { flexGrow: 1 },
-  header: { gap: Spacing.two, marginBottom: Spacing.four },
-  ownerActions: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.two },
+  header: { gap: Spacing.x8, marginBottom: Spacing.x16 },
+  ownerActions: { flexDirection: 'row', gap: Spacing.x8, marginTop: Spacing.x8 },
   ownerAction: { flex: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.three,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   rank: { minWidth: 26, textAlign: 'center' },
   tierBadge: {
     width: 30,
     height: 30,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tierText: { color: '#1A1A1A' },
-  rowBody: { flex: 1, gap: Spacing.one },
-  tierPicker: { flexDirection: 'row', gap: Spacing.one, marginTop: Spacing.one },
+  rowBody: { flex: 1, gap: Spacing.x4 },
+  tierPicker: { flexDirection: 'row', gap: Spacing.x4, marginTop: Spacing.x4 },
   tierChip: {
     width: 24,
     height: 24,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowActions: { gap: Spacing.one },
+  rowActions: { gap: Spacing.x4 },
 });

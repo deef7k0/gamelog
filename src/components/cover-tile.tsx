@@ -60,7 +60,7 @@ export function CoverTile({ game, width, rank }: CoverTileProps) {
           heroUrl={game.heroUrl}
           title={game.title}
           width={artWidth}
-          rounded="small"
+          rounded="image"
         />
 
         <View style={styles.caption}>
@@ -79,7 +79,7 @@ export function CoverTile({ game, width, rank }: CoverTileProps) {
 }
 
 const styles = StyleSheet.create({
-  tile: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  tile: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   /* Fixed width so titles line up down the column whatever the rank's digits. */
   rank: { width: 14, textAlign: 'right' },
   caption: { flex: 1, gap: 2 },

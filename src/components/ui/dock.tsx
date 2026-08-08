@@ -179,23 +179,23 @@ export function DockSeparator() {
 const styles = StyleSheet.create({
   shell: {
     alignSelf: 'center',
-    borderRadius: Radius.large,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
+    gap: Spacing.x4,
+    paddingHorizontal: Spacing.x8,
+    paddingVertical: Spacing.x4,
   },
   pill: {
     position: 'absolute',
-    top: Spacing.one,
-    bottom: Spacing.one,
+    top: Spacing.x4,
+    bottom: Spacing.x4,
     borderRadius: Radius.control,
   },
   item: { alignItems: 'center', justifyContent: 'center' },
-  separator: { width: StyleSheet.hairlineWidth, height: 22, marginHorizontal: Spacing.one },
+  separator: { width: StyleSheet.hairlineWidth, height: 22, marginHorizontal: Spacing.x4 },
 });

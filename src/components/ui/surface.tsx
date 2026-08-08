@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { FontFamily, Radius, Spacing, type ThemeColor } from '@/constants/theme';
+import { Radius, Spacing, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 // ---------------------------------------------------------------------------
@@ -11,32 +11,37 @@ import { useTheme } from '@/hooks/use-theme';
 
 export type CardProps = {
   children: ReactNode;
+  /**
+   * `elevated` puts the card on `surfaceElevated` instead of `surface` — for a
+   * card that sits *on* another card, where the same fill would disappear.
+   */
+  elevated?: boolean;
   padded?: boolean;
   style?: ViewStyle | ViewStyle[];
 };
 
 /**
- * A block of content, separated by a rule rather than by a container.
+ * A modular block of content: filled, rounded, no border, no shadow.
  *
- * This used to be a filled, rounded, shadowed surface. It is now a hairline and
- * some space, and that is the point: a feed of rounded cards turns every post,
- * collection and widget into a floating object with its own edge, and twenty
- * objects stacked on a near-black page read as twenty containers rather than as
- * a list of things to read. The rule does the same job — "this ends, that
- * begins" — using one pixel instead of a shape.
+ * The card is the app's basic unit and it is lifted by *colour*, not by a drop
+ * shadow — `surface` (#1C1C1C) against `background` (#121212) is one clear step,
+ * and on a dark screen that step reads far better than any shadow would. A
+ * border on top of it would be a third signal for a job already done twice.
  *
- * There is no `selected` tone any more. It existed to mark a block as *yours* —
- * your log on a game page — with a fill, and the fill was the problem: on a page
- * of near-black the one filled rectangle read as a notice the app was showing
- * you rather than as your own writing. What is yours is said in words and in the
- * score's colour, which is enough.
+ * 20px corners and 16px of padding, both fixed. A card that needs different
+ * numbers is a different component.
  */
-export function Card({ children, padded = true, style }: CardProps) {
+export function Card({ children, elevated = false, padded = true, style }: CardProps) {
   const theme = useTheme();
 
   return (
     <View
-      style={[styles.card, { borderTopColor: theme.border }, padded && styles.cardPadded, style]}>
+      style={[
+        styles.card,
+        { backgroundColor: elevated ? theme.surfaceElevated : theme.surface },
+        padded && styles.cardPadded,
+        style,
+      ]}>
       {children}
     </View>
   );
@@ -48,38 +53,39 @@ export function Card({ children, padded = true, style }: CardProps) {
 
 export type ChipProps = {
   label: string;
-  /** Filled chips read as active/selected; the default is quiet metadata. */
-  tone?: 'neutral' | 'primary' | 'accent';
+  /**
+   * `active` fills with a wash of the accent and takes the accent's text — for
+   * a chip that is *on*, not for one that merely matters.
+   */
+  tone?: 'neutral' | 'active';
+  /** Leading glyph, usually an icon or an emoji. */
   icon?: ReactNode;
 };
 
 /**
- * Small pill for genres, platforms and tags.
+ * The metadata capsule: `📅 Played`, `⏱ 45h`, `🏁 Completed`.
  *
- * Stays a pill while every *control* moved to `Radius.control`, and that is the
- * point: a chip is metadata, not a button, and nothing about it should invite a
- * tap. The shape is now the only thing telling them apart, so it has to keep
- * doing that job — do not round a chip like a button.
+ * Chips are how this app stays information-dense without shrinking anything —
+ * six facts in two rows of capsules are scannable in a way that six lines of
+ * small grey text are not. 34px tall with 14px of horizontal padding, fully
+ * rounded, on `surfaceSelected`.
+ *
+ * They are not buttons. Nothing here has a press state unless a caller wraps it
+ * in one, and the fully-round shape is what says so — every actual control in
+ * the app is an 18px rounded rectangle.
  */
 export function Chip({ label, tone = 'neutral', icon }: ChipProps) {
   const theme = useTheme();
-
-  const background = {
-    neutral: theme.surfaceElevated,
-    primary: theme.surfaceSelected,
-    accent: theme.surfaceElevated,
-  }[tone];
-
-  const color: ThemeColor = {
-    neutral: 'textSecondary' as const,
-    primary: 'text' as const,
-    accent: 'accent' as const,
-  }[tone];
+  const active = tone === 'active';
 
   return (
-    <View style={[styles.chip, { backgroundColor: background, borderColor: theme.border }]}>
+    <View
+      style={[
+        styles.chip,
+        { backgroundColor: active ? theme.primaryMuted : theme.surfaceSelected },
+      ]}>
       {icon}
-      <Text variant="micro" color={color} numberOfLines={1}>
+      <Text variant="caption" color={active ? 'primary' : 'textSecondary'} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -110,8 +116,12 @@ export function SectionHeader({ title, action }: SectionHeaderProps) {
 // ---------------------------------------------------------------------------
 
 /**
- * Community score, 0-100. Colour-coded the way review aggregators do it, so the
- * number is readable at a glance without reading the digits.
+ * Community score, 0-100, as a bare coloured numeral.
+ *
+ * No box. The verdict colour and the digits carry it, and wrapping two
+ * characters in an outlined capsule made a number look like a control you could
+ * press. See `ScoreNumber` in `ui/score` — this is the same idea sized for a
+ * metadata row.
  */
 export function ScoreBadge({
   score,
@@ -121,23 +131,12 @@ export function ScoreBadge({
   size?: 'small' | 'medium';
 }) {
   const theme = useTheme();
-
-  const tone = score >= 75 ? theme.success : score >= 50 ? theme.accent : theme.danger;
-  const small = size === 'small';
+  const tone = score >= 70 ? theme.scoreHigh : score >= 45 ? theme.scoreMid : theme.scoreLow;
 
   return (
-    <View
-      style={[
-        styles.score,
-        small && styles.scoreSmall,
-        { backgroundColor: `${tone}22`, borderColor: tone },
-      ]}>
-      <Text
-        variant={small ? 'micro' : 'caption'}
-        style={{ color: tone, fontFamily: FontFamily.semibold }}>
-        {Math.round(score)}
-      </Text>
-    </View>
+    <Text variant={size === 'small' ? 'caption' : 'bodyStrong'} style={{ color: tone }}>
+      {Math.round(score)}
+    </Text>
   );
 }
 
@@ -149,12 +148,13 @@ export function ScoreBadge({
  * Static placeholder block for loading states.
  *
  * Deliberately not animated: a shimmer across a whole search list costs more in
- * dropped frames than it gains in perceived speed.
+ * dropped frames than it gains in perceived speed. Skeletons everywhere, though
+ * — a spinner tells you to wait, a skeleton tells you what is coming.
  */
 export function Skeleton({
   width,
   height,
-  radius = Radius.small,
+  radius = Radius.image,
 }: {
   width: number | `${number}%`;
   height: number;
@@ -165,31 +165,22 @@ export function Skeleton({
 }
 
 const styles = StyleSheet.create({
-  card: { borderTopWidth: StyleSheet.hairlineWidth },
-  cardPadded: { paddingVertical: Spacing.four },
+  card: { borderRadius: Radius.card, overflow: 'hidden' },
+  cardPadded: { padding: Spacing.x16 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + 2,
+    gap: Spacing.x8,
+    height: 34,
+    paddingHorizontal: Spacing.x12 + 2,
     borderRadius: Radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.three,
+    gap: Spacing.x12,
   },
-  score: {
-    minWidth: 34,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: 3,
-    borderRadius: Radius.small,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreSmall: { minWidth: 28, paddingVertical: 1 },
 });
+
+export type { ThemeColor };

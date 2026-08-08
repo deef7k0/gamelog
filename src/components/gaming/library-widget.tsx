@@ -68,7 +68,7 @@ export function LibraryWidget({
                 key={index}
                 width={WIDGET_POSTER}
                 height={WIDGET_POSTER / (2 / 3)}
-                radius={Radius.small}
+                radius={Radius.image}
               />
             ))}
           </View>
@@ -85,7 +85,7 @@ export function LibraryWidget({
                 heroUrl={steamHeaderUrl(game.appId)}
                 title={game.name}
                 width={WIDGET_POSTER}
-                rounded="small"
+                rounded="image"
               />
             ))}
             {Array.from({ length: Math.max(0, 4 - games.length) }).map((_, index) => (
@@ -113,17 +113,17 @@ const styles = StyleSheet.create({
      in one stack, and a card next to a section would read as two systems. */
   widget: {
     flex: 1,
-    gap: Spacing.two,
-    paddingTop: Spacing.four,
+    gap: Spacing.x8,
+    paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  posters: { flexDirection: 'row', gap: Spacing.one + 2 },
+  title: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  posters: { flexDirection: 'row', gap: Spacing.x4 + 2 },
   emptySlot: {
     width: WIDGET_POSTER,
     height: WIDGET_POSTER / (2 / 3),
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,
     borderStyle: 'dashed',
   },

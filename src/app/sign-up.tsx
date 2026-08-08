@@ -119,6 +119,6 @@ export default function SignUpScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.five },
-  form: { gap: Spacing.three },
+  content: { flexGrow: 1, justifyContent: 'center', paddingVertical: Spacing.x24 },
+  form: { gap: Spacing.x12 },
 });

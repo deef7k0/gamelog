@@ -38,7 +38,7 @@ const TABS: { key: NewsTab; label: string; icon: keyof typeof Ionicons.glyphMap 
 
 /** Two across, matching the Top 10 screen the widget opens. */
 const CHART_COLUMNS = 2;
-const CHART_GAP = Spacing.three;
+const CHART_GAP = Spacing.x12;
 
 /**
  * News, aggregated from several sources.
@@ -170,7 +170,7 @@ export default function NewsScreen() {
                   heroUrl: item.heroUrl,
                   releaseYear: item.releaseYear,
                 }}
-                width={gridItemWidth(width, CHART_COLUMNS, Spacing.four, CHART_GAP)}
+                width={gridItemWidth(width, CHART_COLUMNS, Spacing.x16, CHART_GAP)}
                 rank={item.rank}
               />
             )}
@@ -245,7 +245,7 @@ function List<T>({
   refreshing,
   onRefresh,
   empty,
-  gap = Spacing.three,
+  gap = Spacing.x12,
 }: {
   data: T[];
   keyOf: (item: T) => string;
@@ -274,10 +274,10 @@ function List<T>({
 }
 
 const styles = StyleSheet.create({
-  appBar: { paddingHorizontal: Spacing.four, paddingTop: Spacing.three },
-  dockRow: { paddingVertical: Spacing.three },
-  content: { padding: Spacing.four, paddingBottom: Spacing.seven },
-  chartGrid: { padding: Spacing.four, paddingBottom: Spacing.seven, gap: CHART_GAP },
+  appBar: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12 },
+  dockRow: { paddingVertical: Spacing.x12 },
+  content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
+  chartGrid: { padding: Spacing.x16, paddingBottom: Spacing.x48, gap: CHART_GAP },
   chartColumn: { gap: CHART_GAP },
   empty: { flexGrow: 1 },
 });

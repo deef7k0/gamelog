@@ -135,6 +135,6 @@ export function GameSearchResults({
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.four, gap: Spacing.two, paddingBottom: Spacing.seven },
-  sorts: { paddingBottom: Spacing.one },
+  content: { padding: Spacing.x16, gap: Spacing.x8, paddingBottom: Spacing.x48 },
+  sorts: { paddingBottom: Spacing.x4 },
 });

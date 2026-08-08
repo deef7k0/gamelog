@@ -95,10 +95,10 @@ export function ConnectAccountCard({
 
 const styles = StyleSheet.create({
   card: {
-    paddingVertical: Spacing.four,
-    gap: Spacing.three,
+    paddingVertical: Spacing.x16,
+    gap: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  head: { flexDirection: 'row', gap: Spacing.three, alignItems: 'flex-start' },
+  head: { flexDirection: 'row', gap: Spacing.x12, alignItems: 'flex-start' },
   headText: { flex: 1, gap: 2 },
 });

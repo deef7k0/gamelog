@@ -110,7 +110,7 @@ export default function GamingInventoryScreen() {
           inventory.isLoading ? (
             <View style={styles.skeleton}>
               {Array.from({ length: 8 }).map((_, index) => (
-                <Skeleton key={index} width="100%" height={64} radius={Radius.medium} />
+                <Skeleton key={index} width="100%" height={64} radius={Radius.image} />
               ))}
             </View>
           ) : inventory.isError ? (
@@ -203,21 +203,21 @@ function ItemRow({ item }: { item: InventoryItem }) {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.seven },
-  summary: { paddingVertical: Spacing.three },
-  skeleton: { gap: Spacing.two, paddingTop: Spacing.four },
+  content: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48 },
+  summary: { paddingVertical: Spacing.x12 },
+  skeleton: { gap: Spacing.x8, paddingTop: Spacing.x16 },
   sectionHeading: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.two,
+    paddingTop: Spacing.x16,
+    paddingBottom: Spacing.x8,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.two,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x8,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   /* The rarity stripe survived the de-bubble: it is data — Steam's own colour
@@ -226,15 +226,15 @@ const styles = StyleSheet.create({
   itemIcon: {
     width: ITEM_ICON,
     height: ITEM_ICON,
-    borderRadius: Radius.small,
+    borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: Spacing.two,
+    marginVertical: Spacing.x8,
     overflow: 'hidden',
   },
   itemImage: { width: '100%', height: '100%' },
-  itemBody: { flex: 1, gap: 1, paddingVertical: Spacing.two },
-  itemMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  itemBody: { flex: 1, gap: 1, paddingVertical: Spacing.x8 },
+  itemMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   itemType: { flex: 1 },
-  itemRight: { alignItems: 'flex-end', gap: Spacing.one },
+  itemRight: { alignItems: 'flex-end', gap: Spacing.x4 },
 });

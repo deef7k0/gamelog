@@ -15,7 +15,7 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { readingMinutes, tagLabel } from '@/constants/article-tags';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Radius, Spacing, Type, withAlpha } from '@/constants/theme';
 import { APP_SCHEME, useTheme } from '@/hooks/use-theme';
 import { getEngagement, getPost } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -96,8 +96,8 @@ export default function ArticleScreen() {
             <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.byline}>
               <Avatar uri={author.avatar_url} name={displayNameFor(author)} size={38} />
               <View style={styles.bylineText}>
-                <Text variant="bodyStrong">{displayNameFor(author)}</Text>
-                <Text variant="micro" color="textMuted">
+                <Text variant="h5">{displayNameFor(author)}</Text>
+                <Text variant="caption" color="textMuted">
                   {timeAgo(article.created_at)} · {minutes} min read
                 </Text>
               </View>
@@ -123,10 +123,11 @@ export default function ArticleScreen() {
           {hidden && (
             <>
               <BlurView intensity={40} tint={APP_SCHEME} style={StyleSheet.absoluteFill} />
-              <View style={[styles.spoilerGate, { backgroundColor: `${theme.background}CC` }]}>
+              <View
+                style={[styles.spoilerGate, { backgroundColor: withAlpha(theme.background, 0.8) }]}>
                 <Ionicons name="eye-off-outline" size={26} color={theme.textSecondary} />
-                <Text variant="bodyStrong">This article contains spoilers</Text>
-                <Text variant="caption" color="textMuted" style={styles.centered}>
+                <Text variant="h5">This article contains spoilers</Text>
+                <Text variant="bodySmall" color="textMuted" style={styles.centered}>
                   The author flagged it for major story details.
                 </Text>
                 <Button title="Show anyway" variant="secondary" onPress={() => setRevealed(true)} />
@@ -149,10 +150,10 @@ export default function ArticleScreen() {
                 rounded="image"
               />
               <View style={styles.gameTagText}>
-                <Text variant="micro" color="textMuted">
+                <Text variant="caption" color="textMuted">
                   ABOUT
                 </Text>
-                <Text variant="bodyStrong" numberOfLines={1}>
+                <Text variant="h5" numberOfLines={1}>
                   {article.game.title}
                 </Text>
               </View>
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.image,
   },
   // Looser than app body copy — this is sustained reading.
-  body: { fontSize: 17, lineHeight: 29 },
+  body: { ...Type.prose },
   spoilerGate: {
     position: 'absolute',
     top: 0,

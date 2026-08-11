@@ -74,13 +74,13 @@ export function TabBar<T extends string>({ tabs, value, onChange }: TabBarProps<
               {/* The selected tab takes the accent on both the label and the
                   underline. It is the one place in the app where colour says
                   "you are here", and it should not have to whisper it. */}
-              <Text variant="bodyStrong" color={active ? 'primary' : 'textMuted'}>
+              <Text variant="h5" color={active ? 'primary' : 'textMuted'}>
                 {tab.label}
               </Text>
 
               {tab.count != null && tab.count > 0 && (
                 <View style={[styles.count, { backgroundColor: theme.danger }]}>
-                  <Text variant="micro" style={styles.countLabel}>
+                  <Text variant="caption" color="onPrimary">
                     {tab.count > 99 ? '99+' : tab.count}
                   </Text>
                 </View>
@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   },
   count: {
     minWidth: 18,
-    paddingHorizontal: 5,
+    paddingHorizontal: Spacing.x4,
     paddingVertical: 1,
     borderRadius: Radius.pill,
     alignItems: 'center',
@@ -115,5 +115,4 @@ const styles = StyleSheet.create({
   },
   /* Always white: the badge is a fixed red in both schemes, so a theme
      foreground would go black-on-red in light mode. */
-  countLabel: { color: '#FFFFFF' },
 });

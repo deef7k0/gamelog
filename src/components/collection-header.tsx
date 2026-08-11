@@ -58,14 +58,14 @@ export function CollectionHeader({
           <Link href={{ pathname: '/profile/[id]', params: { id: owner.id } }} asChild>
             <PressableScale accessibilityRole="button" scaleTo={0.98} style={styles.creator}>
               <Avatar uri={owner.avatar_url} name={displayNameFor(owner)} size={28} />
-              <Text variant="caption" color="textSecondary" numberOfLines={1}>
+              <Text variant="bodySmall" color="textSecondary" numberOfLines={1}>
                 {displayNameFor(owner)}
               </Text>
             </PressableScale>
           </Link>
         )}
 
-        <Text variant="title">{collection.title}</Text>
+        <Text variant="h1">{collection.title}</Text>
 
         {collection.description && (
           <Text variant="body" color="textSecondary">
@@ -74,16 +74,16 @@ export function CollectionHeader({
         )}
 
         <View style={styles.metaRow}>
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             {items.length} {items.length === 1 ? 'GAME' : 'GAMES'}
           </Text>
           {collection.is_ranked && (
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               RANKED
             </Text>
           )}
           {collection.kind !== 'list' && (
-            <Text variant="micro" color="textMuted">
+            <Text variant="label" color="textMuted">
               {collection.kind.toUpperCase()}
             </Text>
           )}
@@ -93,7 +93,7 @@ export function CollectionHeader({
           <View style={styles.tags}>
             {tags.map((tag) => (
               <View key={tag} style={[styles.tag, { borderColor: theme.border }]}>
-                <Text variant="micro" color="textSecondary">
+                <Text variant="caption" color="textSecondary">
                   {tag}
                 </Text>
               </View>

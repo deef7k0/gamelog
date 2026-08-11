@@ -14,7 +14,7 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { parseReviewMetrics } from '@/constants/review-metrics';
-import { Spacing } from '@/constants/theme';
+import { Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -102,10 +102,10 @@ export default function ReviewScreen() {
           </Link>
 
           <View style={styles.mastheadText}>
-            <Text variant="heading" numberOfLines={3}>
+            <Text variant="h3" numberOfLines={3}>
               {game?.title ?? 'Unknown game'}
             </Text>
-            <Text variant="caption" color="textMuted" numberOfLines={2}>
+            <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
               {[game?.release_year, game?.developer].filter(Boolean).join(' · ')}
             </Text>
 
@@ -116,13 +116,13 @@ export default function ReviewScreen() {
               {review.platinum && (
                 <View style={styles.badge}>
                   <Ionicons name="trophy" size={11} color={theme.platinum} />
-                  <Text variant="micro" style={{ color: theme.platinum }}>
+                  <Text variant="caption" style={{ color: theme.platinum }}>
                     Platinum
                   </Text>
                 </View>
               )}
               {review.hours_played != null && (
-                <Text variant="micro" color="textMuted">
+                <Text variant="caption" color="textMuted">
                   {review.hours_played}h played
                 </Text>
               )}
@@ -161,8 +161,8 @@ export default function ReviewScreen() {
               <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.byline}>
                 <Avatar uri={author.avatar_url} name={displayNameFor(author)} size={36} />
                 <View style={styles.bylineText}>
-                  <Text variant="bodyStrong">{displayNameFor(author)}</Text>
-                  <Text variant="micro" color="textMuted">
+                  <Text variant="h5">{displayNameFor(author)}</Text>
+                  <Text variant="caption" color="textMuted">
                     @{author.username} · {timeAgo(review.created_at)}
                   </Text>
                 </View>
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   bylineText: { flex: 1, gap: 1 },
   // Looser than default body copy — this is long-form reading, not UI text.
-  body: { fontSize: 16, lineHeight: 26 },
+  body: { ...Type.prose },
   footer: {
     marginTop: Spacing.x32,
     paddingHorizontal: Spacing.x16,

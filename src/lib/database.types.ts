@@ -260,6 +260,14 @@ export type ListRow = {
   is_ranked: boolean;
   /** Free-form author labels shown on the Collection header. Max 12. */
   tags: string[] | null;
+  /**
+   * Game whose cover represents the collection on a tile.
+   *
+   * Null means the owner has not chosen one, and the tile falls back to the
+   * first item. A trigger (0014) nulls this when the game leaves the list, so
+   * it can never point at something the collection no longer holds.
+   */
+  cover_game_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -589,10 +597,20 @@ export type Database = {
         Row: ListRow;
         Insert: Insert<
           ListRow,
-          'id' | 'created_at' | 'updated_at' | 'description' | 'kind' | 'is_ranked' | 'tags'
+          | 'id'
+          | 'created_at'
+          | 'updated_at'
+          | 'description'
+          | 'kind'
+          | 'is_ranked'
+          | 'tags'
+          | 'cover_game_id'
         >;
         Update: Partial<ListRow>;
-        Relationships: [FK<'lists_user_id_fkey', 'user_id', 'profiles', 'id'>];
+        Relationships: [
+          FK<'lists_user_id_fkey', 'user_id', 'profiles', 'id'>,
+          FK<'lists_cover_game_id_fkey', 'cover_game_id', 'games', 'id'>,
+        ];
       };
       list_items: {
         Row: ListItemRow;

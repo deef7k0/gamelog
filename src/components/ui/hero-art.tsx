@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { HeroAspectRatio, HeroHeightRatio, withAlpha } from '@/constants/theme';
+import { HeroAspectRatio, HeroHeightRatio, Palette, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -36,11 +36,11 @@ const BLUR_RADIUS = 72;
  */
 const RAMP_STOPS: readonly [number, number, ...number[]] = [0, 0.28, 0.5, 0.72, 1];
 const RAMP_COLORS: readonly [string, string, ...string[]] = [
-  withAlpha('#000000', 0),
-  withAlpha('#000000', 0.1),
-  withAlpha('#000000', 0.45),
-  withAlpha('#000000', 0.85),
-  '#000000',
+  withAlpha(Palette.shadowInk, 0),
+  withAlpha(Palette.shadowInk, 0.1),
+  withAlpha(Palette.shadowInk, 0.45),
+  withAlpha(Palette.shadowInk, 0.85),
+  Palette.shadowInk,
 ];
 
 /** Where the colour fade starts, as a fraction of the hero measured from the bottom. */
@@ -133,7 +133,7 @@ export function HeroArt({ uri, scrim = false, height }: HeroArtProps) {
 
       {scrim && (
         <LinearGradient
-          colors={[withAlpha('#000000', 0.5), withAlpha('#000000', 0)]}
+          colors={[withAlpha(Palette.shadowInk, 0.5), withAlpha(Palette.shadowInk, 0)]}
           style={styles.scrim}
           pointerEvents="none"
         />

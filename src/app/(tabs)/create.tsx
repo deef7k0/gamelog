@@ -19,7 +19,7 @@ import {
   MAX_POST_LENGTH,
   readingMinutes,
 } from '@/constants/article-tags';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, Type } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTheme } from '@/hooks/use-theme';
 import { cacheGame, createPost, uploadImages } from '@/lib/api';
@@ -134,7 +134,7 @@ export default function CreatePostScreen() {
           showsVerticalScrollIndicator={false}>
           <View style={styles.authorRow}>
             <Avatar uri={profile?.avatar_url} name={displayNameFor(profile)} size={40} />
-            <Text variant="bodyStrong">{displayNameFor(profile)}</Text>
+            <Text variant="h5">{displayNameFor(profile)}</Text>
           </View>
 
           {/* Post vs article. The two differ in more than length: an article
@@ -163,10 +163,10 @@ export default function CreatePostScreen() {
                     color={selected ? theme.text : theme.textMuted}
                   />
                   <View style={styles.modeText}>
-                    <Text variant="caption" color={selected ? 'text' : 'textSecondary'}>
+                    <Text variant="bodySmall" color={selected ? 'text' : 'textSecondary'}>
                       {option === 'post' ? 'Post' : 'Article'}
                     </Text>
-                    <Text variant="micro" color="textMuted">
+                    <Text variant="caption" color="textMuted">
                       {option === 'post' ? 'Short update' : 'Long-form piece'}
                     </Text>
                   </View>
@@ -206,7 +206,7 @@ export default function CreatePostScreen() {
           {mode === 'article' && (
             <>
               <View style={styles.section}>
-                <Text variant="caption" color="textSecondary">
+                <Text variant="bodySmall" color="textSecondary">
                   Tags
                 </Text>
                 <View style={styles.tags}>
@@ -234,7 +234,7 @@ export default function CreatePostScreen() {
                             borderColor: selected ? theme.borderStrong : theme.border,
                           },
                         ])}>
-                        <Text variant="micro" color={selected ? 'text' : 'textMuted'}>
+                        <Text variant="caption" color={selected ? 'text' : 'textMuted'}>
                           {tag.label}
                         </Text>
                       </PressableScale>
@@ -251,7 +251,7 @@ export default function CreatePostScreen() {
                 style={StyleSheet.flatten([
                   styles.spoilerToggle,
                   {
-                    backgroundColor: hasSpoilers ? `${theme.accent}22` : 'transparent',
+                    backgroundColor: hasSpoilers ? theme.primaryMuted : 'transparent',
                     borderColor: hasSpoilers ? theme.accent : theme.border,
                   },
                 ])}>
@@ -262,11 +262,11 @@ export default function CreatePostScreen() {
                 />
                 <View style={styles.modeText}>
                   <Text
-                    variant="caption"
+                    variant="bodySmall"
                     style={{ color: hasSpoilers ? theme.accent : theme.text }}>
                     Contains spoilers
                   </Text>
-                  <Text variant="micro" color="textMuted">
+                  <Text variant="caption" color="textMuted">
                     Blurs the body until readers opt in
                   </Text>
                 </View>
@@ -293,7 +293,7 @@ export default function CreatePostScreen() {
                     onPress={() => setImages((current) => current.filter((u) => u !== uri))}
                     scaleTo={0.85}
                     style={StyleSheet.flatten([styles.remove, { backgroundColor: theme.scrim }])}>
-                    <Ionicons name="close" size={14} color="#FFFFFF" />
+                    <Ionicons name="close" size={14} color={theme.onPrimary} />
                   </PressableScale>
                 </View>
               ))}
@@ -310,10 +310,10 @@ export default function CreatePostScreen() {
                 rounded="image"
               />
               <View style={styles.taggedText}>
-                <Text variant="caption" numberOfLines={1}>
+                <Text variant="bodySmall" numberOfLines={1}>
                   {taggedGame.title}
                 </Text>
-                <Text variant="micro" color="textMuted">
+                <Text variant="caption" color="textMuted">
                   {taggedGame.releaseYear ?? ''}
                 </Text>
               </View>
@@ -381,10 +381,10 @@ export default function CreatePostScreen() {
                       rounded="image"
                     />
                     <View style={styles.pickerText}>
-                      <Text variant="caption" numberOfLines={1}>
+                      <Text variant="bodySmall" numberOfLines={1}>
                         {item.title}
                       </Text>
-                      <Text variant="micro" color="textMuted">
+                      <Text variant="caption" color="textMuted">
                         {[item.releaseYear, item.developer].filter(Boolean).join(' · ')}
                       </Text>
                     </View>
@@ -394,7 +394,7 @@ export default function CreatePostScreen() {
                 {gameResults.data?.length === 0 &&
                   debouncedQuery.length >= 2 &&
                   !gameResults.isLoading && (
-                    <Text variant="caption" color="textMuted">
+                    <Text variant="bodySmall" color="textMuted">
                       No games found.
                     </Text>
                   )}
@@ -403,7 +403,7 @@ export default function CreatePostScreen() {
           )}
 
           {error && (
-            <Text variant="caption" color="danger">
+            <Text variant="bodySmall" color="danger">
               {error instanceof Error ? error.message : 'Something went wrong.'}
             </Text>
           )}
@@ -450,7 +450,7 @@ function Tool({
         { borderColor: theme.border, opacity: disabled ? 0.5 : 1 },
       ])}>
       <Ionicons name={icon} size={18} color={theme.textSecondary} />
-      <Text variant="caption" color="textSecondary">
+      <Text variant="bodySmall" color="textSecondary">
         {label}
       </Text>
     </PressableScale>
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   content: { gap: Spacing.x16, paddingVertical: Spacing.x16, paddingBottom: Spacing.x48 },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   composer: { minHeight: 140 },
-  headline: { fontSize: 20, fontFamily: FontFamily.bold },
+  headline: { ...Type.h2 },
   articleBody: { minHeight: 300 },
   modes: { flexDirection: 'row', gap: Spacing.x8 },
   modeButton: {
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
     right: 4,
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

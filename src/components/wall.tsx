@@ -10,7 +10,7 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { FontFamily, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { postToWall, type ActivityEntry, type ActivityKind, type WallPost } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -84,7 +84,7 @@ export function WallComposer({
       />
 
       <View style={styles.composerFoot}>
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           {body.trim().length}/{MAX_LENGTH}
         </Text>
         <Button
@@ -109,10 +109,10 @@ export function WallPostRow({ post }: { post: WallPost }) {
         <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.postHead}>
           <Avatar uri={post.author?.avatar_url} name={displayNameFor(post.author)} size={34} />
           <View style={styles.postHeadText}>
-            <Text variant="bodyStrong" numberOfLines={1}>
+            <Text variant="h5" numberOfLines={1}>
               {displayNameFor(post.author)}
             </Text>
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               {timeAgo(post.created_at)}
             </Text>
           </View>
@@ -188,13 +188,13 @@ export function ActivityRow({
 
   const body = (
     <View style={[styles.activityRow, written && styles.activityRowWritten]}>
-      <View style={[styles.activityIcon, { backgroundColor: `${tint}22` }]}>
+      <View style={[styles.activityIcon, { backgroundColor: withAlpha(tint, 0.13) }]}>
         <Ionicons name={ACTIVITY_ICON[entry.kind]} size={14} color={tint} />
       </View>
 
       <View style={styles.activityText}>
-        <Text variant="caption" numberOfLines={2}>
-          <Text variant="caption" style={styles.strong}>
+        <Text variant="bodySmall" numberOfLines={2}>
+          <Text variant="bodySmall" style={styles.strong}>
             {ownerName}
           </Text>{' '}
           {description()}
@@ -205,7 +205,7 @@ export function ActivityRow({
             a title: at this size a second bold line would compete with the
             sentence above it for what the row is even about. */}
         {written && entry.reviewTitle && (
-          <Text variant="caption" numberOfLines={1} style={styles.strong}>
+          <Text variant="bodySmall" numberOfLines={1} style={styles.strong}>
             “{entry.reviewTitle}”
           </Text>
         )}
@@ -215,12 +215,12 @@ export function ActivityRow({
             lands mid-word exactly where the column ends — no guessing at a
             character count that would be wrong on every other screen size. */}
         {written && (
-          <Text variant="caption" color="textMuted" numberOfLines={2} ellipsizeMode="tail">
+          <Text variant="bodySmall" color="textMuted" numberOfLines={2} ellipsizeMode="tail">
             {entry.excerpt!.trim()}
           </Text>
         )}
 
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           {timeAgo(entry.createdAt)}
         </Text>
       </View>
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   activityIcon: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

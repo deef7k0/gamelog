@@ -26,7 +26,7 @@ import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { LOG_STATUSES, STATUS_LABEL, statusColor } from '@/constants/status';
 import { averageMetrics, countMetrics, parseReviewMetrics } from '@/constants/review-metrics';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, Type, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteLog, getMyLog, saveLog } from '@/lib/api';
 import type { GameLog, LogStatus } from '@/lib/database.types';
@@ -209,17 +209,17 @@ function LogForm({ game, existing, userId }: LogFormProps) {
               tilt={4}
             />
             <View style={styles.gameHeadText}>
-              <Text variant="heading" numberOfLines={2}>
+              <Text variant="h3" numberOfLines={2}>
                 {game.title}
               </Text>
-              <Text variant="caption" color="textMuted">
+              <Text variant="bodySmall" color="textMuted">
                 {[game.releaseYear, game.developer].filter(Boolean).join(' · ')}
               </Text>
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text variant="caption" color="textSecondary">
+            <Text variant="bodySmall" color="textSecondary">
               Status
             </Text>
             <View style={styles.statuses}>
@@ -240,7 +240,7 @@ function LogForm({ game, existing, userId }: LogFormProps) {
                       },
                     ]}>
                     <Text
-                      variant="caption"
+                      variant="bodySmall"
                       style={{ color: selected ? theme.background : theme.textSecondary }}>
                       {STATUS_LABEL[option]}
                     </Text>
@@ -251,7 +251,7 @@ function LogForm({ game, existing, userId }: LogFormProps) {
           </View>
 
           <View style={styles.section}>
-            <Text variant="caption" color="textSecondary">
+            <Text variant="bodySmall" color="textSecondary">
               Score
             </Text>
 
@@ -281,7 +281,7 @@ function LogForm({ game, existing, userId }: LogFormProps) {
           {/* Completion. `platinum` is self-reported for every platform — no
               console publishes a trophy API — but Steam sync can set the 100%. */}
           <View style={styles.section}>
-            <Text variant="caption" color="textSecondary">
+            <Text variant="bodySmall" color="textSecondary">
               Completion
             </Text>
             <View style={styles.toggles}>
@@ -331,10 +331,10 @@ function LogForm({ game, existing, userId }: LogFormProps) {
               body with no headline arrives as an untitled block and a headline
               with no body as a promise of writing that is not there. */}
           <View style={styles.section}>
-            <Text variant="caption" color="textSecondary">
+            <Text variant="bodySmall" color="textSecondary">
               Review
             </Text>
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               {writingReview
                 ? 'A review needs both a headline and a body.'
                 : 'Optional — leave both blank to log this without writing a review.'}
@@ -362,7 +362,7 @@ function LogForm({ game, existing, userId }: LogFormProps) {
           </View>
 
           {mutationError && (
-            <Text variant="caption" color="danger">
+            <Text variant="bodySmall" color="danger">
               {mutationError instanceof Error ? mutationError.message : 'Could not save.'}
             </Text>
           )}
@@ -418,13 +418,13 @@ function Toggle({
       style={[
         styles.toggle,
         {
-          backgroundColor: value ? `${tint}22` : 'transparent',
+          backgroundColor: value ? withAlpha(tint, 0.13) : 'transparent',
           borderColor: value ? tint : theme.border,
           opacity: disabled ? 0.6 : 1,
         },
       ]}>
       <Ionicons name={icon} size={18} color={value ? tint : theme.textMuted} />
-      <Text variant="caption" style={{ color: value ? tint : theme.textSecondary }}>
+      <Text variant="bodySmall" style={{ color: value ? tint : theme.textSecondary }}>
         {label}
       </Text>
     </PressableScale>
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  reviewTitle: { fontSize: 18, fontFamily: FontFamily.semibold },
+  reviewTitle: { ...Type.h3 },
   // Tall by default: a short box invites a short review.
   reviewBody: { minHeight: 260 },
   toggles: { flexDirection: 'row', gap: Spacing.x8, flexWrap: 'wrap' },

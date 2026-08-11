@@ -12,7 +12,7 @@ import {
   type ReviewMetricKey,
   type ReviewMetrics,
 } from '@/constants/review-metrics';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -108,7 +108,7 @@ export function ReviewMetricsEditor({
 
         <View style={styles.tickText}>
           <Text variant="body">Advanced review metrics</Text>
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             Score categories instead of the bar. The overall score becomes their average.
           </Text>
         </View>
@@ -117,7 +117,7 @@ export function ReviewMetricsEditor({
       {enabled && (
         <View style={[styles.panel, { borderTopColor: theme.border }]}>
           <View style={styles.panelHead}>
-            <Text variant="micro" color="textMuted" style={styles.panelHint}>
+            <Text variant="caption" color="textMuted" style={styles.panelHint}>
               Score each out of 100 — how well the game does it, not how much of it there is. Leave
               a box blank to exclude it.
             </Text>
@@ -128,7 +128,7 @@ export function ReviewMetricsEditor({
                 accessibilityLabel="Clear all metrics"
                 onPress={() => onChangeDraft({})}
                 scaleTo={0.94}>
-                <Text variant="micro" color="primary">
+                <Text variant="caption" color="primary">
                   Clear all
                 </Text>
               </PressableScale>
@@ -147,7 +147,7 @@ export function ReviewMetricsEditor({
             ))}
           </View>
 
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             {scored === 0
               ? 'No metrics scored yet — the review has no score.'
               : `Averaging ${scored} of ${REVIEW_METRICS.length} metrics.`}
@@ -203,7 +203,7 @@ function MetricRow({
         style={[
           styles.box,
           {
-            backgroundColor: filled ? `${tint}1A` : theme.background,
+            backgroundColor: filled ? withAlpha(tint, 0.1) : theme.background,
             borderColor: filled ? tint : theme.border,
             color: tint,
           },
@@ -226,7 +226,7 @@ export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) 
 
   return (
     <View style={[styles.breakdown, { borderTopColor: theme.border }]}>
-      <Text variant="micro" color="textMuted">
+      <Text variant="caption" color="textMuted">
         SCORE BREAKDOWN · {rows.length} {rows.length === 1 ? 'METRIC' : 'METRICS'}
       </Text>
 
@@ -235,7 +235,7 @@ export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) 
           const tint = scoreColor(score, theme);
           return (
             <View key={metric.key} style={styles.breakdownRow}>
-              <Text variant="caption" style={styles.breakdownLabel} numberOfLines={1}>
+              <Text variant="bodySmall" style={styles.breakdownLabel} numberOfLines={1}>
                 {metric.label}
               </Text>
 
@@ -245,7 +245,7 @@ export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) 
                 />
               </View>
 
-              <Text variant="bodyStrong" style={[styles.breakdownScore, { color: tint }]}>
+              <Text variant="h5" style={[styles.breakdownScore, { color: tint }]}>
                 {score}
               </Text>
             </View>
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   tick: {
     width: 22,
     height: 22,
-    borderRadius: Radius.image - 2,
+    borderRadius: Radius.control,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',

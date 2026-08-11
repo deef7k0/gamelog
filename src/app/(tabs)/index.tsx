@@ -13,7 +13,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getHomeReviews, getRecentCollections, getUnreadCount } from '@/lib/api';
 import { getGamingNews, getNewReleases, getPopularGames, getUpcomingReleases } from '@/lib/news';
@@ -133,7 +133,7 @@ export default function HomeScreen() {
           <Ionicons name="notifications-outline" size={24} color={theme.text} />
           {unreadCount > 0 && (
             <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-              <Text variant="micro" style={{ color: theme.onPrimary }}>
+              <Text variant="caption" style={{ color: theme.onPrimary }}>
                 {unreadCount > 99 ? '99+' : unreadCount}
               </Text>
             </View>
@@ -228,7 +228,7 @@ export default function HomeScreen() {
 
         <Link href="/search" asChild>
           <PressableScale accessibilityRole="button" scaleTo={0.98} style={styles.footer}>
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textMuted">
               Looking for something specific? Search every game on IGDB.
             </Text>
           </PressableScale>
@@ -263,8 +263,8 @@ const styles = StyleSheet.create({
     right: 0,
     minWidth: 18,
     height: 18,
-    paddingHorizontal: 5,
-    borderRadius: 9,
+    paddingHorizontal: Spacing.x4,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

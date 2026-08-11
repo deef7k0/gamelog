@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Radius } from '@/constants/theme';
+import { Elevation, Radius, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type IconButtonProps = {
@@ -62,11 +62,13 @@ export function IconButton({
       style={StyleSheet.flatten([
         styles.base,
         { width: box, height: box },
+        /* `plain` drops the fill, so it drops the shadow with it. */
+        plain ? Elevation.none : Elevation.control,
         plain
           ? styles.plain
           : {
               backgroundColor: active ? theme.surfaceSelected : theme.surfaceElevated,
-              borderColor: tone === 'danger' ? `${theme.danger}55` : theme.border,
+              borderColor: tone === 'danger' ? withAlpha(theme.danger, 0.33) : theme.border,
               borderWidth: StyleSheet.hairlineWidth,
             },
         disabled && styles.inert,

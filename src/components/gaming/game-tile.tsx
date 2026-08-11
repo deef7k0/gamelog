@@ -70,7 +70,7 @@ export function GameTile({ game, width, showStats = true, ownerId }: GameTilePro
         <View style={styles.stats}>
           <View style={styles.stat}>
             <Ionicons name="time-outline" size={11} color={theme.textMuted} />
-            <Text variant="micro" color="textMuted" numberOfLines={1}>
+            <Text variant="caption" color="textMuted" numberOfLines={1}>
               {formatPlaytime(game.playtimeMinutes)}
             </Text>
           </View>
@@ -86,7 +86,7 @@ export function GameTile({ game, width, showStats = true, ownerId }: GameTilePro
                     : theme.textMuted
                 }
               />
-              <Text variant="micro" color="textMuted" numberOfLines={1}>
+              <Text variant="caption" color="textMuted" numberOfLines={1}>
                 {total === null ? '—' : unlocked}
               </Text>
             </View>

@@ -5,7 +5,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 import { Screen } from '@/components/ui/screen';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
-import { FontFamily, Spacing } from '@/constants/theme';
+import { FontFamily, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/store/auth';
 
@@ -103,8 +103,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.x24,
   },
   header: { gap: Spacing.x8 },
-  title: { fontSize: 34, fontFamily: FontFamily.bold },
-  subtitle: { fontSize: 16, lineHeight: 22 },
+  title: { ...Type.display },
+  subtitle: { ...Type.body },
   form: { gap: Spacing.x12 },
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   link: { fontFamily: FontFamily.semibold },

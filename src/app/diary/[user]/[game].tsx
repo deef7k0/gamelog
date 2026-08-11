@@ -159,7 +159,7 @@ export default function DiaryScreen() {
             )}
             ListHeaderComponent={
               entries.length > 0 ? (
-                <Text variant="micro" color="textMuted" style={styles.count}>
+                <Text variant="caption" color="textMuted" style={styles.count}>
                   {entries.length} {entries.length === 1 ? 'ENTRY' : 'ENTRIES'}
                 </Text>
               ) : null
@@ -205,7 +205,7 @@ export default function DiaryScreen() {
               error={add.error instanceof Error ? add.error.message : null}
             />
             <View style={styles.composerFoot}>
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {draft.trim().length}/{MAX_DIARY_LENGTH}
               </Text>
               <Button
@@ -244,10 +244,10 @@ function EntryRow({
   return (
     <View style={[styles.entry, { borderTopColor: theme.border }]}>
       <View style={[styles.dateSquare, { backgroundColor: theme.surfaceElevated }]}>
-        <Text variant="bodyStrong">
+        <Text variant="h5">
           {day}/{month}
         </Text>
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           {year}
         </Text>
       </View>
@@ -294,7 +294,7 @@ function StatsTab({
         {log && (
           <View style={[styles.statCard, { borderTopColor: theme.border }]}>
             <View style={styles.statHead}>
-              <Text variant="bodyStrong" style={{ color: statusColor(log.status, theme) }}>
+              <Text variant="h5" style={{ color: statusColor(log.status, theme) }}>
                 {STATUS_LABEL[log.status]}
               </Text>
               {log.platinum && <Ionicons name="trophy" size={16} color={theme.platinum} />}
@@ -311,7 +311,7 @@ function StatsTab({
             </View>
 
             {log.review_title && (
-              <Text variant="bodyStrong" numberOfLines={2}>
+              <Text variant="h5" numberOfLines={2}>
                 {log.review_title}
               </Text>
             )}
@@ -325,7 +325,7 @@ function StatsTab({
           <View style={[styles.statCard, { borderTopColor: theme.border }]}>
             <View style={styles.statHead}>
               <Ionicons name="logo-steam" size={15} color={theme.textSecondary} />
-              <Text variant="micro" color="textSecondary">
+              <Text variant="caption" color="textSecondary">
                 FROM STEAM
               </Text>
             </View>
@@ -344,7 +344,7 @@ function StatsTab({
             </View>
 
             {owned.lastPlayedAt && (
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 Last played {new Date(owned.lastPlayedAt).toLocaleDateString()}
               </Text>
             )}
@@ -358,8 +358,8 @@ function StatsTab({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.stat}>
-      <Text variant="bodyStrong">{value}</Text>
-      <Text variant="micro" color="textMuted">
+      <Text variant="h5">{value}</Text>
+      <Text variant="caption" color="textMuted">
         {label}
       </Text>
     </View>

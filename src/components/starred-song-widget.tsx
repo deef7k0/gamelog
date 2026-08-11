@@ -68,7 +68,7 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
     <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.head}>
         <Ionicons name="star" size={13} color={theme.accent} />
-        <Text variant="micro" color="textSecondary">
+        <Text variant="caption" color="textSecondary">
           STARRED SONG
         </Text>
       </View>
@@ -100,10 +100,10 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
         )}
 
         <View style={styles.body}>
-          <Text variant="bodyStrong" numberOfLines={1}>
+          <Text variant="h5" numberOfLines={1}>
             {track.title}
           </Text>
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
+          <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
             {[track.artist, track.game_title].filter(Boolean).join(' · ')}
           </Text>
 

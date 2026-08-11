@@ -100,9 +100,9 @@ export default function StudioScreen() {
         )}
         ListHeaderComponent={
           <View style={styles.header}>
-            {name && <Text variant="title">{name}</Text>}
+            {name && <Text variant="h1">{name}</Text>}
             {games.data && (
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {games.data.length} {games.data.length === 1 ? 'GAME' : 'GAMES'}
               </Text>
             )}

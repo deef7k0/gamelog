@@ -75,14 +75,10 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
           <Link href={{ pathname: '/profile/[id]', params: { id: profile.id } }} asChild>
             <PressableScale accessibilityRole="button" style={styles.authorRow} scaleTo={0.99}>
               <Avatar uri={profile.avatar_url} name={displayNameFor(profile)} size={26} />
-              <Text
-                variant="bodyStrong"
-                color="textSecondary"
-                numberOfLines={1}
-                style={styles.author}>
+              <Text variant="h5" color="textSecondary" numberOfLines={1} style={styles.author}>
                 {displayNameFor(profile)}
               </Text>
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {timeAgo(log.created_at)}
               </Text>
             </PressableScale>
@@ -105,7 +101,7 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
             scaleTo={0.99}>
             <View style={styles.left}>
               {headline && (
-                <Text variant="heading" numberOfLines={2}>
+                <Text variant="h3" numberOfLines={2}>
                   {headline}
                 </Text>
               )}
@@ -121,7 +117,7 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
                   {log.platinum && (
                     <View style={styles.badge}>
                       <Ionicons name="trophy" size={13} color={theme.platinum} />
-                      <Text variant="micro" style={{ color: theme.platinum }}>
+                      <Text variant="caption" style={{ color: theme.platinum }}>
                         Platinum
                       </Text>
                     </View>
@@ -129,7 +125,7 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
                   {log.completion_percent === 100 && (
                     <View style={styles.badge}>
                       <Ionicons name="checkmark-circle" size={13} color={theme.success} />
-                      <Text variant="micro" style={{ color: theme.success }}>
+                      <Text variant="caption" style={{ color: theme.success }}>
                         100%
                       </Text>
                     </View>

@@ -47,7 +47,7 @@ export function HeaderBackdrop() {
         style={styles.fill}
       />
       <LinearGradient
-        colors={[withAlpha('#000000', shadow), withAlpha('#000000', 0)]}
+        colors={[withAlpha(theme.shadowInk, shadow), withAlpha(theme.shadowInk, 0)]}
         style={styles.shadow}
       />
     </View>

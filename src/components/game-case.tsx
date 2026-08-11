@@ -173,7 +173,7 @@ export const GameCase = memo(function GameCase({
             />
           ) : (
             <View style={styles.placeholder}>
-              <Text variant="title" color="textMuted">
+              <Text variant="caseTitle" color="textMuted">
                 {(title ?? '?').trim().charAt(0).toUpperCase() || '?'}
               </Text>
             </View>
@@ -201,7 +201,7 @@ export const GameCase = memo(function GameCase({
 
         {edition && (
           <View style={[styles.edition, { backgroundColor: theme.scrim }]}>
-            <Text variant="micro" style={styles.editionText} numberOfLines={1}>
+            <Text variant="caseEdition" style={styles.editionText} numberOfLines={1}>
               {edition.toUpperCase()}
             </Text>
           </View>

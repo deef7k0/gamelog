@@ -2,6 +2,7 @@ import type {
   CachedGame,
   GameLog,
   ListKind,
+  ListRow,
   NotificationKind,
   PostKind,
   PostRow,
@@ -64,18 +65,16 @@ export type Engagement = {
   likedByViewer: boolean;
 };
 
-export type GameList = {
-  id: string;
-  user_id: string;
-  title: string;
-  description: string | null;
-  kind: ListKind;
-  is_ranked: boolean;
-  /** Free-form author labels shown on the Collection header. */
-  tags: string[] | null;
-  created_at: string;
-  updated_at: string;
-};
+/**
+ * A collection row.
+ *
+ * An alias of `ListRow` rather than a restatement of it. This was a
+ * hand-maintained copy, and it had already drifted — the same failure mode as
+ * the duplicated `TargetType` that silently kept `list` out of the barrel (see
+ * CLAUDE.md). One declaration means a column added to the table cannot go
+ * missing here.
+ */
+export type GameList = ListRow;
 
 export type ListItem = {
   list_id: string;
@@ -89,10 +88,20 @@ export type ListItem = {
 
 export type ListWithItems = GameList & { items: ListItem[] };
 
-/** A list plus just enough covers to render a collage tile. */
+/** Artwork for one game, enough to render it as a cover. */
+export type ListCover = { cover_url: string | null; hero_url: string | null };
+
+/** A list plus just enough artwork to render its tile. */
 export type ListSummary = GameList & {
   itemCount: number;
-  covers: { cover_url: string | null; hero_url: string | null }[];
+  /**
+   * The single cover the tile shows.
+   *
+   * Resolved server-side-ish in `getLists`: the owner's `cover_game_id` if they
+   * picked one and it is still in the list, otherwise the first item's art.
+   * Null only when the collection is empty.
+   */
+  preview: ListCover | null;
 };
 
 export type AppNotification = {

@@ -34,7 +34,7 @@ export function RecommendationRail({ module }: { module: RecommendationModule })
         />
         <Link href={{ pathname: '/game/[id]', params: { id: module.seedGameId } }} asChild>
           <PressableScale accessibilityRole="button" scaleTo={0.98}>
-            <Text variant="bodyStrong" numberOfLines={1}>
+            <Text variant="h5" numberOfLines={1}>
               {module.heading}
             </Text>
           </PressableScale>
@@ -61,7 +61,7 @@ export function RecommendationRail({ module }: { module: RecommendationModule })
                   width={RAIL_POSTER}
                   rounded="image"
                 />
-                <Text variant="micro" numberOfLines={2}>
+                <Text variant="caption" numberOfLines={2}>
                   {item.title}
                 </Text>
               </View>

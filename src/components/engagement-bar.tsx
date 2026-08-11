@@ -116,7 +116,7 @@ export function EngagementBar({
       </View>
 
       {stacked && likeCount > 0 && (
-        <Text variant="bodyStrong">
+        <Text variant="h5">
           {likeCount} {likeCount === 1 ? 'like' : 'likes'}
         </Text>
       )}
@@ -148,7 +148,7 @@ function Action({
       style={styles.action}>
       <Ionicons name={icon} size={size} color={tint} />
       {count !== undefined && count > 0 && (
-        <Text variant="caption" color="textMuted">
+        <Text variant="bodySmall" color="textMuted">
           {count}
         </Text>
       )}

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 
-import { FontFamily, Spacing } from '@/constants/theme';
+import { Elevation, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -28,11 +28,13 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textMuted,
         tabBarShowLabel: true,
-        tabBarLabelStyle: { fontSize: 11, fontFamily: FontFamily.medium, marginTop: 2 },
+        tabBarLabelStyle: { ...Type.caption, marginTop: 2 },
         tabBarItemStyle: { paddingVertical: Spacing.x4 },
         tabBarStyle: {
           // The bar is a *surface*, one step up from the page, rather than the
-          // page colour with a line drawn on it.
+          // page colour with a line drawn on it — and it floats above the
+          // content it scrolls over, so it takes the overlay tier.
+          ...Elevation.overlay,
           backgroundColor: theme.surface,
           borderTopWidth: 0,
           height: 68,
@@ -40,7 +42,7 @@ export default function TabsLayout() {
           paddingBottom: Spacing.x8,
         },
         headerStyle: { backgroundColor: theme.background },
-        headerTitleStyle: { color: theme.text, fontSize: 24, fontFamily: FontFamily.bold },
+        headerTitleStyle: { color: theme.text, ...Type.h1 },
         headerShadowVisible: false,
       }}>
       <Tabs.Screen

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "ui-refactor": {
+      "source": "LovroPodobnik/refactoring-ui-skill",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-refactor/SKILL.md",
+      "computedHash": "0b94bd62d8e648aa371199f4c7ac482c9bb457239fe0e9fdba339e0adcaf19bc"
+    }
+  }
+}

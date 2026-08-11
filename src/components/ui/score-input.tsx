@@ -5,7 +5,7 @@ import { StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { MAX_SCORE, MIN_SCORE, clampScore, labelFor, scoreColor } from '@/constants/score';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, ScoreSizes, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 const TRACK_HEIGHT = 14;
@@ -62,10 +62,10 @@ export function ScoreInput({ value, onChange, disabled = false, hint }: ScoreInp
         <Text style={[styles.number, { color: tint }]}>{value === null ? '—' : score}</Text>
 
         <View style={styles.readoutText}>
-          <Text variant="heading" style={{ color: tint }}>
+          <Text variant="h3" style={{ color: tint }}>
             {value === null ? 'Not scored' : labelFor(score)}
           </Text>
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             {hint ?? (value === null ? 'Tap the bar to score' : 'out of 100')}
           </Text>
         </View>
@@ -128,7 +128,7 @@ function Nudge({ label, onPress }: { label: string; onPress: () => void }) {
       onPress={onPress}
       scaleTo={0.9}
       style={StyleSheet.flatten([styles.nudge, { borderColor: theme.border }])}>
-      <Text variant="caption" color="textSecondary">
+      <Text variant="bodySmall" color="textSecondary">
         {label}
       </Text>
     </PressableScale>
@@ -138,7 +138,7 @@ function Nudge({ label, onPress }: { label: string; onPress: () => void }) {
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.x12 },
   readout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16 },
-  number: { fontSize: 46, fontFamily: FontFamily.bold, minWidth: 86 },
+  number: { fontSize: ScoreSizes.hero, fontFamily: FontFamily.bold, minWidth: 86 },
   readoutText: { flex: 1, gap: 1 },
   track: {
     height: TRACK_HEIGHT,

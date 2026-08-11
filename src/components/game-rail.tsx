@@ -30,7 +30,7 @@ export function GamePosterRail({
 }) {
   if (games.length === 0) {
     return emptyLabel ? (
-      <Text variant="caption" color="textMuted">
+      <Text variant="bodySmall" color="textMuted">
         {emptyLabel}
       </Text>
     ) : null;
@@ -54,11 +54,11 @@ export function GamePosterRail({
                 width={RAIL_POSTER}
                 rounded="image"
               />
-              <Text variant="micro" numberOfLines={2}>
+              <Text variant="caption" numberOfLines={2}>
                 {item.title}
               </Text>
               {item.releaseYear !== null && (
-                <Text variant="micro" color="textMuted">
+                <Text variant="caption" color="textMuted">
                   {item.releaseYear}
                 </Text>
               )}
@@ -102,18 +102,18 @@ export function CastRail({ cast }: { cast: GameCharacter[] }) {
                 accessibilityIgnoresInvertColors
               />
             ) : (
-              <Text variant="heading" color="textMuted">
+              <Text variant="h3" color="textMuted">
                 {item.name.trim().charAt(0).toUpperCase()}
               </Text>
             )}
           </View>
 
-          <Text variant="micro" numberOfLines={2} style={styles.castName}>
+          <Text variant="caption" numberOfLines={2} style={styles.castName}>
             {item.name}
           </Text>
 
           {item.actor && (
-            <Text variant="micro" color="textMuted" numberOfLines={1} style={styles.castName}>
+            <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.castName}>
               {item.actor}
             </Text>
           )}

@@ -339,10 +339,10 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
             </View>
 
             <View style={styles.nameBlock}>
-              <Text variant="title" numberOfLines={1}>
+              <Text variant="h1" numberOfLines={1}>
                 {displayNameFor(person)}
               </Text>
-              <Text variant="caption" color="textMuted" numberOfLines={1}>
+              <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
                 @{person.username}
               </Text>
             </View>
@@ -402,7 +402,7 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
             </View>
 
             {toggleFollow.isError && (
-              <Text variant="caption" color="danger">
+              <Text variant="bodySmall" color="danger">
                 {toggleFollow.error instanceof Error
                   ? toggleFollow.error.message
                   : 'Could not update follow.'}
@@ -429,7 +429,7 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
                     styles.tab,
                     { borderBottomColor: active ? theme.primary : 'transparent' },
                   ])}>
-                  <Text variant="bodyStrong" color={active ? 'text' : 'textMuted'}>
+                  <Text variant="h5" color={active ? 'text' : 'textMuted'}>
                     {entry.label}
                   </Text>
                 </PressableScale>
@@ -448,7 +448,7 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
 
           {tab === 'wall' && !isSelf && friendState.data !== 'friends' && (
             <View style={styles.rowWrap}>
-              <Text variant="caption" color="textMuted">
+              <Text variant="bodySmall" color="textMuted">
                 Become friends with {ownerName.split(' ')[0]} to post on their wall.
               </Text>
             </View>
@@ -590,7 +590,7 @@ function DateGroupHeader({ label }: { label: string }) {
 
   return (
     <View style={styles.groupHeader}>
-      <Text variant="micro" color="textMuted">
+      <Text variant="caption" color="textMuted">
         {label}
       </Text>
       <View style={[styles.groupRule, { backgroundColor: theme.border }]} />
@@ -603,7 +603,7 @@ function Meta({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: st
   return (
     <View style={styles.metaItem}>
       <Ionicons name={icon} size={14} color={theme.textMuted} />
-      <Text variant="caption" color="textMuted">
+      <Text variant="bodySmall" color="textMuted">
         {label}
       </Text>
     </View>
@@ -613,8 +613,8 @@ function Meta({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: st
 function Count({ value, label }: { value?: number; label: string }) {
   return (
     <View style={styles.count}>
-      <Text variant="bodyStrong">{value ?? '—'}</Text>
-      <Text variant="caption" color="textMuted">
+      <Text variant="h5">{value ?? '—'}</Text>
+      <Text variant="bodySmall" color="textMuted">
         {label}
       </Text>
     </View>
@@ -624,10 +624,10 @@ function Count({ value, label }: { value?: number; label: string }) {
 function AboutRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.aboutRow}>
-      <Text variant="caption" color="textMuted">
+      <Text variant="bodySmall" color="textMuted">
         {label}
       </Text>
-      <Text variant="caption">{value}</Text>
+      <Text variant="bodySmall">{value}</Text>
     </View>
   );
 }
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
   banner: { width: '100%' },
   bannerImage: { width: '100%', aspectRatio: HeroAspectRatio / 2 },
   headerBody: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
-  identity: { flexDirection: 'row', alignItems: 'flex-end', marginTop: -40 },
+  identity: { flexDirection: 'row', alignItems: 'flex-end', marginTop: -Spacing.x40 },
   avatarRing: { borderRadius: Radius.pill, borderWidth: 4 },
   identityAction: { flex: 1, alignItems: 'flex-end', paddingBottom: Spacing.x8 },
   nameBlock: { gap: 1 },

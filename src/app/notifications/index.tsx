@@ -134,14 +134,14 @@ export default function NotificationsScreen() {
               onPress={() => markRead.mutate()}
               scaleTo={0.98}
               style={StyleSheet.flatten([styles.markRead, { borderColor: theme.border }])}>
-              <Text variant="caption" color="primary">
+              <Text variant="bodySmall" color="primary">
                 Mark all as read
               </Text>
             </PressableScale>
           ) : null
         }
         renderSectionHeader={({ section }) => (
-          <Text variant="section" style={styles.sectionTitle}>
+          <Text variant="h4" style={styles.sectionTitle}>
             {section.title}
           </Text>
         )}
@@ -167,14 +167,14 @@ export default function NotificationsScreen() {
 
             <View style={styles.rowText}>
               <Text variant="body" numberOfLines={2}>
-                <Text variant="bodyStrong">{displayNameFor(item.actor)}</Text> {VERB[item.kind]}
+                <Text variant="h5">{displayNameFor(item.actor)}</Text> {VERB[item.kind]}
                 {PERSON_KINDS.includes(item.kind)
                   ? ''
                   : item.target_type === 'log'
                     ? ' review'
                     : ' post'}
               </Text>
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {timeAgo(item.created_at)}
               </Text>
             </View>
@@ -220,9 +220,9 @@ const styles = StyleSheet.create({
     right: -2,
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 8, height: 8, borderRadius: Radius.pill },
 });

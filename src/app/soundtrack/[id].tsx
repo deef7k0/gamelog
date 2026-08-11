@@ -149,20 +149,20 @@ export default function SoundtrackScreen() {
             />
 
             <View style={styles.headerText}>
-              <Text variant="heading" numberOfLines={2}>
+              <Text variant="h3" numberOfLines={2}>
                 {params.title ?? 'Soundtrack'}
               </Text>
-              <Text variant="caption" color="textMuted" numberOfLines={1}>
+              <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
                 {params.artist ?? ''}
               </Text>
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {list.length} {list.length === 1 ? 'track' : 'tracks'} · 30-second previews
               </Text>
             </View>
 
             {params.url && (
               <Text
-                variant="caption"
+                variant="bodySmall"
                 color="primary"
                 onPress={() => Linking.openURL(params.url!).catch(() => {})}>
                 Listen in full on Apple Music
@@ -197,17 +197,17 @@ export default function SoundtrackScreen() {
                 {isCurrent ? (
                   <Ionicons name={isPlaying ? 'pause' : 'play'} size={16} color={theme.primary} />
                 ) : (
-                  <Text variant="caption" color="textMuted">
+                  <Text variant="bodySmall" color="textMuted">
                     {item.trackNumber ?? '–'}
                   </Text>
                 )}
               </View>
 
               <View style={styles.trackBody}>
-                <Text variant="bodyStrong" numberOfLines={1} color={isCurrent ? 'primary' : 'text'}>
+                <Text variant="h5" numberOfLines={1} color={isCurrent ? 'primary' : 'text'}>
                   {item.title}
                 </Text>
-                <Text variant="micro" color="textMuted" numberOfLines={1}>
+                <Text variant="caption" color="textMuted" numberOfLines={1}>
                   {playable ? item.artist : 'Preview unavailable'}
                 </Text>
 
@@ -224,7 +224,7 @@ export default function SoundtrackScreen() {
                 )}
               </View>
 
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {formatDuration(item.durationMs)}
               </Text>
 

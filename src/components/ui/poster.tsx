@@ -39,34 +39,46 @@ export function Poster({
   const height = width / PosterAspectRatio;
   const radius = Radius[rounded];
 
+  /*
+   * Outer view carries the fill and the shadow; inner view does the clipping.
+   * Android's `elevation` is clipped away by `overflow: 'hidden'`, so the two
+   * cannot live on the same view — artwork always needs the clip to round its
+   * corners, which is why every poster in the app was shadowless on Android
+   * before. See DESIGN.md § 6.3.
+   *
+   * Every poster now sits on `Elevation.card`; `elevated` promotes it to
+   * `raised` for a detail hero, where the artwork is the subject rather than
+   * one tile in a rail.
+   */
   return (
     <View
       style={[
-        styles.frame,
         { width, height, borderRadius: radius, backgroundColor: theme.surfaceElevated },
-        elevated && Elevation.card,
+        elevated ? Elevation.raised : Elevation.card,
       ]}>
-      {source ? (
-        <Image
-          source={{ uri: source }}
-          style={[styles.image, { borderRadius: radius }]}
-          contentFit="cover"
-          transition={220}
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <View style={styles.placeholder}>
-          <Text variant="title" color="textMuted">
-            {(title ?? '?').trim().charAt(0).toUpperCase() || '?'}
-          </Text>
-        </View>
-      )}
+      <View style={[styles.clip, { borderRadius: radius }]}>
+        {source ? (
+          <Image
+            source={{ uri: source }}
+            style={styles.image}
+            contentFit="cover"
+            transition={220}
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <View style={styles.placeholder}>
+            <Text variant="h1" color="textMuted">
+              {(title ?? '?').trim().charAt(0).toUpperCase() || '?'}
+            </Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  frame: { overflow: 'hidden' },
+  clip: { width: '100%', height: '100%', overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

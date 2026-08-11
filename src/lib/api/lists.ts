@@ -1,7 +1,7 @@
 import type { Game } from '../games';
 import { supabase } from '../supabase';
 import { cacheGame } from './core';
-import type { GameList, ListKind, ListSummary, ListWithItems, Tier } from './types';
+import type { GameList, ListCover, ListKind, ListSummary, ListWithItems, Tier } from './types';
 
 function unwrap<T>(data: T | null, error: { message: string } | null): T {
   if (error) throw new Error(error.message);
@@ -9,32 +9,71 @@ function unwrap<T>(data: T | null, error: { message: string } | null): T {
   return data;
 }
 
+/**
+ * Row shape shared by every query that builds a `ListSummary`.
+ *
+ * Exported with `SUMMARY_ITEMS` and `resolvePreview` because `discover.ts`
+ * builds the same summaries; this was restated in four places and the copies
+ * drifted the moment a column was added.
+ */
+export type SummaryRow = GameList & {
+  items: { position: number; game_id: string; game: ListCover | null }[];
+};
+
+/** The embedded select every summary query needs. Compose it into a `select()`. */
+export const SUMMARY_ITEMS = 'items:list_items(position, game_id, game:games(cover_url, hero_url))';
+
+/**
+ * Pick the one cover a collection tile shows.
+ *
+ * The owner's choice wins. Falling back to the first item rather than to
+ * nothing matters: every collection that existed before `cover_game_id` has a
+ * null there, and a wall of empty tiles would look broken rather than
+ * unconfigured. The `cover_game_id` lookup is defensive — a trigger already
+ * clears it when the game leaves the list, but the tile should not depend on
+ * that having run.
+ */
+export function resolvePreview(row: SummaryRow): ListCover | null {
+  const items = (row.items ?? []).slice().sort((a, b) => a.position - b.position);
+  if (items.length === 0) return null;
+
+  const chosen = row.cover_game_id
+    ? items.find((item) => item.game_id === row.cover_game_id)
+    : undefined;
+
+  return (chosen ?? items[0]).game ?? null;
+}
+
+const SUMMARY_SELECT = `*, ${SUMMARY_ITEMS}`;
+
 export async function getLists(userId: string): Promise<ListSummary[]> {
   const { data, error } = await supabase
     .from('lists')
-    .select('*, items:list_items(position, game:games(cover_url, hero_url))')
+    .select(SUMMARY_SELECT)
     .eq('user_id', userId)
     .order('updated_at', { ascending: false });
 
   if (error) throw new Error(error.message);
 
-  type Row = GameList & {
-    items: {
-      position: number;
-      game: { cover_url: string | null; hero_url: string | null } | null;
-    }[];
-  };
-
-  return ((data ?? []) as Row[]).map((row) => ({
+  return ((data ?? []) as SummaryRow[]).map((row) => ({
     ...row,
     itemCount: row.items?.length ?? 0,
-    // Only the first four covers are needed for the collage tile.
-    covers: (row.items ?? [])
-      .sort((a, b) => a.position - b.position)
-      .slice(0, 4)
-      .map((item) => item.game)
-      .filter((game): game is { cover_url: string | null; hero_url: string | null } => !!game),
+    preview: resolvePreview(row),
   }));
+}
+
+/**
+ * Choose which game's cover represents a collection.
+ *
+ * `gameId` must already be in the list — migration 0014 enforces that with a
+ * trigger rather than trusting the client, so passing a game that is not in it
+ * raises instead of silently storing a dangling reference. Pass null to go back
+ * to the default (the first item).
+ */
+export async function setListCover(listId: string, gameId: string | null): Promise<void> {
+  const { error } = await supabase.from('lists').update({ cover_game_id: gameId }).eq('id', listId);
+
+  if (error) throw new Error(error.message);
 }
 
 export async function getList(listId: string): Promise<ListWithItems | null> {
@@ -256,25 +295,14 @@ export async function toggleSingletonMembership(
 export async function getPublicLists(limit = 30): Promise<ListSummary[]> {
   const { data, error } = await supabase
     .from('lists')
-    .select('*, items:list_items(position, game:games(cover_url, hero_url))')
+    .select(SUMMARY_SELECT)
     .eq('kind', 'list')
     .order('updated_at', { ascending: false })
     .limit(limit);
 
-  type Row = GameList & {
-    items: {
-      position: number;
-      game: { cover_url: string | null; hero_url: string | null } | null;
-    }[];
-  };
-
-  return unwrap(data as Row[] | null, error).map((row) => ({
+  return unwrap(data as SummaryRow[] | null, error).map((row) => ({
     ...row,
     itemCount: row.items?.length ?? 0,
-    covers: (row.items ?? [])
-      .sort((a, b) => a.position - b.position)
-      .slice(0, 4)
-      .map((item) => item.game)
-      .filter((game): game is { cover_url: string | null; hero_url: string | null } => !!game),
+    preview: resolvePreview(row),
   }));
 }

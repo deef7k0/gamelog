@@ -88,10 +88,10 @@ export default function SearchScreen() {
                   style={StyleSheet.flatten([styles.personRow, { borderTopColor: theme.border }])}>
                   <Avatar uri={item.avatar_url} name={displayNameFor(item)} size={44} />
                   <View style={styles.personText}>
-                    <Text variant="bodyStrong" numberOfLines={1}>
+                    <Text variant="h5" numberOfLines={1}>
                       {displayNameFor(item)}
                     </Text>
-                    <Text variant="caption" color="textMuted" numberOfLines={1}>
+                    <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
                       @{item.username}
                     </Text>
                   </View>

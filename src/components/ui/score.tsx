@@ -2,10 +2,10 @@ import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
-import { FontFamily, Spacing } from '@/constants/theme';
+import { FontFamily, ScoreSizes, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type ScoreSize = 'inline' | 'medium' | 'large' | 'hero';
+export type ScoreSize = keyof typeof ScoreSizes;
 
 /**
  * The 0-100 score is a **coloured numeral and nothing else**.
@@ -20,14 +20,7 @@ export type ScoreSize = 'inline' | 'medium' | 'large' | 'hero';
  * and they earn it by being *data*. They appear on numerals and their labels,
  * never on a control, a fill or an edge.
  */
-const SIZES: Record<ScoreSize, number> = {
-  /** Body height. A review card, a list row — anywhere the score is one fact among several. */
-  inline: 15,
-  medium: 22,
-  large: 32,
-  /** The headline number on a review page. */
-  hero: 44,
-};
+const SIZES = ScoreSizes;
 
 export type ScoreNumberProps = {
   score: number;
@@ -70,10 +63,10 @@ export function ScorePill({ score, size = 'medium', showLabel = false }: ScorePi
     <View style={styles.withLabel}>
       <ScoreNumber score={score} size={size} />
       <View style={styles.labelBlock}>
-        <Text variant="bodyStrong" style={{ color: tint }}>
+        <Text variant="h5" style={{ color: tint }}>
           {labelFor(score)}
         </Text>
-        <Text variant="caption" color="textMuted">
+        <Text variant="bodySmall" color="textMuted">
           out of 100
         </Text>
       </View>
@@ -97,7 +90,7 @@ export function ScoreLine({ score, size = 'inline' }: { score: number; size?: Sc
       style={styles.line}
       accessibilityLabel={`Rated ${Math.round(score)} out of 100 — ${labelFor(score)}`}>
       <ScoreNumber score={score} size={size} />
-      <Text variant="caption" style={{ color: tint, fontFamily: FontFamily.semibold }}>
+      <Text variant="label" style={{ color: tint }}>
         {labelFor(score).toUpperCase()}
       </Text>
     </View>

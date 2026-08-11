@@ -62,14 +62,14 @@ export function PostCard({ post, engagement, showAuthor = true }: PostCardProps)
             style={StyleSheet.flatten([styles.header, hasMedia ? null : styles.headerNoMedia])}>
             <Avatar uri={post.profile.avatar_url} name={displayNameFor(post.profile)} size={36} />
             <View style={styles.headerText}>
-              <Text variant="bodyStrong" numberOfLines={1}>
+              <Text variant="h5" numberOfLines={1}>
                 {displayNameFor(post.profile)}
               </Text>
-              <Text variant="micro" color="textMuted" numberOfLines={1}>
+              <Text variant="caption" color="textMuted" numberOfLines={1}>
                 @{post.profile.username}
               </Text>
             </View>
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textMuted">
               {timeAgo(post.created_at)}
             </Text>
           </PressableScale>
@@ -101,15 +101,13 @@ export function PostCard({ post, engagement, showAuthor = true }: PostCardProps)
             author's name inline, then the text. */}
         {hasMedia && body.length > 0 && (
           <Text variant="body" numberOfLines={4}>
-            {showAuthor && post.profile && (
-              <Text variant="bodyStrong">{post.profile.username} </Text>
-            )}
+            {showAuthor && post.profile && <Text variant="h5">{post.profile.username} </Text>}
             {body}
           </Text>
         )}
 
         {commentCount > 0 && (
-          <Text variant="caption" color="textMuted" onPress={openComments}>
+          <Text variant="bodySmall" color="textMuted" onPress={openComments}>
             View {commentCount === 1 ? '1 comment' : `all ${commentCount} comments`}
           </Text>
         )}
@@ -132,10 +130,10 @@ export function PostCard({ post, engagement, showAuthor = true }: PostCardProps)
                 rounded="image"
               />
               <View style={styles.gameTagText}>
-                <Text variant="caption" numberOfLines={1} style={styles.strong}>
+                <Text variant="bodySmall" numberOfLines={1} style={styles.strong}>
                   {post.game.title}
                 </Text>
-                <Text variant="micro" color="textMuted" numberOfLines={1}>
+                <Text variant="caption" color="textMuted" numberOfLines={1}>
                   {[post.game.release_year, post.game.developer].filter(Boolean).join(' · ')}
                 </Text>
               </View>

@@ -48,7 +48,7 @@ export function ArticleCard({
                 name={displayNameFor(article.profile)}
                 size={28}
               />
-              <Text variant="micro" color="textMuted" numberOfLines={1} style={styles.bylineText}>
+              <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.bylineText}>
                 {displayNameFor(article.profile)} · {timeAgo(article.created_at)} · {minutes} min
                 read
               </Text>
@@ -58,7 +58,7 @@ export function ArticleCard({
 
         <Link href={{ pathname: '/article/[id]', params: { id: article.id } }} asChild>
           <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.body}>
-            <Text variant="heading" numberOfLines={3}>
+            <Text variant="h3" numberOfLines={3}>
               {article.title ?? 'Untitled'}
             </Text>
 
@@ -83,7 +83,7 @@ export function ArticleCard({
                         { backgroundColor: theme.surfaceElevated },
                       ])}>
                       <Ionicons name="eye-off" size={13} color={theme.textSecondary} />
-                      <Text variant="micro" color="textSecondary">
+                      <Text variant="caption" color="textSecondary">
                         Spoilers — tap to reveal
                       </Text>
                     </PressableScale>
@@ -119,7 +119,7 @@ export function ArticleCard({
                 width={32}
                 rounded="image"
               />
-              <Text variant="micro" color="textSecondary" numberOfLines={1}>
+              <Text variant="caption" color="textSecondary" numberOfLines={1}>
                 {article.game.title}
               </Text>
             </PressableScale>

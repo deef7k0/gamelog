@@ -1,4 +1,5 @@
-import type { GameList, ListSummary } from './types';
+import { resolvePreview, SUMMARY_ITEMS, type SummaryRow } from './lists';
+import type { ListSummary } from './types';
 import type { LogWithRelations, Profile } from '../database.types';
 import { supabase } from '../supabase';
 
@@ -76,29 +77,17 @@ export async function getPopularCollections(limit = 20): Promise<PopularCollecti
 
   const { data, error } = await supabase
     .from('lists')
-    .select('*, profile:profiles(*), items:list_items(position, game:games(cover_url, hero_url))')
+    .select(`*, profile:profiles(*), ${SUMMARY_ITEMS}`)
     .in(
       'id',
       ranked.map((row) => row.list_id)
     );
 
-  type Row = GameList & {
-    items: {
-      position: number;
-      game: { cover_url: string | null; hero_url: string | null } | null;
-    }[];
-  };
-
-  return unwrap(data as Row[] | null, error)
+  return unwrap(data as SummaryRow[] | null, error)
     .map((row) => ({
       ...row,
       itemCount: row.items?.length ?? 0,
-      // Only the first four covers are needed for the collage tile.
-      covers: (row.items ?? [])
-        .sort((a, b) => a.position - b.position)
-        .slice(0, 4)
-        .map((item) => item.game)
-        .filter((game): game is { cover_url: string | null; hero_url: string | null } => !!game),
+      preview: resolvePreview(row),
       likeCount: likesById.get(row.id) ?? 0,
     }))
     .sort((a, b) => b.likeCount - a.likeCount);
@@ -239,20 +228,13 @@ export async function getHomeReviews(viewerId: string, limit = 10): Promise<Home
 export async function getRecentCollections(limit = 10): Promise<ListSummary[]> {
   const { data, error } = await supabase
     .from('lists')
-    .select('*, items:list_items(position, game:games(cover_url, hero_url))')
+    .select(`*, ${SUMMARY_ITEMS}`)
     .in('kind', ['list', 'tier'])
     .order('updated_at', { ascending: false })
     .limit(limit * 2);
 
-  type Row = GameList & {
-    items: {
-      position: number;
-      game: { cover_url: string | null; hero_url: string | null } | null;
-    }[];
-  };
-
   return (
-    unwrap(data as Row[] | null, error)
+    unwrap(data as SummaryRow[] | null, error)
       // An empty collection is a draft, and PostgREST cannot filter on the
       // embedded count — so it is dropped here, which is why the query
       // over-fetches above.
@@ -261,11 +243,7 @@ export async function getRecentCollections(limit = 10): Promise<ListSummary[]> {
       .map((row) => ({
         ...row,
         itemCount: row.items?.length ?? 0,
-        covers: (row.items ?? [])
-          .sort((a, b) => a.position - b.position)
-          .slice(0, 4)
-          .map((item) => item.game)
-          .filter((game): game is { cover_url: string | null; hero_url: string | null } => !!game),
+        preview: resolvePreview(row),
       }))
   );
 }

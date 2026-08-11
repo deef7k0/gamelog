@@ -79,10 +79,10 @@ export default function TopGamesScreen() {
             <HeroArt uri={lead?.heroUrl ?? lead?.coverUrl} scrim />
 
             <View style={styles.headline}>
-              <Text variant="micro" style={styles.onImage}>
+              <Text variant="caption" color="onPrimary">
                 THIS MONTH
               </Text>
-              <Text variant="display" style={styles.onImage}>
+              <Text variant="display" color="onPrimary">
                 Top 10 Most Popular
               </Text>
             </View>
@@ -90,7 +90,7 @@ export default function TopGamesScreen() {
         }
         ListFooterComponent={
           entries.length > 0 ? (
-            <Text variant="micro" color="textMuted" style={styles.footnote}>
+            <Text variant="caption" color="textMuted" style={styles.footnote}>
               {FOOTNOTE[chart.data!.basis]}
             </Text>
           ) : null
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   /* Cancels the list's own padding so the art reaches both edges. */
   hero: { marginHorizontal: -Spacing.x16, marginBottom: Spacing.x16 },
   headline: { position: 'absolute', left: Spacing.x16, right: Spacing.x16, bottom: Spacing.x16 },
-  onImage: { color: '#FFFFFF' },
+
   skeleton: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   footnote: { paddingTop: Spacing.x24 },
 });

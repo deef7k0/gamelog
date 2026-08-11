@@ -231,18 +231,18 @@ export default function GameDetailScreen() {
         />
 
         <View style={styles.identityText}>
-          <Text variant="title" numberOfLines={3}>
+          <Text variant="h1" numberOfLines={3}>
             {data.title}
           </Text>
 
           <GamePrice gameId={data.id} selected={activePlatform} />
 
           {data.releaseDate ? (
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textMuted">
               {formatReleaseDate(data.releaseDate)}
             </Text>
           ) : data.releaseYear ? (
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textMuted">
               {data.releaseYear}
             </Text>
           ) : null}
@@ -251,12 +251,12 @@ export default function GameDetailScreen() {
               different companies, so they get a line each rather than being
               joined by a dot that implies one relationship. */}
           {data.developer && (
-            <Text variant="micro" color="textMuted" numberOfLines={2}>
+            <Text variant="caption" color="textMuted" numberOfLines={2}>
               {data.developer}
             </Text>
           )}
           {data.publisher && data.publisher !== data.developer && (
-            <Text variant="micro" color="textMuted" numberOfLines={2}>
+            <Text variant="caption" color="textMuted" numberOfLines={2}>
               {data.publisher}
             </Text>
           )}
@@ -264,7 +264,7 @@ export default function GameDetailScreen() {
           {data.score !== null && (
             <View style={styles.scoreRow}>
               <ScoreBadge score={data.score} size="small" />
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 COMMUNITY
               </Text>
             </View>
@@ -290,13 +290,13 @@ export default function GameDetailScreen() {
         {logged && (
           <View style={styles.myLog}>
             <View style={styles.myLogHead}>
-              <Text variant="bodyStrong" color="primary">
+              <Text variant="h5" color="primary">
                 {STATUS_LABEL[logged.status]}
               </Text>
               {logged.platinum && <Ionicons name="trophy" size={16} color={theme.platinum} />}
             </View>
             {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
-            {logged.review_title && <Text variant="bodyStrong">{logged.review_title}</Text>}
+            {logged.review_title && <Text variant="h5">{logged.review_title}</Text>}
           </View>
         )}
 
@@ -328,8 +328,8 @@ export default function GameDetailScreen() {
         style={StyleSheet.flatten([styles.diaryButton, { borderColor: theme.border }])}>
         <Ionicons name="book-outline" size={18} color={theme.primary} />
         <View style={styles.diaryText}>
-          <Text variant="bodyStrong">Diary</Text>
-          <Text variant="micro" color="textMuted">
+          <Text variant="h5">Diary</Text>
+          <Text variant="caption" color="textMuted">
             {diaryCount.data
               ? `${diaryCount.data} ${diaryCount.data === 1 ? 'entry' : 'entries'}`
               : 'Write about your playthrough'}
@@ -445,8 +445,8 @@ export default function GameDetailScreen() {
                           styles.studioChip,
                           { borderColor: theme.border },
                         ])}>
-                        <Text variant="caption">{company.name}</Text>
-                        <Text variant="micro" color="textMuted">
+                        <Text variant="bodySmall">{company.name}</Text>
+                        <Text variant="caption" color="textMuted">
                           {company.role === 'developer' ? 'Developer' : 'Publisher'}
                         </Text>
                         <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
@@ -465,7 +465,7 @@ export default function GameDetailScreen() {
                 <SectionHeader
                   title={extras.data?.collection?.name ?? 'Franchise'}
                   action={
-                    <Text variant="caption" color="textMuted">
+                    <Text variant="bodySmall" color="textMuted">
                       {franchiseGames.data.length}
                     </Text>
                   }
@@ -509,7 +509,7 @@ export default function GameDetailScreen() {
                 <SectionHeader
                   title="Achievements"
                   action={
-                    <Text variant="caption" color="textMuted">
+                    <Text variant="bodySmall" color="textMuted">
                       {unlockedCount}/{achievementTotal}
                     </Text>
                   }
@@ -521,7 +521,7 @@ export default function GameDetailScreen() {
                   }
                   scaleTo={0.98}
                   style={StyleSheet.flatten([styles.linkRow, { borderColor: theme.border }])}>
-                  <Text variant="bodyStrong">View all {achievementTotal}</Text>
+                  <Text variant="h5">View all {achievementTotal}</Text>
                   <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
                 </PressableScale>
               </View>
@@ -529,7 +529,7 @@ export default function GameDetailScreen() {
 
             {data.storeUrl && (
               <ExternalLink href={data.storeUrl as Href & string}>
-                <Text variant="bodyStrong" color="primary">
+                <Text variant="h5" color="primary">
                   Open on {data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}
                 </Text>
               </ExternalLink>

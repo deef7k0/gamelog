@@ -1,7 +1,10 @@
 # CLAUDE.md
 
 Working notes for AI agents (and humans) in this repo. For what the product *is*
-and where it is going, read [PROJECT.md](PROJECT.md).
+and where it is going, read [PROJECT.md](PROJECT.md). For how it should **look**
+— tokens, type scale, surfaces, the game case — read [DESIGN.md](DESIGN.md); its
+YAML frontmatter mirrors `src/constants/theme.ts` and is the normative layer.
+The conventions below are the code-level rules that follow from it.
 
 ## Expo SDK 57 has changed — check the docs
 
@@ -127,24 +130,39 @@ poster slot; that is what the fallback is for.
 - **Query keys** are used for invalidation across screens — grep before renaming
   one. `['feed']`, `['my-log', userId, gameId]`, `['game-reviews', gameId]`,
   `['user-logs', userId]`, `['profile-stats', profileId]`.
-- **Colours**: always `useTheme()`. Never hardcode a hex in a component; add a
-  token to both `Colors.light` and `Colors.dark` in `constants/theme.ts` (the
-  `ThemeColor` type makes a one-sided addition a type error).
-- **The interface is monochrome.** `primary` is near-white in dark mode and
-  near-black in light mode — a value, not a hue. Only three colours carry
-  meaning: `accent` (ratings), `danger`, `success`. Everything else separates by
-  surface step plus a hairline `border`. Do not introduce a coloured control; on
-  a screen made of cover art it reads as a second, louder piece of artwork.
+- **Colours**: always `useTheme()`. Never hardcode a hex in a component; add the
+  token to `Colors.dark` in `constants/theme.ts` — that object is the entire
+  palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`
+  returns `Colors[APP_SCHEME]`. This app is a dark room by design and a light
+  counterpart would be a second product.
+- **One accent: PlayStation blue `#0070CC`.** `primary` holds it, `accent` is an
+  alias of the same value. It appears on selected navigation, primary buttons,
+  active states, badges and links — and nowhere else. Roughly 90% of any screen
+  is greyscale so the blue stays genuinely directive and the cover art stays the
+  only other source of colour. Everything else separates by surface step
+  (`background` → `surface` → `surfaceElevated` → `surfaceSelected`) plus a
+  hairline `border`. Do not introduce a second coloured control; on a screen made
+  of cover art it reads as a second, louder piece of artwork.
+- **Three colours carry meaning, and they are data rather than chrome.**
+  `scoreColor()` in `constants/score.ts` returns `success` / `accent` / `danger`
+  for a positive / neutral / negative verdict. Be aware that a second, separate
+  ramp — `scoreHigh` / `scoreMid` / `scoreLow` — also exists in the palette and is
+  used by `components/ui/surface.tsx`; the two disagree at the neutral band (blue
+  vs amber `#F5A524`). Unresolved — see DESIGN.md § 26.2 before adding a third.
 - **Selection is one step lighter, never a colour.** Any control with an on/off
   state goes `surfaceElevated` → `surfaceSelected` for the fill, `border` →
   `borderStrong` for the edge, and `textSecondary`/`textMuted` → `text` for the
   label. `<SortBar>`, the search mode switch, tag pickers and RSVP buttons all
   follow it; a new one should too.
 - **Buttons are `<Button>` and `<IconButton>`.** Every interactive rectangle is
-  `Radius.control` with a hairline outline — that shared shape is most of what
-  makes them a family, so `Radius.pill` is now reserved for progress tracks,
-  badges, avatar rings and `<Chip>`. A chip staying a pill is deliberate: shape
-  is the only thing left distinguishing metadata from a control.
+  `Radius.control` — that shared shape is most of what makes them a family, so
+  `Radius.pill` is reserved for progress tracks, badges, avatar rings and
+  `<Chip>`. A chip staying a pill is deliberate: shape is the only thing left
+  distinguishing metadata from a control. `<Button>` is **filled and never
+  outlined** (three styles: primary, secondary, ghost — plus a danger *label*,
+  not a red slab); an outline would be a fourth signal in a system that already
+  separates by surface step. `<IconButton>` is the one exception and carries a
+  `StyleSheet.hairlineWidth` edge in `border`, except in its `plain` tone.
 - **Ratings** are an integer 0-100 on `logs.rating`; `constants/score.ts` maps
   that to a verdict band ("Excellent", "Mixed") and a colour.
 - **`logs.rating` is the only score anything reads.** A reviewer can score by
@@ -159,7 +177,12 @@ poster slot; that is what the fallback is for.
   React Compiler rules flag assignment to `.value` as mutating a captured
   binding; the accessors behave identically. See `ui/pressable-scale.tsx`.
 - **Typography** goes through `<Text variant="…">` from `components/ui/text`,
-  not raw `<Text>` — the scale lives in `constants/theme.ts`.
+  not raw `<Text>`. `Type` in `constants/theme.ts` is what currently ships;
+  **DESIGN.md § 2 is the specified scale and the code has not been migrated to
+  it yet** (`h1`–`h6`, `label`, `button`, an 11px caption). Follow DESIGN.md for
+  new work and check § 26.2 for the per-variant diff before adding a variant.
+  The same applies to `Radius`: DESIGN.md § 5 specifies 4–6px where the code
+  still ships 12–24px.
 - **Elevation, not borders.** Reach for `Elevation.card` before a `borderWidth`.
 - **`<GameCase />` is for dedicated game pages only.** Game detail, log, review
   masthead, and future collection/shelf screens. It must never appear in a feed,
@@ -323,3 +346,8 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   Android Gradle builds historically break on it. If you ever run
   `expo prebuild` / a local native build and see odd path errors, rename that
   folder to `claude-code-app`.
+
+## 🛡️ Critical Preservation Rules
+- **DO NOT MODIFY**: The "physical videogame cases" feature logic, styles, or components.
+- **Protected Tokens**: Do not alter any design tokens related to `game-case-*`, `physical-item-*`, or `case-dimensions`.
+- **Verification**: Before finalizing any refactor, explicitly confirm that the videogame case feature remains visually and functionally identical to the pre-refactor state.   

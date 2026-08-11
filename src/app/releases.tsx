@@ -47,7 +47,7 @@ export default function ReleasesScreen() {
         refreshing={releases.isRefetching}
         onRefresh={() => releases.refetch()}
         ListHeaderComponent={
-          <Text variant="caption" color="textMuted" style={styles.note}>
+          <Text variant="bodySmall" color="textMuted" style={styles.note}>
             Released in the past 45 days, newest first.
           </Text>
         }

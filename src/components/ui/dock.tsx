@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -92,22 +92,29 @@ export function Dock({ children, size = 44 }: DockProps) {
 
   return (
     <DockContext.Provider value={{ size, movePillTo }}>
-      <View style={[styles.shell, { borderColor: theme.border }]}>
-        <BlurView
-          intensity={40}
-          tint={scheme === 'dark' ? 'dark' : 'light'}
-          style={StyleSheet.absoluteFill}
-        />
-        {/* The blur alone is too transparent to read icons against artwork, so a
-            tinted wash sits on top of it rather than replacing it. */}
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: `${theme.surface}CC` }]} />
-
-        <View style={styles.row}>
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.pill, { backgroundColor: theme.surfaceSelected }, pillStyle]}
+      {/* Shadow outside, blur clip inside — the shell must keep `overflow:
+          'hidden'` for the BlurView, and that would eat an Android elevation
+          on the same view. See DESIGN.md § 6.3. */}
+      <View style={[styles.lift, Elevation.overlay, { backgroundColor: theme.surface }]}>
+        <View style={[styles.shell, { borderColor: theme.border }]}>
+          <BlurView
+            intensity={40}
+            tint={scheme === 'dark' ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
           />
-          {children}
+          {/* The blur alone is too transparent to read icons against artwork, so a
+              tinted wash sits on top of it rather than replacing it. */}
+          <View
+            style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(theme.surface, 0.8) }]}
+          />
+
+          <View style={styles.row}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.pill, { backgroundColor: theme.surfaceSelected }, pillStyle]}
+            />
+            {children}
+          </View>
         </View>
       </View>
     </DockContext.Provider>
@@ -177,6 +184,7 @@ export function DockSeparator() {
 }
 
 const styles = StyleSheet.create({
+  lift: { alignSelf: 'center', borderRadius: Radius.card },
   shell: {
     alignSelf: 'center',
     borderRadius: Radius.card,

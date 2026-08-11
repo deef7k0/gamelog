@@ -49,8 +49,8 @@ export function ConnectAccountCard({
       <View style={styles.head}>
         <Ionicons name={PROVIDER_ICONS[provider]} size={22} color={theme.text} />
         <View style={styles.headText}>
-          <Text variant="bodyStrong">{instance.label}</Text>
-          <Text variant="micro" color="textMuted">
+          <Text variant="h5">{instance.label}</Text>
+          <Text variant="caption" color="textMuted">
             {linked
               ? 'Library, achievements, inventory and badges sync automatically.'
               : 'Sign in with Steam to import your library, achievements and badges.'}
@@ -78,13 +78,13 @@ export function ConnectAccountCard({
       )}
 
       {error && (
-        <Text variant="micro" color="danger">
+        <Text variant="caption" color="danger">
           {error instanceof Error ? error.message : 'Something went wrong.'}
         </Text>
       )}
 
       {!linked && (
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           GameLog never sees your Steam password — Steam handles the sign-in and only tells us your
           account id.
         </Text>

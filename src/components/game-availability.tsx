@@ -70,22 +70,22 @@ export function GamePrice({ gameId, selected }: { gameId: string; selected: Plat
 
         {price.data ? (
           <>
-            <Text variant="heading">{price.data.formatted}</Text>
+            <Text variant="h3">{price.data.formatted}</Text>
             {price.data.wasFormatted && (
-              <Text variant="micro" color="textMuted" style={styles.struck}>
+              <Text variant="caption" color="textMuted" style={styles.struck}>
                 {price.data.wasFormatted}
               </Text>
             )}
             {price.data.discountPercent > 0 && (
               <View style={[styles.discount, { backgroundColor: withAlpha(theme.success, 0.15) }]}>
-                <Text variant="micro" style={{ color: theme.success }}>
+                <Text variant="caption" style={{ color: theme.success }}>
                   −{price.data.discountPercent}%
                 </Text>
               </View>
             )}
           </>
         ) : (
-          <Text variant="bodyStrong" color="textSecondary">
+          <Text variant="h5" color="textSecondary">
             {price.isLoading ? 'Checking price…' : 'Price on the store'}
           </Text>
         )}
@@ -104,7 +104,7 @@ export function GamePrice({ gameId, selected }: { gameId: string; selected: Plat
           }}
           scaleTo={0.98}
           style={styles.storeLink}>
-          <Text variant="caption" color="primary">
+          <Text variant="bodySmall" color="primary">
             {meta.storeLabel}
           </Text>
           <Ionicons name="open-outline" size={13} color={theme.text} />
@@ -151,7 +151,7 @@ export function PlatformPicker({ available, selected, onSelect }: PlatformPicker
               size={13}
               color={isActive ? platform.accent : theme.textMuted}
             />
-            <Text variant="micro" color={isActive ? 'text' : 'textMuted'}>
+            <Text variant="caption" color={isActive ? 'text' : 'textMuted'}>
               {platform.short}
             </Text>
           </PressableScale>

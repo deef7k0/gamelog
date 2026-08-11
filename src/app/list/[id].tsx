@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -13,7 +14,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   deleteList,
@@ -22,6 +23,7 @@ import {
   getProfile,
   removeFromList,
   reorderList,
+  setListCover,
   TIERS,
   type ListItem,
 } from '@/lib/api';
@@ -44,14 +46,24 @@ const SORTS = gameSortOptions(['default', 'title', 'newest', 'oldest', 'rating']
   default: 'List order',
 });
 
-const TIER_COLOR: Record<string, string> = {
-  S: '#FF7B7B',
-  A: '#FFB068',
-  B: '#FFD86B',
-  C: '#B6E07A',
-  D: '#7ACBE0',
-  F: '#B0A6E0',
-};
+/**
+ * The tier ramp, warm → cool so the ordering reads before the letters do.
+ *
+ * Data rather than chrome, which is what exempts it from the one-accent rule —
+ * see DESIGN.md § 1.5. Row-header fills only; the type on top of them is
+ * `background`, because these are tuned as backgrounds for near-black text.
+ */
+function tierColor(tier: string, theme: ThemePalette): string {
+  const ramp: Record<string, string> = {
+    S: theme.tierS,
+    A: theme.tierA,
+    B: theme.tierB,
+    C: theme.tierC,
+    D: theme.tierD,
+    F: theme.tierF,
+  };
+  return ramp[tier] ?? theme.surfaceElevated;
+}
 
 export default function ListDetailScreen() {
   const theme = useTheme();
@@ -60,6 +72,7 @@ export default function ListDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [sort, setSort] = useState<GameSort>('default');
+  const [pickingCover, setPickingCover] = useState(false);
 
   const { width } = useWindowDimensions();
   const gridWidth = gridItemWidth(width, GRID_COLUMNS, Spacing.x16, GRID_GAP);
@@ -135,6 +148,21 @@ export default function ListDetailScreen() {
     onSuccess: () => {
       invalidate();
       router.back();
+    },
+  });
+
+  /*
+   * Choosing the cover is a *mode* over the existing grid rather than a picker
+   * screen. The collection is already a wall of its own games — putting a
+   * second copy of that wall behind a modal would be the same list twice, and
+   * the owner would be choosing from thumbnails without the context of the
+   * collection they are choosing for.
+   */
+  const setCover = useMutation({
+    mutationFn: (gameId: string) => setListCover(id!, gameId),
+    onSuccess: () => {
+      invalidate();
+      setPickingCover(false);
     },
   });
 
@@ -227,6 +255,35 @@ export default function ListDetailScreen() {
         onDelete={isOwner ? () => destroy.mutate() : undefined}
       />
 
+      {/* Which cover represents this collection on a tile. Owner-only, and only
+          worth offering once there is a choice to make — with one game the
+          fallback already picks it. */}
+      {isOwner && items.length > 1 && (
+        <View style={styles.controls}>
+          {pickingCover ? (
+            <View style={[styles.coverHint, { backgroundColor: theme.surfaceElevated }]}>
+              <Text variant="bodySmall" color="textSecondary" style={styles.coverHintText}>
+                Tap a game to use its cover as this collection&rsquo;s preview.
+              </Text>
+              <Button
+                title="Cancel"
+                variant="ghost"
+                size="small"
+                onPress={() => setPickingCover(false)}
+              />
+            </View>
+          ) : (
+            <Button
+              title="Change preview"
+              variant="secondary"
+              size="small"
+              icon="image-outline"
+              onPress={() => setPickingCover(true)}
+            />
+          )}
+        </View>
+      )}
+
       {/* Collections are likeable, and the like is what ranks them in Search →
           Collections. The same polymorphic `likes` row a post or a review uses;
           only the target type differs. Comments are deliberately not offered —
@@ -283,31 +340,57 @@ export default function ListDetailScreen() {
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={header}
-          renderItem={({ item }) => (
-            <Link href={{ pathname: '/game/[id]', params: { id: item.game_id } }} asChild>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={item.game?.title ?? 'Game'}
-                scaleTo={0.95}>
-                <View style={{ width: gridWidth }}>
-                  <Poster
-                    coverUrl={item.game?.cover_url}
-                    heroUrl={item.game?.hero_url}
-                    title={item.game?.title}
-                    width={gridWidth}
-                    rounded="image"
-                  />
-                  {data.is_ranked && (
-                    <View style={[styles.rankPill, { backgroundColor: theme.scrim }]}>
-                      <Text variant="micro" style={styles.rankPillText}>
-                        {rankOf.get(item.game_id)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </PressableScale>
-            </Link>
-          )}
+          renderItem={({ item }) => {
+            const tile = (
+              <View style={{ width: gridWidth }}>
+                <Poster
+                  coverUrl={item.game?.cover_url}
+                  heroUrl={item.game?.hero_url}
+                  title={item.game?.title}
+                  width={gridWidth}
+                  rounded="image"
+                />
+                {data.is_ranked && !pickingCover && (
+                  <View style={[styles.rankPill, { backgroundColor: theme.scrim }]}>
+                    <Text variant="caption" color="onPrimary">
+                      {rankOf.get(item.game_id)}
+                    </Text>
+                  </View>
+                )}
+                {pickingCover && data.cover_game_id === item.game_id && (
+                  <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
+                    <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+                  </View>
+                )}
+              </View>
+            );
+
+            /* In picking mode a tap chooses the cover instead of opening the
+               game — same target, different verb, so the grid does not have to
+               grow a second control on every tile. */
+            if (pickingCover) {
+              return (
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use ${item.game?.title ?? 'this game'} as the preview`}
+                  scaleTo={0.95}
+                  onPress={() => setCover.mutate(item.game_id)}>
+                  {tile}
+                </PressableScale>
+              );
+            }
+
+            return (
+              <Link href={{ pathname: '/game/[id]', params: { id: item.game_id } }} asChild>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={item.game?.title ?? 'Game'}
+                  scaleTo={0.95}>
+                  {tile}
+                </PressableScale>
+              </Link>
+            );
+          }}
           ListEmptyComponent={
             <EmptyState
               title="Nothing here yet"
@@ -336,21 +419,25 @@ export default function ListDetailScreen() {
         renderItem={({ item, index }) => (
           <View style={[styles.row, { borderTopColor: theme.border }]}>
             {data.is_ranked && !isTierList && (
-              <Text variant="heading" color="textMuted" style={styles.rank}>
+              <Text variant="h3" color="textMuted" style={styles.rank}>
                 {index + 1}
               </Text>
             )}
 
             {isTierList && item.tier && (
-              <View style={[styles.tierBadge, { backgroundColor: TIER_COLOR[item.tier] }]}>
-                <Text variant="bodyStrong" style={styles.tierText}>
+              <View style={[styles.tierBadge, { backgroundColor: tierColor(item.tier, theme) }]}>
+                <Text variant="h5" color="background">
                   {item.tier}
                 </Text>
               </View>
             )}
 
-            <Link href={{ pathname: '/game/[id]', params: { id: item.game_id } }} asChild>
-              <PressableScale accessibilityRole="button" scaleTo={0.96}>
+            {pickingCover ? (
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`Use ${item.game?.title ?? 'this game'} as the preview`}
+                scaleTo={0.96}
+                onPress={() => setCover.mutate(item.game_id)}>
                 <Poster
                   coverUrl={item.game?.cover_url}
                   heroUrl={item.game?.hero_url}
@@ -358,15 +445,32 @@ export default function ListDetailScreen() {
                   width={POSTER}
                   rounded="image"
                 />
+                {data.cover_game_id === item.game_id && (
+                  <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
+                    <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+                  </View>
+                )}
               </PressableScale>
-            </Link>
+            ) : (
+              <Link href={{ pathname: '/game/[id]', params: { id: item.game_id } }} asChild>
+                <PressableScale accessibilityRole="button" scaleTo={0.96}>
+                  <Poster
+                    coverUrl={item.game?.cover_url}
+                    heroUrl={item.game?.hero_url}
+                    title={item.game?.title}
+                    width={POSTER}
+                    rounded="image"
+                  />
+                </PressableScale>
+              </Link>
+            )}
 
             <View style={styles.rowBody}>
-              <Text variant="bodyStrong" numberOfLines={2}>
+              <Text variant="h5" numberOfLines={2}>
                 {item.game?.title ?? 'Unknown game'}
               </Text>
               {item.game?.release_year && (
-                <Text variant="micro" color="textMuted">
+                <Text variant="caption" color="textMuted">
                   {item.game.release_year}
                 </Text>
               )}
@@ -386,12 +490,12 @@ export default function ListDetailScreen() {
                         styles.tierChip,
                         {
                           backgroundColor:
-                            item.tier === tier ? TIER_COLOR[tier] : theme.surfaceElevated,
+                            item.tier === tier ? tierColor(tier, theme) : theme.surfaceElevated,
                         },
                       ])}>
                       <Text
-                        variant="micro"
-                        style={{ color: item.tier === tier ? '#1A1A1A' : theme.textMuted }}>
+                        variant="caption"
+                        style={{ color: item.tier === tier ? theme.background : theme.textMuted }}>
                         {tier}
                       </Text>
                     </PressableScale>
@@ -462,10 +566,10 @@ const styles = StyleSheet.create({
     left: 4,
     minWidth: 18,
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: Spacing.x4,
     borderRadius: Radius.image,
   },
-  rankPillText: { color: '#FFFFFF' },
+
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   empty: { flexGrow: 1 },
   header: { gap: Spacing.x8, marginBottom: Spacing.x16 },
@@ -486,8 +590,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tierText: { color: '#1A1A1A' },
+
   rowBody: { flex: 1, gap: Spacing.x4 },
+  coverHint: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x8,
+    paddingLeft: Spacing.x12,
+    paddingRight: Spacing.x4,
+    borderRadius: Radius.control,
+  },
+  coverHintText: { flex: 1 },
+  /* Sits where the rank pill would, so the two never overlap — the rank is
+     hidden while picking. */
+  coverMark: {
+    position: 'absolute',
+    top: Spacing.x4,
+    left: Spacing.x4,
+    width: 22,
+    height: 22,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tierPicker: { flexDirection: 'row', gap: Spacing.x4, marginTop: Spacing.x4 },
   tierChip: {
     width: 24,

@@ -49,13 +49,13 @@ export function LibraryWidget({
         <View style={styles.head}>
           <View style={styles.title}>
             <Ionicons name="library" size={13} color={theme.primary} />
-            <Text variant="micro" color="textSecondary">
+            <Text variant="caption" color="textSecondary">
               LIBRARY
             </Text>
           </View>
 
           {stats && (
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               {stats.gamesOwned} · {formatPlaytime(stats.totalPlaytimeMinutes)}
             </Text>
           )}
@@ -73,7 +73,7 @@ export function LibraryWidget({
             ))}
           </View>
         ) : isPrivate ? (
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             Steam library is private.
           </Text>
         ) : games.length > 0 ? (
@@ -99,7 +99,7 @@ export function LibraryWidget({
             ))}
           </View>
         ) : (
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             No games synced yet.
           </Text>
         )}

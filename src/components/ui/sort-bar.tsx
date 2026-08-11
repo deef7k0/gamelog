@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type SortOption<T extends string> = { key: T; label: string };
@@ -60,7 +60,7 @@ export function SortBar<T extends string>({
                 borderColor: active ? theme.borderStrong : theme.border,
               },
             ])}>
-            <Text variant="micro" color={active ? 'text' : 'textSecondary'}>
+            <Text variant="caption" color={active ? 'text' : 'textSecondary'}>
               {option.label}
             </Text>
           </PressableScale>
@@ -73,6 +73,7 @@ export function SortBar<T extends string>({
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   pill: {
+    ...Elevation.control,
     paddingVertical: Spacing.x8,
     paddingHorizontal: Spacing.x12,
     // `control`, not `pill` — these are buttons, and every button in the app is

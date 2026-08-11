@@ -211,7 +211,7 @@ export default function NewsScreen() {
           cannot tell Releases from Trailers, so the active one is spelled out
           here instead. */}
       <View style={styles.appBar}>
-        <Text variant="title">{TABS.find((entry) => entry.key === tab)?.label ?? 'News'}</Text>
+        <Text variant="h1">{TABS.find((entry) => entry.key === tab)?.label ?? 'News'}</Text>
       </View>
 
       <View style={styles.dockRow}>

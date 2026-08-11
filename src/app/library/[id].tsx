@@ -136,7 +136,7 @@ export default function LibraryScreen() {
               />
 
               {games.data && games.data.length > 0 && (
-                <Text variant="micro" color="textMuted">
+                <Text variant="caption" color="textMuted">
                   {games.data.length} {games.data.length === 1 ? 'game' : 'games'}
                 </Text>
               )}
@@ -224,7 +224,7 @@ function StatisticsTab({
           <StatCell label="Never played" value={data.neverPlayed.toLocaleString()} />
         </View>
 
-        <Text variant="caption" color="textMuted">
+        <Text variant="bodySmall" color="textMuted">
           {formatPlaytimeLong(data.totalPlaytimeMinutes)} across {data.playedGames} played{' '}
           {data.playedGames === 1 ? 'game' : 'games'}.
         </Text>
@@ -256,7 +256,7 @@ function StatisticsTab({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.section}>
-      <Text variant="micro" color="textSecondary">
+      <Text variant="label" color="textSecondary">
         {title.toUpperCase()}
       </Text>
       {children}
@@ -267,12 +267,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function StatCell({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <View style={styles.statCell}>
-      <Text variant="heading">{value}</Text>
-      <Text variant="micro" color="textMuted">
+      <Text variant="h3">{value}</Text>
+      <Text variant="caption" color="textMuted">
         {label}
       </Text>
       {hint && (
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           {hint}
         </Text>
       )}

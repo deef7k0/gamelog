@@ -147,11 +147,11 @@ function CarouselCard({
           />
 
           <View style={styles.caption}>
-            <Text variant="bodyStrong" numberOfLines={1}>
+            <Text variant="h5" numberOfLines={1}>
               {entry.title}
             </Text>
             {entry.releaseYear !== null && (
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {entry.releaseYear}
               </Text>
             )}

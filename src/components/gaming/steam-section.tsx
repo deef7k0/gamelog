@@ -109,7 +109,7 @@ export function SteamSection({
 
           <View style={styles.identityBody}>
             <View style={styles.handleRow}>
-              <Text variant="bodyStrong" numberOfLines={1} style={styles.handle}>
+              <Text variant="h5" numberOfLines={1} style={styles.handle}>
                 {account.handle ?? 'Steam user'}
               </Text>
               {account.level !== null && <LevelBadge level={account.level} />}
@@ -122,11 +122,11 @@ export function SteamSection({
                   { backgroundColor: isOnline(account.status) ? theme.success : theme.textMuted },
                 ]}
               />
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {statusLabel(account.status)}
               </Text>
               {account.country && countryFlag(account.country) && (
-                <Text variant="micro" color="textMuted">
+                <Text variant="caption" color="textMuted">
                   {countryFlag(account.country)} {account.country}
                 </Text>
               )}
@@ -137,7 +137,7 @@ export function SteamSection({
             {account.currentGame && (
               <View style={styles.playingRow}>
                 <Ionicons name="game-controller" size={12} color={theme.success} />
-                <Text variant="micro" numberOfLines={1} style={{ color: theme.success }}>
+                <Text variant="caption" numberOfLines={1} style={{ color: theme.success }}>
                   {account.currentGame.name}
                 </Text>
               </View>
@@ -154,7 +154,7 @@ export function SteamSection({
               scaleTo={0.95}>
               <View style={styles.linkRow}>
                 <Ionicons name="open-outline" size={13} color={theme.primary} />
-                <Text variant="micro" color="primary">
+                <Text variant="caption" color="primary">
                   Steam profile
                 </Text>
               </View>
@@ -173,7 +173,7 @@ export function SteamSection({
         </View>
 
         {account.lastSyncedAt && (
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             Synced {timeAgo(account.lastSyncedAt)}
           </Text>
         )}
@@ -182,7 +182,7 @@ export function SteamSection({
       {isPrivate && (
         <View style={[styles.notice, { borderColor: theme.border }]}>
           <Ionicons name="lock-closed-outline" size={15} color={theme.textMuted} />
-          <Text variant="caption" color="textMuted" style={styles.noticeText}>
+          <Text variant="bodySmall" color="textMuted" style={styles.noticeText}>
             Profile is Private — only what Steam shares publicly is shown here.
             {isSelf
               ? ' Set your Steam profile and game details to Public to import everything.'
@@ -212,11 +212,11 @@ export function SteamSection({
           </View>
 
           <View style={styles.statFooter}>
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               {formatPlaytime(Math.round(stats.data.avgPlaytimeMinutes))} average per played game
             </Text>
             {stats.data.achievementsTotal > 0 && (
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {completionPercent(stats.data.achievementsUnlocked, stats.data.achievementsTotal)}%
                 complete
               </Text>
@@ -250,7 +250,7 @@ export function SteamSection({
               href={{ pathname: '/gaming-achievements/[id]', params: { id: profileId } }}
               asChild>
               <PressableScale accessibilityRole="button" scaleTo={0.94}>
-                <Text variant="micro" color="primary">
+                <Text variant="caption" color="primary">
                   See all
                 </Text>
               </PressableScale>
@@ -281,7 +281,7 @@ export function SteamSection({
                     )}
                   </View>
                   {item.globalPercent !== null && (
-                    <Text variant="micro" style={{ color: theme.accent }}>
+                    <Text variant="caption" style={{ color: theme.accent }}>
                       {item.globalPercent < 1
                         ? `${item.globalPercent.toFixed(1)}%`
                         : `${Math.round(item.globalPercent)}%`}
@@ -305,7 +305,7 @@ export function SteamSection({
           action={
             <Link href={{ pathname: '/gaming-inventory/[id]', params: { id: profileId } }} asChild>
               <PressableScale accessibilityRole="button" scaleTo={0.94}>
-                <Text variant="micro" color="primary">
+                <Text variant="caption" color="primary">
                   See all
                 </Text>
               </PressableScale>
@@ -338,7 +338,7 @@ export function SteamSection({
                   )}
                   {item.amount > 1 && (
                     <View style={[styles.amountPill, { backgroundColor: theme.scrim }]}>
-                      <Text variant="micro" style={styles.amountText}>
+                      <Text variant="caption" color="onPrimary">
                         ×{item.amount}
                       </Text>
                     </View>
@@ -356,7 +356,7 @@ export function SteamSection({
           <View style={styles.badgeSummary}>
             {account.level !== null && <LevelBadge level={account.level} />}
             {account.xp !== null && (
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {account.xp.toLocaleString()} XP
               </Text>
             )}
@@ -396,7 +396,7 @@ export function SteamSection({
                 </View>
 
                 {item.level !== null && (
-                  <Text variant="micro" color="textMuted">
+                  <Text variant="caption" color="textMuted">
                     {item.isYearsOfService ? `${item.level}y` : `Lv ${item.level}`}
                   </Text>
                 )}
@@ -412,7 +412,7 @@ export function SteamSection({
           title="Steam friends here"
           action={
             friendTotal.data ? (
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {friends.data.length} of {friendTotal.data}
               </Text>
             ) : undefined
@@ -437,7 +437,7 @@ export function SteamSection({
                       name={item.profile ? displayNameFor(item.profile) : (item.handle ?? '?')}
                       size={44}
                     />
-                    <Text variant="micro" numberOfLines={1} style={styles.friendName}>
+                    <Text variant="caption" numberOfLines={1} style={styles.friendName}>
                       {item.profile ? displayNameFor(item.profile) : (item.handle ?? 'Friend')}
                     </Text>
                   </PressableScale>
@@ -459,7 +459,7 @@ function LevelBadge({ level }: { level: number }) {
   const theme = useTheme();
   return (
     <View style={[styles.levelBadge, { borderColor: theme.primary }]}>
-      <Text variant="micro" style={{ color: theme.primary }}>
+      <Text variant="caption" style={{ color: theme.primary }}>
         {level}
       </Text>
     </View>
@@ -469,10 +469,10 @@ function LevelBadge({ level }: { level: number }) {
 function Stat({ value, label, tint }: { value: string; label: string; tint?: string }) {
   return (
     <View style={styles.stat}>
-      <Text variant="bodyStrong" style={tint ? { color: tint } : undefined}>
+      <Text variant="h5" style={tint ? { color: tint } : undefined}>
         {value}
       </Text>
-      <Text variant="micro" color="textMuted">
+      <Text variant="caption" color="textMuted">
         {label}
       </Text>
     </View>
@@ -491,7 +491,7 @@ function Section({
   return (
     <View style={styles.block}>
       <View style={styles.blockHead}>
-        <Text variant="micro" color="textSecondary">
+        <Text variant="label" color="textSecondary">
           {title.toUpperCase()}
         </Text>
         {action}
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
   handleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   handle: { flexShrink: 1 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
+  dot: { width: 7, height: 7, borderRadius: Radius.pill },
   playingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   cardActions: {
     flexDirection: 'row',
@@ -621,10 +621,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 2,
     bottom: 2,
-    paddingHorizontal: 3,
+    paddingHorizontal: Spacing.x4,
     borderRadius: Radius.image,
   },
-  amountText: { color: '#FFFFFF' },
+
   badgeSummary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   badgeItem: { alignItems: 'center', gap: 2 },
   badgeIcon: {

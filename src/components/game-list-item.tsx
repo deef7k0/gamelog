@@ -85,14 +85,14 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
 
       <View style={styles.body}>
         <View style={styles.titleRow}>
-          <Text variant="bodyStrong" numberOfLines={2} style={styles.title}>
+          <Text variant="h5" numberOfLines={2} style={styles.title}>
             {game.title}
           </Text>
           {game.score !== null && <ScoreBadge score={game.score} size="small" />}
         </View>
 
         {subtitle.length > 0 && (
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
+          <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
             {subtitle}
           </Text>
         )}
@@ -109,7 +109,7 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
         )}
 
         {badge && (
-          <Text variant="micro" color="success">
+          <Text variant="caption" color="success">
             {badge}
           </Text>
         )}

@@ -118,8 +118,8 @@ export default function RootLayout() {
               headerBackground: () => <HeaderBackdrop />,
               headerTintColor: palette.text,
               headerTitleStyle: {
-                fontSize: Type.section.fontSize,
-                fontFamily: FontFamily.semibold,
+                fontSize: Type.h4.fontSize,
+                fontFamily: FontFamily.bold,
               },
             }}>
             <Stack.Protected guard={!!session}>

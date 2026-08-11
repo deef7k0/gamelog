@@ -56,7 +56,7 @@ export function LoadingState({ label }: { label?: string }) {
     <View style={styles.centered}>
       <ActivityIndicator color={theme.primary} />
       {label && (
-        <Text variant="caption" color="textMuted" style={styles.centeredText}>
+        <Text variant="bodySmall" color="textMuted" style={styles.centeredText}>
           {label}
         </Text>
       )}
@@ -73,7 +73,7 @@ export type EmptyStateProps = {
 export function EmptyState({ title, message, action }: EmptyStateProps) {
   return (
     <View style={styles.centered}>
-      <Text variant="heading" style={styles.centeredText}>
+      <Text variant="h3" style={styles.centeredText}>
         {title}
       </Text>
       {message && (

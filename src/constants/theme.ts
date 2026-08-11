@@ -91,6 +91,32 @@ export const Colors = {
     /** Skeleton placeholder fill. */
     skeleton: '#242424',
 
+    /**
+     * Ink for gradient ramps over artwork, and the palette's only true black.
+     *
+     * Not a surface: `background` is still the floor and nothing is ever *filled*
+     * with this. It exists because a fade sitting under a photograph has to
+     * reach real black, which `scrim` (a flat 60% overlay) cannot do. Always
+     * fade it with `withAlpha(shadowInk, 0)`, never the keyword `transparent`.
+     */
+    shadowInk: '#000000',
+
+    /*
+     * The tier-list ramp. Data rather than chrome, and exempt from the
+     * one-accent rule for the same reason the score ramp is: a tier list is a
+     * chart of the user's own judgement, and six rows that are all grey is not a
+     * tier list. Warm → cool so the ordering reads before the letters do.
+     *
+     * Row-header fills only. These are tuned as backgrounds for near-black type
+     * and are not legible as text colours on a dark surface.
+     */
+    tierS: '#FF7B7B',
+    tierA: '#FFB068',
+    tierB: '#FFD86B',
+    tierC: '#B6E07A',
+    tierD: '#7ACBE0',
+    tierF: '#B0A6E0',
+
     /** Legacy aliases kept so older call sites keep compiling. */
     backgroundElement: '#202020',
     backgroundSelected: '#2A2A2A',
@@ -181,83 +207,183 @@ export const Spacing = {
 } as const;
 
 /**
- * Radii, named for what they wrap rather than for how big they are.
+ * Radii. See DESIGN.md § 5.
  *
- * Four rounded primitives and a pill, and every surface in the app is one of
- * them. Naming by role is what keeps it that way: `Radius.card` cannot drift
- * onto a button the way `large` could.
+ * The UI is deliberately not highly rounded: small corners keep the artwork the
+ * roundest thing on screen. The scale is `none`…`lg` plus a pill; the role
+ * aliases below map onto it and are what components should actually reach for.
+ *
+ * Naming by role is what keeps them in place — `Radius.card` cannot drift onto a
+ * button the way `md` could.
  */
 export const Radius = {
-  /** Game covers, screenshots, thumbnails — anything rectangular and pictorial. */
-  image: 12,
-  /** Every button, icon button and control. */
-  control: 18,
-  /** Cards and modular surfaces. */
-  card: 20,
-  /** Text fields and the search bar. */
-  input: 24,
-  /** Chips, badges, progress tracks, avatars. */
+  none: 0,
+  xs: 2,
+  sm: 3,
+  md: 5,
+  lg: 8,
+  /** Chips, badges, progress tracks, avatar rings. */
   pill: 999,
+
+  /** Game covers, screenshots, thumbnails — anything rectangular and pictorial. */
+  image: 4,
+  /** Every button, icon button and control. */
+  control: 6,
+  /** Cards and modular surfaces. */
+  card: 6,
+  /** Text fields and the search bar. */
+  input: 6,
+
+  /*
+   * Preserved — the physical game case keeps its own radii. See DESIGN.md § 5.3.
+   *
+   * `caseImage` was the same number as `image` under the previous scale and is
+   * not under this one, so they are separate tokens on purpose: folding them
+   * back together would silently redesign the case. `caseImage` covers both the
+   * artwork inside the case window and the hairline frame around the PC/mobile
+   * cover that stands in when a platform has no case.
+   */
+  caseImage: 12,
+  caseSpine: 3,
 } as const;
 
 /**
- * Type scale — Inter, deliberately small.
+ * Type scale. See DESIGN.md § 2.
  *
  * Each step pairs a size, a line height and a *family* (see `FontFamily`: on
- * Android the weight has to be the family or it is ignored).
+ * Android the weight has to be the family or it is ignored). Nothing here sets
+ * `fontWeight` — the family carries it.
  *
- * The scale ran a step larger for one revision and it was wrong on a phone: a
- * single feed card filled the screen, and a review card's own score outweighed
- * the box art beside it. This is a dense app — a feed row carries a name, a
- * headline, a score, a verdict, a game, a cover and four lines of prose — and
- * density is only legible if the type stays quiet. Body sits at 14, not 16.
+ * Structural steps are `display` and `h1`–`h6`; prose is `body` / `bodySmall`;
+ * `caption` and `label` are the metadata steps; `button` is control text.
+ * Hierarchy is carried by weight and colour before size — the gaps between the
+ * heading steps are deliberately small.
  *
- * 700 appears exactly twice, on the two steps that are page titles. Everything
- * else is 400 for prose, 500 for dense metadata, 600 for anything that has to
- * be picked out of a page. Hierarchy is carried by size and colour; reaching
- * for a heavier weight to make something matter is how a screen ends up with
- * six competing emphases.
+ * **Tracking is in points, not em.** React Native has no `em`, so DESIGN.md's
+ * relative values are resolved against each step's own size: -0.02em on 32
+ * becomes -0.64, 0.08em on 11 becomes 0.88. Changing a step's size means
+ * recomputing its tracking.
  */
 export const Type = {
-  display: { fontSize: 32, lineHeight: 40, fontFamily: FontFamily.bold },
-  title: { fontSize: 24, lineHeight: 30, fontFamily: FontFamily.bold },
-  heading: { fontSize: 18, lineHeight: 24, fontFamily: FontFamily.semibold },
-  section: { fontSize: 16, lineHeight: 22, fontFamily: FontFamily.semibold },
-  body: { fontSize: 15, lineHeight: 23, fontFamily: FontFamily.regular },
-  bodyStrong: { fontSize: 15, lineHeight: 22, fontFamily: FontFamily.semibold },
-  caption: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.medium },
-  micro: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.medium },
+  display: { fontSize: 32, lineHeight: 38, fontFamily: FontFamily.bold, letterSpacing: -0.64 },
+  h1: { fontSize: 28, lineHeight: 34, fontFamily: FontFamily.bold, letterSpacing: -0.42 },
+  h2: { fontSize: 22, lineHeight: 28, fontFamily: FontFamily.bold, letterSpacing: -0.22 },
+  h3: { fontSize: 18, lineHeight: 24, fontFamily: FontFamily.bold },
+  h4: { fontSize: 16, lineHeight: 22, fontFamily: FontFamily.bold },
+  h5: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.bold },
+  h6: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.bold, letterSpacing: 0.24 },
+
+  body: { fontSize: 15, lineHeight: 22, fontFamily: FontFamily.regular },
+  /* Long-form reading — an article or review body, not UI copy. Deliberately
+     looser than `body`: those two screens are the ones people actually read. */
+  prose: { fontSize: 17, lineHeight: 28, fontFamily: FontFamily.regular },
+  bodySmall: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.regular },
+
+  caption: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.regular, letterSpacing: 0.22 },
+  label: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: FontFamily.medium,
+    letterSpacing: 0.88,
+    textTransform: 'uppercase',
+  },
+
+  button: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.semibold },
+
+  /*
+   * Preserved — the physical game case keeps its own type. See DESIGN.md § 2.3.
+   *
+   * These are the exact metrics the case rendered at before this scale was
+   * adopted, pinned so its appearance did not move with the migration. Do not
+   * use them anywhere else and do not tidy them onto `h1`/`h6`: `h1` grows the
+   * placeholder letter by 4, and `h6`'s bold weight widens the uppercase edition
+   * badge enough to truncate it on the 108dp case.
+   */
+  caseTitle: { fontSize: 24, lineHeight: 30, fontFamily: FontFamily.bold },
+  caseEdition: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.medium },
 } as const;
 
 /**
- * Elevation is a *surface step*, not a shadow.
+ * Score numeral sizes. See DESIGN.md § 15.
  *
- * `background` → `surface` → `surfaceElevated` → `surfaceSelected` is the whole
- * depth model: a card looks lifted because it is lighter than the page, and on
- * a dark screen that reads far better than a shadow nobody can see against
- * #121212. The two shadow entries survive for the one thing that genuinely
- * casts — a depicted physical object, i.e. the game case and its poster.
+ * The score is a bare coloured numeral at 700, so it sits outside the type scale
+ * — its size is chosen by how much room the score has, not by where it falls in
+ * a document hierarchy. `inline` is body height, for a feed row where the score
+ * is one fact among several; `hero` is the headline number on a review page.
+ */
+export const ScoreSizes = {
+  inline: 15,
+  medium: 22,
+  large: 32,
+  hero: 44,
+} as const;
+
+/**
+ * Elevation. See DESIGN.md § 6.
+ *
+ * Depth is carried by **two** things working together: the surface step
+ * (`background` → `surface` → `surfaceElevated` → `surfaceSelected`) and a
+ * shadow on top of it. The step still does most of the work — a shadow alone is
+ * nearly invisible against #121212 — but the shadow is what makes an element
+ * read as sitting *above* the page rather than being painted on it.
+ *
+ * Four interface tiers, and they are deliberately restrained. On a near-black
+ * page a large soft shadow does not look like depth, it looks like a grey
+ * smudge; the lift comes from a tight radius and a short offset, not from
+ * opacity.
+ *
+ *   card     a block resting on the page
+ *   control  something you can press
+ *   raised   pressed, active, or floating above siblings
+ *   overlay  a dock, popover, sheet or modal — off the page entirely
+ *
+ * **The ceiling is the game case.** `game-case.tsx` casts at opacity 0.45,
+ * radius 18, offset (6, 12) — strictly larger than `overlay` in opacity, offset
+ * and radius, and the only shadow in the app with a horizontal component. That
+ * gap is not decoration: the case is a depicted physical object and everything
+ * here is interface. If an interface tier ever grows past `overlay`, the case
+ * stops reading as the one real thing on the shelf. See DESIGN.md § 6.1.
  */
 export const Elevation = {
   none: {},
   card: Platform.select({
     ios: {
-      shadowColor: '#000',
-      shadowOpacity: 0.18,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
+      shadowColor: Palette.shadowInk,
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+    },
+    android: { elevation: 2 },
+    default: {},
+  }),
+  control: Platform.select({
+    ios: {
+      shadowColor: Palette.shadowInk,
+      shadowOpacity: 0.24,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
     },
     android: { elevation: 3 },
     default: {},
   }),
   raised: Platform.select({
     ios: {
-      shadowColor: '#000',
-      shadowOpacity: 0.28,
-      shadowRadius: 20,
+      shadowColor: Palette.shadowInk,
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 5 },
+    },
+    android: { elevation: 6 },
+    default: {},
+  }),
+  overlay: Platform.select({
+    ios: {
+      shadowColor: Palette.shadowInk,
+      shadowOpacity: 0.38,
+      shadowRadius: 16,
       shadowOffset: { width: 0, height: 8 },
     },
-    android: { elevation: 8 },
+    android: { elevation: 10 },
     default: {},
   }),
 } as const;

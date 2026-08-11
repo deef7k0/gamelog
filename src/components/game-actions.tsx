@@ -129,10 +129,10 @@ export function GameActions({ game, log }: GameActionsProps) {
         <View style={[styles.unreleased, { borderColor: theme.border }]}>
           <Ionicons name="calendar-outline" size={16} color={theme.textSecondary} />
           <View style={styles.unreleasedText}>
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               PLANNED RELEASE
             </Text>
-            <Text variant="bodyStrong">{formatReleaseDate(game.releaseDate)}</Text>
+            <Text variant="h5">{formatReleaseDate(game.releaseDate)}</Text>
           </View>
         </View>
       )}
@@ -198,7 +198,7 @@ export function GameActions({ game, log }: GameActionsProps) {
       )}
 
       {error && (
-        <Text variant="micro" color="danger">
+        <Text variant="caption" color="danger">
           {error instanceof Error ? error.message : 'Could not update.'}
         </Text>
       )}
@@ -257,7 +257,7 @@ function Action({
       <View style={[styles.actionIcon, { backgroundColor: background, borderColor: border }]}>
         <Ionicons name={active ? icon : outline} size={20} color={glyph} />
       </View>
-      <Text variant="micro" color={active ? 'text' : 'textMuted'}>
+      <Text variant="caption" color={active ? 'text' : 'textMuted'}>
         {label}
       </Text>
     </PressableScale>

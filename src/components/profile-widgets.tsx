@@ -55,7 +55,7 @@ export function FavoritesWidget({
       <View style={styles.widgetHead}>
         <View style={styles.widgetTitle}>
           <Ionicons name="star" size={13} color={theme.accent} />
-          <Text variant="micro" color="textSecondary">
+          <Text variant="caption" color="textSecondary">
             FAVOURITES
           </Text>
         </View>
@@ -63,7 +63,7 @@ export function FavoritesWidget({
         {isSelf && listId && (
           <Link href={{ pathname: '/list/[id]', params: { id: listId } }} asChild>
             <PressableScale accessibilityRole="button" scaleTo={0.9}>
-              <Text variant="micro" color="primary">
+              <Text variant="caption" color="primary">
                 Edit
               </Text>
             </PressableScale>
@@ -110,7 +110,7 @@ export function FavoritesWidget({
           ))}
         </View>
       ) : (
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           {isSelf ? 'Star up to four games to pin them here.' : 'No favourites yet.'}
         </Text>
       )}
@@ -140,7 +140,7 @@ export function AchievementsWidget({
       <View style={styles.widgetHead}>
         <View style={styles.widgetTitle}>
           <Ionicons name="trophy" size={13} color={theme.platinum} />
-          <Text variant="micro" color="textSecondary">
+          <Text variant="caption" color="textSecondary">
             ACHIEVEMENTS
           </Text>
         </View>
@@ -178,10 +178,10 @@ export function AchievementsWidget({
 function Stat({ value, label, tint }: { value?: number; label: string; tint: string }) {
   return (
     <View style={styles.stat}>
-      <Text variant="bodyStrong" style={{ color: tint }}>
+      <Text variant="h5" style={{ color: tint }}>
         {value ?? '—'}
       </Text>
-      <Text variant="micro" color="textMuted">
+      <Text variant="caption" color="textMuted">
         {label}
       </Text>
     </View>

@@ -158,7 +158,7 @@ export default function CommentsScreen() {
         <View style={[styles.composer, { borderTopColor: theme.border }]}>
           {replyTo && (
             <View style={styles.replyingTo}>
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 Replying to {displayNameFor(replyTo.profile)}
               </Text>
               <PressableScale
@@ -203,7 +203,7 @@ export default function CommentsScreen() {
           </View>
 
           {send.isError && (
-            <Text variant="micro" color="danger">
+            <Text variant="caption" color="danger">
               {send.error instanceof Error ? send.error.message : 'Could not post.'}
             </Text>
           )}
@@ -242,10 +242,10 @@ function CommentRow({
 
       <View style={styles.commentBody}>
         <View style={styles.commentHead}>
-          <Text variant="caption" style={styles.strong}>
+          <Text variant="bodySmall" style={styles.strong}>
             {displayNameFor(comment.profile)}
           </Text>
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             {timeAgo(comment.created_at)}
           </Text>
         </View>
@@ -255,11 +255,11 @@ function CommentRow({
         </Text>
 
         <View style={styles.commentActions}>
-          <Text variant="micro" color="textMuted" onPress={onReply}>
+          <Text variant="caption" color="textMuted" onPress={onReply}>
             Reply
           </Text>
           {canDelete && (
-            <Text variant="micro" style={{ color: theme.danger }} onPress={onDelete}>
+            <Text variant="caption" style={{ color: theme.danger }} onPress={onDelete}>
               Delete
             </Text>
           )}

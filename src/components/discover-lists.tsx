@@ -96,7 +96,7 @@ export function DiscoverCollections() {
           {item.likeCount > 0 && (
             <View style={styles.likes}>
               <Ionicons name="heart" size={12} color={theme.danger} />
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {item.likeCount} {item.likeCount === 1 ? 'like' : 'likes'}
               </Text>
             </View>

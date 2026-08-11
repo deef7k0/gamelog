@@ -90,14 +90,14 @@ export function SoundtrackAlbums({ gameTitle, layout = 'rail' }: SoundtrackAlbum
         transition={200}
         accessibilityIgnoresInvertColors
       />
-      <Text variant="caption" numberOfLines={2}>
+      <Text variant="bodySmall" numberOfLines={2}>
         {album.title}
       </Text>
-      <Text variant="micro" color="textMuted" numberOfLines={1}>
+      <Text variant="caption" color="textMuted" numberOfLines={1}>
         {album.artist}
       </Text>
       {album.releaseYear && (
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           {album.releaseYear} · {album.trackCount} tracks
         </Text>
       )}

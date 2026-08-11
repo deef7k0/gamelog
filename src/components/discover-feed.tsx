@@ -71,15 +71,15 @@ export function DiscoverFeed() {
       <View style={styles.lead}>
         <View style={styles.leadHead}>
           <View>
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               THIS MONTH
             </Text>
-            <Text variant="heading">Most Popular</Text>
+            <Text variant="h3">Most Popular</Text>
           </View>
 
           <Link href="/top-games" asChild>
             <PressableScale accessibilityRole="button" scaleTo={0.94}>
-              <Text variant="caption" color="primary">
+              <Text variant="bodySmall" color="primary">
                 See all
               </Text>
             </PressableScale>
@@ -99,7 +99,7 @@ export function DiscoverFeed() {
         {/* Falls back to critically-acclaimed titles for a reader with nothing
             logged yet, so Discover is never an empty screen. */}
         <View style={styles.section}>
-          <Text variant="bodyStrong">
+          <Text variant="h5">
             {(recommendations.data ?? []).length > 0 ? 'Highly rated' : 'Start here'}
           </Text>
           {(discover.data ?? []).slice(0, 20).map((game) => (

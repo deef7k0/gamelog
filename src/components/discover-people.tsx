@@ -127,8 +127,8 @@ function Section({
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
-        <Text variant="section">{title}</Text>
-        <Text variant="micro" color="textMuted">
+        <Text variant="h4">{title}</Text>
+        <Text variant="caption" color="textMuted">
           {hint}
         </Text>
       </View>
@@ -145,10 +145,10 @@ function Section({
             style={StyleSheet.flatten([styles.row, { borderTopColor: theme.border }])}>
             <Avatar uri={person.avatar_url} name={displayNameFor(person)} size={44} />
             <View style={styles.rowText}>
-              <Text variant="bodyStrong" numberOfLines={1}>
+              <Text variant="h5" numberOfLines={1}>
                 {displayNameFor(person)}
               </Text>
-              <Text variant="micro" color="textMuted" numberOfLines={1}>
+              <Text variant="caption" color="textMuted" numberOfLines={1}>
                 {describe(person)}
               </Text>
             </View>

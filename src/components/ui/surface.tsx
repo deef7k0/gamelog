@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, type ThemeColor } from '@/constants/theme';
+import { Elevation, Radius, Spacing, type ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 // ---------------------------------------------------------------------------
@@ -21,28 +21,36 @@ export type CardProps = {
 };
 
 /**
- * A modular block of content: filled, rounded, no border, no shadow.
+ * A modular block of content: filled, rounded, no border.
  *
- * The card is the app's basic unit and it is lifted by *colour*, not by a drop
- * shadow — `surface` (#1C1C1C) against `background` (#121212) is one clear step,
- * and on a dark screen that step reads far better than any shadow would. A
- * border on top of it would be a third signal for a job already done twice.
+ * Lifted by a surface step *and* a shadow. The step does most of the work —
+ * `surface` (#1C1C1C) against `background` (#121212) is one clear boundary — and
+ * `Elevation.card` is what turns that from a painted rectangle into a block
+ * resting above the page. A border on top of both would be a third signal for a
+ * job already done twice.
  *
- * 20px corners and 16px of padding, both fixed. A card that needs different
+ * 6px corners and 16px of padding, both fixed. A card that needs different
  * numbers is a different component.
  */
 export function Card({ children, elevated = false, padded = true, style }: CardProps) {
   const theme = useTheme();
 
+  /*
+   * Two views on purpose. Android's `elevation` is clipped by `overflow:
+   * 'hidden'`, and the card needs that clip to round whatever it contains — so
+   * the outer view owns the fill and the shadow, and the inner one does the
+   * clipping. Collapsing these back into one view silently drops the shadow on
+   * Android only. See DESIGN.md § 6.3.
+   */
   return (
     <View
       style={[
         styles.card,
+        Elevation.card,
         { backgroundColor: elevated ? theme.surfaceElevated : theme.surface },
-        padded && styles.cardPadded,
         style,
       ]}>
-      {children}
+      <View style={[styles.cardClip, padded && styles.cardPadded]}>{children}</View>
     </View>
   );
 }
@@ -72,7 +80,11 @@ export type ChipProps = {
  *
  * They are not buttons. Nothing here has a press state unless a caller wraps it
  * in one, and the fully-round shape is what says so — every actual control in
- * the app is an 18px rounded rectangle.
+ * the app is a 6px rounded rectangle.
+ *
+ * A chip carries `Elevation.control` even though it is not pressable: it is a
+ * discrete object sitting on whatever is behind it, and a flat capsule on a
+ * lifted card reads as a hole rather than a tag.
  */
 export function Chip({ label, tone = 'neutral', icon }: ChipProps) {
   const theme = useTheme();
@@ -82,10 +94,11 @@ export function Chip({ label, tone = 'neutral', icon }: ChipProps) {
     <View
       style={[
         styles.chip,
+        Elevation.control,
         { backgroundColor: active ? theme.primaryMuted : theme.surfaceSelected },
       ]}>
       {icon}
-      <Text variant="caption" color={active ? 'primary' : 'textSecondary'} numberOfLines={1}>
+      <Text variant="bodySmall" color={active ? 'primary' : 'textSecondary'} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -105,7 +118,7 @@ export type SectionHeaderProps = {
 export function SectionHeader({ title, action }: SectionHeaderProps) {
   return (
     <View style={styles.sectionHeader}>
-      <Text variant="section">{title}</Text>
+      <Text variant="h4">{title}</Text>
       {action}
     </View>
   );
@@ -134,7 +147,7 @@ export function ScoreBadge({
   const tone = score >= 70 ? theme.scoreHigh : score >= 45 ? theme.scoreMid : theme.scoreLow;
 
   return (
-    <Text variant={size === 'small' ? 'caption' : 'bodyStrong'} style={{ color: tone }}>
+    <Text variant={size === 'small' ? 'bodySmall' : 'h5'} style={{ color: tone }}>
       {Math.round(score)}
     </Text>
   );
@@ -165,7 +178,10 @@ export function Skeleton({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: Radius.card, overflow: 'hidden' },
+  /* Fill + shadow only — the clip lives on `cardClip` so Android's elevation
+     is not cut off. */
+  card: { borderRadius: Radius.card },
+  cardClip: { borderRadius: Radius.card, overflow: 'hidden' },
   cardPadded: { padding: Spacing.x16 },
   chip: {
     flexDirection: 'row',

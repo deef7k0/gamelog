@@ -158,20 +158,20 @@ export function EventRsvp({ event }: { event: GameEvent }) {
       {line && (
         <View style={styles.attendanceLine}>
           <Ionicons name="people" size={13} color={theme.textMuted} />
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             {line}
           </Text>
         </View>
       )}
 
       {notice && (
-        <Text variant="micro" color="textMuted">
+        <Text variant="caption" color="textMuted">
           {notice}
         </Text>
       )}
 
       {(rsvp.error || reminder.error) && (
-        <Text variant="micro" color="danger">
+        <Text variant="caption" color="danger">
           {(rsvp.error ?? reminder.error) instanceof Error
             ? (rsvp.error ?? reminder.error)!.message
             : 'Could not update.'}
@@ -209,7 +209,7 @@ function ModeButton({
         },
       ])}>
       <Ionicons name={icon} size={15} color={active ? theme.text : theme.textMuted} />
-      <Text variant="micro" color={active ? 'text' : 'textMuted'}>
+      <Text variant="caption" color={active ? 'text' : 'textMuted'}>
         {label}
       </Text>
     </PressableScale>

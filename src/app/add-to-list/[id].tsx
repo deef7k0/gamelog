@@ -95,7 +95,7 @@ export default function AddToListScreen() {
         />
 
         {add.isError && (
-          <Text variant="caption" color="danger">
+          <Text variant="bodySmall" color="danger">
             {add.error instanceof Error ? add.error.message : 'Could not add that game.'}
           </Text>
         )}

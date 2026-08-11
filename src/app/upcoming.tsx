@@ -46,7 +46,7 @@ export default function UpcomingScreen() {
         refreshing={upcoming.isRefetching}
         onRefresh={() => upcoming.refetch()}
         ListHeaderComponent={
-          <Text variant="caption" color="textMuted" style={styles.note}>
+          <Text variant="bodySmall" color="textMuted" style={styles.note}>
             Due in the next 120 days, soonest first.
           </Text>
         }

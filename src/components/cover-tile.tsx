@@ -50,7 +50,7 @@ export function CoverTile({ game, width, rank }: CoverTileProps) {
         scaleTo={0.96}
         style={StyleSheet.flatten([styles.tile, { width }])}>
         {rank !== undefined && (
-          <Text variant="micro" color="textMuted" style={styles.rank}>
+          <Text variant="caption" color="textMuted" style={styles.rank}>
             {rank}
           </Text>
         )}
@@ -64,11 +64,11 @@ export function CoverTile({ game, width, rank }: CoverTileProps) {
         />
 
         <View style={styles.caption}>
-          <Text variant="bodyStrong" numberOfLines={2}>
+          <Text variant="h5" numberOfLines={2}>
             {game.title}
           </Text>
           {game.releaseYear !== null && (
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textMuted">
               {game.releaseYear}
             </Text>
           )}

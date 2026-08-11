@@ -100,7 +100,7 @@ export default function GamingInventoryScreen() {
         stickySectionHeadersEnabled={false}
         ListHeaderComponent={
           items.length > 0 ? (
-            <Text variant="caption" color="textMuted" style={styles.summary}>
+            <Text variant="bodySmall" color="textMuted" style={styles.summary}>
               {items.length.toLocaleString()} {items.length === 1 ? 'item' : 'items'} across{' '}
               {sections.length} {sections.length === 1 ? 'inventory' : 'inventories'}
             </Text>
@@ -135,10 +135,10 @@ export default function GamingInventoryScreen() {
 function SectionHeading({ title, count }: { title: string; count: number }) {
   return (
     <View style={styles.sectionHeading}>
-      <Text variant="micro" color="textSecondary">
+      <Text variant="label" color="textSecondary">
         {title.toUpperCase()}
       </Text>
-      <Text variant="micro" color="textMuted">
+      <Text variant="caption" color="textMuted">
         {count}
       </Text>
     </View>
@@ -172,18 +172,18 @@ function ItemRow({ item }: { item: InventoryItem }) {
       </View>
 
       <View style={styles.itemBody}>
-        <Text variant="bodyStrong" numberOfLines={1}>
+        <Text variant="h5" numberOfLines={1}>
           {item.name}
         </Text>
 
         <View style={styles.itemMeta}>
           {item.rarity && (
-            <Text variant="micro" style={{ color: tint }}>
+            <Text variant="caption" style={{ color: tint }}>
               {item.rarity}
             </Text>
           )}
           {item.type && (
-            <Text variant="micro" color="textMuted" numberOfLines={1} style={styles.itemType}>
+            <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.itemType}>
               {item.type}
             </Text>
           )}
@@ -192,7 +192,7 @@ function ItemRow({ item }: { item: InventoryItem }) {
 
       <View style={styles.itemRight}>
         {item.amount > 1 && (
-          <Text variant="caption" color="textSecondary">
+          <Text variant="bodySmall" color="textSecondary">
             ×{item.amount}
           </Text>
         )}

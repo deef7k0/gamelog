@@ -78,7 +78,7 @@ export default function NewListScreen() {
           />
 
           <View style={styles.section}>
-            <Text variant="caption" color="textSecondary">
+            <Text variant="bodySmall" color="textSecondary">
               Type
             </Text>
             <View style={styles.shapes}>
@@ -98,10 +98,10 @@ export default function NewListScreen() {
                         borderColor: selected ? theme.borderStrong : theme.border,
                       },
                     ])}>
-                    <Text variant="bodyStrong" color={selected ? 'text' : 'textSecondary'}>
+                    <Text variant="h5" color={selected ? 'text' : 'textSecondary'}>
                       {shape.label}
                     </Text>
-                    <Text variant="micro" color="textMuted">
+                    <Text variant="caption" color="textMuted">
                       {shape.hint}
                     </Text>
                   </PressableScale>
@@ -111,7 +111,7 @@ export default function NewListScreen() {
           </View>
 
           {create.isError && (
-            <Text variant="caption" color="danger">
+            <Text variant="bodySmall" color="danger">
               {create.error instanceof Error ? create.error.message : 'Could not create the list.'}
             </Text>
           )}

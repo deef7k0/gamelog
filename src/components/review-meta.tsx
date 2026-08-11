@@ -4,7 +4,7 @@ import { ScoreNumber } from '@/components/ui/score';
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
 import { STATUS_VERB } from '@/constants/status';
-import { FontFamily, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { LogStatus } from '@/lib/database.types';
 
@@ -38,14 +38,18 @@ export function ReviewMeta({ score, gameTitle, status }: ReviewMetaProps) {
     <View style={styles.row}>
       {score !== null && <ScoreNumber score={score} size="inline" />}
 
-      <Text variant="bodyStrong" numberOfLines={1} style={styles.game}>
+      <Text variant="h5" numberOfLines={1} style={styles.game}>
         {gameTitle}
       </Text>
 
       <View style={styles.labels}>
-        <Text style={[styles.label, { color: tint }]}>{STATUS_VERB[status].toUpperCase()}</Text>
+        <Text variant="label" style={{ color: tint }}>
+          {STATUS_VERB[status].toUpperCase()}
+        </Text>
         {score !== null && (
-          <Text style={[styles.label, { color: tint }]}>{labelFor(score).toUpperCase()}</Text>
+          <Text variant="label" style={{ color: tint }}>
+            {labelFor(score).toUpperCase()}
+          </Text>
         )}
       </View>
     </View>
@@ -58,7 +62,4 @@ const styles = StyleSheet.create({
      push the verdict off the row, which is the part that cannot be inferred. */
   game: { flexShrink: 1 },
   labels: { flexDirection: 'row', gap: Spacing.x8 },
-  /* Uppercase at a positive tracking — set tight, capitals read as one long
-     word rather than as a label. */
-  label: { fontSize: 12, fontFamily: FontFamily.semibold, letterSpacing: 0.6 },
 });

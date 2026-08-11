@@ -11,6 +11,9 @@ import { useTheme } from '@/hooks/use-theme';
 import { timeAgo } from '@/lib/format';
 import type { Article, GameEvent, Trailer } from '@/lib/news';
 
+/** Diameter of the play glyph centred on a trailer thumbnail. */
+const PLAY_BADGE = 52;
+
 /**
  * Cards for the News tab: headlines, trailers and events.
  *
@@ -50,18 +53,18 @@ export function ArticleCard({ article }: { article: Article }) {
       scaleTo={0.99}
       style={styles.feedRow}>
       <View style={[styles.sourceBadge, { backgroundColor: theme.surfaceElevated }]}>
-        <Text variant="bodyStrong" style={{ color: theme.primary }}>
+        <Text variant="h5" style={{ color: theme.primary }}>
           {initial}
         </Text>
       </View>
 
       <View style={styles.feedBody}>
         <View style={styles.metaRow}>
-          <Text variant="caption" numberOfLines={1}>
+          <Text variant="bodySmall" numberOfLines={1}>
             {article.source}
           </Text>
           {article.publishedAt && (
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               · {timeAgo(article.publishedAt)}
             </Text>
           )}
@@ -69,12 +72,12 @@ export function ArticleCard({ article }: { article: Article }) {
 
         <View style={styles.feedContent}>
           <View style={styles.feedText}>
-            <Text variant="bodyStrong" numberOfLines={3}>
+            <Text variant="h5" numberOfLines={3}>
               {article.title}
             </Text>
 
             {article.summary && (
-              <Text variant="caption" color="textMuted" numberOfLines={2}>
+              <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
                 {article.summary}
               </Text>
             )}
@@ -114,15 +117,15 @@ export function TrailerCard({ trailer }: { trailer: Trailer }) {
             accessibilityIgnoresInvertColors
           />
           <View style={[styles.playBadge, { backgroundColor: theme.scrim }]}>
-            <Ionicons name="play" size={22} color="#FFFFFF" />
+            <Ionicons name="play" size={22} color={theme.onPrimary} />
           </View>
         </View>
 
         <View style={styles.articleBody}>
-          <Text variant="bodyStrong" numberOfLines={2}>
+          <Text variant="h5" numberOfLines={2}>
             {trailer.gameTitle}
           </Text>
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
+          <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
             {trailer.name}
           </Text>
         </View>
@@ -147,7 +150,7 @@ export function EventCard({ event }: { event: GameEvent }) {
       <View style={styles.eventBody}>
         <View style={styles.metaRow}>
           <Ionicons name="calendar-outline" size={13} color={theme.textMuted} />
-          <Text variant="micro" color="textMuted">
+          <Text variant="caption" color="textMuted">
             {starts
               ? starts.toLocaleDateString(undefined, {
                   day: 'numeric',
@@ -157,25 +160,25 @@ export function EventCard({ event }: { event: GameEvent }) {
               : 'Date to be announced'}
           </Text>
           {event.isUpcoming && (
-            <View style={[styles.pill, { backgroundColor: `${theme.primary}22` }]}>
-              <Text variant="micro" style={{ color: theme.primary }}>
+            <View style={[styles.pill, { backgroundColor: theme.primaryMuted }]}>
+              <Text variant="caption" style={{ color: theme.primary }}>
                 UPCOMING
               </Text>
             </View>
           )}
         </View>
 
-        <Text variant="bodyStrong">{event.name}</Text>
+        <Text variant="h5">{event.name}</Text>
 
         {event.description && (
-          <Text variant="caption" color="textMuted" numberOfLines={3}>
+          <Text variant="bodySmall" color="textMuted" numberOfLines={3}>
             {event.description}
           </Text>
         )}
 
         {event.liveStreamUrl && (
           <Text
-            variant="caption"
+            variant="bodySmall"
             color="primary"
             onPress={() => openExternal(event.liveStreamUrl!)}>
             Watch the stream
@@ -209,11 +212,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     left: '50%',
-    width: 52,
-    height: 52,
-    marginTop: -26,
-    marginLeft: -26,
-    borderRadius: 26,
+    width: PLAY_BADGE,
+    height: PLAY_BADGE,
+    /* Geometric, not spacing: pulls the badge back by half its own size so the
+       50%/50% origin lands on its centre. Derived so the two stay in step. */
+    marginTop: -PLAY_BADGE / 2,
+    marginLeft: -PLAY_BADGE / 2,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { PostMedia } from '@/lib/api';
 
@@ -70,7 +70,7 @@ export function MediaCarousel({ media, width, rounded = true }: MediaCarouselPro
       {media.length > 1 && (
         <>
           <View style={[styles.counter, { backgroundColor: theme.scrim }]}>
-            <Text variant="micro" style={styles.counterText}>
+            <Text variant="caption" color="onPrimary">
               {page + 1}/{media.length}
             </Text>
           </View>
@@ -81,7 +81,7 @@ export function MediaCarousel({ media, width, rounded = true }: MediaCarouselPro
                 key={item.id}
                 style={[
                   styles.dot,
-                  { backgroundColor: index === page ? '#FFFFFF' : 'rgba(255,255,255,0.45)' },
+                  { backgroundColor: withAlpha(theme.onPrimary, index === page ? 1 : 0.45) },
                 ]}
               />
             ))}
@@ -99,10 +99,10 @@ const styles = StyleSheet.create({
     top: Spacing.x12,
     right: Spacing.x12,
     paddingHorizontal: Spacing.x8,
-    paddingVertical: 3,
+    paddingVertical: Spacing.x4,
     borderRadius: Radius.pill,
   },
-  counterText: { color: '#FFFFFF' },
+
   dots: {
     position: 'absolute',
     bottom: Spacing.x12,
@@ -112,5 +112,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.x4 + 2,
   },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  dot: { width: 6, height: 6, borderRadius: Radius.pill },
 });

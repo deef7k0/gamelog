@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { forwardRef } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type TextFieldProps = TextInputProps & {
@@ -57,6 +57,10 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       <View
         style={[
           styles.shell,
+          /* The gentlest tier, deliberately. An input is a recess you type into,
+             so it gets just enough lift to join the layering without pretending
+             to float the way a button does. */
+          Elevation.card,
           search && styles.shellSearch,
           {
             backgroundColor: theme.input,
@@ -79,12 +83,14 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.x8 },
-  label: { fontSize: 13, fontFamily: FontFamily.medium },
+  label: { ...Type.bodySmall },
   shell: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: Radius.input,
-    overflow: 'hidden',
+    /* No `overflow: 'hidden'` on purpose: it would clip the Android elevation,
+       and nothing in here (a glyph and a TextInput, both inset by padding)
+       needs clipping to the corner radius. See DESIGN.md § 6.3. */
   },
   shellSearch: { height: 56 },
   icon: { paddingLeft: Spacing.x16 },
@@ -92,8 +98,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.x16,
     paddingVertical: Spacing.x12,
-    fontSize: 15,
-    fontFamily: FontFamily.regular,
+    /* Size and family only, deliberately no `lineHeight`: on Android a
+       lineHeight on a TextInput clips descenders and fights the vertical
+       centring the 48/56 min-heights are doing. */
+    fontSize: Type.body.fontSize,
+    fontFamily: Type.body.fontFamily,
     minHeight: 48,
   },
   /* Vertically centred rather than top-padded: a 56px bar with a single line of
@@ -105,5 +114,5 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     paddingTop: Spacing.x12,
   },
-  footnote: { fontSize: 13, fontFamily: FontFamily.regular },
+  footnote: { ...Type.bodySmall },
 });

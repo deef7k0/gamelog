@@ -137,7 +137,7 @@ export default function EditProfileScreen() {
               autoCapitalize="none"
               error={steamError}
             />
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textMuted">
               Links your Steam account so achievement progress can be synced. Find yours at
               steamid.io. Your Steam profile and game details must be set to public, otherwise Steam
               returns nothing.

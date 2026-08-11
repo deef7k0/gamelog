@@ -37,9 +37,9 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
     <View style={styles.section}>
       <View style={styles.head}>
         <View style={styles.headText}>
-          <Text variant="section">{title}</Text>
+          <Text variant="h4">{title}</Text>
           {subtitle && (
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textMuted">
               {subtitle}
             </Text>
           )}
@@ -52,7 +52,7 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
               accessibilityLabel={`See all ${title.toLowerCase()}`}
               scaleTo={0.96}
               style={styles.seeAll}>
-              <Text variant="caption" color="primary">
+              <Text variant="bodySmall" color="primary">
                 See all
               </Text>
               <Ionicons name="chevron-forward" size={14} color={theme.primary} />

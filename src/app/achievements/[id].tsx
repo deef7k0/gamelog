@@ -115,10 +115,10 @@ export default function AchievementsScreen() {
               <Card>
                 <View style={styles.progressRow}>
                   <View style={styles.progressText}>
-                    <Text variant="heading">
+                    <Text variant="h3">
                       {unlocked} / {list.length}
                     </Text>
-                    <Text variant="caption" color="textMuted">
+                    <Text variant="bodySmall" color="textMuted">
                       {list.length > 0 ? Math.round((unlocked / list.length) * 100) : 0}% complete
                     </Text>
                   </View>
@@ -152,13 +152,13 @@ export default function AchievementsScreen() {
               )}
 
               {sync.isSuccess && (
-                <Text variant="caption" color="success">
+                <Text variant="bodySmall" color="success">
                   Synced {sync.data.unlocked} of {sync.data.total} achievements from Steam.
                 </Text>
               )}
 
               {error && (
-                <Text variant="caption" color="danger">
+                <Text variant="bodySmall" color="danger">
                   {error instanceof Error ? error.message : 'Something went wrong.'}
                 </Text>
               )}
@@ -197,16 +197,16 @@ export default function AchievementsScreen() {
               )}
 
               <View style={styles.rowBody}>
-                <Text variant="bodyStrong" color={isUnlocked ? 'text' : 'textSecondary'}>
+                <Text variant="h5" color={isUnlocked ? 'text' : 'textSecondary'}>
                   {item.name}
                 </Text>
                 {item.description && (
-                  <Text variant="caption" color="textMuted" numberOfLines={2}>
+                  <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
                     {item.description}
                   </Text>
                 )}
                 {item.global_percent !== null && (
-                  <Text variant="micro" color="textMuted">
+                  <Text variant="caption" color="textMuted">
                     {item.global_percent.toFixed(1)}% of players
                   </Text>
                 )}

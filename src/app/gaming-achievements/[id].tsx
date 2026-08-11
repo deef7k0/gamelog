@@ -123,7 +123,7 @@ export default function GamingAchievementsScreen() {
             )}
 
             {games.length > 0 && (
-              <Text variant="micro" color="textSecondary">
+              <Text variant="caption" color="textSecondary">
                 {`BY GAME · ${games.length}`}
               </Text>
             )}
@@ -180,7 +180,7 @@ function OverallCard({
         <View style={[styles.fill, { width: `${percent}%`, backgroundColor: theme.success }]} />
       </View>
 
-      <Text variant="micro" color="textMuted">
+      <Text variant="caption" color="textMuted">
         {stats.achievementsUnlocked.toLocaleString()} of {stats.achievementsTotal.toLocaleString()}{' '}
         across scanned games
       </Text>
@@ -191,10 +191,10 @@ function OverallCard({
 function Metric({ value, label, tint }: { value: string; label: string; tint?: string }) {
   return (
     <View style={styles.metric}>
-      <Text variant="heading" style={tint ? { color: tint } : undefined}>
+      <Text variant="h3" style={tint ? { color: tint } : undefined}>
         {value}
       </Text>
-      <Text variant="micro" color="textMuted">
+      <Text variant="caption" color="textMuted">
         {label}
       </Text>
     </View>
@@ -215,7 +215,7 @@ function Showcase({
 
   return (
     <View style={styles.section}>
-      <Text variant="micro" color="textSecondary">
+      <Text variant="label" color="textSecondary">
         {title.toUpperCase()}
       </Text>
 
@@ -245,18 +245,18 @@ function Showcase({
               )}
             </View>
 
-            <Text variant="micro" numberOfLines={2} style={styles.showcaseName}>
+            <Text variant="caption" numberOfLines={2} style={styles.showcaseName}>
               {item.name}
             </Text>
 
             {showRarity && item.globalPercent !== null ? (
-              <Text variant="micro" style={{ color: theme.accent }}>
+              <Text variant="caption" style={{ color: theme.accent }}>
                 {item.globalPercent < 1
                   ? `${item.globalPercent.toFixed(1)}%`
                   : `${Math.round(item.globalPercent)}%`}
               </Text>
             ) : item.unlockedAt ? (
-              <Text variant="micro" color="textMuted">
+              <Text variant="caption" color="textMuted">
                 {timeAgo(item.unlockedAt)}
               </Text>
             ) : null}
@@ -304,7 +304,7 @@ function GameProgressRow({ game, userId }: { game: GameAchievementProgress; user
 
         <View style={styles.gameBody}>
           <View style={styles.gameTitleRow}>
-            <Text variant="bodyStrong" numberOfLines={1} style={styles.gameName}>
+            <Text variant="h5" numberOfLines={1} style={styles.gameName}>
               {game.name}
             </Text>
             {game.isPerfect && <Ionicons name="trophy" size={13} color={theme.platinum} />}
@@ -327,7 +327,7 @@ function GameProgressRow({ game, userId }: { game: GameAchievementProgress; user
             />
           </View>
 
-          <Text variant="micro" color="textMuted" numberOfLines={1}>
+          <Text variant="caption" color="textMuted" numberOfLines={1}>
             {game.unlocked}/{game.total} · {game.percent}%
             {game.lastUnlockedName ? ` · ${game.lastUnlockedName}` : ''}
           </Text>
@@ -343,7 +343,7 @@ function GameProgressRow({ game, userId }: { game: GameAchievementProgress; user
               <AchievementRow key={achievement.key} achievement={achievement} />
             ))
           ) : (
-            <Text variant="micro" color="textMuted">
+            <Text variant="caption" color="textMuted">
               No achievement detail synced for this game yet.
             </Text>
           )}
@@ -394,13 +394,13 @@ function AchievementRow({ achievement }: { achievement: ProviderAchievement }) {
 
       <View style={styles.achievementBody}>
         <Text
-          variant="caption"
+          variant="bodySmall"
           color={achievement.unlocked ? 'text' : 'textMuted'}
           numberOfLines={1}>
           {achievement.name}
         </Text>
 
-        <Text variant="micro" color="textMuted" numberOfLines={1}>
+        <Text variant="caption" color="textMuted" numberOfLines={1}>
           {achievement.unlockedAt
             ? new Date(achievement.unlockedAt).toLocaleDateString(undefined, {
                 day: 'numeric',

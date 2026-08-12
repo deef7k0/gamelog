@@ -15,6 +15,19 @@ export type PosterProps = {
   /** Posters in a scrolling row do not need shadows; detail heroes do. */
   elevated?: boolean;
   rounded?: keyof typeof Radius;
+  /**
+   * Fill the parent's height instead of deriving it from `width`.
+   *
+   * For a poster set beside a column of text that has to line up with it top
+   * and bottom — the review card. A fixed 2:3 height cannot do that: the text
+   * is however tall the text is, and the two only agree by accident. Filling
+   * lets the *text* set the height and crops the artwork to suit, which is what
+   * `contentFit="cover"` already does everywhere else in the app.
+   *
+   * The parent must give this a height to fill — a flex row leaves
+   * `alignItems` at `stretch` by default, which is exactly that.
+   */
+  fillHeight?: boolean;
 };
 
 /**
@@ -33,6 +46,7 @@ export function Poster({
   width,
   elevated = false,
   rounded = 'image',
+  fillHeight = false,
 }: PosterProps) {
   const theme = useTheme();
   const source = coverUrl ?? heroUrl ?? null;
@@ -53,7 +67,10 @@ export function Poster({
   return (
     <View
       style={[
-        { width, height, borderRadius: radius, backgroundColor: theme.surfaceElevated },
+        { width, borderRadius: radius, backgroundColor: theme.surfaceElevated },
+        // `flex: 1` rather than a computed height — the parent row's stretch
+        // supplies it. See `fillHeight`.
+        fillHeight ? styles.fill : { height },
         elevated ? Elevation.raised : Elevation.card,
       ]}>
       <View style={[styles.clip, { borderRadius: radius }]}>
@@ -78,6 +95,7 @@ export function Poster({
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   clip: { width: '100%', height: '100%', overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },

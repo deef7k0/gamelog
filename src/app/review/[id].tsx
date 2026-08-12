@@ -133,10 +133,13 @@ export default function ReviewScreen() {
         {/* The same block the feed card leads with, so a review looks like
             itself whether you meet it in a list or open it. */}
         <View style={styles.scoreBlock}>
+          {/* No status tag: this page only exists because there is a review to
+              read, and "PLAYED" above someone's writing about a game is a fact
+              the writing already implies. A bare log has no page here. */}
           <ReviewMeta
             score={review.rating}
             gameTitle={game?.title ?? 'Unknown game'}
-            status={review.status}
+            status={review.review ? null : review.status}
           />
         </View>
 

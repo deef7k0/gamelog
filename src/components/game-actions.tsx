@@ -6,6 +6,7 @@ import { Share, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import { parseReviewMetrics } from '@/constants/review-metrics';
 import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getListMembership, saveLog, toggleSingletonMembership } from '@/lib/api';
@@ -84,11 +85,22 @@ export function GameActions({ game, log }: GameActionsProps) {
   const setStatus = useMutation({
     mutationFn: async (status: 'playing' | 'played') => {
       if (!userId) throw new Error('You must be signed in.');
-      // Preserve whatever the user already recorded; only the status changes.
+      /*
+       * Preserve whatever the user already recorded; only the status changes.
+       *
+       * **Every column has to be restated, including the ones this button has
+       * no opinion about.** `saveLog` upserts the whole row, so a field left
+       * out is not "unchanged" — it is written as null. Omitting these two used
+       * to mean that marking a game you had reviewed as Played silently deleted
+       * the review's headline and its per-category scores, leaving an untitled
+       * body and a rating with nothing behind it.
+       */
       await saveLog(userId, {
         game,
         status,
         rating: log?.rating ?? null,
+        reviewMetrics: parseReviewMetrics(log?.review_metrics ?? null),
+        reviewTitle: log?.review_title ?? null,
         review: log?.review ?? null,
         completionPercent: log?.completion_percent ?? null,
         platinum: log?.platinum ?? false,

@@ -30,16 +30,23 @@ function openExternal(url: string) {
 }
 
 /**
- * A news item, laid out as a microblog post rather than a card.
+ * A news story, laid out as an editorial card.
  *
- * The X/Twitter structure: a source badge in an avatar slot on the left, then a
- * byline row, the headline, the summary, and a thumbnail tucked to the right of
- * the text instead of spanning the full width above it. Rows are separated by
- * hairlines rather than gaps between floating cards.
+ * Top to bottom: the key image full-bleed across the card, then a byline row
+ * (round outlet badge + the outlet's name in caps), then the headline at
+ * display weight, the standfirst in grey, and a `READ STORY` call to action on
+ * its own line at the foot.
  *
- * The practical gain is density — a full-bleed 16:9 image per story meant barely
- * two headlines per screen, and a news feed people scan wants far more than
- * that. The image earns a small slot, not the headline's space.
+ * This replaces a microblog row — a small round badge on the left, the headline
+ * beside it, and a 76px thumbnail tucked to the right of the text. That layout
+ * was chosen for density, and density is the wrong goal here: a news tab is
+ * read a story at a time, not scanned like a timeline, and shrinking the
+ * photograph to a stamp threw away the one thing that makes somebody stop.
+ *
+ * The proportions come from the reference: the image is the loudest element,
+ * the outlet is the quietest, and the headline sits between them carrying most
+ * of the card's weight. Every text row is left-aligned to the same edge, which
+ * is what makes a stack of these read as a publication rather than as a feed.
  */
 export function ArticleCard({ article }: { article: Article }) {
   const theme = useTheme();
@@ -48,52 +55,61 @@ export function ArticleCard({ article }: { article: Article }) {
   return (
     <PressableScale
       accessibilityRole="link"
-      accessibilityLabel={article.title}
+      accessibilityLabel={`${article.title} — ${article.source}`}
       onPress={() => openExternal(article.url)}
-      scaleTo={0.99}
-      style={styles.feedRow}>
-      <View style={[styles.sourceBadge, { backgroundColor: theme.surfaceElevated }]}>
-        <Text variant="h5" style={{ color: theme.primary }}>
-          {initial}
-        </Text>
-      </View>
+      scaleTo={0.98}>
+      <Card padded={false}>
+        {/* A story without art keeps its shape: the byline and headline simply
+            start at the top of the card instead of under a photograph. */}
+        {article.imageUrl && (
+          <Image
+            source={{ uri: article.imageUrl }}
+            style={[styles.storyImage, { backgroundColor: theme.surfaceElevated }]}
+            contentFit="cover"
+            transition={200}
+            accessibilityIgnoresInvertColors
+          />
+        )}
 
-      <View style={styles.feedBody}>
-        <View style={styles.metaRow}>
-          <Text variant="bodySmall" numberOfLines={1}>
-            {article.source}
-          </Text>
-          {article.publishedAt && (
-            <Text variant="caption" color="textMuted">
-              · {timeAgo(article.publishedAt)}
+        <View style={styles.storyBody}>
+          <View style={styles.bylineRow}>
+            <View style={[styles.outletBadge, { backgroundColor: theme.surfaceElevated }]}>
+              <Text variant="caption" style={{ color: theme.primary }}>
+                {initial}
+              </Text>
+            </View>
+
+            {/* `label` is the app's caps variant — uppercase and letterspaced
+                are baked into the token, so this is not shouting by hand. */}
+            <Text variant="label" color="textSecondary" numberOfLines={1} style={styles.outlet}>
+              {article.source}
             </Text>
-          )}
-        </View>
 
-        <View style={styles.feedContent}>
-          <View style={styles.feedText}>
-            <Text variant="h5" numberOfLines={3}>
-              {article.title}
-            </Text>
-
-            {article.summary && (
-              <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
-                {article.summary}
+            {article.publishedAt && (
+              <Text variant="caption" color="textMuted">
+                {timeAgo(article.publishedAt)}
               </Text>
             )}
           </View>
 
-          {article.imageUrl && (
-            <Image
-              source={{ uri: article.imageUrl }}
-              style={[styles.feedThumb, { backgroundColor: theme.surfaceElevated }]}
-              contentFit="cover"
-              transition={200}
-              accessibilityIgnoresInvertColors
-            />
+          <Text variant="h2" numberOfLines={3}>
+            {article.title}
+          </Text>
+
+          {article.summary && (
+            <Text variant="body" color="textSecondary" numberOfLines={3}>
+              {article.summary}
+            </Text>
           )}
+
+          {/* Not a button. The whole card is the tap target — this is the
+              affordance that says so, which is exactly how the reference
+              handles it. */}
+          <Text variant="label" style={[styles.readStory, { color: theme.text }]}>
+            Read story
+          </Text>
         </View>
-      </View>
+      </Card>
     </PressableScale>
   );
 }
@@ -193,18 +209,23 @@ export function EventCard({ event }: { event: GameEvent }) {
 }
 
 const styles = StyleSheet.create({
-  feedRow: { flexDirection: 'row', gap: Spacing.x12, paddingVertical: Spacing.x12 },
-  sourceBadge: {
-    width: 38,
-    height: 38,
+  storyImage: { width: '100%', aspectRatio: HeroAspectRatio },
+  /* 16 all round rather than the card's usual padding: this is a page of type,
+     and type wants a margin. */
+  storyBody: { padding: Spacing.x16, gap: Spacing.x12 },
+  bylineRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  outletBadge: {
+    width: 22,
+    height: 22,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  feedBody: { flex: 1, gap: Spacing.x4 },
-  feedContent: { flexDirection: 'row', gap: Spacing.x12, alignItems: 'flex-start' },
-  feedText: { flex: 1, gap: Spacing.x4 },
-  feedThumb: { width: 76, height: 76, borderRadius: Radius.image },
+  /* Takes the slack so the timestamp holds the right edge. */
+  outlet: { flex: 1 },
+  /* Set apart from the standfirst above it — it is an action, not another
+     paragraph, and the gap is the only thing saying so. */
+  readStory: { paddingTop: Spacing.x4 },
   articleImage: { width: '100%', aspectRatio: HeroAspectRatio },
   articleBody: { padding: Spacing.x16, gap: Spacing.x8 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },

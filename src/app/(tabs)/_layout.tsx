@@ -5,11 +5,11 @@ import { Elevation, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * Bottom navigation. Five tabs, icons above labels.
+ * Bottom navigation. Four tabs, icons above labels.
  *
  * Labels are shown, not hidden. An icon-only bar asks every new user to guess
- * what a newspaper glyph leads to; five words cost 14px of height and remove
- * the guessing entirely. Five is also the ceiling — a sixth destination means
+ * what a newspaper glyph leads to; four words cost 14px of height and remove
+ * the guessing entirely. Five is the ceiling — a sixth destination means
  * something belongs one level down, not that the bar should get denser.
  *
  * Selection is the accent blue, on both the glyph and the label. That is the
@@ -18,6 +18,11 @@ import { useTheme } from '@/hooks/use-theme';
  *
  * Notifications used to live here; it now opens from an icon in Home's header
  * instead, freeing the slot for News.
+ *
+ * **Creating is no longer a tab.** The bar is destinations only — the four
+ * things you can *be* looking at — and a composer is an action, not a place.
+ * `create` keeps its route (`href: null` only removes the button) so anything
+ * can push to it, but nothing currently does; see the note on the screen.
  */
 export default function TabsLayout() {
   const theme = useTheme();
@@ -69,20 +74,10 @@ export default function TabsLayout() {
         }}
       />
 
-      <Tabs.Screen
-        name="create"
-        options={{
-          title: 'New post',
-          tabBarAccessibilityLabel: 'Create',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'add-circle' : 'add-circle-outline'}
-              size={26}
-              color={color}
-            />
-          ),
-        }}
-      />
+      {/* Off the bar, still routable. `href: null` is Expo Router's way of
+          saying "this screen belongs to the group but is not a destination" —
+          the route file stays, so a push to `/create` still works. */}
+      <Tabs.Screen name="create" options={{ href: null, title: 'New post' }} />
 
       <Tabs.Screen
         name="news"

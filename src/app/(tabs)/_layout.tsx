@@ -42,7 +42,9 @@ export default function TabsLayout() {
           ...Elevation.overlay,
           backgroundColor: theme.surface,
           borderTopWidth: 0,
-          height: 68,
+          // Down from 68 with the rest of the chrome. The glyph is still 24 and
+          // the row still clears `TapTarget`; what went is the air around them.
+          height: 58,
           paddingTop: Spacing.x8,
           paddingBottom: Spacing.x8,
         },

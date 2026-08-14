@@ -184,6 +184,19 @@ poster slot; that is what the fallback is for.
   The same applies to `Radius`: DESIGN.md § 5 specifies 4–6px where the code
   still ships 12–24px.
 - **Elevation, not borders.** Reach for `Elevation.card` before a `borderWidth`.
+- **`Spacing.x*` names are step names, not dp values.** The ladder was
+  compressed to scale the chrome down — `x16` is 12, `x24` is 18, `x48` is 36.
+  Only `x4` still equals its name. Read the value in `constants/theme.ts`; never
+  infer it from the token name, and never "fix" a name to match its number.
+- **Artwork does not ride the ladder.** Cover, poster and case sizes are fixed dp
+  in their components (`BOX_ART_WIDTH`, `POSTER_WIDTH`, `RAIL_POSTER`, the case's
+  `WIDTHS`) precisely so retuning `Spacing` or `Type` moves the interface and
+  leaves the art where it is — the art is meant to be the largest thing on any
+  screen. Grid covers go through `gridItemWidth()`, which subtracts spacing from
+  the viewport, so tightening the ladder makes them *bigger*, which is the
+  intent. The game case is pinned twice over: its own widths, geometry,
+  `Type.caseTitle`/`caseEdition`, `Radius.caseImage`/`caseSpine`, its shadow and
+  even its two internal paddings are all literals.
 - **`<GameCase />` is for dedicated game pages only.** Game detail, log, review
   masthead, and future collection/shelf screens. It must never appear in a feed,
   review card, search result, notification, comment, list tile or any other

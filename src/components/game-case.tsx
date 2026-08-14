@@ -9,7 +9,7 @@ import {
   CASE_TEMPLATES,
   type CasePlatformKey,
 } from '@/constants/platform-cases';
-import { FontFamily, Spacing } from '@/constants/theme';
+import { FontFamily } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type GameCaseSize = 'small' | 'medium' | 'large';
@@ -236,7 +236,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.x8,
+    /* Literal 8, not `Spacing.x8`. The case is a depicted physical object with
+       fixed printed proportions, so none of its internal geometry may ride the
+       interface spacing ladder — that ladder was compressed to scale the chrome
+       down and would have moved this inset by 2dp along with it. Same reasoning
+       as `Type.caseTitle` and `Radius.caseImage` being pinned. */
+    paddingHorizontal: 8,
     transform: [{ rotate: '90deg' }],
   },
   spineTitle: { fontFamily: FontFamily.semibold, flexShrink: 1 },
@@ -248,7 +253,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingVertical: Spacing.x4,
+    // Literal 4 for the same reason as `spineText` above — the ladder's atom
+    // happens to still be 4, but the case must not depend on that holding.
+    paddingVertical: 4,
     alignItems: 'center',
   },
   editionText: { color: '#FFFFFF', letterSpacing: 1 },

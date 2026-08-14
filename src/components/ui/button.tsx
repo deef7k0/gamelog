@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, StyleSheet, Text, View, type PressableProps } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Elevation, Radius, Spacing, Type, withAlpha } from '@/constants/theme';
+import { Elevation, Radius, Spacing, TapTarget, Type, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -136,17 +136,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: Radius.control,
   },
+  /* Exactly `TapTarget`, not a magic 46. The padding above shrank with the
+     spacing ladder, so the floor is what sets the height now — and the floor is
+     the one number in here that must not move. */
   medium: {
     paddingVertical: Spacing.x12,
     paddingHorizontal: Spacing.x20,
-    minHeight: 46,
+    minHeight: TapTarget,
   },
-  /* Still 40, not 34: `small` is a size, not an excuse to go under the tap
-     target. The saving comes from padding, not from height. */
+  /* Still 36, not less: `small` is a size, not an excuse to shrink to nothing.
+     The saving comes from padding, not from height. */
   small: {
     paddingVertical: Spacing.x8,
     paddingHorizontal: Spacing.x16,
-    minHeight: 40,
+    minHeight: 36,
   },
   fullWidth: { alignSelf: 'stretch' },
   /* Dimmed rather than hidden — a disabled control still has to be readable

@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { forwardRef } from 'react';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import { Elevation, Radius, Spacing, Type } from '@/constants/theme';
+import { Elevation, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type TextFieldProps = TextInputProps & {
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
        and nothing in here (a glyph and a TextInput, both inset by padding)
        needs clipping to the corner radius. See DESIGN.md § 6.3. */
   },
-  shellSearch: { height: 56 },
+  shellSearch: { height: 48 },
   icon: { paddingLeft: Spacing.x16 },
   input: {
     flex: 1,
@@ -100,17 +100,17 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.x12,
     /* Size and family only, deliberately no `lineHeight`: on Android a
        lineHeight on a TextInput clips descenders and fights the vertical
-       centring the 48/56 min-heights are doing. */
+       centring the 44/48 min-heights are doing. */
     fontSize: Type.body.fontSize,
     fontFamily: Type.body.fontFamily,
-    minHeight: 48,
+    minHeight: TapTarget,
   },
-  /* Vertically centred rather than top-padded: a 56px bar with a single line of
+  /* Vertically centred rather than top-padded: a 48px bar with a single line of
      text in it should have that line on its midline. */
-  search: { paddingVertical: 0, minHeight: 56 },
+  search: { paddingVertical: 0, minHeight: 48 },
   withIcon: { paddingLeft: Spacing.x12 },
   multiline: {
-    minHeight: 120,
+    minHeight: 104,
     textAlignVertical: 'top',
     paddingTop: Spacing.x12,
   },

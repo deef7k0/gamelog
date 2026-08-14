@@ -194,16 +194,32 @@ export const Fonts = Platform.select({
  * is fixed: 4, 8, 12, 16, 20, 24, 32, 40, 48. A gap that is not on it is a bug,
  * not a decision.
  */
+/**
+ * Spacing ladder.
+ *
+ * ⚠️ **The names are step names, not dp values.** `x16` is "the sixteenth-step
+ * slot", and it currently resolves to 12. They were literal once; the ladder was
+ * compressed when the interface was scaled down so the artwork would out-weigh
+ * the chrome around it, and renaming ~470 call sites to chase the numbers would
+ * have been a far larger and riskier diff than the change itself. Read the value
+ * here, never infer it from the name. (Tailwind's `p-4` is 16px on the same
+ * principle.)
+ *
+ * `x4` is the atom and did not move — below 4 there is no meaningful gap.
+ * Everything above it lost roughly a quarter, which is where the "zoomed in"
+ * feeling actually lived: a 16dp page margin and 24dp between sections are what
+ * made a 74dp cover look like an incidental thumbnail.
+ */
 export const Spacing = {
   x4: 4,
-  x8: 8,
-  x12: 12,
-  x16: 16,
-  x20: 20,
-  x24: 24,
-  x32: 32,
-  x40: 40,
-  x48: 48,
+  x8: 6,
+  x12: 10,
+  x16: 12,
+  x20: 16,
+  x24: 18,
+  x32: 24,
+  x40: 30,
+  x48: 36,
 } as const;
 
 /**
@@ -265,30 +281,37 @@ export const Radius = {
  * recomputing its tracking.
  */
 export const Type = {
-  display: { fontSize: 32, lineHeight: 38, fontFamily: FontFamily.bold, letterSpacing: -0.64 },
-  h1: { fontSize: 28, lineHeight: 34, fontFamily: FontFamily.bold, letterSpacing: -0.42 },
-  h2: { fontSize: 22, lineHeight: 28, fontFamily: FontFamily.bold, letterSpacing: -0.22 },
-  h3: { fontSize: 18, lineHeight: 24, fontFamily: FontFamily.bold },
-  h4: { fontSize: 16, lineHeight: 22, fontFamily: FontFamily.bold },
-  h5: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.bold },
-  h6: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.bold, letterSpacing: 0.24 },
+  display: { fontSize: 26, lineHeight: 31, fontFamily: FontFamily.bold, letterSpacing: -0.52 },
+  h1: { fontSize: 23, lineHeight: 28, fontFamily: FontFamily.bold, letterSpacing: -0.35 },
+  h2: { fontSize: 19, lineHeight: 24, fontFamily: FontFamily.bold, letterSpacing: -0.19 },
+  h3: { fontSize: 16, lineHeight: 21, fontFamily: FontFamily.bold },
+  h4: { fontSize: 14, lineHeight: 19, fontFamily: FontFamily.bold },
+  h5: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.bold },
+  h6: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.bold, letterSpacing: 0.22 },
 
-  body: { fontSize: 15, lineHeight: 22, fontFamily: FontFamily.regular },
+  body: { fontSize: 13, lineHeight: 19, fontFamily: FontFamily.regular },
   /* Long-form reading — an article or review body, not UI copy. Deliberately
      looser than `body`: those two screens are the ones people actually read. */
-  prose: { fontSize: 17, lineHeight: 28, fontFamily: FontFamily.regular },
-  bodySmall: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.regular },
+  prose: { fontSize: 15, lineHeight: 24, fontFamily: FontFamily.regular },
+  bodySmall: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.regular },
 
-  caption: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.regular, letterSpacing: 0.22 },
+  /*
+   * 10 is the floor. Below this the metadata steps stop being small text and
+   * start being unreadable — iOS puts its legibility guidance at 11pt and this
+   * is already a point under it, which is affordable for a timestamp or a count
+   * and would not be for anything you have to actually read. Do not shrink
+   * these two further; take it out of the steps above instead.
+   */
+  caption: { fontSize: 10, lineHeight: 13, fontFamily: FontFamily.regular, letterSpacing: 0.2 },
   label: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 13,
     fontFamily: FontFamily.medium,
-    letterSpacing: 0.88,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
 
-  button: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.semibold },
+  button: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
 
   /*
    * Preserved — the physical game case keeps its own type. See DESIGN.md § 2.3.
@@ -312,10 +335,10 @@ export const Type = {
  * is one fact among several; `hero` is the headline number on a review page.
  */
 export const ScoreSizes = {
-  inline: 15,
-  medium: 22,
-  large: 32,
-  hero: 44,
+  inline: 13,
+  medium: 19,
+  large: 27,
+  hero: 38,
 } as const;
 
 /**

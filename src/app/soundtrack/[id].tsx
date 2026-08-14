@@ -163,7 +163,7 @@ export default function SoundtrackScreen() {
             {params.url && (
               <Text
                 variant="bodySmall"
-                color="primary"
+                color="primaryText"
                 onPress={() => Linking.openURL(params.url!).catch(() => {})}>
                 Listen in full on Apple Music
               </Text>
@@ -195,7 +195,11 @@ export default function SoundtrackScreen() {
               ])}>
               <View style={styles.trackNumber}>
                 {isCurrent ? (
-                  <Ionicons name={isPlaying ? 'pause' : 'play'} size={16} color={theme.primary} />
+                  <Ionicons
+                    name={isPlaying ? 'pause' : 'play'}
+                    size={16}
+                    color={theme.primaryText}
+                  />
                 ) : (
                   <Text variant="bodySmall" color="textMuted">
                     {item.trackNumber ?? '–'}

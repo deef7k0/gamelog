@@ -15,7 +15,8 @@ import { CastRail, GamePosterRail } from '@/components/game-rail';
 import { LogCard } from '@/components/log-card';
 import { SoundtrackAlbums } from '@/components/soundtrack-section';
 import { Button } from '@/components/ui/button';
-import { HeroArt } from '@/components/ui/hero-art';
+import { Ambience } from '@/components/ui/ambience';
+import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -23,8 +24,9 @@ import { Chip, ScoreBadge, SectionHeader } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
-import { STATUS_LABEL } from '@/constants/status';
-import { HeroAspectRatio, Radius, Spacing } from '@/constants/theme';
+import { STATUS_ICON, STATUS_LABEL, statusColor } from '@/constants/status';
+import { HeroAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getDiaryCount, getGameReviews, getMyLog } from '@/lib/api';
 import { getGameById, getSimilarTo, parseGameId } from '@/lib/games';
@@ -68,6 +70,17 @@ const CASE_MAX_WIDTH = 200;
 const CASE_OVERLAP_RATIO = 0.46;
 
 /**
+ * Where the ambient ramp goes fully opaque, as a fraction of its own height.
+ *
+ * The one number that has to be right in this composition. The wash is sized to
+ * `heroHeight / AMBIENCE_COVER`, so the ramp reaches opacity exactly on the
+ * hero's bottom edge — which is what hides that edge. The art therefore never
+ * appears to stop; it is already gone by the time it does. Change one of these
+ * two and the seam the old version had comes straight back.
+ */
+const AMBIENCE_COVER = 0.55;
+
+/**
  * A game's dedicated page.
  *
  * The masthead — hero art, physical case, score, actions — stays fixed while
@@ -78,7 +91,7 @@ const CASE_OVERLAP_RATIO = 0.46;
 export default function GameDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [tab, setTab] = useState<GameTab>('overview');
@@ -97,6 +110,8 @@ export default function GameDetailScreen() {
   // Also swallows the header's group gap, so the overlap is measured from the
   // hero's edge rather than from the gap below it.
   const caseOverlap = Math.round(caseHeightFor(caseWidth) * CASE_OVERLAP_RATIO) + Spacing.x24;
+  const heroHeight = heroHeightFor(width, windowHeight);
+  const ambienceHeight = Math.round(heroHeight / AMBIENCE_COVER);
 
   const game = useQuery({
     queryKey: ['game', id],
@@ -173,6 +188,21 @@ export default function GameDetailScreen() {
     staleTime: 30 * 60_000,
   });
 
+  /*
+   * The game's own hue, for the parts of this screen the screen itself draws.
+   *
+   * Read directly rather than through `useAccent()` because the provider that
+   * carries it to the children below is rendered *by* this component, and a
+   * component cannot consume a context it is itself the parent of. Everything
+   * inside `<AccentProvider>` — the tab bar, the buttons, the chips, the
+   * ambient wash — reads it the ordinary way.
+   *
+   * Resolves to the house blue while the query is in flight, which is what the
+   * loading state should be: the app's colour until there is a game to take one
+   * from.
+   */
+  const accent = useGameAccent(game.data?.coverUrl ?? game.data?.heroUrl, game.data?.genres);
+
   if (game.isLoading) {
     return (
       <Screen edges={[]}>
@@ -214,7 +244,16 @@ export default function GameDetailScreen() {
   const header = (
     <View style={styles.header}>
       <View style={styles.hero}>
-        <HeroArt uri={data.heroUrl} scrim />
+        <HeroArt uri={data.heroUrl} height={heroHeight} scrim fade={false} />
+      </View>
+
+      {/* One ramp over the artwork and on down the page, in the colour read out
+          of this game's own cover. It is a sibling *after* the hero so it paints
+          over it, and *before* the identity row so the case and the title stay
+          on top. Absolute, so the header's `gap` does not apply to it, and bled
+          out to the screen edges to cancel the header's own padding. */}
+      <View pointerEvents="none" style={[styles.ambience, { height: ambienceHeight }]}>
+        <Ambience coverAt={AMBIENCE_COVER} />
       </View>
 
       {/* Group 1 — identity, as one row: the boxed copy on the left standing in
@@ -290,9 +329,20 @@ export default function GameDetailScreen() {
         {logged && (
           <View style={styles.myLog}>
             <View style={styles.myLogHead}>
-              <Text variant="h5" color="primary">
-                {STATUS_LABEL[logged.status]}
-              </Text>
+              {/* The status in its own colour, with its own glyph. Four states
+                  that used to be one blue word — and the glyph is there so the
+                  state survives for a reader who cannot separate rust from
+                  green, which colour alone would not. */}
+              <View style={styles.statusRow}>
+                <Ionicons
+                  name={STATUS_ICON[logged.status]}
+                  size={14}
+                  color={statusColor(logged.status, theme)}
+                />
+                <Text variant="h5" style={{ color: statusColor(logged.status, theme) }}>
+                  {STATUS_LABEL[logged.status]}
+                </Text>
+              </View>
               {logged.platinum && <Ionicons name="trophy" size={16} color={theme.platinum} />}
             </View>
             {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
@@ -325,8 +375,11 @@ export default function GameDetailScreen() {
         accessibilityRole="button"
         accessibilityLabel="Open your diary for this game"
         scaleTo={0.98}
-        style={StyleSheet.flatten([styles.diaryButton, { borderColor: theme.border }])}>
-        <Ionicons name="book-outline" size={18} color={theme.primary} />
+        style={StyleSheet.flatten([
+          styles.diaryButton,
+          { borderColor: withAlpha(accent.color, 0.28) },
+        ])}>
+        <Ionicons name="book-outline" size={18} color={accent.onSurface} />
         <View style={styles.diaryText}>
           <Text variant="h5">Diary</Text>
           <Text variant="caption" color="textMuted">
@@ -443,7 +496,7 @@ export default function GameDetailScreen() {
                         scaleTo={0.95}
                         style={StyleSheet.flatten([
                           styles.studioChip,
-                          { borderColor: theme.border },
+                          { borderColor: withAlpha(accent.color, 0.28) },
                         ])}>
                         <Text variant="bodySmall">{company.name}</Text>
                         <Text variant="caption" color="textMuted">
@@ -520,7 +573,10 @@ export default function GameDetailScreen() {
                     router.push({ pathname: '/achievements/[id]', params: { id: data.id } })
                   }
                   scaleTo={0.98}
-                  style={StyleSheet.flatten([styles.linkRow, { borderColor: theme.border }])}>
+                  style={StyleSheet.flatten([
+                    styles.linkRow,
+                    { borderColor: withAlpha(accent.color, 0.28) },
+                  ])}>
                   <Text variant="h5">View all {achievementTotal}</Text>
                   <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
                 </PressableScale>
@@ -529,7 +585,7 @@ export default function GameDetailScreen() {
 
             {data.storeUrl && (
               <ExternalLink href={data.storeUrl as Href & string}>
-                <Text variant="h5" color="primary">
+                <Text variant="h5" style={{ color: accent.onSurface }}>
                   Open on {data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}
                 </Text>
               </ExternalLink>
@@ -540,28 +596,35 @@ export default function GameDetailScreen() {
   }
 
   return (
-    <Screen edges={[]}>
-      {/* Transparency, the backdrop ramp and the shadow are all global now —
-          see the root layout. Only the title is per-screen. */}
-      <Stack.Screen options={{ title: data.title }} />
+    /* Everything below here runs on this game's colour rather than the app's.
+       The provider is what makes that a one-line change instead of a prop on
+       every control: the tab bar, the log button, the chips and the ambient
+       wash all read the accent from context. */
+    <AccentProvider artwork={data.coverUrl ?? data.heroUrl} genres={data.genres}>
+      <Screen edges={[]}>
+        {/* Transparency, the backdrop ramp and the shadow are all global now —
+            see the root layout. Only the title is per-screen. */}
+        <Stack.Screen options={{ title: data.title }} />
 
-      {/* One FlatList with a single item: the tab bar has to scroll away with
-          the masthead, and nesting a ScrollView inside a ScrollView would break
-          that. The tab content itself is short enough not to need windowing. */}
-      <FlatList
-        data={[null]}
-        keyExtractor={() => 'body'}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        ListHeaderComponent={
-          <>
-            {header}
-            <TabBar tabs={TABS} value={tab} onChange={setTab} />
-          </>
-        }
-        renderItem={() => renderTab()}
-      />
-    </Screen>
+        {/* One FlatList with a single item: the tab bar has to scroll away with
+            the masthead, and nesting a ScrollView inside a ScrollView would
+            break that. The tab content itself is short enough not to need
+            windowing. */}
+        <FlatList
+          data={[null]}
+          keyExtractor={() => 'body'}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          ListHeaderComponent={
+            <>
+              {header}
+              <TabBar tabs={TABS} value={tab} onChange={setTab} />
+            </>
+          }
+          renderItem={() => renderTab()}
+        />
+      </Screen>
+    </AccentProvider>
   );
 }
 
@@ -595,6 +658,10 @@ const styles = StyleSheet.create({
    */
   header: { gap: Spacing.x24, paddingHorizontal: Spacing.x16, marginBottom: Spacing.x24 },
   hero: { marginHorizontal: -Spacing.x16 },
+  /* Bled past the header's horizontal padding so the ramp reaches both screen
+     edges — a gradient that stopped short of them would reintroduce exactly the
+     vertical seams this replaced. */
+  ambience: { position: 'absolute', top: 0, left: -Spacing.x16, right: -Spacing.x16 },
   /* `marginTop` is supplied inline — it scales with the case.
      `flex-end` so the two columns share a baseline at the bottom: the case is a
      fixed shape and the copy is not, and aligning their tops would leave the
@@ -603,6 +670,7 @@ const styles = StyleSheet.create({
   identityText: { flex: 1, gap: Spacing.x8, paddingBottom: Spacing.x4 },
   record: { gap: Spacing.x12 },
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   myLog: { gap: Spacing.x8 },
   myLogHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

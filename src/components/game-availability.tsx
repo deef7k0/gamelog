@@ -104,7 +104,7 @@ export function GamePrice({ gameId, selected }: { gameId: string; selected: Plat
           }}
           scaleTo={0.98}
           style={styles.storeLink}>
-          <Text variant="bodySmall" color="primary">
+          <Text variant="bodySmall" color="primaryText">
             {meta.storeLabel}
           </Text>
           <Ionicons name="open-outline" size={13} color={theme.text} />

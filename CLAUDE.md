@@ -76,11 +76,17 @@ src/
     new-list, edit-profile (modals)
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
-  constants/         theme tokens, log-status vocabulary
+                     ui/soft-glow  Skia radial glow (+ .web.tsx CSS fallback)
+  constants/         theme tokens, log-status vocabulary, the identity ramp
+                     (identity.ts: genre → hue) and rarity bands
   hooks/
+    use-accent          the accent in force: house blue, or a game's own colour
   lib/
+    color.ts         contrast, mixing, luminance-preserving tint, readable ink
+    artwork-color.ts dominant hue of a cover, decoded from the real pixels
     games/           IGDB (the catalogue) + Steam/RAWG/itch id lookup only,
-                     plus sort.ts for in-memory list ordering
+                     sort.ts for in-memory ordering, recommend.ts for
+                     "Games for you" (your logs → IGDB similarity)
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements
       feed.ts        the post+log union feed
@@ -135,25 +141,82 @@ poster slot; that is what the fallback is for.
   palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`
   returns `Colors[APP_SCHEME]`. This app is a dark room by design and a light
   counterpart would be a second product.
-- **One accent: PlayStation blue `#0070CC`.** `primary` holds it, `accent` is an
-  alias of the same value. It appears on selected navigation, primary buttons,
-  active states, badges and links — and nowhere else. Roughly 90% of any screen
-  is greyscale so the blue stays genuinely directive and the cover art stays the
-  only other source of colour. Everything else separates by surface step
-  (`background` → `surface` → `surfaceElevated` → `surfaceSelected`) plus a
-  hairline `border`. Do not introduce a second coloured control; on a screen made
-  of cover art it reads as a second, louder piece of artwork.
-- **Three colours carry meaning, and they are data rather than chrome.**
-  `scoreColor()` in `constants/score.ts` returns `success` / `accent` / `danger`
-  for a positive / neutral / negative verdict. Be aware that a second, separate
-  ramp — `scoreHigh` / `scoreMid` / `scoreLow` — also exists in the palette and is
-  used by `components/ui/surface.tsx`; the two disagree at the neutral band (blue
-  vs amber `#F5A524`). Unresolved — see DESIGN.md § 26.2 before adding a third.
+- **The room is dark; the light comes from the games in it.** The chrome is
+  still greyscale — surfaces, rules, body copy, every control that is not the
+  primary one — and separation is still by surface step (`background` →
+  `surface` → `surfaceElevated` → `surfaceSelected`) plus a hairline `border`.
+  Colour enters from *content*, in exactly three ways. A colour that is none of
+  these three is decoration and does not belong:
+  1. **Identity — read from the box art.** `lib/artwork-color.ts` fetches the
+     game's IGDB `t_thumb` (90×90, ~3 KB), decodes it with `jpeg-js` (pure JS, so
+     it works in Expo Go where a native module would not) and returns the
+     dominant *hue*. Watch Dogs 2 resolves blue, DOOM red, Cyberpunk yellow.
+     That hue lights the page: the ambient ramp, the active tab, the primary
+     button, the links. Cached in `AsyncStorage` — box art does not change.
+     **The ten-hue ramp (`identityEmber` … `identityMagenta`) is now the
+     fallback**, used when extraction fails or when no hue dominates (Celeste's
+     cover holds only 20% on its best hue, under the confidence floor). Do not
+     delete `constants/identity.ts`: without it those games have no colour.
+  2. **Meaning.** Score, log status, achievement rarity and tier are *data* —
+     they alias onto the same ten hues rather than introducing new ones. Add a
+     meaning by aliasing, never by inventing a hex.
+  3. **Atmosphere.** `<Ambience>` is a *gradient*, never an image. The first
+     version laid a blurred copy of the cover behind the page and it was visibly
+     broken — a bitmap has edges, and its top edge cut across the key art while
+     its bottom edge ended mid-screen, with the hero's own fade closing on an
+     opaque background in between. Three hard horizontal seams in one screenful.
+     A gradient has no edges; that is the whole argument. **Never put an image
+     behind a page again to get colour out of it.**
+- **`primary` is the house colour and `primaryText` is its legible twin.**
+  `#0070CC` is 3.74:1 on the page — correct under white on a filled button,
+  below AA the moment it becomes a word. Blue *fills* use `primary`; blue *type*
+  uses `primaryText`. The same split is computed for any hue by `accentRoles()`,
+  which returns `color` (fill) and `onSurface` (type).
+- **Accent shifts by screen, through context, never by prop.** `useAccent()`
+  returns the accent in force and defaults to the house blue, so a shared
+  primitive reads it unconditionally. `<AccentProvider genres={…}>` wraps the
+  four screens that are about one game — its page, its log form, its review, its
+  achievements. **The feed, search, news, profile and the bottom tab bar stay on
+  the house blue on purpose**: twenty games in a list is twenty hues, and colour
+  identifies a game only when you are looking at that game.
+- **A tinted surface is not a lighter one.** `tint()` in `lib/color.ts` mixes the
+  hue in and restores the original luminance, so a tinted card measures the same
+  as the grey it replaced (max drift 0.07, no AA verdict flips at any hue). Never
+  reach for a plain `mix()` toward a hue for a surface — every hue in the ramp is
+  far brighter than `#1C1C1C`, so a naive 7% mix reorders the surface steps.
+- **Verify colour with `lib/color.ts`, not with your eyes.** `contrast()`,
+  `ensureContrast()` and `readableInk()` exist so a value that is *not* ours — a
+  platform's brand hex, a provider's tag — is lifted to 4.5:1 before it ships.
+  Xbox's official `#107C10` is 2.0:1 on near-black; shipping it raw is an
+  unreadable authenticity.
+- **One score ramp.** `scoreColor()` in `constants/score.ts` returns
+  `scoreHigh` / `scoreMid` / `scoreLow`. The old second ramp is gone: it used to
+  return `success` / `accent` / `danger` while `<ScoreBadge>` used the score
+  tokens on identical thresholds, so a 55 was amber in a metadata row and blue
+  in a review. Amber won — a mixed game is mixed, and the house accent made a
+  middling verdict look endorsed.
+- **Colour is never the only carrier.** Every status, rarity and score ships its
+  word or its glyph beside the hue (`STATUS_ICON`, `RARITY_BANDS.label`,
+  `labelFor`). `statusBacklog` is deliberately pale because the dusty violet it
+  replaced collapsed into `statusPlayed` under simulated protanopia.
 - **Selection is one step lighter, never a colour.** Any control with an on/off
   state goes `surfaceElevated` → `surfaceSelected` for the fill, `border` →
   `borderStrong` for the edge, and `textSecondary`/`textMuted` → `text` for the
   label. `<SortBar>`, the search mode switch, tag pickers and RSVP buttons all
-  follow it; a new one should too.
+  follow it; a new one should too. The exceptions are the two controls that
+  answer "where am I" rather than "what is set": `<TabBar>` and the bottom nav,
+  which take the accent.
+- **Metadata chips stay grey.** Platform and genre chips are deliberately
+  uncoloured: they were tinted once and it read as confetti under artwork that is
+  already the loudest thing on the page. `<Chip color={…}>` exists for the cases
+  where the colour *is* the datum — a rarity band, a status — and tints the label
+  only, never the fill. A run of filled colour capsules reads as a row of buttons
+  demanding to be pressed, and chips are not buttons.
+- **The ambient effect belongs on a game's own page and the review, nowhere
+  else.** Not on rails, grids, feeds or any screen showing several games side by
+  side: one glow per screen is atmosphere, eight is a lava lamp. `<Poster>`
+  deliberately has no coloured-shadow prop — it was added, it looked like a
+  sticker, it was removed.
 - **Buttons are `<Button>` and `<IconButton>`.** Every interactive rectangle is
   `Radius.control` — that shared shape is most of what makes them a family, so
   `Radius.pill` is reserved for progress tracks, badges, avatar rings and
@@ -297,6 +360,22 @@ Port snippets that way rather than installing DOM libraries — `motion` and
 `tailwind-merge` would bundle and then do nothing.
 
 ## Gotchas
+
+- **Skia works in Expo Go, but only at the pinned version.** `@shopify/react-native-skia`
+  is bundled with Expo Go for SDK 57 at exactly 2.6.2, which is what
+  `package.json` holds. Install it with `npx expo install`, never a bare
+  `npm install` — a newer version is a native mismatch Expo Go cannot load, and
+  the failure is at runtime, not at build.
+- **Skia on the web needs CanvasKit, so it is not used there.** The browser needs
+  `LoadSkiaWeb()` and a multi-megabyte WASM binary before a single Skia
+  component renders, which is a real cost for a real web target (`app.json` sets
+  `web.output: 'static'`). `ui/soft-glow.web.tsx` is a CSS-radial-gradient
+  fallback that Metro resolves automatically; a verified web export contains no
+  CanvasKit at all. Any new Skia component needs the same treatment.
+- **A page-wide backdrop goes in `<Screen backdrop>`, not in its children.**
+  The safe-area inset is applied to the container children sit in, so even an
+  `absoluteFill` child begins below the status bar and ends up drawing a hard
+  line across it. The `backdrop` slot renders outside the inset.
 
 - **Never `import` `expo-notifications` at module scope.** Its entry point pulls
   in `DevicePushTokenAutoRegistration.fx`, a side-effect module that registers a

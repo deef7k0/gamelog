@@ -75,7 +75,7 @@ export function ListTile({ list }: { list: ListSummary }) {
             )}
             {list.kind === 'tier' && (
               <View style={styles.metaItem}>
-                <Ionicons name="layers" size={11} color={theme.accent} />
+                <Ionicons name="layers" size={11} color={theme.primaryText} />
                 <Text variant="caption" style={{ color: theme.accent }}>
                   Tier list
                 </Text>

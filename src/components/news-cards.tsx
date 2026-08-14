@@ -195,7 +195,7 @@ export function EventCard({ event }: { event: GameEvent }) {
         {event.liveStreamUrl && (
           <Text
             variant="bodySmall"
-            color="primary"
+            color="primaryText"
             onPress={() => openExternal(event.liveStreamUrl!)}>
             Watch the stream
           </Text>

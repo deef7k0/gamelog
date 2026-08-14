@@ -92,3 +92,22 @@ export function displayNameFor(
   if (!profile) return 'Someone';
   return profile.display_name?.trim() || profile.username || 'Someone';
 }
+
+/**
+ * "Good morning" / "Good afternoon" / "Good evening" / "Good night".
+ *
+ * Four bands rather than the usual three. "Good evening" at 2am is the kind of
+ * small wrongness that makes an app feel like it was not built for the person
+ * using it — and a game-logging app is used at 2am more than most, because
+ * finishing something at 2am is exactly when you go and log it.
+ *
+ * Takes the clock as an argument so it can be tested without mocking Date.
+ */
+export function greetingFor(now: Date = new Date()): string {
+  const hour = now.getHours();
+  if (hour < 5) return 'Good night';
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  if (hour < 22) return 'Good evening';
+  return 'Good night';
+}

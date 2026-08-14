@@ -37,7 +37,12 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
     <View style={styles.section}>
       <View style={styles.head}>
         <View style={styles.headText}>
-          <Text variant="h4">{title}</Text>
+          {/* `h2`, not `h4`. A section heading has to win against the artwork
+              directly under it, and at 14px bold it was losing to every cover
+              on the page — the bands read as a continuous scroll with labels
+              rather than as separate sections. 19px bold is the step where the
+              heading reads first. */}
+          <Text variant="h2">{title}</Text>
           {subtitle && (
             <Text variant="bodySmall" color="textMuted">
               {subtitle}
@@ -52,10 +57,10 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
               accessibilityLabel={`See all ${title.toLowerCase()}`}
               scaleTo={0.96}
               style={styles.seeAll}>
-              <Text variant="bodySmall" color="primary">
+              <Text variant="bodySmall" color="primaryText">
                 See all
               </Text>
-              <Ionicons name="chevron-forward" size={14} color={theme.primary} />
+              <Ionicons name="chevron-forward" size={14} color={theme.primaryText} />
             </PressableScale>
           </Link>
         )}

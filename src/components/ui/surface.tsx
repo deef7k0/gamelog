@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
+import { scoreColor } from '@/constants/score';
 import { Elevation, Radius, Spacing, type ThemeColor } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
 // ---------------------------------------------------------------------------
@@ -17,6 +19,18 @@ export type CardProps = {
    */
   elevated?: boolean;
   padded?: boolean;
+  /**
+   * Take the screen's accent into the card's own fill.
+   *
+   * For a card on a page that belongs to one game — its About block, its
+   * achievement summary. The tint carries the hue at the *same lightness* as
+   * the grey it replaces (see `accentRoles`), so this changes what the card
+   * looks like and nothing about what it can hold.
+   *
+   * Off by default and off everywhere outside a game's own screens: a feed of
+   * ten tinted cards is a colour chart, not a feed.
+   */
+  tinted?: boolean;
   style?: ViewStyle | ViewStyle[];
 };
 
@@ -32,8 +46,23 @@ export type CardProps = {
  * 6px corners and 16px of padding, both fixed. A card that needs different
  * numbers is a different component.
  */
-export function Card({ children, elevated = false, padded = true, style }: CardProps) {
+export function Card({
+  children,
+  elevated = false,
+  padded = true,
+  tinted = false,
+  style,
+}: CardProps) {
   const theme = useTheme();
+  const accent = useAccent();
+
+  const fill = tinted
+    ? elevated
+      ? accent.elevated
+      : accent.surface
+    : elevated
+      ? theme.surfaceElevated
+      : theme.surface;
 
   /*
    * Two views on purpose. Android's `elevation` is clipped by `overflow:
@@ -43,13 +72,7 @@ export function Card({ children, elevated = false, padded = true, style }: CardP
    * Android only. See DESIGN.md § 6.3.
    */
   return (
-    <View
-      style={[
-        styles.card,
-        Elevation.card,
-        { backgroundColor: elevated ? theme.surfaceElevated : theme.surface },
-        style,
-      ]}>
+    <View style={[styles.card, Elevation.card, { backgroundColor: fill }, style]}>
       <View style={[styles.cardClip, padded && styles.cardPadded]}>{children}</View>
     </View>
   );
@@ -68,6 +91,17 @@ export type ChipProps = {
   tone?: 'neutral' | 'active';
   /** Leading glyph, usually an icon or an emoji. */
   icon?: ReactNode;
+  /**
+   * Override the chip's ink with a specific colour — a status, a rarity, a
+   * platform's own brand.
+   *
+   * The *label* takes the colour; the fill stays a neutral surface step. That
+   * asymmetry is the rule for every coloured chip in the app: a run of filled
+   * colour capsules reads as a row of buttons demanding to be pressed, and
+   * chips are not buttons. The pill shape is already saying "metadata" — the
+   * colour only has to say *which*.
+   */
+  color?: string | null;
 };
 
 /**
@@ -86,19 +120,24 @@ export type ChipProps = {
  * discrete object sitting on whatever is behind it, and a flat capsule on a
  * lifted card reads as a hole rather than a tag.
  */
-export function Chip({ label, tone = 'neutral', icon }: ChipProps) {
+export function Chip({ label, tone = 'neutral', icon, color }: ChipProps) {
   const theme = useTheme();
+  const accent = useAccent();
   const active = tone === 'active';
+
+  /* An explicit colour wins over `active`, because it is the more specific
+     claim: "this chip is Legendary" outranks "this chip is selected". */
+  const ink = color ?? (active ? accent.onSurface : theme.textSecondary);
 
   return (
     <View
       style={[
         styles.chip,
         Elevation.control,
-        { backgroundColor: active ? theme.primaryMuted : theme.surfaceSelected },
+        { backgroundColor: active ? accent.wash : theme.surfaceSelected },
       ]}>
       {icon}
-      <Text variant="bodySmall" color={active ? 'primary' : 'textSecondary'} numberOfLines={1}>
+      <Text variant="bodySmall" style={{ color: ink }} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -135,6 +174,10 @@ export function SectionHeader({ title, action }: SectionHeaderProps) {
  * characters in an outlined capsule made a number look like a control you could
  * press. See `ScoreNumber` in `ui/score` — this is the same idea sized for a
  * metadata row.
+ *
+ * The colour comes from `scoreColor` rather than an inline ramp. It used to
+ * carry its own copy on identical thresholds, which is how the app ended up
+ * showing a 55 as amber here and blue in a review masthead.
  */
 export function ScoreBadge({
   score,
@@ -144,10 +187,11 @@ export function ScoreBadge({
   size?: 'small' | 'medium';
 }) {
   const theme = useTheme();
-  const tone = score >= 70 ? theme.scoreHigh : score >= 45 ? theme.scoreMid : theme.scoreLow;
 
   return (
-    <Text variant={size === 'small' ? 'bodySmall' : 'h5'} style={{ color: tone }}>
+    <Text
+      variant={size === 'small' ? 'bodySmall' : 'h5'}
+      style={{ color: scoreColor(score, theme) }}>
       {Math.round(score)}
     </Text>
   );

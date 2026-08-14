@@ -153,8 +153,8 @@ export function SteamSection({
               onPress={() => Linking.openURL(account.profileUrl!).catch(() => undefined)}
               scaleTo={0.95}>
               <View style={styles.linkRow}>
-                <Ionicons name="open-outline" size={13} color={theme.primary} />
-                <Text variant="caption" color="primary">
+                <Ionicons name="open-outline" size={13} color={theme.primaryText} />
+                <Text variant="caption" color="primaryText">
                   Steam profile
                 </Text>
               </View>
@@ -250,7 +250,7 @@ export function SteamSection({
               href={{ pathname: '/gaming-achievements/[id]', params: { id: profileId } }}
               asChild>
               <PressableScale accessibilityRole="button" scaleTo={0.94}>
-                <Text variant="caption" color="primary">
+                <Text variant="caption" color="primaryText">
                   See all
                 </Text>
               </PressableScale>
@@ -305,7 +305,7 @@ export function SteamSection({
           action={
             <Link href={{ pathname: '/gaming-inventory/[id]', params: { id: profileId } }} asChild>
               <PressableScale accessibilityRole="button" scaleTo={0.94}>
-                <Text variant="caption" color="primary">
+                <Text variant="caption" color="primaryText">
                   See all
                 </Text>
               </PressableScale>

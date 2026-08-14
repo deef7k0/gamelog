@@ -60,14 +60,22 @@ export function clampScore(score: number): number {
  * Deliberately a three-stop ramp rather than a per-band palette: fifteen
  * distinct colours would be noise, and the tone is what readers actually parse
  * at a glance.
+ *
+ * **One ramp, and this is it.** This function used to return
+ * `success`/`accent`/`danger` while `<ScoreBadge>` reached for
+ * `scoreHigh`/`scoreMid`/`scoreLow` on identical thresholds, so a 55 was amber
+ * in a metadata row and blue in a review — the two disagreed on the neutral
+ * band only, which is the band where the reader most needs the colour to mean
+ * something. The score tokens won: a mixed game is *mixed*, and rendering it in
+ * the house accent made a middling verdict look endorsed by the app.
  */
 export function scoreColor(score: number, theme: ThemePalette): string {
   switch (bandFor(score).tone) {
     case 'positive':
-      return theme.success;
+      return theme.scoreHigh;
     case 'neutral':
-      return theme.accent;
+      return theme.scoreMid;
     case 'negative':
-      return theme.danger;
+      return theme.scoreLow;
   }
 }

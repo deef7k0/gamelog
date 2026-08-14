@@ -9,7 +9,9 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Card } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import { rarityFor } from '@/constants/rarity';
+import { Radius, Spacing, withAlpha } from '@/constants/theme';
+import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import {
   cacheGameAchievements,
@@ -39,6 +41,8 @@ export default function AchievementsScreen() {
     queryFn: () => getAchievementsForGame(id!, userId ?? null),
     enabled: !!id,
   });
+
+  const accent = useGameAccent(game.data?.coverUrl ?? game.data?.heroUrl, game.data?.genres);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['game-achievements', id] });
@@ -101,144 +105,168 @@ export default function AchievementsScreen() {
   const error = load.error ?? sync.error ?? toggle.error;
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: game.data?.title ?? 'Achievements' }} />
+    <AccentProvider artwork={game.data?.coverUrl ?? game.data?.heroUrl} genres={game.data?.genres}>
+      <Screen edges={['bottom']} insetHeader>
+        <Stack.Screen options={{ title: game.data?.title ?? 'Achievements' }} />
 
-      <FlatList
-        data={list}
-        keyExtractor={(entry) => entry.id}
-        contentContainerStyle={list.length === 0 ? styles.emptyContent : styles.content}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          list.length > 0 ? (
-            <View style={styles.header}>
-              <Card>
-                <View style={styles.progressRow}>
-                  <View style={styles.progressText}>
-                    <Text variant="h3">
-                      {unlocked} / {list.length}
-                    </Text>
-                    <Text variant="bodySmall" color="textMuted">
-                      {list.length > 0 ? Math.round((unlocked / list.length) * 100) : 0}% complete
-                    </Text>
+        <FlatList
+          data={list}
+          keyExtractor={(entry) => entry.id}
+          contentContainerStyle={list.length === 0 ? styles.emptyContent : styles.content}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            list.length > 0 ? (
+              <View style={styles.header}>
+                <Card>
+                  <View style={styles.progressRow}>
+                    <View style={styles.progressText}>
+                      <Text variant="h3">
+                        {unlocked} / {list.length}
+                      </Text>
+                      <Text variant="bodySmall" color="textMuted">
+                        {list.length > 0 ? Math.round((unlocked / list.length) * 100) : 0}% complete
+                      </Text>
+                    </View>
+                    {unlocked === list.length && list.length > 0 && (
+                      <Ionicons name="trophy" size={28} color={theme.platinum} />
+                    )}
                   </View>
-                  {unlocked === list.length && list.length > 0 && (
-                    <Ionicons name="trophy" size={28} color={theme.platinum} />
-                  )}
-                </View>
 
-                <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
-                  <View
-                    style={[
-                      styles.fill,
-                      {
-                        backgroundColor: theme.success,
-                        width: `${list.length ? (unlocked / list.length) * 100 : 0}%`,
-                      },
-                    ]}
+                  {/* The bar fills in the game's own colour rather than a
+                    generic green. Completion is not a pass/fail result — it is
+                    progress through *this* game, and the page it lives on is
+                    already that colour. */}
+                  <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
+                    <View
+                      style={[
+                        styles.fill,
+                        {
+                          backgroundColor: accent.color,
+                          width: `${list.length ? (unlocked / list.length) * 100 : 0}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </Card>
+
+                {canSync && (
+                  <Button
+                    title={steamId ? 'Sync from Steam' : 'Link SteamID to sync'}
+                    variant="secondary"
+                    onPress={() => sync.mutate()}
+                    loading={sync.isPending}
+                    disabled={!steamId}
+                    fullWidth
                   />
-                </View>
-              </Card>
+                )}
 
-              {canSync && (
-                <Button
-                  title={steamId ? 'Sync from Steam' : 'Link SteamID to sync'}
-                  variant="secondary"
-                  onPress={() => sync.mutate()}
-                  loading={sync.isPending}
-                  disabled={!steamId}
-                  fullWidth
-                />
-              )}
-
-              {sync.isSuccess && (
-                <Text variant="bodySmall" color="success">
-                  Synced {sync.data.unlocked} of {sync.data.total} achievements from Steam.
-                </Text>
-              )}
-
-              {error && (
-                <Text variant="bodySmall" color="danger">
-                  {error instanceof Error ? error.message : 'Something went wrong.'}
-                </Text>
-              )}
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => {
-          const isUnlocked = !!item.unlocked_at;
-          return (
-            <PressableScale
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isUnlocked }}
-              disabled={!userId || toggle.isPending}
-              onPress={() => toggle.mutate({ achievementId: item.id, unlocked: !isUnlocked })}
-              scaleTo={0.99}
-              style={[styles.row, { borderTopColor: theme.border }]}>
-              {item.icon_url ? (
-                <Image
-                  source={{ uri: item.icon_url }}
-                  style={[
-                    styles.icon,
-                    { backgroundColor: theme.surfaceElevated, opacity: isUnlocked ? 1 : 0.35 },
-                  ]}
-                  contentFit="cover"
-                  transition={150}
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                <View style={[styles.icon, { backgroundColor: theme.surfaceElevated }]}>
-                  <Ionicons
-                    name="medal-outline"
-                    size={20}
-                    color={isUnlocked ? theme.accent : theme.textMuted}
-                  />
-                </View>
-              )}
-
-              <View style={styles.rowBody}>
-                <Text variant="h5" color={isUnlocked ? 'text' : 'textSecondary'}>
-                  {item.name}
-                </Text>
-                {item.description && (
-                  <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
-                    {item.description}
+                {sync.isSuccess && (
+                  <Text variant="bodySmall" color="success">
+                    Synced {sync.data.unlocked} of {sync.data.total} achievements from Steam.
                   </Text>
                 )}
-                {item.global_percent !== null && (
-                  <Text variant="caption" color="textMuted">
-                    {item.global_percent.toFixed(1)}% of players
+
+                {error && (
+                  <Text variant="bodySmall" color="danger">
+                    {error instanceof Error ? error.message : 'Something went wrong.'}
                   </Text>
                 )}
               </View>
+            ) : null
+          }
+          renderItem={({ item }) => {
+            const isUnlocked = !!item.unlocked_at;
+            return (
+              <PressableScale
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isUnlocked }}
+                disabled={!userId || toggle.isPending}
+                onPress={() => toggle.mutate({ achievementId: item.id, unlocked: !isUnlocked })}
+                scaleTo={0.99}
+                style={[
+                  styles.row,
+                  { borderTopColor: isUnlocked ? withAlpha(accent.color, 0.24) : theme.border },
+                ]}>
+                {item.icon_url ? (
+                  <Image
+                    source={{ uri: item.icon_url }}
+                    style={[
+                      styles.icon,
+                      { backgroundColor: theme.surfaceElevated, opacity: isUnlocked ? 1 : 0.35 },
+                    ]}
+                    contentFit="cover"
+                    transition={150}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <View style={[styles.icon, { backgroundColor: theme.surfaceElevated }]}>
+                    <Ionicons
+                      name="medal-outline"
+                      size={20}
+                      color={isUnlocked ? accent.onSurface : theme.textMuted}
+                    />
+                  </View>
+                )}
 
-              <Ionicons
-                name={isUnlocked ? 'checkmark-circle' : 'ellipse-outline'}
-                size={22}
-                color={isUnlocked ? theme.success : theme.borderStrong}
-              />
-            </PressableScale>
-          );
-        }}
-        ListEmptyComponent={
-          <EmptyState
-            title="No achievements loaded"
-            message={
-              isSteamGame
-                ? 'Fetch this game’s achievement list from Steam, then tick off the ones you have earned.'
-                : 'This provider does not publish achievement data. IGDB games have none; try the Steam or RAWG version of this game.'
-            }
-            action={
-              <Button
-                title="Load achievements"
-                onPress={() => load.mutate()}
-                loading={load.isPending}
-              />
-            }
-          />
-        }
-      />
-    </Screen>
+                <View style={styles.rowBody}>
+                  <Text variant="h5" color={isUnlocked ? 'text' : 'textSecondary'}>
+                    {item.name}
+                  </Text>
+                  {item.description && (
+                    <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                  )}
+                  {/* Rarity, not just a percentage. "0.4% of players" is a fact
+                    the reader has to rank against every other number on the
+                    screen; "Legendary" is the ranking. The word ships beside
+                    the colour so the band survives without it. */}
+                  {item.global_percent !== null &&
+                    (() => {
+                      const band = rarityFor(item.global_percent);
+                      return (
+                        <View style={styles.rarityRow}>
+                          {band && (
+                            <Text variant="label" style={{ color: theme[band.token] }}>
+                              {band.label}
+                            </Text>
+                          )}
+                          <Text variant="caption" color="textMuted">
+                            {item.global_percent.toFixed(1)}% of players
+                          </Text>
+                        </View>
+                      );
+                    })()}
+                </View>
+
+                <Ionicons
+                  name={isUnlocked ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={22}
+                  color={isUnlocked ? accent.onSurface : theme.borderStrong}
+                />
+              </PressableScale>
+            );
+          }}
+          ListEmptyComponent={
+            <EmptyState
+              title="No achievements loaded"
+              message={
+                isSteamGame
+                  ? 'Fetch this game’s achievement list from Steam, then tick off the ones you have earned.'
+                  : 'This provider does not publish achievement data. IGDB games have none; try the Steam or RAWG version of this game.'
+              }
+              action={
+                <Button
+                  title="Load achievements"
+                  onPress={() => load.mutate()}
+                  loading={load.isPending}
+                />
+              }
+            />
+          }
+        />
+      </Screen>
+    </AccentProvider>
   );
 }
 
@@ -265,4 +293,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowBody: { flex: 1, gap: Spacing.x4 },
+  rarityRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
 });

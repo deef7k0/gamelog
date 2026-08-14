@@ -23,6 +23,20 @@ export type ScreenProps = {
    * stacking with one.
    */
   insetHeader?: boolean;
+  /**
+   * Decoration painted behind the page, *outside* the safe-area inset.
+   *
+   * For an ambient glow or wash that has to reach the very top of the display
+   * rather than stopping at the status bar. `children` cannot do this: the
+   * safe-area padding is applied to the container they sit in, so even an
+   * `absoluteFill` child starts below the notch — and a glow that stops on the
+   * status-bar boundary draws exactly the hard horizontal line it was meant to
+   * avoid.
+   *
+   * Whatever goes here must be inert. It is under the content and, on most
+   * screens, under the status bar; nothing in it can be reached.
+   */
+  backdrop?: ReactNode;
 };
 
 /** Page shell: themed background, safe-area insets, centred max-width column. */
@@ -31,22 +45,30 @@ export function Screen({
   edges = ['top'],
   padded = false,
   insetHeader = false,
+  backdrop,
 }: ScreenProps) {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
 
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: theme.background }]} edges={edges}>
-      <View
-        style={[
-          styles.flex,
-          styles.column,
-          padded && styles.padded,
-          insetHeader && { paddingTop: headerHeight },
-        ]}>
-        {children}
-      </View>
-    </SafeAreaView>
+    /* The outer view owns the fill so the backdrop can sit on top of it and
+       still be under the safe area. `SafeAreaView` is transparent as a result —
+       it is doing insets and nothing else. */
+    <View style={[styles.flex, { backgroundColor: theme.background }]}>
+      {backdrop}
+
+      <SafeAreaView style={styles.flex} edges={edges}>
+        <View
+          style={[
+            styles.flex,
+            styles.column,
+            padded && styles.padded,
+            insetHeader && { paddingTop: headerHeight },
+          ]}>
+          {children}
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 

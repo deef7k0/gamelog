@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
 export type TabItem<T extends string> = {
@@ -42,6 +43,7 @@ export type TabBarProps<T extends string> = {
  */
 export function TabBar<T extends string>({ tabs, value, onChange }: TabBarProps<T>) {
   const theme = useTheme();
+  const accent = useAccent();
 
   return (
     <View style={[styles.wrapper, { borderBottomColor: theme.border }]}>
@@ -61,20 +63,21 @@ export function TabBar<T extends string>({ tabs, value, onChange }: TabBarProps<
               scaleTo={0.94}
               style={StyleSheet.flatten([
                 styles.tab,
-                { borderBottomColor: active ? theme.primary : 'transparent' },
+                { borderBottomColor: active ? accent.onSurface : 'transparent' },
               ])}>
               {tab.icon && (
                 <Ionicons
                   name={tab.icon}
                   size={16}
-                  color={active ? theme.primary : theme.textMuted}
+                  color={active ? accent.onSurface : theme.textMuted}
                 />
               )}
 
               {/* The selected tab takes the accent on both the label and the
                   underline. It is the one place in the app where colour says
-                  "you are here", and it should not have to whisper it. */}
-              <Text variant="h5" color={active ? 'primary' : 'textMuted'}>
+                  "you are here", and it should not have to whisper it — so on a
+                  game's page it says it in that game's colour. */}
+              <Text variant="h5" style={{ color: active ? accent.onSurface : theme.textMuted }}>
                 {tab.label}
               </Text>
 

@@ -9,7 +9,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScoreNumber } from '@/components/ui/score';
 import { Card } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { STATUS_VERB } from '@/constants/status';
+import { STATUS_VERB, statusColor } from '@/constants/status';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Engagement } from '@/lib/api';
@@ -84,6 +84,17 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
    */
   const verb = review ? 'reviewed' : STATUS_VERB[log.status];
 
+  /*
+   * The verb carries the colour, not a dot or a pill.
+   *
+   * A feed is read as sentences — "Ada is playing Hollow Knight" — and the two
+   * words that say what happened are already the ones the eye lands on. Tinting
+   * them makes the column scannable by state at a glance without adding a
+   * single pixel of chrome to a row. "reviewed" is not a status, so it takes
+   * the house colour: it is the app's own event rather than one of the four.
+   */
+  const verbTint = review ? theme.primaryText : statusColor(log.status, theme);
+
   return (
     <Card>
       <View style={styles.stack}>
@@ -103,7 +114,7 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
                 <Text variant="h5" color="textSecondary">
                   {displayNameFor(profile)}
                 </Text>
-                {` ${verb} `}
+                <Text variant="bodySmall" style={{ color: verbTint }}>{` ${verb} `}</Text>
                 <Text variant="h5">{title}</Text>
               </Text>
 

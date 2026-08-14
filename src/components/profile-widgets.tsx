@@ -54,7 +54,7 @@ export function FavoritesWidget({
     <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.widgetHead}>
         <View style={styles.widgetTitle}>
-          <Ionicons name="star" size={13} color={theme.accent} />
+          <Ionicons name="star" size={13} color={theme.primaryText} />
           <Text variant="caption" color="textSecondary">
             FAVOURITES
           </Text>
@@ -63,7 +63,7 @@ export function FavoritesWidget({
         {isSelf && listId && (
           <Link href={{ pathname: '/list/[id]', params: { id: listId } }} asChild>
             <PressableScale accessibilityRole="button" scaleTo={0.9}>
-              <Text variant="caption" color="primary">
+              <Text variant="caption" color="primaryText">
                 Edit
               </Text>
             </PressableScale>

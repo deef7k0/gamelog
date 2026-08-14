@@ -144,16 +144,25 @@ export function ActivityRow({
 }) {
   const theme = useTheme();
 
+  /*
+   * One hue per kind of thing that happened.
+   *
+   * Three of these used to be the same blue and three more were grey, which
+   * made a wall of mixed activity read as one repeated event. They now borrow
+   * the vocabulary the rest of the app already uses — a wishlist entry is the
+   * `backlog` violet here and on every log, a platinum is platinum — so the
+   * colours mean the same thing on this screen as they do everywhere else.
+   */
   const tint = {
-    reviewed: theme.primary,
-    logged: theme.textSecondary,
-    wishlisted: theme.primary,
-    listed: theme.textSecondary,
-    friended: theme.success,
+    reviewed: theme.primaryText,
+    logged: theme.statusPlayed,
+    wishlisted: theme.statusBacklog,
+    listed: theme.identityAqua,
+    friended: theme.statusPlaying,
     platinum: theme.platinum,
-    watching_event: theme.accent,
-    attending_event: theme.accent,
-    diary: theme.primary,
+    watching_event: theme.identityMagenta,
+    attending_event: theme.identityMagenta,
+    diary: theme.identityGold,
     commented: theme.textSecondary,
   }[entry.kind];
 

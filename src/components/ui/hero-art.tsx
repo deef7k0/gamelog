@@ -62,6 +62,15 @@ export type HeroArtProps = {
   scrim?: boolean;
   /** Overrides the computed height. Rarely needed. */
   height?: number;
+  /**
+   * Draw the ramp that dissolves the art into the page.
+   *
+   * On by default, and off on any screen that runs `<Ambience>`: that component
+   * closes its own ramp exactly on this art's bottom edge, and two ramps ending
+   * on two slightly different darks is precisely what put a visible band across
+   * the middle of the game page. One screen, one gradient.
+   */
+  fade?: boolean;
 };
 
 /**
@@ -74,7 +83,7 @@ export type HeroArtProps = {
  * A missing image is a flat block of the same height rather than nothing, so
  * the layout below does not jump when art arrives.
  */
-export function HeroArt({ uri, scrim = false, height }: HeroArtProps) {
+export function HeroArt({ uri, scrim = false, height, fade = true }: HeroArtProps) {
   const theme = useTheme();
   const window = useWindowDimensions();
 
@@ -120,16 +129,18 @@ export function HeroArt({ uri, scrim = false, height }: HeroArtProps) {
           spends its first half barely tinting anything and then has to close the
           whole distance in the second, which reads as the art dropping off a
           shelf. This holds the art longer and closes faster. */}
-      <LinearGradient
-        colors={[
-          withAlpha(theme.background, 0),
-          withAlpha(theme.background, 0.72),
-          theme.background,
-        ]}
-        locations={[0, 0.55, 1]}
-        style={[styles.fade, { height: `${FADE_HEIGHT * 100}%` }]}
-        pointerEvents="none"
-      />
+      {fade && (
+        <LinearGradient
+          colors={[
+            withAlpha(theme.background, 0),
+            withAlpha(theme.background, 0.72),
+            theme.background,
+          ]}
+          locations={[0, 0.55, 1]}
+          style={[styles.fade, { height: `${FADE_HEIGHT * 100}%` }]}
+          pointerEvents="none"
+        />
+      )}
 
       {scrim && (
         <LinearGradient

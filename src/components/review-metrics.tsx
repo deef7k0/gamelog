@@ -128,7 +128,7 @@ export function ReviewMetricsEditor({
                 accessibilityLabel="Clear all metrics"
                 onPress={() => onChangeDraft({})}
                 scaleTo={0.94}>
-                <Text variant="caption" color="primary">
+                <Text variant="caption" color="primaryText">
                   Clear all
                 </Text>
               </PressableScale>

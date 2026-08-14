@@ -1,20 +1,22 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack, useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { EngagementBar } from '@/components/engagement-bar';
 import { GameCaseDisplay } from '@/components/game-case-display';
 import { ReviewMeta } from '@/components/review-meta';
 import { ReviewMetricsBreakdown } from '@/components/review-metrics';
 import { Avatar } from '@/components/ui/avatar';
-import { HeroArt } from '@/components/ui/hero-art';
+import { Ambience } from '@/components/ui/ambience';
+import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { parseReviewMetrics } from '@/constants/review-metrics';
 import { Spacing, Type } from '@/constants/theme';
+import { AccentProvider } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -28,7 +30,11 @@ import { useAuth } from '@/store/auth';
  * document, not a list, and the body needs to flow as a single Text block for
  * paragraph spacing to work.
  */
+/** Matches the game page. See the note on `AMBIENCE_COVER` there. */
+const AMBIENCE_COVER = 0.55;
+
 export default function ReviewScreen() {
+  const window = useWindowDimensions();
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
@@ -71,140 +77,154 @@ export default function ReviewScreen() {
 
   const review = log.data;
   const game = review.game;
+  /* Same one-ramp composition as the game page — see AMBIENCE_COVER there. */
+  const heroHeight = heroHeightFor(window.width, window.height);
+  const ambienceHeight = Math.round(heroHeight / AMBIENCE_COVER);
   const author = review.profile;
   const metrics = parseReviewMetrics(review.review_metrics);
 
   return (
-    <Screen edges={[]}>
-      {/* Transparency is global — see the root layout. */}
-      <Stack.Screen options={{ title: '' }} />
+    /* A review is a dedicated presentation of one game, so it runs on that
+       game's colour the same way the game's own page does. */
+    <AccentProvider artwork={game?.cover_url ?? game?.hero_url} genres={game?.genres}>
+      <Screen edges={[]}>
+        {/* Transparency is global — see the root layout. */}
+        <Stack.Screen options={{ title: '' }} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Hero: landscape key art, faded into the page so the header floats. */}
-        <View style={styles.hero}>
-          <HeroArt uri={game?.hero_url} scrim />
-        </View>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Hero: landscape key art. It draws no fade of its own — the ramp
+              below closes over its bottom edge instead, so there is one
+              gradient down this page rather than two meeting in the middle. */}
+          <View style={styles.hero}>
+            <HeroArt uri={game?.hero_url} height={heroHeight} scrim fade={false} />
+          </View>
 
-        {/* Game identity + score. The score is the loudest thing here. */}
-        <View style={styles.masthead}>
-          {/* A review is a dedicated game presentation, so the case belongs
+          <View pointerEvents="none" style={[styles.ambience, { height: ambienceHeight }]}>
+            <Ambience coverAt={AMBIENCE_COVER} />
+          </View>
+
+          {/* Game identity + score. The score is the loudest thing here. */}
+          <View style={styles.masthead}>
+            {/* A review is a dedicated game presentation, so the case belongs
               here — unlike the review *cards* in feeds, which stay flat. */}
-          <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
-            <PressableScale accessibilityRole="button" scaleTo={0.97}>
-              <GameCaseDisplay
-                coverUrl={game?.cover_url}
-                heroUrl={game?.hero_url}
-                title={game?.title}
-                platforms={game?.platforms}
-                size="medium"
-              />
-            </PressableScale>
-          </Link>
-
-          <View style={styles.mastheadText}>
-            <Text variant="h3" numberOfLines={3}>
-              {game?.title ?? 'Unknown game'}
-            </Text>
-            <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
-              {[game?.release_year, game?.developer].filter(Boolean).join(' · ')}
-            </Text>
-
-            {/* No status here — `ReviewMeta` below states it beside the score,
-                and saying it twice in adjacent blocks makes it look like two
-                different facts. */}
-            <View style={styles.mastheadMeta}>
-              {review.platinum && (
-                <View style={styles.badge}>
-                  <Ionicons name="trophy" size={11} color={theme.platinum} />
-                  <Text variant="caption" style={{ color: theme.platinum }}>
-                    Platinum
-                  </Text>
-                </View>
-              )}
-              {review.hours_played != null && (
-                <Text variant="caption" color="textMuted">
-                  {review.hours_played}h played
-                </Text>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* The same block the feed card leads with, so a review looks like
-            itself whether you meet it in a list or open it. */}
-        <View style={styles.scoreBlock}>
-          {/* No status tag: this page only exists because there is a review to
-              read, and "PLAYED" above someone's writing about a game is a fact
-              the writing already implies. A bare log has no page here. */}
-          <ReviewMeta
-            score={review.rating}
-            gameTitle={game?.title ?? 'Unknown game'}
-            status={review.review ? null : review.status}
-          />
-        </View>
-
-        {/* Only present when the reviewer scored by category — the headline
-            number above is the mean of exactly these. */}
-        {metrics && <ReviewMetricsBreakdown metrics={metrics} />}
-
-        {game?.platforms && game.platforms.length > 0 && (
-          <View style={styles.chips}>
-            {game.platforms.slice(0, 5).map((platform) => (
-              <Chip key={platform} label={platform} />
-            ))}
-          </View>
-        )}
-
-        {/* The article. */}
-        <View style={styles.article}>
-          {review.review_title && <Text variant="display">{review.review_title}</Text>}
-
-          {author && (
-            <Link href={{ pathname: '/profile/[id]', params: { id: author.id } }} asChild>
-              <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.byline}>
-                <Avatar uri={author.avatar_url} name={displayNameFor(author)} size={36} />
-                <View style={styles.bylineText}>
-                  <Text variant="h5">{displayNameFor(author)}</Text>
-                  <Text variant="caption" color="textMuted">
-                    @{author.username} · {timeAgo(review.created_at)}
-                  </Text>
-                </View>
+            <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
+              <PressableScale accessibilityRole="button" scaleTo={0.97}>
+                <GameCaseDisplay
+                  coverUrl={game?.cover_url}
+                  heroUrl={game?.hero_url}
+                  title={game?.title}
+                  platforms={game?.platforms}
+                  size="medium"
+                />
               </PressableScale>
             </Link>
+
+            <View style={styles.mastheadText}>
+              <Text variant="h3" numberOfLines={3}>
+                {game?.title ?? 'Unknown game'}
+              </Text>
+              <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
+                {[game?.release_year, game?.developer].filter(Boolean).join(' · ')}
+              </Text>
+
+              {/* No status here — `ReviewMeta` below states it beside the score,
+                and saying it twice in adjacent blocks makes it look like two
+                different facts. */}
+              <View style={styles.mastheadMeta}>
+                {review.platinum && (
+                  <View style={styles.badge}>
+                    <Ionicons name="trophy" size={11} color={theme.platinum} />
+                    <Text variant="caption" style={{ color: theme.platinum }}>
+                      Platinum
+                    </Text>
+                  </View>
+                )}
+                {review.hours_played != null && (
+                  <Text variant="caption" color="textMuted">
+                    {review.hours_played}h played
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* The same block the feed card leads with, so a review looks like
+            itself whether you meet it in a list or open it. */}
+          <View style={styles.scoreBlock}>
+            {/* No status tag: this page only exists because there is a review to
+              read, and "PLAYED" above someone's writing about a game is a fact
+              the writing already implies. A bare log has no page here. */}
+            <ReviewMeta
+              score={review.rating}
+              gameTitle={game?.title ?? 'Unknown game'}
+              status={review.review ? null : review.status}
+            />
+          </View>
+
+          {/* Only present when the reviewer scored by category — the headline
+            number above is the mean of exactly these. */}
+          {metrics && <ReviewMetricsBreakdown metrics={metrics} />}
+
+          {game?.platforms && game.platforms.length > 0 && (
+            <View style={styles.chips}>
+              {game.platforms.slice(0, 5).map((platform) => (
+                <Chip key={platform} label={platform} />
+              ))}
+            </View>
           )}
 
-          {review.review ? (
-            <Text variant="body" style={styles.body}>
-              {review.review}
-            </Text>
-          ) : (
-            <Text variant="body" color="textMuted">
-              No written review — just a score.
-            </Text>
-          )}
-        </View>
+          {/* The article. */}
+          <View style={styles.article}>
+            {review.review_title && <Text variant="display">{review.review_title}</Text>}
 
-        <View style={[styles.footer, { borderTopColor: theme.border }]}>
-          <EngagementBar
-            targetType="log"
-            targetId={review.id}
-            engagement={engagement.data?.[review.id]}
-            layout="stacked"
-            shareMessage={
-              review.review_title
-                ? `${review.review_title} — ${game?.title ?? ''}`
-                : `${game?.title ?? 'This game'}: ${review.rating ?? ''}/100`
-            }
-          />
-        </View>
-      </ScrollView>
-    </Screen>
+            {author && (
+              <Link href={{ pathname: '/profile/[id]', params: { id: author.id } }} asChild>
+                <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.byline}>
+                  <Avatar uri={author.avatar_url} name={displayNameFor(author)} size={36} />
+                  <View style={styles.bylineText}>
+                    <Text variant="h5">{displayNameFor(author)}</Text>
+                    <Text variant="caption" color="textMuted">
+                      @{author.username} · {timeAgo(review.created_at)}
+                    </Text>
+                  </View>
+                </PressableScale>
+              </Link>
+            )}
+
+            {review.review ? (
+              <Text variant="body" style={styles.body}>
+                {review.review}
+              </Text>
+            ) : (
+              <Text variant="body" color="textMuted">
+                No written review — just a score.
+              </Text>
+            )}
+          </View>
+
+          <View style={[styles.footer, { borderTopColor: theme.border }]}>
+            <EngagementBar
+              targetType="log"
+              targetId={review.id}
+              engagement={engagement.data?.[review.id]}
+              layout="stacked"
+              shareMessage={
+                review.review_title
+                  ? `${review.review_title} — ${game?.title ?? ''}`
+                  : `${game?.title ?? 'This game'}: ${review.rating ?? ''}/100`
+              }
+            />
+          </View>
+        </ScrollView>
+      </Screen>
+    </AccentProvider>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
   hero: { width: '100%' },
+  ambience: { position: 'absolute', top: 0, left: 0, right: 0 },
   masthead: {
     flexDirection: 'row',
     gap: Spacing.x16,

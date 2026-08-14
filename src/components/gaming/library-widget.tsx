@@ -48,7 +48,7 @@ export function LibraryWidget({
         style={StyleSheet.flatten([styles.widget, { borderTopColor: theme.border }])}>
         <View style={styles.head}>
           <View style={styles.title}>
-            <Ionicons name="library" size={13} color={theme.primary} />
+            <Ionicons name="library" size={13} color={theme.primaryText} />
             <Text variant="caption" color="textSecondary">
               LIBRARY
             </Text>

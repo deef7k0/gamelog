@@ -134,7 +134,7 @@ export default function NotificationsScreen() {
               onPress={() => markRead.mutate()}
               scaleTo={0.98}
               style={StyleSheet.flatten([styles.markRead, { borderColor: theme.border }])}>
-              <Text variant="bodySmall" color="primary">
+              <Text variant="bodySmall" color="primaryText">
                 Mark all as read
               </Text>
             </PressableScale>

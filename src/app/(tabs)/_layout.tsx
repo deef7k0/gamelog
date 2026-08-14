@@ -16,6 +16,15 @@ import { useTheme } from '@/hooks/use-theme';
  * single loudest use of colour in the app and it is deliberate: where you are
  * is the one thing the chrome should always be shouting.
  *
+ * **The bar never takes a game's colour.** Everything else in the app can shift
+ * to the identity hue of whatever you are looking at; this stays the house blue
+ * on every screen, because it is the one fixed thing you navigate by. A bottom
+ * bar that changed colour with the content above it would be the app losing its
+ * own identity rather than expressing the game's.
+ *
+ * `primaryText`, not `primary`: the label is 10px and #0070CC measures 3.40:1
+ * against the bar's surface, which is under AA for text at any size.
+ *
  * Notifications used to live here; it now opens from an icon in Home's header
  * instead, freeing the slot for News.
  *
@@ -30,7 +39,7 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: theme.primary,
+        tabBarActiveTintColor: theme.primaryText,
         tabBarInactiveTintColor: theme.textMuted,
         tabBarShowLabel: true,
         tabBarLabelStyle: { ...Type.caption, marginTop: 2 },

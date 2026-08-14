@@ -6,12 +6,29 @@
  * rather than from shadows, which are close to invisible on a dark screen
  * anyway. A card looks lifted because it is lighter than what is behind it.
  *
- * **One accent: PlayStation blue.** It appears on selected navigation, primary
- * buttons, active states, badges and links, and nowhere else. Roughly 90% of
- * the interface is greyscale so that the blue is genuinely directive and the
- * game artwork stays the only other source of colour. The score ramp
- * (`scoreHigh` / `scoreMid` / `scoreLow`) is the deliberate exception: it is
- * data rather than chrome — see the note beside it.
+ * **The room is dark; the light comes from the games in it.**
+ *
+ * The chrome is still greyscale — surfaces, rules, body copy and every control
+ * that is not the primary one. What changed is that colour is no longer a single
+ * house accent applied to chrome. It enters from *content*, in three ways, and
+ * a colour that is none of these three is decoration and does not belong:
+ *
+ *  1. **Identity** — the ten-hue ramp below. A game takes one, derived from its
+ *     own IGDB genres (`constants/identity.ts`), and that hue lights its page:
+ *     the cast under its case, its active tab, its primary action, its links.
+ *     Two games are never the same page in two skins.
+ *  2. **Meaning** — score, log status, achievement rarity, tier. These are
+ *     *data*: a reader parses good/bad, playing/dropped, common/legendary before
+ *     they parse the digits or the word. They are aliases onto the same ramp, so
+ *     the app has one set of hues rather than four unrelated ones.
+ *  3. **Artwork** — the cover itself, blurred into an ambient wash behind a
+ *     page (`components/ui/ambience.tsx`). Not a derived colour at all: the
+ *     actual pixels of the actual box art.
+ *
+ * `primary` remains PlayStation blue and remains the *house* colour — every
+ * screen that is not about one specific game still runs on it, which is what
+ * keeps the app from becoming a fruit salad. Identity shifts the accent only
+ * where there is a game to shift it to.
  *
  * Everything is a token. Colours, spacing, radii, type, motion and the minimum
  * tap target all live here, and a value typed directly into a component is a
@@ -23,6 +40,10 @@
 import '@/global.css';
 
 import { Platform } from 'react-native';
+
+import { ensureContrast, readableInk, tint, withAlpha } from '@/lib/color';
+
+export { ensureContrast, readableInk, tint, withAlpha } from '@/lib/color';
 
 export const Colors = {
   /*
@@ -36,8 +57,15 @@ export const Colors = {
   dark: {
     text: '#F5F5F5',
     textSecondary: '#A8A8A8',
-    /** Deliberately low contrast — timestamps, counts, captions. */
-    textMuted: '#767676',
+    /**
+     * The quiet step — timestamps, counts, captions.
+     *
+     * Was #767676, which measured 4.12:1 on the page and so failed AA on the
+     * two steps that use it most, both of which render at 10px. #808080 is
+     * 4.74:1 and is the smallest change that clears the line; going quieter
+     * again is not a style choice available here.
+     */
+    textMuted: '#808080',
 
     /** The page. Never true black: #000 on OLED smears on scroll and kills the
      *  sense of depth the surface steps are built on. */
@@ -60,31 +88,146 @@ export const Colors = {
     border: 'rgba(255, 255, 255, 0.05)',
     borderStrong: 'rgba(255, 255, 255, 0.12)',
 
-    /** The one accent. PlayStation blue. Selected nav, primary buttons, active
-     *  states, badges, links — and nothing else. */
+    /**
+     * The house accent. PlayStation blue, and still the app's own colour:
+     * the tab bar, the home feed, search, notifications and every screen that
+     * is not about one particular game.
+     *
+     * **Fills only.** At 3.74:1 on the page it is below AA for text — fine
+     * under white (5.0:1 the other way), wrong for a link. Type that wants to
+     * look like the house colour uses `primaryText`.
+     */
     primary: '#0070CC',
     onPrimary: '#FFFFFF',
+    /**
+     * The same blue, lifted to 5.76:1 so it can carry a label.
+     *
+     * Not a second accent — a legibility variant of the first. Anywhere the
+     * blue is *type* (a link, an active tab label, "See all") reaches for this;
+     * anywhere it is a *fill* keeps `primary`.
+     */
+    primaryText: '#2E93E8',
     /** A wash of the accent, for the fill behind an active chip or badge. */
     primaryMuted: 'rgba(0, 112, 204, 0.16)',
     accent: '#0070CC',
 
     /*
+     * ---------------------------------------------------------------------
+     * The identity ramp — ten hues, and the app's only colour primitives.
+     * ---------------------------------------------------------------------
+     *
+     * Every coloured thing in the app that is not the house blue or the raw
+     * artwork resolves to one of these ten. A game's page takes one (from its
+     * genres); score, status and rarity alias onto them. That is what makes
+     * this a system rather than a bag of swatches: there are ten hues, not
+     * thirty-one, and a new meaning gets an alias rather than a new hex.
+     *
+     * Tuned as a set against #121212, not picked individually:
+     *
+     *  - Every one clears **4.5:1 on all three surface steps**, so any of them
+     *    can carry small type. The floor of the set is `crimson` at 5.78:1 on
+     *    `surfaceElevated`; there is no member that only works on the page.
+     *  - Every one takes **dark ink** when used as a fill (`readableInk`), which
+     *    is why an identity-coloured button is near-black-on-hue rather than
+     *    white-on-hue. That is deliberate: white on a mid-chroma hue is the one
+     *    combination in this palette that reliably fails.
+     *  - Spread around the wheel with gaps wide enough to survive a scrolling
+     *    wall of covers. Adjacent games should not read as the same game.
+     */
+    identityEmber: '#FF9142',
+    identityCrimson: '#FF6F7D',
+    identityGold: '#F3C24B',
+    identityLime: '#A8DC5A',
+    identityJade: '#43D98C',
+    identityAqua: '#3CD6CE',
+    identitySky: '#57B2FF',
+    /* Pulled off #8B9DFF, which sat 49 RGB units from `identityViolet` — close
+       enough that a strategy game and a puzzle game were the same colour in a
+       franchise rail, which is the one place the ramp has to work hardest. */
+    identityCobalt: '#8394FF',
+    identityViolet: '#B98CFF',
+    identityMagenta: '#FF7ACB',
+
+    /*
      * The score ramp. Three colours that are *data*, not chrome.
      *
-     * They are exempt from the one-accent rule because a 0-100 score has to be
-     * readable as good/mixed/bad before the digits are, and blue cannot say
-     * that. They appear on numerals and their labels — never on a fill, an
-     * outline or a control.
+     * A 0-100 score has to be readable as good/mixed/bad before the digits are,
+     * and one hue cannot say that. They appear on numerals and their labels —
+     * never on a fill, an outline or a control.
+     *
+     * **These are now the only score colours.** `scoreColor()` used to return
+     * `success`/`accent`/`danger` while `<ScoreBadge>` reached for these three,
+     * so the same 55 was amber in one component and blue in another. The blue
+     * was the wrong of the two: neutral is *mixed*, and rendering it in the
+     * house accent made a middling game look endorsed. Amber, everywhere.
      */
     scoreHigh: '#4ADE80',
     scoreMid: '#F5A524',
-    scoreLow: '#EF4444',
+    /* Lifted from #EF4444, which measured 4.13:1 on `surfaceElevated` — under
+       AA for the 13px inline numeral that a feed row renders it at. #F35555 is
+       4.61:1 on the same surface and is the smallest step that clears it. */
+    scoreLow: '#F35555',
+
+    /*
+     * Log status. Four states, four hues, aliased onto the ramp.
+     *
+     * `backlog` used to be `textSecondary` — grey, which said "no status" for
+     * the one status a logging app is most about. A shelf of things you mean to
+     * play is not an absence.
+     */
+    statusPlaying: '#43D98C',
+    statusPlayed: '#2E93E8',
+    /**
+     * Pale violet: queued, not dead.
+     *
+     * Lighter than it wants to be, on purpose. The first choice was a dusty
+     * #9B93E8, which sits 16 RGB units from `statusPlayed` under simulated
+     * protanopia — blue and violet are the classic red-blind collapse, and
+     * these two are the pair a backlog screen shows side by side. Lifting the
+     * lightness restores the separation to 53, because luminance is the
+     * difference that survives when hue does not.
+     */
+    statusBacklog: '#C9A6FF',
+    /** Rust, not the alarm red. Dropping a game is a verdict, not an error. */
+    statusDropped: '#CE7B62',
+
+    /*
+     * Achievement rarity, from Steam's global unlock percentage.
+     *
+     * The five-step loot ramp every player already knows how to read — and the
+     * one place in this app where borrowing a genre convention beats inventing
+     * a vocabulary. Bands live in `constants/rarity.ts`; only the hues are here.
+     */
+    rarityCommon: '#9AA3AE',
+    rarityUncommon: '#43D98C',
+    rarityRare: '#57B2FF',
+    rarityEpic: '#B98CFF',
+    rarityLegendary: '#F3C24B',
 
     /** Platinum trophies. */
     platinum: '#A9B6CC',
 
-    danger: '#EF4444',
+    /* Same lift as `scoreLow`, and for the same reason: `<Button variant="danger">`
+       renders this as its label on `surfaceElevated`, where #EF4444 was 4.13:1. */
+    danger: '#F35555',
     success: '#4ADE80',
+
+    /*
+     * The ambient glow in Home's top-left corner. See `ui/soft-glow.tsx`.
+     *
+     * Deep muted purple, and the two darkest chromatic values in the palette by
+     * a wide margin — `glowCore` is 0.026 relative luminance against the page's
+     * 0.0055. That is the whole point: this sits *behind* the masthead, so it
+     * has to read as light in the room rather than as a surface. Anything with
+     * the chroma of the identity ramp would compete with the title on top of it.
+     *
+     * Not part of the identity system and not available to it. This is the one
+     * decorative colour in the app, it appears in exactly one place, and it is
+     * fixed rather than derived precisely so Home does not shift hue with
+     * whatever game happens to be on it.
+     */
+    glowCore: '#3A2050',
+    glowEdge: '#2D1B3D',
 
     /** Scrim over hero artwork so text stays legible on any cover. */
     scrim: 'rgba(0, 0, 0, 0.6)',
@@ -130,25 +273,95 @@ export type ThemeColor = keyof typeof Colors.dark;
 export type ThemePalette = typeof Colors.dark;
 
 /**
- * A palette colour at a given opacity.
+ * The identity ramp in order, as palette keys.
  *
- * Exists for gradients. `expo-linear-gradient` interpolates in premultiplied
- * space on Android, so fading a colour to the keyword `transparent` fades it
- * through black and leaves a grey bruise across the middle of the ramp. Fading
- * to the *same* colour at zero alpha has no such midpoint. Every gradient stop
- * in the app should therefore end on `withAlpha(colour, 0)`, never
- * `'transparent'`.
- *
- * Only handles the `#RRGGBB` literals in `Colors`; anything else is returned
- * unchanged rather than silently producing `rgba(NaN, …)`.
+ * `constants/identity.ts` maps genres onto these names rather than onto hexes,
+ * so retuning a hue is a one-line edit here and nothing downstream knows.
  */
-export function withAlpha(color: string, alpha: number): string {
-  if (!/^#[0-9a-f]{6}$/i.test(color)) return color;
-  const value = parseInt(color.slice(1), 16);
-  const r = (value >> 16) & 255;
-  const g = (value >> 8) & 255;
-  const b = value & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+export const IDENTITY_KEYS = [
+  'identityEmber',
+  'identityCrimson',
+  'identityGold',
+  'identityLime',
+  'identityJade',
+  'identityAqua',
+  'identitySky',
+  'identityCobalt',
+  'identityViolet',
+  'identityMagenta',
+] as const satisfies readonly ThemeColor[];
+
+export type IdentityKey = (typeof IDENTITY_KEYS)[number];
+
+/**
+ * How much hue goes into a tinted surface.
+ *
+ * High, and it can afford to be: `tint` restores the surface's original
+ * luminance afterwards, so this dial changes only *chroma*. At 0.3 `surface`
+ * under the sky hue resolves to #101D29 — unmistakably blue, unmistakably still
+ * a near-black card. Below about 0.15 the tint stops being legible as a colour
+ * and starts looking like a rendering artefact.
+ */
+const SURFACE_TINT = 0.3;
+
+/**
+ * Everything one accent hue has to be able to do, derived from the hue itself.
+ *
+ * A hue arrives as a single hex — from a game's genres, or `primary` when there
+ * is no game — and a page needs six things from it. Deriving them beats storing
+ * them: ten hues × six roles would be sixty tokens to keep in step, and the
+ * whole point of the ramp is that adding an eleventh hue costs one line.
+ *
+ * **A tinted surface measures the same as the grey it replaces.** `tint` mixes
+ * the hue in and then puts the luminance back, so contrast against every text
+ * token moves by at most 0.07 — pure 8-bit rounding — across all ten hues on
+ * both steps, and no AA or AAA verdict flips anywhere. That is the property
+ * that makes these safe to use wherever the grey was: no per-hue exceptions and
+ * no "careful what you put on the red one". (`textMuted` sits at 3.9:1 on the
+ * elevated step, tinted or not — a pre-existing limit of the quiet grey on the
+ * lightest surface, unchanged by any of this.)
+ */
+export type AccentRoles = {
+  /** The hue as a **fill**: a primary button, a filled badge, a tier row. */
+  color: string;
+  /**
+   * The hue as **type on the page**: a link, an active tab label, a glyph, an
+   * underline.
+   *
+   * Usually identical to `color` — every hue in the identity ramp already
+   * clears 4.5:1 on all three surface steps. It differs for exactly one accent,
+   * and that one matters: the house blue `#0070CC` is 3.74:1 on the page, which
+   * is fine under white on a filled button and below AA the moment it becomes a
+   * word. This is the same split `primary` / `primaryText` makes, computed for
+   * whatever hue is in force rather than hard-coded for one.
+   */
+  onSurface: string;
+  /** Near-black or white — whichever is legible *on* `color`. */
+  ink: string;
+  /** 14% fill behind an active chip, pill or badge. */
+  wash: string;
+  /** The page surface, carrying the hue at the same lightness. */
+  surface: string;
+  /** One step up, for a block sitting on `surface`. */
+  elevated: string;
+  /** The coloured light an object casts. Alpha, so it works over artwork. */
+  glow: string;
+};
+
+export function accentRoles(hue: string): AccentRoles {
+  return {
+    color: hue,
+    /* Measured against `surfaceElevated`, not the page. It is the lightest
+       thing accented type ever lands on, so clearing AA there clears it
+       everywhere; targeting the page instead leaves a link inside a card at
+       3.98:1, which is the exact case this role exists to prevent. */
+    onSurface: ensureContrast(hue, Colors.dark.surfaceElevated, 4.5),
+    ink: readableInk(hue),
+    wash: withAlpha(hue, 0.14),
+    surface: tint(Colors.dark.surface, hue, SURFACE_TINT),
+    elevated: tint(Colors.dark.surfaceElevated, hue, SURFACE_TINT),
+    glow: withAlpha(hue, 0.42),
+  };
 }
 
 /**

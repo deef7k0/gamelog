@@ -24,9 +24,10 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { ScoreInput } from '@/components/ui/score-input';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { LOG_STATUSES, STATUS_LABEL, statusColor } from '@/constants/status';
+import { LOG_STATUSES, STATUS_ICON, STATUS_LABEL, statusColor } from '@/constants/status';
 import { averageMetrics, countMetrics, parseReviewMetrics } from '@/constants/review-metrics';
-import { Radius, Spacing, Type, withAlpha } from '@/constants/theme';
+import { Radius, Spacing, Type, readableInk, withAlpha } from '@/constants/theme';
+import { AccentProvider } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteLog, getMyLog, saveLog } from '@/lib/api';
 import type { GameLog, LogStatus } from '@/lib/database.types';
@@ -75,14 +76,19 @@ export default function LogGameScreen() {
   }
 
   return (
-    // Keying on the log id lets the form initialise its state from props on
-    // mount, instead of syncing it in an effect after the query resolves.
-    <LogForm
-      key={existing.data?.id ?? 'new'}
-      game={game.data}
-      existing={existing.data ?? null}
-      userId={userId}
-    />
+    // The form runs on the game's colour — it is one of the four screens that
+    // are about a single game, so the save button and the status picker take
+    // that game's hue rather than the house blue.
+    <AccentProvider artwork={game.data.coverUrl ?? game.data.heroUrl} genres={game.data.genres}>
+      {/* Keying on the log id lets the form initialise its state from props on
+          mount, instead of syncing it in an effect after the query resolves. */}
+      <LogForm
+        key={existing.data?.id ?? 'new'}
+        game={game.data}
+        existing={existing.data ?? null}
+        userId={userId}
+      />
+    </AccentProvider>
   );
 }
 
@@ -239,9 +245,17 @@ function LogForm({ game, existing, userId }: LogFormProps) {
                         borderColor: selected ? tint : theme.border,
                       },
                     ]}>
+                    {/* Glyph as well as fill: four states told apart by colour
+                        alone is exactly the case where a red/green confusion
+                        costs someone the answer. */}
+                    <Ionicons
+                      name={STATUS_ICON[option]}
+                      size={13}
+                      color={selected ? readableInk(tint) : tint}
+                    />
                     <Text
                       variant="bodySmall"
-                      style={{ color: selected ? theme.background : theme.textSecondary }}>
+                      style={{ color: selected ? readableInk(tint) : theme.textSecondary }}>
                       {STATUS_LABEL[option]}
                     </Text>
                   </Pressable>
@@ -442,6 +456,9 @@ const styles = StyleSheet.create({
   metrics: { marginTop: Spacing.x8 },
   statuses: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
   status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x4 + 2,
     paddingVertical: Spacing.x8,
     paddingHorizontal: Spacing.x16,
     borderRadius: Radius.control,

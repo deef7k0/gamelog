@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View, type PressableProps } from '
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Elevation, Radius, Spacing, TapTarget, Type, withAlpha } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -30,12 +31,20 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 /**
  * The app's button. Three styles, and no outlines.
  *
- *  - `primary`   filled accent blue, white label. The one thing on a screen you
- *                are most likely to want. At most one per screen.
+ *  - `primary`   filled with **the screen's accent**. The one thing on a screen
+ *                you are most likely to want. At most one per screen.
  *  - `secondary` filled `surfaceElevated`. The default for everything else.
  *  - `ghost`     no fill at all. For an action that must not draw the eye —
  *                "Cancel", a tertiary link.
  *  - `danger`    secondary's shape with a red label.
+ *
+ * **`primary` is the accent, not the blue.** On most of the app those are the
+ * same thing. On a game's own screens the accent is that game's identity hue,
+ * so "Log this game" on a Doom page is ember and on a Celeste page is sky — the
+ * single loudest element on the screen, carrying the colour of the thing the
+ * screen is about. The label follows: `readableInk` puts near-black on every
+ * hue in the ramp, because white on a mid-chroma hue is the one pairing in this
+ * palette that reliably fails.
  *
  * Filled, not outlined. An outline is a fourth signal in a system that already
  * separates by surface step, and a screen of outlined rectangles reads as a form
@@ -59,18 +68,19 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const theme = useTheme();
+  const accent = useAccent();
   const isInert = disabled || loading;
   const small = size === 'small';
 
   const background = {
-    primary: theme.primary,
+    primary: accent.color,
     secondary: theme.surfaceElevated,
     ghost: 'transparent',
     danger: theme.surfaceElevated,
   }[variant];
 
   const foreground = {
-    primary: theme.onPrimary,
+    primary: accent.ink,
     secondary: theme.text,
     ghost: theme.text,
     danger: theme.danger,
@@ -116,10 +126,13 @@ export function Button({
             style={[
               styles.count,
               {
-                // On a near-white primary fill the recess has to go *darker*;
-                // everywhere else it goes lighter. Same idea, opposite direction.
+                // On a filled primary the recess has to go *darker*; everywhere
+                // else it goes lighter. Same idea, opposite direction — and the
+                // ink is what decides which, since an identity-hued button is
+                // light enough to need a dark recess where the blue needed a
+                // pale one.
                 backgroundColor:
-                  variant === 'primary' ? withAlpha(theme.onPrimary, 0.1) : theme.surfaceSelected,
+                  variant === 'primary' ? withAlpha(foreground, 0.14) : theme.surfaceSelected,
               },
             ]}>
             <Text style={[styles.countLabel, { color: foreground }]}>{count}</Text>

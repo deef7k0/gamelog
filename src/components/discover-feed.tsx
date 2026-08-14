@@ -79,7 +79,7 @@ export function DiscoverFeed() {
 
           <Link href="/top-games" asChild>
             <PressableScale accessibilityRole="button" scaleTo={0.94}>
-              <Text variant="bodySmall" color="primary">
+              <Text variant="bodySmall" color="primaryText">
                 See all
               </Text>
             </PressableScale>

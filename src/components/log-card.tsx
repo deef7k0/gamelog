@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -67,7 +68,14 @@ export type LogCardProps = {
  * comes to — a fixed 2:3 box beside a variable column only ever lines up by
  * accident, and that mismatch was what made the old card look bottom-heavy.
  */
-export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
+/**
+ * Memoised: it is the tallest row in the app and it is always in a list.
+ *
+ * `log` and `engagement` come straight out of query data, so their references
+ * are stable between renders until the query itself changes — which is exactly
+ * the condition memo needs to be worth having.
+ */
+export const LogCard = memo(function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
   const theme = useTheme();
   const { game, profile } = log;
 
@@ -229,7 +237,7 @@ export function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
       </View>
     </Card>
   );
-}
+});
 
 const styles = StyleSheet.create({
   stack: { gap: Spacing.x12 },

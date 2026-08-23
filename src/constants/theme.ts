@@ -695,12 +695,31 @@ export const Motion = {
   fast: 150,
   normal: 200,
   slow: 300,
-  /** Scale applied while a card or button is held down. */
+  /**
+   * How far a card or button shrinks while held.
+   *
+   * The default for `<PressableScale scaleTo>`, and only half the story since
+   * that component learned about Reduce Motion: under the OS setting it holds
+   * still and dims instead, because a scale is spatial movement while press
+   * feedback is an affordance, and answering the first by deleting the second
+   * would be the wrong trade. This value is the motion-on path.
+   */
   pressScale: 0.98,
 } as const;
 
-/** Minimum tap target, per both platforms' guidelines. Nothing tappable is smaller. */
-export const TapTarget = 44;
+/**
+ * Minimum tap target. Nothing tappable is smaller.
+ *
+ * **The two platforms do not agree, and this used to claim they did.** The HIG
+ * sets 44pt; Material sets 48dp with 8dp of separation. A single 44 satisfied
+ * iOS and quietly shipped four points short on every Android device — which is
+ * the whole meaning of `adaptive` in PRODUCT.md: one design language, each
+ * platform's own guarantees.
+ *
+ * Read it, never restate it. A hard-coded 44 in a component is the same bug
+ * this constant exists to prevent, one file further down.
+ */
+export const TapTarget = Platform.select({ android: 48, default: 44 }) as number;
 
 /**
  * The floating top bar's content row, above the safe-area inset.

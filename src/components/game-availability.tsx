@@ -5,7 +5,7 @@ import { Linking, StyleSheet, View } from 'react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { PLATFORMS, type PlatformKey } from '@/constants/platform-cases';
-import { Radius, Spacing, withAlpha } from '@/constants/theme';
+import { Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getGameStores } from '@/lib/games/igdb';
@@ -202,6 +202,7 @@ export function PlatformPicker({ available, selected, onSelect }: PlatformPicker
             accessibilityRole="button"
             accessibilityLabel={`Show ${platform.label}`}
             accessibilityState={{ selected: isActive }}
+            hitSlop={{ top: 7, bottom: 7 }}
             onPress={() => onSelect(key)}
             scaleTo={0.92}
             style={StyleSheet.flatten([
@@ -228,12 +229,23 @@ export function PlatformPicker({ available, selected, onSelect }: PlatformPicker
 
 const styles = StyleSheet.create({
   price: { gap: Spacing.x4 },
-  platforms: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
+  /* The gap grew with the pills. These wrap to three rows on a seven-platform
+     title, and the `hitSlop` below extends each pill's target vertically — at
+     the old 6dp gap two rows of hit area would have overlapped by more than
+     they cleared, which trades one missed tap for another. */
+  platforms: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x12 },
   platform: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x4 + 1,
-    paddingVertical: Spacing.x4 + 2,
+    /* 25dp before, on the control that re-drives the case artwork, the price
+       and the store link at once — the page's signature interaction, on the
+       second-smallest target it had. Padding takes the box to 35 and the
+       `hitSlop` carries it to 49, past both platform floors. Deliberately not
+       taken to 44 on padding alone: seven of these wrap to three rows inside a
+       199dp column, and a 47dp-tall pill would add ~66dp to a masthead that is
+       already the tallest thing on the page. */
+    paddingVertical: Spacing.x12,
     paddingHorizontal: Spacing.x8,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
@@ -245,5 +257,16 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: Radius.image,
   },
-  storeLink: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  /* 16dp tall before — the shortest control on the page, and an outbound
+     commerce link. `alignSelf: 'flex-start'` keeps the box hugging the label
+     rather than spanning the column, so the target grows downward without the
+     link looking like a full-width row. */
+  storeLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing.x4,
+    minHeight: TapTarget,
+    paddingRight: Spacing.x8,
+  },
 });

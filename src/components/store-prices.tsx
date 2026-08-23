@@ -18,6 +18,9 @@ const STEAM_CATEGORY = 1;
 /** The mark's edge length. Fixed dp: it is artwork-adjacent, not chrome. */
 const MARK = 34;
 
+/** Storefronts shown before the rail is cut. The list is cheapest-first. */
+const STORE_LIMIT = 8;
+
 export type StorePricesProps = {
   /** App-wide game id. */
   gameId: string;
@@ -84,6 +87,14 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
   if (list.length === 0) return null;
 
   const best = list[0];
+  /* ITAD tracks ~40 storefronts and `getStorePrices` sorts by price without
+     slicing, so a popular PC title returned fifteen to twenty-five buttons into
+     one horizontal scroller with nothing saying how far it ran. The list is
+     sorted cheapest-first and the heading already states the best price, so
+     everything past the eighth is a scroll nobody finishes for a price nobody
+     wants. The count says what was left out rather than hiding it. */
+  const shown = list.slice(0, STORE_LIMIT);
+  const hidden = list.length - shown.length;
 
   return (
     <View style={styles.section}>
@@ -96,6 +107,7 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
              scrolling. */
           <Text variant="bodySmall" color="textMuted">
             from {formatPrice(best.amount, best.currency)}
+            {hidden > 0 ? ` · ${shown.length} of ${list.length}` : ''}
           </Text>
         }
       />
@@ -104,7 +116,7 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}>
-        {list.map((deal) => (
+        {shown.map((deal) => (
           <StoreButton key={`${deal.shopId}:${deal.url}`} deal={deal} />
         ))}
       </ScrollView>

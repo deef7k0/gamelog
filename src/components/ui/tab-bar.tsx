@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, withAlpha } from '@/constants/theme';
+import { Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type TabItem<T extends string> = {
@@ -152,7 +152,9 @@ const styles = StyleSheet.create({
     gap: Spacing.x8,
     paddingVertical: Spacing.x8,
     paddingHorizontal: Spacing.x16,
-    minHeight: 40,
+    /* `TapTarget`, not a hard-coded 40. This was four points short on iOS and
+       eight on Android — and it is the control that names where you are. */
+    minHeight: TapTarget,
     /* `pill`, not `control`. A tab is not a button — it is a position in a set,
        and the fully-round end is what distinguishes "where you are" from "what
        you can press". Same reasoning that keeps `<Chip>` a pill. */

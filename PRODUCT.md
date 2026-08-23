@@ -13,6 +13,24 @@ confirmed decision is one shared custom design language across both platforms:
 no Cupertino-on-iOS / Material-on-Android split. Native reference guidance
 applies to behaviour, not to look.
 
+**Phone is the only shipped device class.** Confirmed decision, not an omission:
+there is no tablet layout, no size-class branching, no navigation rail, and
+`orientation` stays locked to portrait. It follows from the operating context
+below — this app is opened one-handed by someone who has just put a controller
+down — and it is why the bottom tab bar renders unmodified at every width.
+
+Two consequences worth stating so they are not re-litigated as bugs. An audit
+should score adaptivity against *phone*, so "no tablet restructure" is out of
+scope rather than a finding. And `TapTarget` is the one place the two platforms
+genuinely diverge — 44pt on iOS, 48dp on Android — so it resolves per platform
+in `constants/theme.ts` rather than picking one number and being wrong on the
+other. That split is behavioural, which the paragraph above permits; it is not
+visual branching.
+
+If iPad ever becomes a target this decision reverses and the work is real:
+App Store review treats iPad support as an expectation for a universal build,
+and `MaxContentWidth` (800) is the only groundwork that exists today.
+
 ## Users
 
 People who play games and want a record of it — the same person who keeps a

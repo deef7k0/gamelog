@@ -9,7 +9,7 @@ import {
   platformKeysFor,
   type PlatformKey,
 } from '@/constants/platform-cases';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Case widths, mirrored so a cover can stand in at the same visual size. */
@@ -120,5 +120,4 @@ const styles = StyleSheet.create({
     padding: 1,
     overflow: 'hidden',
   },
-  wrapper: { alignItems: 'center', gap: Spacing.x12 },
 });

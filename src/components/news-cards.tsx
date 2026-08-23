@@ -64,6 +64,8 @@ export function ArticleCard({ article }: { article: Article }) {
         {article.imageUrl && (
           <Image
             source={{ uri: article.imageUrl }}
+            recyclingKey={article.id}
+            cachePolicy="memory-disk"
             style={[styles.storyImage, { backgroundColor: theme.surfaceElevated }]}
             contentFit="cover"
             transition={200}

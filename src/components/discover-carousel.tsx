@@ -1,5 +1,6 @@
 import { Link } from 'expo-router';
 import Animated, {
+  useReducedMotion,
   Extrapolation,
   interpolate,
   useAnimatedScrollHandler,
@@ -109,6 +110,8 @@ function CarouselCard({
   width: number;
   scrollX: ReturnType<typeof useSharedValue<number>>;
 }) {
+  const reduceMotion = useReducedMotion();
+
   /*
    * Two input points, not three.
    *
@@ -118,15 +121,21 @@ function CarouselCard({
    * stays large rather than shrinking again on the way out, which a symmetric
    * three-point range would do visibly at the screen edge.
    */
+  /* The scale is spatial and the fade is not, so Reduce Motion keeps the fade
+     and drops the scale. The card still recedes as it leaves the focus point —
+     which is the thing the effect is actually saying — without anything
+     changing size under the finger. */
   const animated = useAnimatedStyle(() => {
     const range = [(index - 1) * stride, index * stride];
+    const opacity = interpolate(scrollX.get(), range, [MIN_OPACITY, 1], Extrapolation.CLAMP);
+    if (reduceMotion) return { opacity };
     return {
       transform: [
         {
           scale: interpolate(scrollX.get(), range, [MIN_SCALE, 1], Extrapolation.CLAMP),
         },
       ],
-      opacity: interpolate(scrollX.get(), range, [MIN_OPACITY, 1], Extrapolation.CLAMP),
+      opacity,
     };
   });
 

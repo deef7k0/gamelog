@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { memo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Animated, {
+  useReducedMotion,
   Easing,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -158,6 +159,23 @@ export const FrostedTopBar = memo(function FrostedTopBar({
 
   const height = inset + TopBarHeight;
 
+  /*
+   * Reduce Motion pins the bar open.
+   *
+   * Hiding it is a ±56dp translation of the largest piece of chrome on screen,
+   * which is precisely the spatial movement the setting exists to spare. There
+   * is no gentler version of it: a crossfade would leave an invisible bar still
+   * catching taps on the back button, and an instant cut is a 56dp jump rather
+   * than less motion.
+   *
+   * So the behaviour is dropped rather than restyled, and what is lost is a
+   * screenful of extra reading room — a trade a person who asked for less
+   * motion has already declared they want. What they gain is chrome that is
+   * always where they left it.
+   */
+  const reduceMotion = useReducedMotion();
+  const canHide = hideOnScroll && !reduceMotion;
+
   const translateY = useSharedValue(0);
   /** What the bar is currently animating *towards*, so a repeat is a no-op. */
   const hidden = useSharedValue(false);
@@ -165,10 +183,10 @@ export const FrostedTopBar = memo(function FrostedTopBar({
   const anchor = useSharedValue(0);
 
   useAnimatedReaction(
-    () => (hideOnScroll && scrollY ? scrollY.get() : 0),
+    () => (canHide && scrollY ? scrollY.get() : 0),
     (y) => {
       'worklet';
-      if (!hideOnScroll || !scrollY) return;
+      if (!canHide || !scrollY) return;
 
       /* Pinned open across the first screenful, and across the rubber band above
          it — a bounce at the top reads as "scrolling down" to the delta below,
@@ -192,7 +210,7 @@ export const FrostedTopBar = memo(function FrostedTopBar({
       hidden.set(next);
       translateY.set(withTiming(next ? -height : 0, next ? HIDE : SHOW));
     },
-    [hideOnScroll, scrollY, height]
+    [canHide, scrollY, height]
   );
 
   const slide = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.get() }] }));

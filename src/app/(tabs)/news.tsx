@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CoverTile } from '@/components/cover-tile';
@@ -88,6 +88,27 @@ export default function NewsScreen() {
     staleTime: 60 * 60_000,
   });
 
+  /* Both hoisted out of `renderItem`. The tile width was a function call per
+     row per render; the game object was a fresh allocation per row per render,
+     which is exactly what makes a memoised `<CoverTile>` do nothing. */
+  const chartTileWidth = gridItemWidth(width, CHART_COLUMNS, Spacing.x16, CHART_GAP);
+  const chartTiles = useMemo(
+    () =>
+      (charts.data?.entries ?? []).map((item) => ({
+        rank: item.rank,
+        game: {
+          id: item.gameId,
+          title: item.title,
+          coverUrl: item.coverUrl,
+          heroUrl: item.heroUrl,
+          releaseYear: item.releaseYear,
+          edition: item.edition,
+          steamAppId: item.steamAppId,
+        },
+      })),
+    [charts.data]
+  );
+
   const events = useQuery({
     queryKey: ['news', 'events'],
     queryFn: ({ signal }) => getGameEvents(signal),
@@ -152,29 +173,15 @@ export default function NewsScreen() {
              only tab laid out in two columns, and `numColumns` is not something
              a single-column shell can take on without becoming a grid library. */
           <FlatList
-            data={charts.data?.entries ?? []}
+            data={chartTiles}
             key={`chart-grid-${CHART_COLUMNS}`}
             numColumns={CHART_COLUMNS}
-            keyExtractor={(entry) => entry.gameId}
+            keyExtractor={(tile) => tile.game.id}
             columnWrapperStyle={styles.chartColumn}
-            contentContainerStyle={
-              (charts.data?.entries ?? []).length === 0 ? styles.empty : styles.chartGrid
-            }
+            contentContainerStyle={chartTiles.length === 0 ? styles.empty : styles.chartGrid}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <CoverTile
-                game={{
-                  id: item.gameId,
-                  title: item.title,
-                  coverUrl: item.coverUrl,
-                  heroUrl: item.heroUrl,
-                  releaseYear: item.releaseYear,
-                  edition: item.edition,
-                  steamAppId: item.steamAppId,
-                }}
-                width={gridItemWidth(width, CHART_COLUMNS, Spacing.x16, CHART_GAP)}
-                rank={item.rank}
-              />
+              <CoverTile game={item.game} width={chartTileWidth} rank={item.rank} />
             )}
             refreshControl={
               <RefreshControl

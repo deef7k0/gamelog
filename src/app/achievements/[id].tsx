@@ -199,6 +199,8 @@ export default function AchievementsScreen() {
                 {item.icon_url ? (
                   <Image
                     source={{ uri: item.icon_url }}
+                    recyclingKey={item.id}
+                    cachePolicy="memory-disk"
                     style={[
                       styles.icon,
                       { backgroundColor: theme.surfaceElevated, opacity: isUnlocked ? 1 : 0.35 },

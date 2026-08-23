@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -38,7 +39,8 @@ const TILE = 164;
  * Tiles in a grid have to share a baseline, and a title that runs long is far
  * less noticeable truncated than it is shoving the row below it out of line.
  */
-export function ListTile({ list }: { list: ListSummary }) {
+/** Memoised — one object prop straight from query data, always rendered in a list. */
+export const ListTile = memo(function ListTile({ list }: { list: ListSummary }) {
   const theme = useTheme();
 
   const owner = displayNameFor(list.owner);
@@ -82,7 +84,7 @@ export function ListTile({ list }: { list: ListSummary }) {
       </PressableScale>
     </Link>
   );
-}
+});
 
 const styles = StyleSheet.create({
   tile: { width: TILE, gap: Spacing.x8 },

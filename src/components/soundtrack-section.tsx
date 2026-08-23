@@ -85,6 +85,8 @@ export function SoundtrackAlbums({ gameTitle, layout = 'rail' }: SoundtrackAlbum
       onPress={() => open(album)}>
       <Image
         source={album.artworkUrl ? { uri: album.artworkUrl } : undefined}
+        recyclingKey={album.id}
+        cachePolicy="memory-disk"
         style={[styles.artwork, { backgroundColor: theme.surfaceElevated }]}
         contentFit="cover"
         transition={200}

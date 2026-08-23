@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -45,6 +46,36 @@ export default function TopGamesScreen() {
   });
 
   const entries = chart.data?.entries ?? [];
+
+  /*
+   * Mapped once, not per render.
+   *
+   * `<CoverTile>` is memoised, and a memo is only ever as good as the identity
+   * of what it is handed: building `game={{ … }}` inside `renderItem` mints a
+   * fresh object for every row on every render, so the comparison never matches
+   * and the memo costs a shallow compare to achieve nothing. Hoisting the map
+   * behind `useMemo` gives each row one stable object for the life of the data,
+   * which is the condition that makes the memo real.
+   */
+  const tiles = useMemo(
+    () =>
+      (chart.data?.entries ?? []).map((item) => ({
+        rank: item.rank,
+        game: {
+          id: item.gameId,
+          title: item.title,
+          coverUrl: item.coverUrl,
+          heroUrl: item.heroUrl,
+          releaseYear: item.releaseYear,
+          edition: item.edition,
+          steamAppId: item.steamAppId,
+        },
+      })),
+    /* Keyed on `chart.data`, not on `entries` — `?? []` mints a fresh array
+       every render while the query is pending, which would re-run this memo on
+       every render and defeat the very thing it exists for. */
+    [chart.data]
+  );
   const lead = entries[0];
   const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
@@ -57,30 +88,16 @@ export default function TopGamesScreen() {
      */
     <Screen edges={[]} topBar={<FrostedTopBar back scrollY={scrollY} />}>
       <Animated.FlatList
-        data={entries}
+        data={tiles}
         onScroll={onScroll}
         scrollEventThrottle={16}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}
-        keyExtractor={(entry) => entry.gameId}
+        keyExtractor={(tile) => tile.game.id}
         columnWrapperStyle={styles.column}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <CoverTile
-            game={{
-              id: item.gameId,
-              title: item.title,
-              coverUrl: item.coverUrl,
-              heroUrl: item.heroUrl,
-              releaseYear: item.releaseYear,
-              edition: item.edition,
-              steamAppId: item.steamAppId,
-            }}
-            width={tileWidth}
-            rank={item.rank}
-          />
-        )}
+        renderItem={({ item }) => <CoverTile game={item.game} width={tileWidth} rank={item.rank} />}
         ListHeaderComponent={
           <View style={styles.hero}>
             <HeroArt uri={lead?.heroUrl ?? lead?.coverUrl} scrim />

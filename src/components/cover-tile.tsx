@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -46,7 +47,8 @@ export type CoverTileProps = {
  * than as a numbered badge. The order is already legible from the layout; the
  * numeral is a confirmation, not the headline.
  */
-export function CoverTile({ game, width, rank }: CoverTileProps) {
+/** Memoised — primitives plus one query-owned object, always rendered in a grid. */
+export const CoverTile = memo(function CoverTile({ game, width, rank }: CoverTileProps) {
   // Art takes a bit over a third of the column. Wide enough to read as a cover
   // at a glance, narrow enough to leave two lines of title beside it on a phone.
   const artWidth = Math.min(84, Math.max(52, Math.round(width * 0.38)));
@@ -87,7 +89,7 @@ export function CoverTile({ game, width, rank }: CoverTileProps) {
       </PressableScale>
     </Link>
   );
-}
+});
 
 const styles = StyleSheet.create({
   tile: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },

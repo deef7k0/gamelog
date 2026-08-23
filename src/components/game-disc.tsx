@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
+  useReducedMotion,
   Easing,
   cancelAnimation,
   useAnimatedStyle,
@@ -46,9 +47,16 @@ export const GameDisc = memo(function GameDisc({
 }: GameDiscProps) {
   const theme = useTheme();
   const rotation = useSharedValue(0);
+  /* The one continuous loop in the app: an unbounded 360° rotation that starts
+     on its own and never ends. Reduce Motion stops it. The disc is a playback
+     indicator, and the state it indicates is still carried by the transport
+     controls beside it, so what stops is the movement and not the meaning.
+     Everything below this guard is untouched — a viewer who has not asked for
+     less motion sees exactly what shipped. */
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!spinning) {
+    if (!spinning || reduceMotion) {
       cancelAnimation(rotation);
       return;
     }
@@ -59,7 +67,7 @@ export const GameDisc = memo(function GameDisc({
     );
 
     return () => cancelAnimation(rotation);
-  }, [spinning, revolutionMs, rotation]);
+  }, [spinning, reduceMotion, revolutionMs, rotation]);
 
   const spinStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.get()}deg` }],

@@ -115,7 +115,25 @@ export const GameCase = memo(function GameCase({
   const source = coverUrl ?? heroUrl ?? null;
 
   return (
-    <View style={[styles.wrapper, { width: width + geometry.spineWidth }]}>
+    /*
+     * Accessibility only — no geometry, no tokens, no styles.
+     *
+     * This is the largest element on a game page and it announced as nothing
+     * usable: the rotated spine text ("Elden Ring", then "PS5") followed by the
+     * template PNG and the artwork as unlabelled images, which is to say the
+     * 90% of the object that *is* the cover art announced as silence.
+     *
+     * `accessible` collapses the whole composite — template, artwork, spine,
+     * gloss, edition badge — into one node carrying one sentence, which is what
+     * a sighted user gets in one glance. Per CLAUDE.md's preservation rules
+     * this file's look and behaviour are untouched; these are props on the
+     * existing wrapper, not a change to it.
+     */
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={[title, edition, platform?.toUpperCase()].filter(Boolean).join(', ')}
+      style={[styles.wrapper, { width: width + geometry.spineWidth }]}>
       <View
         style={[
           styles.object,

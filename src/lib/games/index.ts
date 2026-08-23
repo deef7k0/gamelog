@@ -141,12 +141,24 @@ export async function getSimilarTo(id: string, signal?: AbortSignal): Promise<Ga
   const parsed = parseGameId(id);
   if (parsed?.source !== 'igdb' || !igdbProvider.isEnabled()) return [];
 
-  try {
-    return await getSimilarGames(parsed.sourceId, signal);
-  } catch {
-    // A recommendation rail is not worth failing the page over.
-    return [];
-  }
+  /*
+   * Deliberately unguarded.
+   *
+   * This used to swallow every failure into `[]`, on the reasoning that a
+   * recommendation rail is not worth failing a page over. The reasoning was
+   * sound and the consequence was not: `[]` is the same value the API returns
+   * when IGDB genuinely lists nothing, so the screen rendered "IGDB has no
+   * similar games listed for this title" for a timeout, a 500 from the Edge
+   * Function, and an offline device alike. PRODUCT.md's second principle is
+   * that the app never fabricates what a provider does not have — and asserting
+   * a fact about IGDB's catalogue on the strength of a dropped connection is
+   * exactly that, told most often to the person least able to check it.
+   *
+   * TanStack Query owns the failure now, so the caller can tell "none" from
+   * "could not ask" and offer a retry. The page still does not fail: this query
+   * is one section of a screen where every band fails independently.
+   */
+  return getSimilarGames(parsed.sourceId, signal);
 }
 
 /** Look up one game by its app-wide `${source}:${sourceId}` id. */

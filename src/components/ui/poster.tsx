@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useState, type ReactNode } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
@@ -112,7 +112,18 @@ export type PosterProps = {
  * which reads acceptably, and fall back to an initial when there is no art at
  * all.
  */
-export function Poster({
+/**
+ * Memoised, and this is the one that pays for the pattern.
+ *
+ * `<Poster>` is on nearly every screen and there are dozens of it on the busy
+ * ones — a four-across collection grid, a franchise rail, a search result list.
+ * Every prop it takes is a primitive except `parallax`, which is a `SharedValue`
+ * and therefore a stable reference, so the comparison is cheap and almost always
+ * says "no change". Without it, any state that moves in a parent — a tab
+ * switching, a query settling, a sort changing — re-runs `useSteamArtwork` and
+ * rebuilds the whole subtree for every cover on screen.
+ */
+export const Poster = memo(function Poster({
   coverUrl,
   heroUrl,
   title,
@@ -237,7 +248,7 @@ export function Poster({
       </View>
     </View>
   );
-}
+});
 
 /**
  * The artwork, one layer back.

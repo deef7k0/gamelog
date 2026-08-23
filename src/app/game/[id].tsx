@@ -27,9 +27,10 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { Chip, ScoreBadge, SectionHeader } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
+import { editionLabel } from '@/constants/game-editions';
 import { platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { STATUS_ICON, STATUS_LABEL, statusColor } from '@/constants/status';
-import { HeroAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { HeroAspectRatio, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useArtworkPalette } from '@/hooks/use-artwork-palette';
 import { useTheme } from '@/hooks/use-theme';
@@ -61,6 +62,16 @@ const TABS = [
  * that wide, this much overlap — and a fixed number would make the same
  * composition read as two different designs on a phone and a tablet.
  */
+/**
+ * Lines of synopsis shown before "Read more".
+ *
+ * Six is where an IGDB summary stops being a paragraph and starts being the
+ * page. The character threshold below is deliberately generous — it only has to
+ * separate "there is more" from "there is not".
+ */
+const SYNOPSIS_LINES = 6;
+const SYNOPSIS_CLAMP_ABOVE = 320;
+
 const CASE_WIDTH_RATIO = 0.38;
 const CASE_MAX_WIDTH = 200;
 
@@ -108,6 +119,17 @@ export default function GameDetailScreen() {
    * cannot be computed until the detail query resolves.
    */
   const [platform, setPlatform] = useState<PlatformKey | null>(null);
+
+  /*
+   * The synopsis is collapsed until asked for.
+   *
+   * IGDB summaries run 500–2000 characters; at 13/19 in a 366dp column that is
+   * roughly 27 lines — about 513dp of unbroken body text wedged between "Where
+   * to buy" and six more sections, pushing Studios, Franchise, Cast,
+   * Screenshots and Achievements below a second screenful. Six lines is enough
+   * to know whether you want the rest.
+   */
+  const [synopsisOpen, setSynopsisOpen] = useState(false);
 
   const caseWidth = Math.min(CASE_MAX_WIDTH, Math.round(width * CASE_WIDTH_RATIO));
   // Also swallows the header's group gap, so the overlap is measured from the
@@ -231,10 +253,12 @@ export default function GameDetailScreen() {
   if (game.isLoading) {
     return (
       <Screen
-        edges={[]}
-        /* Replaces the page's flat `#121212`. In the `backdrop` slot so it sits
-           outside the safe-area inset and reaches the top of the display — and
-           outside the top bar, which is the layer above it and blurs this. */
+        /* `edges={[]}` belongs to the success branch, whose artwork bleeds under
+           the bar on purpose. There is no artwork here — just a spinner or a
+           sentence centred in the frame — so without the inset it centres
+           itself in a rectangle that includes the status bar and the Dynamic
+           Island. Nothing is drawn under the notch that wants to be there. */
+        edges={['top', 'bottom']}
         backdrop={<ScrollAmbience scrollY={scrollY} distance={scrollDistance} palette={palette} />}
         topBar={<FrostedTopBar back />}>
         <LoadingState />
@@ -245,10 +269,12 @@ export default function GameDetailScreen() {
   if (game.isError) {
     return (
       <Screen
-        edges={[]}
-        /* Replaces the page's flat `#121212`. In the `backdrop` slot so it sits
-           outside the safe-area inset and reaches the top of the display — and
-           outside the top bar, which is the layer above it and blurs this. */
+        /* `edges={[]}` belongs to the success branch, whose artwork bleeds under
+           the bar on purpose. There is no artwork here — just a spinner or a
+           sentence centred in the frame — so without the inset it centres
+           itself in a rectangle that includes the status bar and the Dynamic
+           Island. Nothing is drawn under the notch that wants to be there. */
+        edges={['top', 'bottom']}
         backdrop={<ScrollAmbience scrollY={scrollY} distance={scrollDistance} palette={palette} />}
         topBar={<FrostedTopBar back />}>
         <ErrorState
@@ -262,10 +288,12 @@ export default function GameDetailScreen() {
   if (!game.data) {
     return (
       <Screen
-        edges={[]}
-        /* Replaces the page's flat `#121212`. In the `backdrop` slot so it sits
-           outside the safe-area inset and reaches the top of the display — and
-           outside the top bar, which is the layer above it and blurs this. */
+        /* `edges={[]}` belongs to the success branch, whose artwork bleeds under
+           the bar on purpose. There is no artwork here — just a spinner or a
+           sentence centred in the frame — so without the inset it centres
+           itself in a rectangle that includes the status bar and the Dynamic
+           Island. Nothing is drawn under the notch that wants to be there. */
+        edges={['top', 'bottom']}
         backdrop={<ScrollAmbience scrollY={scrollY} distance={scrollDistance} palette={palette} />}
         topBar={<FrostedTopBar back />}>
         <EmptyState title="Game not found" />
@@ -305,10 +333,18 @@ export default function GameDetailScreen() {
           and centred, this block was two full screens before the first review;
           side by side it is one. */}
       <View style={[styles.identity, { marginTop: -caseOverlap }]}>
+        {/* The badge the case was missing on its own page.
+            
+            Every 92dp poster in a franchise rail is stamped "Remake" by
+            `<Poster edition>`, and the 148dp case on that remake's own page —
+            the largest, most deliberate rendering of the same fact — was the
+            one place the app knew and did not say. `GameCaseDisplay` has taken
+            the prop since it was written; nothing was passing it. */}
         <GameCaseDisplay
           coverUrl={data.coverUrl}
           heroUrl={data.heroUrl}
           title={data.title}
+          edition={data.edition ? editionLabel(data.edition) : null}
           platform={activePlatform}
           width={caseWidth}
         />
@@ -317,13 +353,6 @@ export default function GameDetailScreen() {
           <Text variant="h1" numberOfLines={3}>
             {data.title}
           </Text>
-
-          <GamePrice
-            gameId={data.id}
-            selected={activePlatform}
-            title={data.title}
-            steamAppId={data.steamAppId}
-          />
 
           {/* `accent.quietInk`, not a grey token, for every quiet line in this
               block. The masthead sits on the brightest part of the ambient
@@ -364,16 +393,34 @@ export default function GameDetailScreen() {
               </Text>
             </View>
           )}
-
-          <PlatformPicker
-            available={availablePlatforms}
-            selected={activePlatform}
-            onSelect={setPlatform}
-          />
         </View>
       </View>
 
-      {/* Group 2 — your record. What you already logged and how to change it
+      {/* Group 2 — where to get it.
+          
+          The price and the platform buttons were the last two children of the
+          metadata column, and neither is metadata: between them they are one
+          control that re-draws the case, the price *and* the store link. Sitting
+          in a 206dp column they also cost the composition its defining
+          relationship — see the note on `styles.identity`. Full width, they are
+          grouped by what they do, and seven platforms wrap to two rows instead
+          of three. */}
+      <View style={styles.availability}>
+        <GamePrice
+          gameId={data.id}
+          selected={activePlatform}
+          title={data.title}
+          steamAppId={data.steamAppId}
+        />
+
+        <PlatformPicker
+          available={availablePlatforms}
+          selected={activePlatform}
+          onSelect={setPlatform}
+        />
+      </View>
+
+      {/* Group 3 — your record. What you already logged and how to change it
           are the same subject, so they sit in one tight group. The actions run
           the full width below both columns rather than being squeezed into the
           right one: they act on the game, not on its metadata. */}
@@ -418,7 +465,13 @@ export default function GameDetailScreen() {
               {logged.platinum && <Ionicons name="trophy" size={16} color={theme.platinum} />}
             </View>
             {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
-            {logged.review_title && <Text variant="h5">{logged.review_title}</Text>}
+            {/* User-supplied and unbounded. Two lines is a headline; past that
+                it is the review, which lives one tap away. */}
+            {logged.review_title && (
+              <Text variant="h5" numberOfLines={2}>
+                {logged.review_title}
+              </Text>
+            )}
           </View>
         )}
 
@@ -469,7 +522,15 @@ export default function GameDetailScreen() {
     switch (tab) {
       case 'reviews':
         if (reviews.isLoading) return <LoadingState />;
-        if (reviews.isError) return <ErrorState error={reviews.error} />;
+        if (reviews.isError)
+          return (
+            <ErrorState
+              error={reviews.error}
+              action={
+                <Button title="Retry" variant="secondary" onPress={() => reviews.refetch()} />
+              }
+            />
+          );
         return (
           <View style={styles.tabBody}>
             {(reviews.data ?? []).length === 0 ? (
@@ -496,6 +557,19 @@ export default function GameDetailScreen() {
 
       case 'similar':
         if (similar.isLoading) return <LoadingState />;
+        /* `getSimilarTo` used to swallow every failure into an empty array, so
+           this branch was unreachable and a dropped connection rendered as a
+           statement about IGDB's catalogue. It throws now; this is the half of
+           the fix that tells the two apart. */
+        if (similar.isError)
+          return (
+            <ErrorState
+              error={similar.error}
+              action={
+                <Button title="Retry" variant="secondary" onPress={() => similar.refetch()} />
+              }
+            />
+          );
         return (
           <View style={styles.tabBody}>
             {(similar.data ?? []).length === 0 ? (
@@ -546,9 +620,38 @@ export default function GameDetailScreen() {
             {data.description && (
               <View style={styles.section}>
                 <SectionHeader title="About" />
-                <Text variant="body" style={{ color: accent.quietInk }}>
+                <Text
+                  variant="body"
+                  style={{ color: accent.quietInk }}
+                  numberOfLines={synopsisOpen ? undefined : SYNOPSIS_LINES}>
                   {data.description}
                 </Text>
+                {/* Only offered when there is plausibly something behind the
+                    clamp — a two-line summary with a "Read more" under it is a
+                    control that does nothing. Measured in characters rather
+                    than lines because the line count is not knowable until
+                    layout, and `onTextLayout` would put a setState on the
+                    render path of the longest block on the page. */}
+                {data.description.length > SYNOPSIS_CLAMP_ABOVE && (
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: synopsisOpen }}
+                    accessibilityLabel={
+                      synopsisOpen ? 'Collapse the description' : 'Read the full description'
+                    }
+                    onPress={() => setSynopsisOpen((open) => !open)}
+                    scaleTo={0.98}
+                    style={styles.synopsisToggle}>
+                    <Text variant="h5" style={{ color: accent.onSurface }}>
+                      {synopsisOpen ? 'Show less' : 'Read more'}
+                    </Text>
+                    <Ionicons
+                      name={synopsisOpen ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color={accent.onSurface}
+                    />
+                  </PressableScale>
+                )}
               </View>
             )}
 
@@ -570,12 +673,20 @@ export default function GameDetailScreen() {
                       <PressableScale
                         accessibilityRole="button"
                         accessibilityLabel={`${company.name} catalogue`}
+                        hitSlop={{ top: 6, bottom: 6 }}
                         scaleTo={0.95}
                         style={StyleSheet.flatten([
                           styles.studioChip,
                           { borderColor: withAlpha(accent.color, 0.28) },
                         ])}>
-                        <Text variant="bodySmall">{company.name}</Text>
+                        {/* IGDB studio names run long ("Kabushiki Gaisha
+                            Nintendo Entaateinmento Puranningu & Debelopumento").
+                            The chip is in a `flexWrap` row with no width of its
+                            own, so without both of these the name pushed the
+                            chip past the screen edge rather than wrapping. */}
+                        <Text variant="bodySmall" numberOfLines={1} style={styles.studioName}>
+                          {company.name}
+                        </Text>
                         <Text variant="caption" style={{ color: accent.quietInk }}>
                           {company.role === 'developer' ? 'Developer' : 'Publisher'}
                         </Text>
@@ -638,13 +749,18 @@ export default function GameDetailScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.shots}>
-                  {data.screenshots.slice(0, 10).map((url) => (
+                  {data.screenshots.slice(0, 10).map((url, index) => (
                     <Image
                       key={url}
                       source={{ uri: url }}
                       style={[styles.shot, { backgroundColor: theme.surfaceElevated }]}
                       contentFit="cover"
                       transition={200}
+                      /* Announced as "Screenshot 3 of 8" rather than as eight
+                         unlabelled images in a row. */
+                      accessible
+                      accessibilityRole="image"
+                      accessibilityLabel={`Screenshot ${index + 1} of ${Math.min(data.screenshots.length, 10)} from ${data.title}`}
                       accessibilityIgnoresInvertColors
                     />
                   ))}
@@ -652,34 +768,49 @@ export default function GameDetailScreen() {
               </View>
             )}
 
-            {achievementTotal > 0 && (
+            {/* A failed fetch used to leave `achievementTotal` at 0 and take the
+                whole section with it — silently, and identically to a game that
+                genuinely tracks none. The count is the section's own claim, so
+                it cannot be rendered from a number the app never received. */}
+            {achievements.isError ? (
               <View style={styles.section}>
-                <SectionHeader
-                  title="Achievements"
-                  action={
-                    <Text variant="bodySmall" style={{ color: accent.quietInk }}>
-                      {unlockedCount}/{achievementTotal}
-                    </Text>
-                  }
-                />
-                <PressableScale
-                  accessibilityRole="button"
-                  onPress={() =>
-                    router.push({ pathname: '/achievements/[id]', params: { id: data.id } })
-                  }
-                  scaleTo={0.98}
-                  style={StyleSheet.flatten([
-                    styles.linkRow,
-                    { borderColor: withAlpha(accent.color, 0.28) },
-                  ])}>
-                  <Text variant="h5">View all {achievementTotal}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={accent.quietInk} />
-                </PressableScale>
+                <SectionHeader title="Achievements" />
+                <Text variant="bodySmall" style={{ color: accent.quietInk }}>
+                  Could not load achievements. Pull to refresh, or try again later.
+                </Text>
               </View>
+            ) : (
+              achievementTotal > 0 && (
+                <View style={styles.section}>
+                  <SectionHeader
+                    title="Achievements"
+                    action={
+                      <Text variant="bodySmall" style={{ color: accent.quietInk }}>
+                        {unlockedCount}/{achievementTotal}
+                      </Text>
+                    }
+                  />
+                  <PressableScale
+                    accessibilityRole="button"
+                    onPress={() =>
+                      router.push({ pathname: '/achievements/[id]', params: { id: data.id } })
+                    }
+                    scaleTo={0.98}
+                    style={StyleSheet.flatten([
+                      styles.linkRow,
+                      { borderColor: withAlpha(accent.color, 0.28) },
+                    ])}>
+                    <Text variant="h5">View all {achievementTotal}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={accent.quietInk} />
+                  </PressableScale>
+                </View>
+              )
             )}
 
             {data.storeUrl && (
-              <ExternalLink href={data.storeUrl as Href & string}>
+              <ExternalLink
+                href={data.storeUrl as Href & string}
+                label={`Open ${data.title} on ${data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}`}>
                 <Text variant="h5" style={{ color: accent.onSurface }}>
                   Open on {data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}
                 </Text>
@@ -754,12 +885,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    paddingVertical: Spacing.x8,
+    /* 28dp before. The extra padding takes the box to 36 and the `hitSlop` on
+       the pressable carries it past both platform floors without making the
+       chip look like a button. */
+    paddingVertical: Spacing.x12,
     paddingHorizontal: Spacing.x12,
+    maxWidth: '100%',
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
   content: { paddingBottom: Spacing.x48 },
+  /* Shrinks inside the chip, and the chip is capped so one long studio cannot
+     take the whole row. */
+  studioName: { flexShrink: 1 },
+  synopsisToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing.x4,
+    minHeight: TapTarget,
+  },
   /*
    * `five` between groups, not `four` between every child.
    *
@@ -771,11 +916,32 @@ const styles = StyleSheet.create({
   header: { gap: Spacing.x24, paddingHorizontal: Spacing.x16, marginBottom: Spacing.x24 },
   hero: { marginHorizontal: -Spacing.x16 },
   /* `marginTop` is supplied inline — it scales with the case.
-     `flex-end` so the two columns share a baseline at the bottom: the case is a
-     fixed shape and the copy is not, and aligning their tops would leave the
-     title floating against nothing whenever a game has a short one. */
-  identity: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.x16 },
-  identityText: { flex: 1, gap: Spacing.x8, paddingBottom: Spacing.x4 },
+     
+     **`flex-start`, and the reason is the whole composition.** This was
+     `flex-end`, to share a baseline at the bottom — but in a flex row that
+     aligns the *shorter* child to the taller one's bottom, and the taller child
+     here is the text. So as a game accumulated metadata the case was pushed
+     *down*, out of the key art: measured at 390×844, a typical game (2-line
+     title, developer, score, four platforms) already put the case 13dp **below**
+     the hero, and a metadata-rich one 130dp below. The 46% overlap that makes
+     this masthead a boxed copy propped against a poster rather than two stacked
+     bands only survived on games with almost no metadata.
+     
+     The case is the fixed shape, so the case is the anchor. Top-aligned, the
+     overlap holds at 86dp into the art for every game, and the text runs past
+     the case's bottom edge when it needs to — which it may, because what
+     follows is a gap and not more artwork.
+     
+     The old comment worried that top-aligning would leave a short title
+     "floating against nothing". It is the other way round: `flex-end` was what
+     put 160dp of void *above* the title on a sparse game. Top-aligned, the
+     title meets the case's top edge and any slack falls below it, beside the
+     lower half of the case, where it reads as ordinary margin. */
+  identity: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x16 },
+  identityText: { flex: 1, gap: Spacing.x8 },
+  /* Its own group at the page's full width, one step of the header's rhythm
+     away from the identity row above and the record below. */
+  availability: { gap: Spacing.x12 },
   record: { gap: Spacing.x12 },
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
@@ -796,6 +962,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: Spacing.x16,
+    /* 42dp from padding alone — two short of the HIG floor and six short of
+       Material's. The floor is the honest way to say it. */
+    minHeight: TapTarget,
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },

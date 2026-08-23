@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { scoreColor } from '@/constants/score';
+import { labelFor, scoreColor } from '@/constants/score';
 import { Elevation, Radius, Spacing, type ThemeColor } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
@@ -157,7 +157,17 @@ export type SectionHeaderProps = {
 export function SectionHeader({ title, action }: SectionHeaderProps) {
   return (
     <View style={styles.sectionHeader}>
-      <Text variant="h4">{title}</Text>
+      {/* `role="header"` is what puts these in the rotor. Without it a screen
+          reader has no way past a twelve-section page except swiping through
+          every paragraph of it — which on the game page means the whole IGDB
+          synopsis before you reach Screenshots.
+
+          `numberOfLines` because the title is not always ours: the game page
+          passes IGDB's collection name straight in, beside an action, in a
+          `space-between` row that has no other way to yield. */}
+      <Text variant="h4" accessibilityRole="header" numberOfLines={2} style={styles.sectionTitle}>
+        {title}
+      </Text>
       {action}
     </View>
   );
@@ -188,11 +198,18 @@ export function ScoreBadge({
 }) {
   const theme = useTheme();
 
+  const rounded = Math.round(score);
+
   return (
     <Text
       variant={size === 'small' ? 'bodySmall' : 'h5'}
+      /* Two digits announce as two digits. `<ScoreNumber>` two elements away on
+         the same page says "Scored 82 out of 100 — Very Good"; this said "82",
+         and the word beside it ("COMMUNITY") arrived as a separate node with no
+         stated relationship to it. */
+      accessibilityLabel={`${rounded} out of 100 — ${labelFor(rounded)}`}
       style={{ color: scoreColor(score, theme) }}>
-      {Math.round(score)}
+      {rounded}
     </Text>
   );
 }
@@ -227,11 +244,20 @@ const styles = StyleSheet.create({
   card: { borderRadius: Radius.card },
   cardClip: { borderRadius: Radius.card, overflow: 'hidden' },
   cardPadded: { padding: Spacing.x16 },
+  /* `minHeight`, not `height`.
+     
+     React Native scales text with the OS font-size setting by default, and a
+     fixed 34 could not grow with it — at the larger accessibility sizes the
+     label clipped inside its own capsule. The floor keeps every chip the same
+     34 at the default setting, which is what the row's rhythm depends on, and
+     lets the capsule grow instead of the text being cut. The vertical padding
+     is what gives it somewhere to grow to. */
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    height: 34,
+    minHeight: 34,
+    paddingVertical: Spacing.x4,
     paddingHorizontal: Spacing.x12 + 2,
     borderRadius: Radius.pill,
   },
@@ -241,6 +267,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.x12,
   },
+  /* Shrinks rather than pushing its own action off the row. */
+  sectionTitle: { flexShrink: 1 },
 });
 
 export type { ThemeColor };

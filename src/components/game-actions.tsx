@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { Share, StyleSheet, View } from 'react-native';
+import { Alert, Share, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -10,7 +10,7 @@ import { parseReviewMetrics } from '@/constants/review-metrics';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { getListMembership, saveLog, toggleSingletonMembership } from '@/lib/api';
+import { deleteLog, getListMembership, saveLog, toggleSingletonMembership } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import type { Game } from '@/lib/games';
 import { useAuth } from '@/store/auth';
@@ -87,9 +87,32 @@ export function GameActions({ game, log }: GameActionsProps) {
     onSuccess: invalidate,
   });
 
+  /*
+   * Does the log hold anything a delete would destroy?
+   *
+   * `logs.status` is a NOT NULL enum of four values (migration 0001), so there
+   * is no "logged, but no status" row to fall back to — clearing a status means
+   * removing the log. That is fine when the log *is* the status and nothing
+   * else, and it is data loss when the person wrote a review. The row below is
+   * what decides which of those two a tap is about.
+   */
+  const logHasContent = Boolean(
+    log &&
+    (log.rating !== null ||
+      log.review ||
+      log.review_title ||
+      log.hours_played !== null ||
+      log.completion_percent !== null ||
+      log.platinum)
+  );
+
   const setStatus = useMutation({
-    mutationFn: async (status: 'playing' | 'played') => {
+    mutationFn: async (status: 'playing' | 'played' | null) => {
       if (!userId) throw new Error('You must be signed in.');
+      if (status === null) {
+        await deleteLog(userId, game.id);
+        return;
+      }
       /*
        * Preserve whatever the user already recorded; only the status changes.
        *
@@ -115,6 +138,22 @@ export function GameActions({ game, log }: GameActionsProps) {
     },
     onSuccess: invalidate,
   });
+
+  /** Toggle the active status off. Confirms first when that would lose writing. */
+  function clearStatus() {
+    if (!logHasContent) {
+      setStatus.mutate(null);
+      return;
+    }
+    Alert.alert(
+      'Remove your log?',
+      `Your score and review for ${game.title} are deleted along with it. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => setStatus.mutate(null) },
+      ]
+    );
+  }
 
   async function share() {
     try {
@@ -159,6 +198,7 @@ export function GameActions({ game, log }: GameActionsProps) {
           icon="star"
           outline="star-outline"
           active={favorited}
+          busy={toggleList.isPending}
           label="Favourite"
           onPress={() => toggleList.mutate({ kind: 'favorites', next: !favorited })}
         />
@@ -166,16 +206,34 @@ export function GameActions({ game, log }: GameActionsProps) {
           icon="bookmark"
           outline="bookmark-outline"
           active={wishlisted}
+          busy={toggleList.isPending}
           label="Wishlist"
           onPress={() => toggleList.mutate({ kind: 'wishlist', next: !wishlisted })}
         />
+        {/*
+          Playing and Played are two values of one four-value enum, not two
+          independent switches — setting either replaces the other, and there is
+          no null to toggle back to. They were nevertheless rendered exactly like
+          Favourite and Wishlist, which *are* independent booleans, and pressing
+          a lit one wrote the same status a second time. So the row taught the
+          toggle rule with its first two buttons and broke it on the next two,
+          on the two that publish to your followers' feeds.
+
+          They toggle for real now. Pressing the lit one clears the log — with a
+          confirm when there is a score or a review to lose, and silently when
+          the log is nothing but the status itself, because there a confirm is
+          ceremony over nothing.
+        */}
         {!unreleased && (
           <Action
             icon="game-controller"
             outline="game-controller-outline"
             active={log?.status === 'playing'}
+            busy={setStatus.isPending}
             label="Playing"
-            onPress={() => setStatus.mutate('playing')}
+            onPress={() =>
+              log?.status === 'playing' ? clearStatus() : setStatus.mutate('playing')
+            }
           />
         )}
         {!unreleased && (
@@ -183,18 +241,14 @@ export function GameActions({ game, log }: GameActionsProps) {
             icon="checkmark-circle"
             outline="checkmark-circle-outline"
             active={log?.status === 'played'}
+            busy={setStatus.isPending}
             label="Played"
-            onPress={() => setStatus.mutate('played')}
+            onPress={() => (log?.status === 'played' ? clearStatus() : setStatus.mutate('played'))}
           />
         )}
-        {/* Never active — sharing is an act, not a state. */}
-        <Action
-          icon="paper-plane"
-          outline="paper-plane-outline"
-          active={false}
-          label="Share"
-          onPress={share}
-        />
+        {/* Not a toggle, so it carries no selected state at all — it used to
+            announce as a permanently unselected one to a screen reader. */}
+        <Action icon="paper-plane" outline="paper-plane-outline" label="Share" onPress={share} />
       </View>
 
       {/* The one primary button on the page — writing a review is what this
@@ -237,13 +291,17 @@ export function GameActions({ game, log }: GameActionsProps) {
 function Action({
   icon,
   outline,
-  active,
+  active = false,
+  busy = false,
   label,
   onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   outline: keyof typeof Ionicons.glyphMap;
-  active: boolean;
+  /** Omit entirely for a control that is an act rather than a state. */
+  active?: boolean;
+  /** A write is in flight. Blocks the second tap of a double-tap. */
+  busy?: boolean;
   label: string;
   onPress: () => void;
 }) {
@@ -274,10 +332,14 @@ function Action({
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected: active }}
+      /* `selected` only where there is something to be selected. Share carried
+         it as a permanent `false`, which told VoiceOver it was an unselected
+         toggle rather than an action. */
+      accessibilityState={{ selected: active, busy, disabled: busy }}
+      disabled={busy}
       onPress={onPress}
       scaleTo={0.92}
-      style={styles.action}>
+      style={StyleSheet.flatten([styles.action, busy && styles.actionBusy])}>
       {/* Border colour matches the fill rather than being dropped: the
           hairline is load-bearing for *size*, and removing it would shrink
           every button by a pixel and break the row's alignment with the
@@ -325,6 +387,11 @@ const styles = StyleSheet.create({
   errorText: { flex: 1 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   action: { alignItems: 'center', gap: Spacing.x4, flex: 1 },
+  /* The write is a single round trip, so this is a brief dim rather than a
+     spinner — long enough to say "heard you", short enough not to flash. It is
+     also what stops a second tap on a slow connection recomputing `next` from
+     state the first tap has not updated yet. */
+  actionBusy: { opacity: 0.5 },
   actionIcon: {
     width: 46,
     height: 46,

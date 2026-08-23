@@ -150,6 +150,8 @@ export function CastRail({ cast }: { cast: GameCharacter[] }) {
             {item.portraitUrl ? (
               <Image
                 source={{ uri: item.portraitUrl }}
+                recyclingKey={String(item.id)}
+                cachePolicy="memory-disk"
                 style={styles.fill}
                 contentFit="cover"
                 transition={180}

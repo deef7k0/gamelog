@@ -1,19 +1,27 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SectionList, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import { getInventory } from '@/lib/api';
 import { rarityColor } from '@/lib/gaming';
 import { useAuth } from '@/store/auth';
 import type { InventoryItem } from '@/lib/gaming';
+
+/* Reanimated wraps `ScrollView` and `FlatList` and not `SectionList`, so this
+   screen makes its own — the top bar hides against an offset read on the UI
+   thread, which a plain `SectionList` cannot report. */
+const AnimatedSectionList = Animated.createAnimatedComponent(SectionList<InventoryItem>);
 
 const ITEM_ICON = 48;
 
@@ -54,6 +62,8 @@ export default function GamingInventoryScreen() {
   const account = useLinkedAccount(id ?? null);
   useGamingSync({ userId: id ?? null, enabled: isSelf, sections: ['inventory'] });
 
+  const { scrollY, onScroll } = useTopBarScroll();
+
   const inventory = useQuery({
     queryKey: ['gaming-inventory', 'steam', id],
     queryFn: () => getInventory(id!),
@@ -62,7 +72,7 @@ export default function GamingInventoryScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Inventory" back />}>
         <EmptyState title="Not found" />
       </Screen>
     );
@@ -85,11 +95,14 @@ export default function GamingInventoryScreen() {
   }));
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: 'Inventory' }} />
-
-      <SectionList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar title="Inventory" back scrollY={scrollY} />}>
+      <AnimatedSectionList
         sections={sections}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         keyExtractor={(item) => `${item.appId}:${item.itemId}`}
         renderItem={({ item }) => <ItemRow item={item} />}
         renderSectionHeader={({ section }) => (

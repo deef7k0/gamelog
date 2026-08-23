@@ -5,6 +5,8 @@
  * platform. `id` is the app-wide identity and is always `${source}:${sourceId}`
  * — stable, human-readable, and safe to use as a React key or route param.
  */
+import type { EditionKind } from '../../constants/game-editions';
+
 export type GameSource = 'igdb' | 'rawg' | 'steam' | 'itch';
 
 /**
@@ -40,7 +42,69 @@ export type Game = {
   score: number | null;
   storeUrl: string | null;
   screenshots: string[];
+
+  /**
+   * What kind of release this is — remake, remaster, DLC, edition — or null
+   * when it is simply the game. See `constants/game-editions.ts`.
+   *
+   * Null for every provider except IGDB. Steam, RAWG and itch.io model editions
+   * as separate store pages with no relationship recorded between them, so
+   * there is nothing to read; a legacy `steam:` row shows no badge rather than
+   * a guessed one.
+   */
+  edition: EditionKind | null;
+  /**
+   * The repackage's marketing name — "Definitive Edition", "Game of the Year
+   * Edition". Only ever set alongside `edition: 'edition'`.
+   *
+   * Kept apart from `title` because IGDB already puts it there: the row is
+   * called "Mafia II: Director's Cut" *and* carries "Director's Cut" here. This
+   * is for the places that need the suffix on its own.
+   */
+  editionTitle: string | null;
+  /**
+   * The game this descends from, as an app-wide id, or null for an original.
+   *
+   * One field for two IGDB relationships — `parent_game` for a remake or DLC,
+   * `version_parent` for a repackage. A reader asking "what is this a version
+   * of" does not care which of the two IGDB used, and `edition` still tells
+   * them apart when it matters.
+   */
+  parentId: string | null;
+  /**
+   * Steam's appid for this game, or null when it is not sold on Steam.
+   *
+   * The key to Steam's CDN artwork — see `lib/games/steam-artwork.ts`. Only
+   * IGDB fills this in, from `external_games`; a `steam:` row already *is* its
+   * appid and sets this from its own `sourceId`.
+   *
+   * **Null is the common case for anything console-exclusive**, which is why
+   * Steam artwork is a preference and never a replacement: IGDB stays the
+   * fallback, or half the catalogue would lose its covers.
+   */
+  steamAppId: string | null;
 };
+
+/**
+ * The release-type fields, for a provider that records no relationships.
+ *
+ * Steam, RAWG and itch.io model an edition as an unrelated store page: there is
+ * no field saying "this is a remaster of that", so there is nothing to map and
+ * spreading this is the honest answer. Only IGDB fills these in.
+ *
+ * A shared constant rather than three copies of the same nulls, so adding a
+ * field to the group is one edit and the compiler finds the rest.
+ *
+ * `steamAppId` rides along for itch and RAWG, which likewise have no idea what
+ * a game's Steam listing is. Steam itself overrides it — a `steam:` row already
+ * *is* its appid.
+ */
+export const NO_EDITION = {
+  edition: null,
+  editionTitle: null,
+  parentId: null,
+  steamAppId: null,
+} as const;
 
 /**
  * Search results carry enough for a rich card — poster, year, studio, platforms
@@ -59,6 +123,13 @@ export type GameSearchResult = Pick<
   | 'genres'
   | 'platforms'
   | 'score'
+  // Carried into search results so a rail or grid can badge a remake without a
+  // follow-up request per poster.
+  | 'edition'
+  | 'editionTitle'
+  | 'parentId'
+  // Carried so a grid of posters can build Steam CDN URLs with no extra request.
+  | 'steamAppId'
 >;
 
 /** One achievement definition, shared across every user who owns the game. */

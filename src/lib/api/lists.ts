@@ -18,10 +18,20 @@ function unwrap<T>(data: T | null, error: { message: string } | null): T {
  */
 export type SummaryRow = GameList & {
   items: { position: number; game_id: string; game: ListCover | null }[];
+  owner: { username: string | null; display_name: string | null } | null;
 };
 
-/** The embedded select every summary query needs. Compose it into a `select()`. */
-export const SUMMARY_ITEMS = 'items:list_items(position, game_id, game:games(cover_url, hero_url))';
+/**
+ * The embedded select every summary query needs. Compose it into a `select()`.
+ *
+ * The owner is embedded rather than fetched per tile: a wall of collections
+ * would otherwise be one profile request each. `lists_user_id_fkey` is declared
+ * in `database.types.ts`, which is what lets supabase-js type this as the joined
+ * row instead of `SelectQueryError` — see the note in CLAUDE.md.
+ */
+export const SUMMARY_ITEMS =
+  'items:list_items(position, game_id, game:games(cover_url, hero_url)), ' +
+  'owner:profiles!lists_user_id_fkey(username, display_name)';
 
 /**
  * Pick the one cover a collection tile shows.
@@ -44,6 +54,27 @@ export function resolvePreview(row: SummaryRow): ListCover | null {
   return (chosen ?? items[0]).game ?? null;
 }
 
+/**
+ * The first four covers, for the tile's 2x2 mosaic.
+ *
+ * Free: `SUMMARY_ITEMS` already embeds every item's cover so `resolvePreview`
+ * can pick one, so this reads from data the query was fetching anyway. Returns
+ * however many exist — one, two or three games give a shorter mosaic, and the
+ * tile lays out whatever it is handed rather than padding with placeholders.
+ *
+ * Ordered by `position`, not by the owner's chosen cover: the mosaic is "what is
+ * in here", where `preview` is "what represents it". A collection's first four
+ * games in order is a more honest summary than four arbitrary ones.
+ */
+export function resolveMosaic(row: SummaryRow): ListCover[] {
+  return (row.items ?? [])
+    .slice()
+    .sort((a, b) => a.position - b.position)
+    .map((item) => item.game)
+    .filter((game): game is ListCover => game !== null)
+    .slice(0, 4);
+}
+
 const SUMMARY_SELECT = `*, ${SUMMARY_ITEMS}`;
 
 export async function getLists(userId: string): Promise<ListSummary[]> {
@@ -59,6 +90,7 @@ export async function getLists(userId: string): Promise<ListSummary[]> {
     ...row,
     itemCount: row.items?.length ?? 0,
     preview: resolvePreview(row),
+    mosaic: resolveMosaic(row),
   }));
 }
 
@@ -304,5 +336,6 @@ export async function getPublicLists(limit = 30): Promise<ListSummary[]> {
     ...row,
     itemCount: row.items?.length ?? 0,
     preview: resolvePreview(row),
+    mosaic: resolveMosaic(row),
   }));
 }

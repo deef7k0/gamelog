@@ -26,13 +26,13 @@ export type SoftGlowProps = {
   /**
    * Colour at the centre of the glow.
    *
-   * @default Palette.glowCore ('#3A2050')
+   * @default Palette.glowCore ('#6B4C9A')
    */
   color?: string;
   /**
    * Colour at the halfway stop, where the glow is already thinning.
    *
-   * @default Palette.glowEdge ('#2D1B3D')
+   * @default Palette.glowEdge ('#3A2050')
    */
   secondaryColor?: string;
   /**
@@ -41,7 +41,7 @@ export type SoftGlowProps = {
    * The visible glow is meaningfully larger than this — reckon on
    * `size + blurRadius * 2` when deciding how far it will reach.
    *
-   * @default 400
+   * @default 560
    */
   size?: number;
   /**
@@ -50,20 +50,33 @@ export type SoftGlowProps = {
    * This is a real `<Blur>` image filter, not a stack of translucent rings, so
    * the falloff is a true Gaussian with no banding at any radius.
    *
-   * @default 80
+   * **This is a Gaussian sigma, not a CSS blur radius.** Skia's `blur` prop is
+   * the standard deviation, so 80 here is not "80px of softening" — it spreads
+   * the source over roughly ±240px and divides the peak intensity accordingly.
+   * That mistake is most of why the first version of this component rendered
+   * nothing visible. Keep it small; the radial gradient is already smooth, and
+   * this is only insurance against banding.
+   *
+   * @default 24
    */
   blurRadius?: number;
   /**
-   * Centre X in dp. Negative pushes the circle off the left edge, which is what
-   * removes the last trace of a circular silhouette.
+   * Centre X in dp.
    *
-   * @default -100
+   * **Keep the centre on or near the screen.** The instinct is to push it far
+   * off-corner so no circular silhouette can show, but the gradient already
+   * fades to fully transparent at its rim — there is no silhouette to hide. All
+   * that pushing it off-screen achieves is throwing away the bright part: at
+   * (-60, -110) only 6.4% of the disc was on screen and every visible pixel came
+   * from the outer, nearly-transparent half of the ramp.
+   *
+   * @default 60
    */
   offsetX?: number;
   /**
-   * Centre Y in dp. Negative pushes the circle above the top edge.
+   * Centre Y in dp. See `offsetX`.
    *
-   * @default -100
+   * @default 0
    */
   offsetY?: number;
 };
@@ -71,13 +84,30 @@ export type SoftGlowProps = {
 /**
  * A soft, diffuse radial glow for the corner of a dark screen.
  *
- * Draws one circle filled with a radial gradient and puts a true Gaussian blur
- * over it, positioned so its centre sits *outside* the viewport. Only the outer
- * shoulder of the falloff is ever on screen, which is what makes it read as
- * ambient light rather than as a blurred circle: there is no point on screen
- * where the gradient is at full strength, so there is no shape to find.
+ * One circle filled with a radial gradient, its centre near the top-left corner,
+ * with a small Gaussian blur over the top. The gradient does the shaping and the
+ * blur only guards against banding.
  *
- * Three details do the work, and all three matter:
+ * ## What made the first version invisible
+ *
+ * Worth keeping, because every instinct here was wrong in the same direction —
+ * each choice made the glow subtler, and three of them together made it nothing.
+ * Measured against `#121212`, the brightest on-screen pixel was `#1A151E`: a
+ * contrast ratio of **1.04:1**, which is not "faint", it is imperceptible.
+ *
+ *  1. **The colour was too close to the page.** `#3A2050` is 1.34:1 at *full*
+ *     opacity. A glow drawn in it cannot exceed that, and it never runs at full
+ *     opacity. `#6B4C9A` is 2.79:1 and leaves room to be seen.
+ *  2. **The centre was off-screen**, at `(-100, -100)` with a 400dp circle — so
+ *     only 6.4% of the disc was visible and every visible pixel came from the
+ *     outer, nearly-transparent half of the ramp. The bright part was never on
+ *     screen at all.
+ *  3. **`blur` is a sigma, not a radius.** 80 spreads the source across ±240dp,
+ *     dividing what little intensity survived (1) and (2) across the whole
+ *     screen.
+ *
+ * There was no fourth cause and nothing wrong with Skia. Two details still do
+ * real work and should not be undone:
  *
  *  - **`mode="decal"` on the blur.** The tile mode decides what the blur samples
  *    beyond the layer's bounds. `clamp` — the default — repeats the edge pixels
@@ -86,7 +116,6 @@ export type SoftGlowProps = {
  *  - **The gradient's last stop is `#00000000`.** Fully transparent *black*, not
  *    a transparent purple: Skia interpolates premultiplied, and ending on a
  *    transparent chromatic colour tints the tail.
- *  - **The centre is off-screen.** See `offsetX` / `offsetY`.
  *
  * Purely decorative and inert — the canvas takes `pointerEvents="none"`, so
  * everything underneath stays tappable.
@@ -95,7 +124,7 @@ export type SoftGlowProps = {
  * ```tsx
  * // The glow goes first so it renders beneath; content follows and sits on top.
  * <View style={{ flex: 1, backgroundColor: theme.background }}>
- *   <SoftGlow size={520} blurRadius={90} offsetX={-40} offsetY={-120} />
+ *   <SoftGlow />
  *   <Text variant="display">GameLog</Text>
  * </View>
  * ```
@@ -118,10 +147,10 @@ export const SoftGlow = memo(function SoftGlow({
   opacity = 0.5,
   color = Palette.glowCore,
   secondaryColor = Palette.glowEdge,
-  size = 400,
-  blurRadius = 80,
-  offsetX = -100,
-  offsetY = -100,
+  size = 560,
+  blurRadius = 24,
+  offsetX = 60,
+  offsetY = 0,
 }: SoftGlowProps) {
   const radius = size / 2;
 

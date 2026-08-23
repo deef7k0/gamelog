@@ -48,6 +48,10 @@ export async function cacheGame(game: Game): Promise<void> {
       screenshots: game.screenshots,
       score: game.score,
       store_url: game.storeUrl,
+      /* Carried into the cache so a remake stays badged on a collection tile
+         and in a feed, where there is no IGDB response to read it from. */
+      edition_kind: game.edition,
+      parent_game_id: game.parentId,
       cached_at: new Date().toISOString(),
     },
     { onConflict: 'id' }

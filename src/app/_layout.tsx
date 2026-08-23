@@ -13,8 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { HeaderBackdrop } from '@/components/ui/header-backdrop';
-import { FontFamily, Palette, Type } from '@/constants/theme';
+import { primeSteamArtwork } from '@/hooks/use-steam-artwork';
 import { useAuth } from '@/store/auth';
 
 SplashScreen.preventAutoHideAsync();
@@ -32,8 +31,6 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  // Dark, always — see `APP_SCHEME`.
-  const palette = Palette;
   const session = useAuth((state) => state.session);
   const isRestoring = useAuth((state) => state.isRestoring);
 
@@ -71,27 +68,24 @@ export default function RootLayout() {
     }
   }, [ready]);
 
+  /*
+   * Pull the persisted Steam-artwork map into memory before the first grid
+   * paints, so a game whose hashed capsule was resolved on an earlier run draws
+   * the right image immediately instead of flashing a 404 and correcting.
+   *
+   * Not a network prefetch: the direct CDN URL is right for ~95% of appids and
+   * costs nothing, so prefetching would spend a request per game to learn that
+   * almost none of them needed one. See `hooks/use-steam-artwork`.
+   */
+  useEffect(() => {
+    void primeSteamArtwork();
+  }, []);
+
   useEffect(() => {
     if (fontError) {
       console.warn('[gamelog] Icon font failed to load; icons will render blank.', fontError);
     }
   }, [fontError]);
-
-  /*
-   * Modals opt back out of the floating header.
-   *
-   * Two reasons. They are forms — there is no artwork for a translucent bar to
-   * reveal, so it would only cost legibility. And a sheet-presented modal on
-   * iOS starts below the status bar, which the app-wide
-   * `safe-area-top + bar-height` offset does not know: `<Screen insetHeader>`
-   * would leave a status-bar-sized gap above the first field. An opaque header
-   * lays the screen out itself and neither problem arises.
-   */
-  const modalHeader = {
-    headerTransparent: false,
-    headerBackground: undefined,
-    headerStyle: { backgroundColor: palette.background },
-  } as const;
 
   if (!ready) return null;
 
@@ -102,72 +96,63 @@ export default function RootLayout() {
           <StatusBar style="light" />
 
           {/*
-            The header floats over the page everywhere, not just on the game
-            screen — see `HeaderBackdrop` for why it needs a drawn ramp and
-            shadow rather than a background colour. Anything that is not leading
-            with full-bleed artwork reserves the space back with
-            `<Screen insetHeader>`.
+            No native header, anywhere.
+
+            Every screen draws its own `<FrostedTopBar>` through `<Screen topBar>`
+            instead. Three things the native header could not do, and all three
+            are the point:
+
+              - **Blur.** `headerBackground` renders inside the native bar, which
+                is not a sibling of the page content and so cannot be given the
+                Android `BlurTargetView` to sample. The frosted look was not
+                available from there at all.
+              - **Hide on scroll.** The native stack header is a platform view;
+                Reanimated cannot translate it, and there is no `header` option
+                on `@react-navigation/native-stack` to replace it with one that
+                can.
+              - **The back chevron.** `headerBackButtonDisplayMode: 'minimal'`
+                got close on iOS and left Android on its own arrow.
+
+            The trade is that a screen now states its own title rather than
+            inheriting one from here. That is a small loss of central bookkeeping
+            and a real gain in honesty: a dynamic title used to be declared in
+            two places and only one of them was right.
           */}
-          <Stack
-            screenOptions={{
-              headerBackButtonDisplayMode: 'minimal',
-              headerTransparent: true,
-              // The stock hairline would sit on top of the ramp and reinstate
-              // exactly the hard edge the ramp exists to remove.
-              headerShadowVisible: false,
-              headerBackground: () => <HeaderBackdrop />,
-              headerTintColor: palette.text,
-              headerTitleStyle: {
-                fontSize: Type.h4.fontSize,
-                fontFamily: FontFamily.bold,
-              },
-            }}>
+          <Stack screenOptions={{ headerShown: false }}>
             <Stack.Protected guard={!!session}>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="game/[id]" options={{ title: '' }} />
-              <Stack.Screen name="profile/[id]" options={{ title: '' }} />
-              <Stack.Screen name="achievements/[id]" options={{ title: 'Achievements' }} />
-              <Stack.Screen name="library/[id]" options={{ title: 'Library' }} />
-              <Stack.Screen name="diary/[user]/[game]" options={{ title: '' }} />
-              <Stack.Screen name="studio/[id]" options={{ title: '' }} />
-              {/* Titled by its own hero headline, so the bar stays empty. */}
-              <Stack.Screen name="top-games" options={{ title: '' }} />
-              <Stack.Screen name="releases" options={{ title: 'Latest releases' }} />
-              <Stack.Screen name="upcoming" options={{ title: 'Coming soon' }} />
-              <Stack.Screen
-                name="gaming-achievements/[id]"
-                options={{ title: 'Steam Achievements' }}
-              />
-              <Stack.Screen name="gaming-inventory/[id]" options={{ title: 'Inventory' }} />
-              <Stack.Screen name="list/[id]" options={{ title: '' }} />
-              <Stack.Screen name="review/[id]" options={{ title: '' }} />
-              <Stack.Screen name="article/[id]" options={{ title: '' }} />
-              <Stack.Screen name="soundtrack/[id]" options={{ title: 'Soundtrack' }} />
-              <Stack.Screen name="notifications/index" options={{ title: 'Notifications' }} />
-              <Stack.Screen name="comments/[type]/[id]" options={{ title: 'Comments' }} />
-              <Stack.Screen
-                name="log/[id]"
-                options={{ presentation: 'modal', title: 'Log game', ...modalHeader }}
-              />
-              <Stack.Screen
-                name="new-list"
-                options={{ presentation: 'modal', title: 'New collection', ...modalHeader }}
-              />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="game/[id]" />
+              <Stack.Screen name="profile/[id]" />
+              <Stack.Screen name="achievements/[id]" />
+              <Stack.Screen name="library/[id]" />
+              <Stack.Screen name="diary/[user]/[game]" />
+              <Stack.Screen name="studio/[id]" />
+              <Stack.Screen name="top-games" />
+              <Stack.Screen name="releases" />
+              <Stack.Screen name="upcoming" />
+              <Stack.Screen name="gaming-achievements/[id]" />
+              <Stack.Screen name="gaming-inventory/[id]" />
+              <Stack.Screen name="list/[id]" />
+              <Stack.Screen name="review/[id]" />
+              <Stack.Screen name="article/[id]" />
+              <Stack.Screen name="soundtrack/[id]" />
+              <Stack.Screen name="notifications/index" />
+              <Stack.Screen name="comments/[type]/[id]" />
+              <Stack.Screen name="log/[id]" options={{ presentation: 'modal' }} />
+              {/* Both are edits to one award category, so both are sheets: you
+                  are changing a thing and coming back, not going somewhere. */}
+              <Stack.Screen name="award-game/[id]" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="award-edit/[id]" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="new-list" options={{ presentation: 'modal' }} />
               {/* A picker, so it presents as a modal: you are choosing one thing
                   and returning, not navigating somewhere. */}
-              <Stack.Screen
-                name="add-to-list/[id]"
-                options={{ presentation: 'modal', title: 'Add games', ...modalHeader }}
-              />
-              <Stack.Screen
-                name="edit-profile"
-                options={{ presentation: 'modal', title: 'Edit profile', ...modalHeader }}
-              />
+              <Stack.Screen name="add-to-list/[id]" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
             </Stack.Protected>
 
             <Stack.Protected guard={!session}>
-              <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-              <Stack.Screen name="sign-up" options={{ title: 'Create account' }} />
+              <Stack.Screen name="sign-in" />
+              <Stack.Screen name="sign-up" />
             </Stack.Protected>
           </Stack>
         </ThemeProvider>

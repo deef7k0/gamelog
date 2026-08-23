@@ -3,22 +3,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+
+import type { TopBarScroll } from '@/hooks/use-screen-chrome';
 
 import { ArticleCard } from '@/components/article-card';
 import { ConnectAccountCard } from '@/components/gaming/connect-card';
-import { LibraryWidget } from '@/components/gaming/library-widget';
 import { SteamSection } from '@/components/gaming/steam-section';
 import { ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
 import { PostCard } from '@/components/post-card';
-import { AchievementsWidget, FavoritesWidget } from '@/components/profile-widgets';
+import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
+import { FavoritesWidget } from '@/components/profile-widgets';
 import { StarredSongWidget } from '@/components/starred-song-widget';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Card } from '@/components/ui/surface';
+import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { HeroAspectRatio, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -44,6 +47,7 @@ import {
   type FriendState,
 } from '@/lib/api';
 import { displayNameFor, withDateGroups } from '@/lib/format';
+import { buildShelf } from '@/lib/games/shelf';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import { useAuth } from '@/store/auth';
 
@@ -61,6 +65,14 @@ const TABS: { key: ProfileTab; label: string }[] = [
 export type ProfileViewProps = {
   profileId: string;
   headerAction?: ReactNode;
+  /**
+   * The enclosing screen's top-bar scroll handler, from `useTopBarScroll()`.
+   *
+   * Threaded in rather than created here because this component *is* the page's
+   * scroller on both profile routes, and the bar it feeds belongs to the screen
+   * above it.
+   */
+  onScroll?: TopBarScroll['onScroll'];
 };
 
 /**
@@ -71,7 +83,7 @@ export type ProfileViewProps = {
  * directly above the list it controls rather than being buried under full-width
  * favourite and achievement sections.
  */
-export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
+export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewProps) {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -134,7 +146,7 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
   });
   const steamLibrary = useQuery({
     queryKey: ['gaming-library', 'steam', profileId, 'most-played', ''],
-    queryFn: () => getOwnedGames(profileId, { sort: 'most-played', limit: 8 }),
+    queryFn: () => getOwnedGames(profileId, { sort: 'most-played', limit: 24 }),
     enabled: !!steamAccount.data,
   });
 
@@ -231,8 +243,10 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
   const ownerName = displayNameFor(person);
 
   return (
-    <FlatList
+    <Animated.FlatList
       data={rows}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
       keyExtractor={(row) => `${row.kind}:${row.id}`}
       renderItem={({ item }) =>
         item.kind === 'header' ? (
@@ -378,21 +392,32 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
               />
             </View>
 
-            {/* The library widget only earns its space once Steam is linked. */}
-            {steamAccount.data && (
-              <View style={styles.widgets}>
-                <LibraryWidget
-                  profileId={profileId}
-                  games={steamLibrary.data ?? []}
-                  stats={steamStats.data}
-                  loading={steamLibrary.isLoading}
-                  isPrivate={steamAccount.data.visibility === 'private'}
-                />
-              </View>
-            )}
-
+            {/* One shelf for both sources.
+                
+                This replaced two adjacent widgets — a Steam-only library row
+                that appeared only when an account was linked, and a four-number
+                achievements block under it. They were two sections about the
+                same library, and the first one vanished entirely for anyone who
+                had never linked Steam, which is most people. The shelf shows
+                whatever the person actually has: their logs, their Steam
+                library, or both. */}
             <View style={styles.widgets}>
-              <AchievementsWidget stats={achievementStats.data} profileId={profileId} />
+              <GamesWidget
+                ownerName={ownerName}
+                profileId={profileId}
+                games={buildShelf(logs.data ?? [], steamLibrary.data ?? [], SHELF_LIMIT)}
+                achievementsUnlocked={achievementStats.data?.achievements_unlocked ?? null}
+                /* Steam's total where an account is linked, the app's logged
+                   hours otherwise. Not summed: a game played on Steam *and*
+                   logged here would have its hours counted twice, and the
+                   larger, wronger number is the one people would notice. */
+                playtimeMinutes={
+                  steamStats.data?.totalPlaytimeMinutes ??
+                  (achievementStats.data
+                    ? Math.round(achievementStats.data.hours_played * 60)
+                    : null)
+                }
+              />
             </View>
 
             {/* Renders nothing until someone pins a track, so it costs no
@@ -410,32 +435,11 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
             )}
           </View>
 
-          {/* Tab bar, flush against the content it filters. */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={[styles.tabs, { borderBottomColor: theme.border }]}
-            contentContainerStyle={styles.tabsContent}>
-            {TABS.map((entry) => {
-              const active = tab === entry.key;
-              return (
-                <PressableScale
-                  key={entry.key}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setTab(entry.key)}
-                  scaleTo={0.94}
-                  style={StyleSheet.flatten([
-                    styles.tab,
-                    { borderBottomColor: active ? theme.primary : 'transparent' },
-                  ])}>
-                  <Text variant="h5" color={active ? 'text' : 'textMuted'}>
-                    {entry.label}
-                  </Text>
-                </PressableScale>
-              );
-            })}
-          </ScrollView>
+          {/* Tab bar, flush against the content it filters. Was a bespoke
+              underline row duplicating `<TabBar>` — the copies drifted the
+              moment the shared one was restyled, which is the argument for
+              there being one. */}
+          <TabBar tabs={TABS} value={tab} onChange={setTab} />
 
           {/* Composer sits under the tab bar. Shown to the owner always, and to
               accepted friends — matching what the RLS policy will actually
@@ -649,8 +653,6 @@ const styles = StyleSheet.create({
   count: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.x4 },
   widgets: { flexDirection: 'row', gap: Spacing.x12 },
   tabs: { borderBottomWidth: StyleSheet.hairlineWidth, marginTop: Spacing.x16 },
-  tabsContent: { paddingHorizontal: Spacing.x8 },
-  tab: { paddingVertical: Spacing.x12, paddingHorizontal: Spacing.x16, borderBottomWidth: 2.5 },
   about: { gap: Spacing.x12 },
   aboutRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.x16 },
   steamStack: { gap: Spacing.x16 },

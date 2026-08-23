@@ -1,4 +1,4 @@
-import { resolvePreview, SUMMARY_ITEMS, type SummaryRow } from './lists';
+import { resolveMosaic, resolvePreview, SUMMARY_ITEMS, type SummaryRow } from './lists';
 import type { ListSummary } from './types';
 import type { LogWithRelations, Profile } from '../database.types';
 import { supabase } from '../supabase';
@@ -88,6 +88,7 @@ export async function getPopularCollections(limit = 20): Promise<PopularCollecti
       ...row,
       itemCount: row.items?.length ?? 0,
       preview: resolvePreview(row),
+      mosaic: resolveMosaic(row),
       likeCount: likesById.get(row.id) ?? 0,
     }))
     .sort((a, b) => b.likeCount - a.likeCount);
@@ -244,6 +245,7 @@ export async function getRecentCollections(limit = 10): Promise<ListSummary[]> {
         ...row,
         itemCount: row.items?.length ?? 0,
         preview: resolvePreview(row),
+        mosaic: resolveMosaic(row),
       }))
   );
 }

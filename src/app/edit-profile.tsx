@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -60,7 +61,15 @@ export default function EditProfileScreen() {
   });
 
   return (
-    <Screen edges={['bottom']} padded>
+    /* `modal`: an iOS sheet already begins below the status bar, so the bar must
+       not inset itself again — see `useTopBarInset`. `dismiss` for the same
+       reason the chevron is wrong here: a sheet closes, it does not go back. */
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      modal
+      topBar={<FrostedTopBar title="Edit profile" dismiss />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

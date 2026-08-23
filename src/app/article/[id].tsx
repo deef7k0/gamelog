@@ -1,14 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { EngagementBar } from '@/components/engagement-bar';
 import { MediaCarousel } from '@/components/media-carousel';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -16,6 +18,7 @@ import { Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { readingMinutes, tagLabel } from '@/constants/article-tags';
 import { MaxContentWidth, Radius, Spacing, Type, withAlpha } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { APP_SCHEME, useTheme } from '@/hooks/use-theme';
 import { getEngagement, getPost } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
@@ -31,6 +34,7 @@ import { useAuth } from '@/store/auth';
  */
 export default function ArticleScreen() {
   const theme = useTheme();
+  const { scrollY, onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const [revealed, setRevealed] = useState(false);
@@ -49,7 +53,7 @@ export default function ArticleScreen() {
 
   if (post.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
     );
@@ -57,7 +61,7 @@ export default function ArticleScreen() {
 
   if (post.isError) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={post.error} />
       </Screen>
     );
@@ -65,7 +69,7 @@ export default function ArticleScreen() {
 
   if (!post.data) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <EmptyState title="Article not found" />
       </Screen>
     );
@@ -77,10 +81,15 @@ export default function ArticleScreen() {
   const minutes = readingMinutes(article.body);
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: '' }} />
-
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    /* No title: the headline is the first thing in the body, at display size,
+       and printing it again 20dp higher in a 16px bar would be the same sentence
+       twice. The bar is here for the chevron and for the glass. */
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back scrollY={scrollY} />}>
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}>
         {article.tags && article.tags.length > 0 && (
           <View style={styles.tags}>
             {article.tags.map((tag) => (
@@ -171,7 +180,7 @@ export default function ArticleScreen() {
             shareMessage={article.title ?? article.body.slice(0, 160)}
           />
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </Screen>
   );
 }

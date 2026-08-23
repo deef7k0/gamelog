@@ -1,15 +1,18 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Linking, StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { GameDisc } from '@/components/game-disc';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { getStarredSong, starSong, unstarSong } from '@/lib/api';
 import { formatDuration, getAlbumTracks, type SoundtrackTrack } from '@/lib/soundtracks';
@@ -31,6 +34,7 @@ const PREVIEW_SECONDS = 30;
  */
 export default function SoundtrackScreen() {
   const theme = useTheme();
+  const { scrollY, onScroll } = useTopBarScroll();
   const params = useLocalSearchParams<{
     id: string;
     title?: string;
@@ -111,7 +115,7 @@ export default function SoundtrackScreen() {
 
   if (tracks.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Soundtrack" back />}>
         <LoadingState />
       </Screen>
     );
@@ -119,7 +123,7 @@ export default function SoundtrackScreen() {
 
   if (tracks.isError) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Soundtrack" back />}>
         <ErrorState error={tracks.error} />
       </Screen>
     );
@@ -131,11 +135,14 @@ export default function SoundtrackScreen() {
     : status.currentTime / PREVIEW_SECONDS;
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: params.title ?? 'Soundtrack' }} />
-
-      <FlatList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar title={params.title ?? 'Soundtrack'} back scrollY={scrollY} />}>
+      <Animated.FlatList
         data={list}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         keyExtractor={(track) => track.id}
         contentContainerStyle={list.length === 0 ? styles.empty : styles.content}
         showsVerticalScrollIndicator={false}

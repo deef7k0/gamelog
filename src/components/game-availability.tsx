@@ -6,13 +6,30 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { PLATFORMS, type PlatformKey } from '@/constants/platform-cases';
 import { Radius, Spacing, withAlpha } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getGameStores } from '@/lib/games/igdb';
-import { fetchSteamPrice } from '@/lib/games/steam';
+import {
+  formatPrice,
+  getBestPriceForPlatform,
+  getStorePrices,
+  lookupItadGame,
+} from '@/lib/games/itad';
 import { parseGameId } from '@/lib/games';
 
-/** IGDB's `external_games.category` for Steam — the one store that quotes a price. */
+/** IGDB's `external_games.category` for Steam. */
 const STEAM_CATEGORY = 1;
+
+export type GamePriceProps = {
+  /** App-wide game id. */
+  gameId: string;
+  /** Active platform family (ps5, xbox, pc, switch, etc.). */
+  selected: PlatformKey;
+  /** Game title for ITAD fallback lookup. */
+  title?: string;
+  /** Direct Steam App ID from game metadata if known. */
+  steamAppId?: string | null;
+};
 
 /**
  * Where a game can be bought, split into two pieces the game page places
@@ -20,83 +37,130 @@ const STEAM_CATEGORY = 1;
  * under it.
  *
  * They are one control between them. The page owns the selection, so picking
- * PS5 swaps the case *and* the price *and* the store link together — two
- * switchers for one choice would be two ways to disagree.
+ * PS5 swaps the case *and* the price *and* the store link together.
  *
- * **Only Steam quotes a real price.** IGDB publishes no pricing at all, and
- * PlayStation, Microsoft, Nintendo, Apple and Google have no public price API,
- * so every non-PC platform shows its mark and its store link with no number.
- * That is the honest shape of the data — inventing a price, or showing one
- * platform's price under another's logo, would be worse than the gap.
+ * Uses IsThereAnyDeal across ~40 storefronts to find the best available price
+ * for the selected platform (PC storefronts for PC, PlayStation Store for PS5/PS4,
+ * Microsoft Store for Xbox, Nintendo eShop for Switch).
  */
-export function GamePrice({ gameId, selected }: { gameId: string; selected: PlatformKey }) {
+export function GamePrice({
+  gameId,
+  selected,
+  title,
+  steamAppId: directSteamAppId,
+}: GamePriceProps) {
   const theme = useTheme();
+  /* This renders into the game page's masthead, which sits on the brightest
+     part of `<ScrollAmbience>` — luminance 0.11, where every grey token in
+     the palette collapses (`textMuted` measures 1.66:1 there, `textSecondary`
+     2.76:1). `quietInk` is the accent system's answer: near-white carrying
+     the page's own hue, ≥4.66:1 on that stop for every accent the app can
+     produce. Both components below are rendered only by `game/[id]`, so this
+     is the only backdrop they ever have. */
+  const accent = useAccent();
   const parsed = parseGameId(gameId);
   const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
+  const knownSteamAppId = parsed?.source === 'steam' ? parsed.sourceId : (directSteamAppId ?? null);
 
   const stores = useQuery({
     queryKey: ['game-stores', gameId],
     queryFn: ({ signal }) => getGameStores(igdbId!, signal),
-    enabled: !!igdbId,
+    enabled: !!igdbId && !knownSteamAppId,
     staleTime: 30 * 60_000,
   });
 
   const meta = PLATFORMS[selected];
-  const link =
+  const platformStoreLink =
     meta.externalCategory === null
       ? null
       : (stores.data ?? []).find((entry) => entry.category === meta.externalCategory);
 
   const steamAppId =
-    selected === 'pc'
-      ? ((stores.data ?? []).find((entry) => entry.category === STEAM_CATEGORY)?.uid ?? null)
-      : null;
+    knownSteamAppId ??
+    (stores.data ?? []).find((entry) => entry.category === STEAM_CATEGORY)?.uid ??
+    null;
 
-  const price = useQuery({
-    queryKey: ['steam-price', steamAppId],
-    queryFn: ({ signal }) => fetchSteamPrice(steamAppId!, signal),
-    enabled: !!steamAppId,
-    // Prices move; an hour is short enough to be current and long enough to
-    // stay clear of Steam's ~200 requests / 5 minutes.
-    staleTime: 60 * 60_000,
+  const itadId = useQuery({
+    queryKey: ['itad-id', gameId, steamAppId, title],
+    queryFn: ({ signal }) => lookupItadGame({ steamAppId, title: title ?? null }, signal),
+    enabled: !!knownSteamAppId || !igdbId || stores.isSuccess,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
   });
 
-  const storeUrl = link?.url ?? null;
+  const prices = useQuery({
+    queryKey: ['itad-prices', itadId.data],
+    queryFn: ({ signal }) => getStorePrices(itadId.data!, signal),
+    enabled: !!itadId.data,
+    staleTime: 15 * 60_000,
+    retry: false,
+  });
+
+  const deal = getBestPriceForPlatform(prices.data, selected);
+  const isLoading = (itadId.isLoading || prices.isLoading) && !deal;
+  const storeUrl = deal?.url ?? platformStoreLink?.url ?? null;
+  const storeLabel = deal
+    ? `Open on ${deal.shopName}`
+    : platformStoreLink?.url
+      ? meta.storeLabel
+      : null;
 
   return (
     <View style={styles.price}>
       <View style={styles.priceLine}>
         <Ionicons name={meta.icon} size={16} color={meta.accent} />
 
-        {price.data ? (
+        {deal ? (
           <>
-            <Text variant="h3">{price.data.formatted}</Text>
-            {price.data.wasFormatted && (
-              <Text variant="caption" color="textMuted" style={styles.struck}>
-                {price.data.wasFormatted}
+            <Text variant="h3">{formatPrice(deal.amount, deal.currency)}</Text>
+            {deal.cut > 0 && (
+              <Text
+                variant="caption"
+                style={StyleSheet.flatten([styles.struck, { color: accent.quietInk }])}>
+                {formatPrice(deal.regular, deal.currency)}
               </Text>
             )}
-            {price.data.discountPercent > 0 && (
-              <View style={[styles.discount, { backgroundColor: withAlpha(theme.success, 0.15) }]}>
-                <Text variant="caption" style={{ color: theme.success }}>
-                  −{price.data.discountPercent}%
+            {/* Opaque fills, not a 15% wash of their own hue.
+                
+                An alpha badge over `<ScrollAmbience>` has no fixed background —
+                its contrast is whatever the gradient happens to be under it,
+                which measured 3.77:1 (discount) and 3.95:1 (all-time low) at
+                the top of the page. A solid `surface` behind them is a known
+                quantity and puts both at ~10:1.
+                
+                `label`, not `caption` + `fontWeight: '700'`. That weight was a
+                no-op: React Native will not synthesise bold from a custom font
+                on Android, so the one emphatic element in this row rendered
+                regular on half the devices that shipped it. `Type.label` is a
+                separately loaded Medium family and carries its weight for real. */}
+            {deal.cut > 0 && (
+              <View style={[styles.discount, { backgroundColor: theme.surface }]}>
+                <Text variant="label" style={{ color: theme.success }}>
+                  −{deal.cut}%
+                </Text>
+              </View>
+            )}
+            {deal.isAllTimeLow && (
+              <View style={[styles.discount, { backgroundColor: theme.surface }]}>
+                <Text variant="label" style={{ color: theme.identityGold }}>
+                  LOWEST
                 </Text>
               </View>
             )}
           </>
         ) : (
-          <Text variant="h5" color="textSecondary">
-            {price.isLoading ? 'Checking price…' : 'Price on the store'}
+          <Text variant="h5" style={{ color: accent.quietInk }}>
+            {isLoading ? 'Checking prices…' : 'Price on the store'}
           </Text>
         )}
       </View>
 
-      {/* The line changes with the platform: "Open in Steam", "Open in the
-          App Store", "Open in Google Play". */}
-      {storeUrl && (
+      {/* Outbound store link */}
+      {storeUrl && storeLabel && (
         <PressableScale
           accessibilityRole="link"
-          accessibilityLabel={meta.storeLabel}
+          accessibilityLabel={storeLabel}
           onPress={() => {
             Linking.openURL(storeUrl).catch(() => {
               // No handler for the scheme; nothing useful to say about it.
@@ -104,8 +168,8 @@ export function GamePrice({ gameId, selected }: { gameId: string; selected: Plat
           }}
           scaleTo={0.98}
           style={styles.storeLink}>
-          <Text variant="bodySmall" color="primaryText">
-            {meta.storeLabel}
+          <Text variant="bodySmall" style={{ color: accent.quietInk }}>
+            {storeLabel}
           </Text>
           <Ionicons name="open-outline" size={13} color={theme.text} />
         </PressableScale>
@@ -124,6 +188,7 @@ export type PlatformPickerProps = {
 /** The platform buttons. Changes the artwork, the price and the store link at once. */
 export function PlatformPicker({ available, selected, onSelect }: PlatformPickerProps) {
   const theme = useTheme();
+  const accent = useAccent();
   if (available.length < 2) return null;
 
   return (
@@ -149,9 +214,9 @@ export function PlatformPicker({ available, selected, onSelect }: PlatformPicker
             <Ionicons
               name={platform.icon}
               size={13}
-              color={isActive ? platform.accent : theme.textMuted}
+              color={isActive ? platform.accent : accent.quietInk}
             />
-            <Text variant="caption" color={isActive ? 'text' : 'textMuted'}>
+            <Text variant="caption" style={{ color: isActive ? theme.text : accent.quietInk }}>
               {platform.short}
             </Text>
           </PressableScale>

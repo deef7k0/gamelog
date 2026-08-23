@@ -45,6 +45,16 @@ export type CachedGame = {
   screenshots: string[] | null;
   score: number | null;
   store_url: string | null;
+  /**
+   * Release type — remake, remaster, dlc, expansion, port, edition, bundle.
+   * Null means this is the game. See `constants/game-editions.ts`.
+   */
+  edition_kind: string | null;
+  /**
+   * App-wide id of the game this is a version of. Not a foreign key — the
+   * parent is very often not in the cache. See migration 0017.
+   */
+  parent_game_id: string | null;
   cached_at: string;
 };
 
@@ -109,7 +119,7 @@ export type ProfileAchievementStats = {
 // --- 0003_social.sql --------------------------------------------------------
 
 export type PostKind = 'post' | 'recommendation' | 'screenshot' | 'question' | 'article';
-export type ListKind = 'list' | 'favorites' | 'tier' | 'wishlist';
+export type ListKind = 'list' | 'favorites' | 'tier' | 'wishlist' | 'awards';
 export type NotificationKind =
   'like' | 'comment' | 'follow' | 'reply' | 'friend_request' | 'friend_accepted' | 'wall_post';
 
@@ -279,6 +289,29 @@ export type ListItemRow = {
   tier: 'S' | 'A' | 'B' | 'C' | 'D' | 'F' | null;
   note: string | null;
   added_at: string;
+};
+
+/**
+ * One award category in an awards-kind list.
+ *
+ * A row exists before anything has won it — `game_id` is nullable, which is the
+ * whole reason this is not a `list_items` row (that table's key is
+ * `(list_id, game_id)`, so a slot without a game cannot be expressed). When a
+ * game *is* named, a trigger from 0016 mirrors it into `list_items` so the tile
+ * mosaic, the item count and every "is this game in a list" query keep working
+ * without knowing awards exist.
+ */
+export type AwardRow = {
+  id: string;
+  list_id: string;
+  /** The category — "Game of the Year", or whatever the owner typed. */
+  label: string;
+  position: number;
+  /** The winner. Null for a category nobody has filled in yet. */
+  game_id: string | null;
+  /** Why it won, in the owner's words. */
+  note: string | null;
+  created_at: string;
 };
 
 export type NotificationRow = {
@@ -621,6 +654,15 @@ export type Database = {
           FK<'list_items_game_id_fkey', 'game_id', 'games', 'id'>,
         ];
       };
+      list_awards: {
+        Row: AwardRow;
+        Insert: Insert<AwardRow, 'id' | 'created_at' | 'position' | 'game_id' | 'note'>;
+        Update: Partial<AwardRow>;
+        Relationships: [
+          FK<'list_awards_list_id_fkey', 'list_id', 'lists', 'id'>,
+          FK<'list_awards_game_id_fkey', 'game_id', 'games', 'id'>,
+        ];
+      };
       friendships: {
         Row: FriendshipRow;
         Insert: Insert<FriendshipRow, 'created_at' | 'responded_at' | 'status'>;
@@ -776,6 +818,18 @@ export type Database = {
       recommended_users: {
         Args: { p_viewer: string; p_limit?: number };
         Returns: { user_id: string; shared_games: number; affinity: number }[];
+      };
+      /**
+       * Create an awards list and seed its eight default categories.
+       *
+       * One call rather than an insert plus eight more: a half-seeded ballot is
+       * worse than no list, and the client has no transaction to wrap them in.
+       * Owner is `auth.uid()` — the function is SECURITY DEFINER and checks the
+       * caller itself, so there is no `user_id` argument to get wrong.
+       */
+      create_awards_list: {
+        Args: { list_title: string; list_description?: string | null };
+        Returns: string;
       };
     };
     Enums: { log_status: LogStatus };

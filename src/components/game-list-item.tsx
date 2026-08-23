@@ -79,6 +79,8 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
         coverUrl={game.coverUrl}
         heroUrl={game.heroUrl}
         title={game.title}
+        edition={game.edition}
+        steamAppId={game.steamAppId}
         width={POSTER_WIDTH}
         rounded="image"
       />

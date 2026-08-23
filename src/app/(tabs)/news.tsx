@@ -8,8 +8,8 @@ import { gridItemWidth } from '@/components/gaming/game-tile';
 import { GameListItem } from '@/components/game-list-item';
 import { ArticleCard, EventCard, TrailerCard } from '@/components/news-cards';
 import { Dock, DockItem } from '@/components/ui/dock';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
-import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -169,6 +169,8 @@ export default function NewsScreen() {
                   coverUrl: item.coverUrl,
                   heroUrl: item.heroUrl,
                   releaseYear: item.releaseYear,
+                  edition: item.edition,
+                  steamAppId: item.steamAppId,
                 }}
                 width={gridItemWidth(width, CHART_COLUMNS, Spacing.x16, CHART_GAP)}
                 rank={item.rank}
@@ -204,16 +206,18 @@ export default function NewsScreen() {
   }
 
   return (
-    <Screen edges={['top']}>
-      {/* The section name lives in the app bar rather than on the dock. Six
-          icons fit on the narrowest phone where six text tabs had to scroll,
-          which meant "Events" was permanently off-screen — but an icon alone
-          cannot tell Releases from Trailers, so the active one is spelled out
-          here instead. */}
-      <View style={styles.appBar}>
-        <Text variant="h1">{TABS.find((entry) => entry.key === tab)?.label ?? 'News'}</Text>
-      </View>
+    /* The section name lives in the top bar rather than on the dock. Six icons
+       fit on the narrowest phone where six text tabs had to scroll, which meant
+       "Events" was permanently off-screen — but an icon alone cannot tell
+       Releases from Trailers, so the active one is spelled out up there instead.
 
+       No `scrollY`: each tab brings its own list, and the dock below the bar is
+       how you move between them. A header that slid away would take the name of
+       the section you are in with it. */
+    <Screen
+      edges={[]}
+      insetHeader
+      topBar={<FrostedTopBar title={TABS.find((entry) => entry.key === tab)?.label ?? 'News'} />}>
       <View style={styles.dockRow}>
         <Dock>
           {TABS.map((entry) => (
@@ -274,7 +278,6 @@ function List<T>({
 }
 
 const styles = StyleSheet.create({
-  appBar: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12 },
   dockRow: { paddingVertical: Spacing.x12 },
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   chartGrid: { padding: Spacing.x16, paddingBottom: Spacing.x48, gap: CHART_GAP },

@@ -1,25 +1,39 @@
 import { useQuery } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 
-import { GameTile, gridItemWidth } from '@/components/gaming/game-tile';
+import {
+  GameTile,
+  gridItemWidth,
+  steamCoverUrl,
+  steamHeaderUrl,
+} from '@/components/gaming/game-tile';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { Poster } from '@/components/ui/poster';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Skeleton } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
+import { STATUS_LABEL } from '@/constants/status';
 import { Radius, Spacing } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
-import { getLibraryStatistics, getOwnedGames } from '@/lib/api';
+import { getFavorites, getLibraryStatistics, getOwnedGames, getUserLogs } from '@/lib/api';
+import type { ListItem } from '@/lib/api';
+import type { LogWithRelations } from '@/lib/database.types';
 import {
   availableSorts,
   formatPlaytime,
   formatPlaytimeLong,
   requireProvider,
   type LibrarySort,
+  type OwnedGame,
 } from '@/lib/gaming';
 import { useAuth } from '@/store/auth';
 
@@ -27,28 +41,51 @@ import { useAuth } from '@/store/auth';
 const COLUMNS = 4;
 const GAP = Spacing.x8;
 
-type LibraryTab = 'games' | 'stats';
-
-const TABS = [
-  { key: 'games' as const, label: 'Games' },
-  { key: 'stats' as const, label: 'Statistics' },
-];
+type LibraryTab = 'all' | 'favourites' | 'owned' | 'logged' | 'stats';
 
 /**
- * A user's Steam library.
+ * Everything a person's games can be filtered down to.
  *
- * Two tabs: the grid, and generated statistics. Sorting is done server-side
- * through the ordering in `getOwnedGames` rather than in JavaScript, because a
- * 900-game library sorted on the client would re-sort the whole array on every
- * keystroke of the search box.
+ * `all` leads because it is the honest default — this screen is now about a
+ * *person's games*, not about one storefront, and opening it on the Steam
+ * subset would have kept the old framing with a new name.
+ *
+ * `owned` and `logged` answer questions the merged list cannot: "what do I
+ * actually have on Steam" and "what have I written about". Keeping both is what
+ * lets `all` be a merge rather than a compromise.
+ */
+const TAB_ORDER: LibraryTab[] = ['all', 'favourites', 'owned', 'logged', 'stats'];
+
+const TAB_LABELS: Record<LibraryTab, string> = {
+  all: 'All games',
+  favourites: 'Favourites',
+  owned: 'Owned',
+  logged: 'Logged',
+  stats: 'Statistics',
+};
+
+/**
+ * A person's games.
+ *
+ * Was Steam-only, and gated behind a linked account — so for anyone who had
+ * never connected Steam it was a screen that existed and always said "no
+ * account linked". It now merges two sources: the Steam library, and everything
+ * logged in this app. Only the Owned and Statistics tabs still need Steam, and
+ * they say so individually instead of the whole screen refusing to open.
+ *
+ * Sorting and search stay server-side for `owned` through the ordering in
+ * `getOwnedGames`, because a 900-game library re-sorted in JavaScript on every
+ * keystroke is a dropped frame per character. The other tabs are short enough
+ * to sort in memory.
  */
 export default function LibraryScreen() {
   const { width } = useWindowDimensions();
+  const { scrollY, onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === id;
 
-  const [tab, setTab] = useState<LibraryTab>('games');
+  const [tab, setTab] = useState<LibraryTab>('all');
   const [sort, setSort] = useState<LibrarySort>('most-played');
   const [search, setSearch] = useState('');
 
@@ -71,98 +108,139 @@ export default function LibraryScreen() {
     enabled: !!id && tab === 'stats',
   });
 
+  /* Games logged in this app. Fetched for every tab except Owned, because the
+     merged list and the Logged list both need it and it is one indexed query
+     capped at 100 rows. */
+  const logs = useQuery({
+    queryKey: ['user-logs', id],
+    queryFn: () => getUserLogs(id!),
+    enabled: !!id && tab !== 'owned',
+  });
+
+  const favourites = useQuery({
+    queryKey: ['favorites', id],
+    queryFn: () => getFavorites(id!),
+    enabled: !!id && (tab === 'favourites' || tab === 'all'),
+  });
+
+  /*
+   * One list, whichever tab is showing.
+   *
+   * Built here rather than in four branches of the render so the grid below is
+   * one `<FlatList>` with one key extractor — swapping tabs changes its data,
+   * not its identity, which is what keeps the scroll position and the recycled
+   * rows behaving.
+   */
+  const entries = useMemo<LibraryEntry[]>(() => {
+    const owned = games.data ?? [];
+    const logged = logs.data ?? [];
+
+    switch (tab) {
+      case 'owned':
+        return owned.map(fromOwned);
+      case 'logged':
+        return logged.map(fromLog).filter((entry): entry is LibraryEntry => entry !== null);
+      case 'favourites':
+        return (favourites.data?.items ?? [])
+          .map(fromFavourite)
+          .filter((entry): entry is LibraryEntry => entry !== null);
+      default:
+        return mergeEntries(
+          logged.map(fromLog).filter((entry): entry is LibraryEntry => entry !== null),
+          owned.map(fromOwned)
+        );
+    }
+  }, [tab, games.data, logs.data, favourites.data]);
+
+  /* Counts sit inline on the tabs, the way a library reads them. Only the ones
+     already fetched are shown — a number that appears a second after you tap is
+     worse than no number. */
+  const counts: Partial<Record<LibraryTab, number>> = {
+    all: entries.length || undefined,
+    favourites: favourites.data?.items?.length,
+    owned: games.data?.length,
+    logged: logs.data?.length,
+  };
+
+  const tabs = TAB_ORDER.map((key) => ({
+    key,
+    label: TAB_LABELS[key],
+    count: counts[key] ?? null,
+  }));
+
   const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Library" back />}>
         <EmptyState title="Library not found" />
       </Screen>
     );
   }
 
-  if (!account.isLoading && !account.data) {
-    return (
-      <Screen edges={['bottom']} padded insetHeader>
-        <Stack.Screen options={{ title: 'Library' }} />
-        <EmptyState
-          title="No Steam account linked"
-          message={
-            isSelf
-              ? 'Connect Steam from your profile to import your library.'
-              : 'This person has not linked a Steam account.'
-          }
-        />
-      </Screen>
-    );
-  }
-
   const isPrivate = account.data?.visibility === 'private';
+  const noSteam = !account.isLoading && !account.data;
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: 'Library' }} />
+    /* The tab bar under the header switches the whole page, so the bar it
+       belongs to stays put — `scrollY` goes to the grid, which is the thing
+       actually worth reclaiming height from. */
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar title="Library" back scrollY={scrollY} />}>
+      <TabBar tabs={tabs} value={tab} onChange={setTab} />
 
-      <TabBar tabs={TABS} value={tab} onChange={setTab} />
-
-      {tab === 'games' ? (
-        <FlatList
-          data={games.data ?? []}
+      {tab !== 'stats' ? (
+        <Animated.FlatList
+          data={entries}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           key={`grid-${COLUMNS}`}
           numColumns={COLUMNS}
-          keyExtractor={(game) => game.appId}
-          renderItem={({ item }) => <GameTile game={item} width={tileWidth} ownerId={id} />}
+          keyExtractor={(entry) => entry.key}
+          renderItem={({ item }) => <LibraryCard entry={item} width={tileWidth} />}
           columnWrapperStyle={styles.column}
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <View style={styles.controls}>
-              <TextField
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Search your library"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+            /* Search and sort are Steam's, so they appear on Steam's tab. The
+               merged and logged lists are short enough to scan, and a sort row
+               that silently applied to only part of what was on screen would be
+               worse than no sort row. */
+            tab === 'owned' ? (
+              <View style={styles.controls}>
+                <TextField
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Search this library"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
 
-              {/* "Recently purchased" is absent for Steam on purpose: its Web
-                  API exposes no purchase date, and a sort that quietly fell
-                  back to last-played would misrepresent what it shows. */}
-              <SortBar
-                options={availableSorts(provider)}
-                value={sort}
-                onChange={setSort}
-                accessibilityLabel="Sort this library"
-              />
-
-              {games.data && games.data.length > 0 && (
-                <Text variant="caption" color="textMuted">
-                  {games.data.length} {games.data.length === 1 ? 'game' : 'games'}
-                </Text>
-              )}
-            </View>
+                {/* "Recently purchased" is absent for Steam on purpose: its Web
+                    API exposes no purchase date, and a sort that quietly fell
+                    back to last-played would misrepresent what it shows. */}
+                <SortBar
+                  options={availableSorts(provider)}
+                  value={sort}
+                  onChange={setSort}
+                  accessibilityLabel="Sort this library"
+                />
+              </View>
+            ) : null
           }
           ListEmptyComponent={
-            games.isLoading ? (
-              <GridSkeleton width={tileWidth} />
-            ) : games.isError ? (
-              <ErrorState error={games.error} />
-            ) : isPrivate ? (
-              <EmptyState
-                title="Profile is Private"
-                message="Steam is not sharing this library. Game details must be public to import it."
-              />
-            ) : search.trim() ? (
-              <EmptyState
-                title="No matches"
-                message={`Nothing in the library matches "${search}".`}
-              />
-            ) : (
-              <EmptyState
-                title="Nothing here yet"
-                message={isSelf ? 'Your library is still syncing.' : 'No games synced.'}
-              />
-            )
+            <LibraryEmpty
+              tab={tab}
+              isSelf={isSelf}
+              isPrivate={isPrivate}
+              noSteam={noSteam}
+              search={search}
+              loading={games.isLoading || logs.isLoading || favourites.isLoading}
+              error={games.error ?? logs.error ?? favourites.error}
+              tileWidth={tileWidth}
+            />
           }
         />
       ) : (
@@ -175,6 +253,212 @@ export default function LibraryScreen() {
         />
       )}
     </Screen>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// One row shape for four different sources
+// ---------------------------------------------------------------------------
+
+/**
+ * A game on this screen, whichever tab it arrived on.
+ *
+ * The grid renders one of these regardless of whether it came from a Steam
+ * library row, a log, or a favourites list. Without it the screen would need
+ * four `renderItem`s and four `keyExtractor`s, and the tiles would drift apart
+ * the way the profile's tab bar drifted from `<TabBar>`.
+ */
+type LibraryEntry = {
+  /** Stable list key. An unmatched Steam title has no `gameId`, so not that. */
+  key: string;
+  /** App-wide id when the game has a page. Null makes the tile inert. */
+  gameId: string | null;
+  title: string;
+  coverUrl: string | null;
+  heroUrl: string | null;
+  steamAppId: string | null;
+  /** One line under the art — playtime, a score, a status. */
+  caption: string | null;
+};
+
+function fromOwned(game: OwnedGame): LibraryEntry {
+  return {
+    key: `steam:${game.appId}`,
+    gameId: game.gameId,
+    title: game.name,
+    coverUrl: steamCoverUrl(game.appId),
+    heroUrl: steamHeaderUrl(game.appId),
+    steamAppId: game.appId,
+    caption: game.playtimeMinutes > 0 ? formatPlaytime(game.playtimeMinutes) : null,
+  };
+}
+
+function fromLog(log: LogWithRelations): LibraryEntry | null {
+  const game = log.game;
+  if (!game) return null;
+
+  return {
+    key: `log:${game.id}`,
+    gameId: game.id,
+    title: game.title,
+    coverUrl: game.cover_url,
+    heroUrl: game.hero_url,
+    steamAppId: null,
+    // The score if they gave one, the status otherwise — a logged game always
+    // has the second and only sometimes the first.
+    caption: log.rating != null ? String(log.rating) : (STATUS_LABEL[log.status] ?? null),
+  };
+}
+
+function fromFavourite(item: ListItem): LibraryEntry | null {
+  const game = item.game;
+  if (!game) return null;
+
+  return {
+    key: `fav:${game.id}`,
+    gameId: game.id,
+    title: game.title,
+    coverUrl: game.cover_url,
+    heroUrl: game.hero_url,
+    steamAppId: null,
+    caption: null,
+  };
+}
+
+/**
+ * Merge logged and owned, logs first.
+ *
+ * Same precedence as the profile shelf and for the same reason: a log carries a
+ * real catalogue id, so its art is IGDB's portrait box art rather than a Steam
+ * capsule that may not exist for the title.
+ */
+function mergeEntries(logged: LibraryEntry[], owned: LibraryEntry[]): LibraryEntry[] {
+  const seen = new Set(logged.map((entry) => entry.gameId).filter(Boolean) as string[]);
+  return [...logged, ...owned.filter((entry) => !entry.gameId || !seen.has(entry.gameId))];
+}
+
+/** One tile: portrait art, title, and whatever the tab has to say about it. */
+function LibraryCard({ entry, width }: { entry: LibraryEntry; width: number }) {
+  const art = (
+    <View style={{ width, gap: Spacing.x4 }}>
+      <Poster
+        coverUrl={entry.coverUrl}
+        heroUrl={entry.heroUrl}
+        title={entry.title}
+        steamAppId={entry.steamAppId}
+        width={width}
+        rounded="image"
+      />
+      <Text variant="caption" numberOfLines={1}>
+        {entry.title}
+      </Text>
+      {entry.caption && (
+        <Text variant="caption" color="textMuted" numberOfLines={1}>
+          {entry.caption}
+        </Text>
+      )}
+    </View>
+  );
+
+  // A Steam title nobody has logged has no page to open. Shown, not tappable —
+  // dropping it would hide most of a large library.
+  if (!entry.gameId) return art;
+
+  /* Straight to the game page rather than to this person's diary. The old
+     Steam-only grid went to the diary because every row *was* theirs; a merged
+     list is mostly games, and a tile that behaved differently depending on
+     which tab surfaced it would be the surprising kind of clever. */
+  return (
+    <Link href={{ pathname: '/game/[id]', params: { id: entry.gameId } }} asChild>
+      <PressableScale accessibilityRole="button" accessibilityLabel={entry.title} scaleTo={0.95}>
+        {art}
+      </PressableScale>
+    </Link>
+  );
+}
+
+/** What an empty grid says, which depends entirely on why it is empty. */
+function LibraryEmpty({
+  tab,
+  isSelf,
+  isPrivate,
+  noSteam,
+  search,
+  loading,
+  error,
+  tileWidth,
+}: {
+  tab: LibraryTab;
+  isSelf: boolean;
+  isPrivate: boolean;
+  noSteam: boolean;
+  search: string;
+  loading: boolean;
+  error: unknown;
+  tileWidth: number;
+}) {
+  if (loading) return <GridSkeleton width={tileWidth} />;
+  if (error) return <ErrorState error={error} />;
+
+  if (tab === 'owned') {
+    if (noSteam) {
+      return (
+        <EmptyState
+          title="No Steam account linked"
+          message={
+            isSelf
+              ? 'Connect Steam from your profile to import your library.'
+              : 'This person has not linked a Steam account.'
+          }
+        />
+      );
+    }
+    if (isPrivate) {
+      return (
+        <EmptyState
+          title="Profile is private"
+          message="Steam is not sharing this library. Game details must be public to import it."
+        />
+      );
+    }
+    if (search.trim()) {
+      return <EmptyState title="No matches" message={`Nothing here matches “${search.trim()}”.`} />;
+    }
+    return (
+      <EmptyState
+        title="Nothing here yet"
+        message={isSelf ? 'Your library is still syncing.' : 'No games synced.'}
+      />
+    );
+  }
+
+  if (tab === 'favourites') {
+    return (
+      <EmptyState
+        title="No favourites"
+        message={isSelf ? 'Star a game to pin it here.' : 'Nothing pinned yet.'}
+      />
+    );
+  }
+
+  if (tab === 'logged') {
+    return (
+      <EmptyState
+        title="Nothing logged"
+        message={isSelf ? 'Log a game and it shows up here.' : 'No games logged yet.'}
+      />
+    );
+  }
+
+  return (
+    <EmptyState
+      title="No games yet"
+      message={
+        isSelf
+          ? 'Log a game, or connect Steam from your profile to import your library.'
+          : 'This shelf is empty.'
+      }
+    />
   );
 }
 

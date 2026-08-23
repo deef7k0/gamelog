@@ -1,24 +1,28 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { Link, Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
 import { GamePrice, PlatformPicker } from '@/components/game-availability';
 import { caseHeightFor } from '@/components/game-case';
 import { GameCaseDisplay } from '@/components/game-case-display';
+import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
 import { CastRail, GamePosterRail } from '@/components/game-rail';
 import { LogCard } from '@/components/log-card';
 import { SoundtrackAlbums } from '@/components/soundtrack-section';
+import { StorePrices } from '@/components/store-prices';
 import { Button } from '@/components/ui/button';
-import { Ambience } from '@/components/ui/ambience';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
+import { ScrollAmbience } from '@/components/ui/scroll-ambience';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Chip, ScoreBadge, SectionHeader } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
@@ -27,6 +31,7 @@ import { platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { STATUS_ICON, STATUS_LABEL, statusColor } from '@/constants/status';
 import { HeroAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
+import { useArtworkPalette } from '@/hooks/use-artwork-palette';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getDiaryCount, getGameReviews, getMyLog } from '@/lib/api';
 import { getGameById, getSimilarTo, parseGameId } from '@/lib/games';
@@ -70,15 +75,13 @@ const CASE_MAX_WIDTH = 200;
 const CASE_OVERLAP_RATIO = 0.46;
 
 /**
- * Where the ambient ramp goes fully opaque, as a fraction of its own height.
+ * A FlatList that reports scroll offset on the UI thread.
  *
- * The one number that has to be right in this composition. The wash is sized to
- * `heroHeight / AMBIENCE_COVER`, so the ramp reaches opacity exactly on the
- * hero's bottom edge — which is what hides that edge. The art therefore never
- * appears to stop; it is already gone by the time it does. Change one of these
- * two and the seam the old version had comes straight back.
+ * Created once at module scope. `Animated.createAnimatedComponent` inside a
+ * component body builds a new component type on every render, which unmounts and
+ * remounts the whole list — losing scroll position and refetching every row.
  */
-const AMBIENCE_COVER = 0.55;
+const AnimatedFlatList = Animated.FlatList;
 
 /**
  * A game's dedicated page.
@@ -111,7 +114,23 @@ export default function GameDetailScreen() {
   // hero's edge rather than from the gap below it.
   const caseOverlap = Math.round(caseHeightFor(caseWidth) * CASE_OVERLAP_RATIO) + Spacing.x24;
   const heroHeight = heroHeightFor(width, windowHeight);
-  const ambienceHeight = Math.round(heroHeight / AMBIENCE_COVER);
+
+  /*
+   * Scroll state for the ambient gradient, kept entirely on the UI thread.
+   *
+   * `scrollY` is written by a Reanimated scroll handler and `distance` by the
+   * list's own measurement callbacks — both `SharedValue`s, so a scroll gesture
+   * never re-renders this screen and measuring the content never does either.
+   * Holding either in React state would put a `setState` on the scroll path of
+   * a page that is mostly images.
+   */
+  const scrollY = useSharedValue(0);
+  const scrollDistance = useSharedValue(1);
+  const viewportHeight = useSharedValue(windowHeight);
+
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.set(event.contentOffset.y);
+  });
 
   const game = useQuery({
     queryKey: ['game', id],
@@ -171,7 +190,10 @@ export default function GameDetailScreen() {
       collectionId
         ? getCollectionGames(collectionId, signal)
         : getFranchiseGames(franchiseId!, signal),
-    enabled: collectionId !== null || franchiseId !== null,
+    /* Not fetched at all on a remake or an edition: that page shows its
+       original instead of the series, so the rail would be a request whose
+       result never renders. */
+    enabled: !game.data?.edition && (collectionId !== null || franchiseId !== null),
     staleTime: 30 * 60_000,
   });
 
@@ -202,10 +224,19 @@ export default function GameDetailScreen() {
    * from.
    */
   const accent = useGameAccent(game.data?.coverUrl ?? game.data?.heroUrl, game.data?.genres);
+  /* The same extraction the accent uses, returning its three-depth ramp rather
+     than the single accent hue — one query, served from cache on both calls. */
+  const palette = useArtworkPalette(game.data?.coverUrl ?? game.data?.heroUrl);
 
   if (game.isLoading) {
     return (
-      <Screen edges={[]}>
+      <Screen
+        edges={[]}
+        /* Replaces the page's flat `#121212`. In the `backdrop` slot so it sits
+           outside the safe-area inset and reaches the top of the display — and
+           outside the top bar, which is the layer above it and blurs this. */
+        backdrop={<ScrollAmbience scrollY={scrollY} distance={scrollDistance} palette={palette} />}
+        topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
     );
@@ -213,7 +244,13 @@ export default function GameDetailScreen() {
 
   if (game.isError) {
     return (
-      <Screen edges={[]}>
+      <Screen
+        edges={[]}
+        /* Replaces the page's flat `#121212`. In the `backdrop` slot so it sits
+           outside the safe-area inset and reaches the top of the display — and
+           outside the top bar, which is the layer above it and blurs this. */
+        backdrop={<ScrollAmbience scrollY={scrollY} distance={scrollDistance} palette={palette} />}
+        topBar={<FrostedTopBar back />}>
         <ErrorState
           error={game.error}
           action={<Button title="Retry" variant="secondary" onPress={() => game.refetch()} />}
@@ -224,7 +261,13 @@ export default function GameDetailScreen() {
 
   if (!game.data) {
     return (
-      <Screen edges={[]}>
+      <Screen
+        edges={[]}
+        /* Replaces the page's flat `#121212`. In the `backdrop` slot so it sits
+           outside the safe-area inset and reaches the top of the display — and
+           outside the top bar, which is the layer above it and blurs this. */
+        backdrop={<ScrollAmbience scrollY={scrollY} distance={scrollDistance} palette={palette} />}
+        topBar={<FrostedTopBar back />}>
         <EmptyState title="Game not found" />
       </Screen>
     );
@@ -244,16 +287,17 @@ export default function GameDetailScreen() {
   const header = (
     <View style={styles.header}>
       <View style={styles.hero}>
-        <HeroArt uri={data.heroUrl} height={heroHeight} scrim fade={false} />
-      </View>
-
-      {/* One ramp over the artwork and on down the page, in the colour read out
-          of this game's own cover. It is a sibling *after* the hero so it paints
-          over it, and *before* the identity row so the case and the title stay
-          on top. Absolute, so the header's `gap` does not apply to it, and bled
-          out to the screen edges to cancel the header's own padding. */}
-      <View pointerEvents="none" style={[styles.ambience, { height: ambienceHeight }]}>
-        <Ambience coverAt={AMBIENCE_COVER} />
+        {/* `mask`, not a colour ramp: the backdrop behind this is a gradient
+            that changes as you scroll, and a fade to a fixed dark would draw a
+            band across it. Dissolving the art's own alpha lets whatever is
+            behind show through, whatever colour it currently is. */}
+        <HeroArt
+          uri={data.heroUrl}
+          steamAppId={data.steamAppId}
+          height={heroHeight}
+          scrim
+          fade="mask"
+        />
       </View>
 
       {/* Group 1 — identity, as one row: the boxed copy on the left standing in
@@ -274,14 +318,26 @@ export default function GameDetailScreen() {
             {data.title}
           </Text>
 
-          <GamePrice gameId={data.id} selected={activePlatform} />
+          <GamePrice
+            gameId={data.id}
+            selected={activePlatform}
+            title={data.title}
+            steamAppId={data.steamAppId}
+          />
 
+          {/* `accent.quietInk`, not a grey token, for every quiet line in this
+              block. The masthead sits on the brightest part of the ambient
+              gradient, where `textSecondary` measures 2.75:1 — grey was chosen
+              against a near-black page and has nothing left to give on a
+              coloured one. Near-white carrying the page's own hue holds 4.66:1
+              against every colour the extractor can produce, and it is what
+              lets the gradient be as strong as it is. */}
           {data.releaseDate ? (
-            <Text variant="bodySmall" color="textMuted">
+            <Text variant="bodySmall" style={{ color: accent.quietInk }}>
               {formatReleaseDate(data.releaseDate)}
             </Text>
           ) : data.releaseYear ? (
-            <Text variant="bodySmall" color="textMuted">
+            <Text variant="bodySmall" style={{ color: accent.quietInk }}>
               {data.releaseYear}
             </Text>
           ) : null}
@@ -290,12 +346,12 @@ export default function GameDetailScreen() {
               different companies, so they get a line each rather than being
               joined by a dot that implies one relationship. */}
           {data.developer && (
-            <Text variant="caption" color="textMuted" numberOfLines={2}>
+            <Text variant="caption" style={{ color: accent.quietInk }} numberOfLines={2}>
               {data.developer}
             </Text>
           )}
           {data.publisher && data.publisher !== data.developer && (
-            <Text variant="caption" color="textMuted" numberOfLines={2}>
+            <Text variant="caption" style={{ color: accent.quietInk }} numberOfLines={2}>
               {data.publisher}
             </Text>
           )}
@@ -303,7 +359,7 @@ export default function GameDetailScreen() {
           {data.score !== null && (
             <View style={styles.scoreRow}>
               <ScoreBadge score={data.score} size="small" />
-              <Text variant="caption" color="textMuted">
+              <Text variant="label" style={{ color: accent.quietInk }}>
                 COMMUNITY
               </Text>
             </View>
@@ -322,12 +378,28 @@ export default function GameDetailScreen() {
           the full width below both columns rather than being squeezed into the
           right one: they act on the game, not on its metadata. */}
       <View style={styles.record}>
-        {/* Your own log — no surface behind it. It used to sit on a filled
-            `tone="selected"` block, which made the one thing on this page that
-            is *yours* look like a notice the app was showing you. The score and
-            the status are already coloured; they do not need a box as well. */}
+        {/*
+          Your own log, on a surface carrying this game's hue.
+
+          It sat bare for a while, and the argument was good: a filled
+          `tone="selected"` block made the one thing on this page that is
+          *yours* look like a notice the app was showing you. That argument was
+          made against a flat `#121212` page, and `<ScrollAmbience>` invalidated
+          it — the block now sits on the brightest part of a lit gradient, where
+          `statusPlayed` measures **2.02:1**, `statusDropped` 2.07:1 and a low
+          `ScoreBadge` 1.95:1.
+
+          These are the one kind of colour that cannot be lifted to suit a
+          backdrop: they are *data*, tuned as a ramp, and forcing `statusPlayed`
+          to AA on the gradient moves it 165 RGB units to a pale #C0DFF8 that no
+          longer belongs to the set. So the surface comes back — but tinted
+          rather than grey. `accent.surface` mixes the game's own hue into
+          `surface` and restores the original luminance, so every one of these
+          tokens measures what it was chosen for (worst case 5.07:1) while the
+          block reads as belonging to this game rather than to the app.
+        */}
         {logged && (
-          <View style={styles.myLog}>
+          <View style={[styles.myLog, { backgroundColor: accent.surface }]}>
             <View style={styles.myLogHead}>
               {/* The status in its own colour, with its own glyph. Four states
                   that used to be one blue word — and the glyph is there so the
@@ -382,13 +454,13 @@ export default function GameDetailScreen() {
         <Ionicons name="book-outline" size={18} color={accent.onSurface} />
         <View style={styles.diaryText}>
           <Text variant="h5">Diary</Text>
-          <Text variant="caption" color="textMuted">
+          <Text variant="caption" style={{ color: accent.quietInk }}>
             {diaryCount.data
               ? `${diaryCount.data} ${diaryCount.data === 1 ? 'entry' : 'entries'}`
               : 'Write about your playthrough'}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        <Ionicons name="chevron-forward" size={18} color={accent.quietInk} />
       </PressableScale>
     </Link>
   ) : null;
@@ -466,10 +538,15 @@ export default function GameDetailScreen() {
               </View>
             )}
 
+            {/* Above About, because "where do I get this" is the question a
+                reader has *before* the synopsis — and below the genre chips, so
+                the page still opens on what the game is. */}
+            <StorePrices gameId={data.id} title={data.title} steamAppId={data.steamAppId} />
+
             {data.description && (
               <View style={styles.section}>
                 <SectionHeader title="About" />
-                <Text variant="body" color="textSecondary">
+                <Text variant="body" style={{ color: accent.quietInk }}>
                   {data.description}
                 </Text>
               </View>
@@ -499,10 +576,10 @@ export default function GameDetailScreen() {
                           { borderColor: withAlpha(accent.color, 0.28) },
                         ])}>
                         <Text variant="bodySmall">{company.name}</Text>
-                        <Text variant="caption" color="textMuted">
+                        <Text variant="caption" style={{ color: accent.quietInk }}>
                           {company.role === 'developer' ? 'Developer' : 'Publisher'}
                         </Text>
-                        <Ionicons name="chevron-forward" size={13} color={theme.textMuted} />
+                        <Ionicons name="chevron-forward" size={13} color={accent.quietInk} />
                       </PressableScale>
                     </Link>
                   ))}
@@ -510,15 +587,33 @@ export default function GameDetailScreen() {
               </View>
             )}
 
+            {/*
+              Series and lineage, and which one you get depends on what this
+              game *is*.
+
+              A remake, remaster, DLC or edition shows the game it came from and
+              no franchise rail: on Mafia: Definitive Edition the useful question
+              is "what is this a version of", and a rail of six Mafia games
+              answers a question nobody asked while burying the one that matters.
+              An original shows the series it belongs to — filtered to originals,
+              see `ORIGINALS_ONLY` — and then its own versions underneath.
+            */}
+            {data.edition && data.parentId ? (
+              <OriginalGame parentId={data.parentId} edition={data.edition} />
+            ) : (
+              <GameEditions gameId={data.id} />
+            )}
+
             {/* Franchise. IGDB models a numbered series as `collection` and the
                 wider brand as `franchises`; the collection is the more useful of
-                the two, so it wins when both exist. */}
-            {franchiseGames.data && franchiseGames.data.length > 1 && (
+                the two, so it wins when both exist. Hidden on a derivative —
+                the row above already places it. */}
+            {!data.edition && franchiseGames.data && franchiseGames.data.length > 1 && (
               <View style={styles.section}>
                 <SectionHeader
                   title={extras.data?.collection?.name ?? 'Franchise'}
                   action={
-                    <Text variant="bodySmall" color="textMuted">
+                    <Text variant="bodySmall" style={{ color: accent.quietInk }}>
                       {franchiseGames.data.length}
                     </Text>
                   }
@@ -562,7 +657,7 @@ export default function GameDetailScreen() {
                 <SectionHeader
                   title="Achievements"
                   action={
-                    <Text variant="bodySmall" color="textMuted">
+                    <Text variant="bodySmall" style={{ color: accent.quietInk }}>
                       {unlockedCount}/{achievementTotal}
                     </Text>
                   }
@@ -578,7 +673,7 @@ export default function GameDetailScreen() {
                     { borderColor: withAlpha(accent.color, 0.28) },
                   ])}>
                   <Text variant="h5">View all {achievementTotal}</Text>
-                  <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+                  <Ionicons name="chevron-forward" size={18} color={accent.quietInk} />
                 </PressableScale>
               </View>
             )}
@@ -601,19 +696,36 @@ export default function GameDetailScreen() {
        every control: the tab bar, the log button, the chips and the ambient
        wash all read the accent from context. */
     <AccentProvider artwork={data.coverUrl ?? data.heroUrl} genres={data.genres}>
-      <Screen edges={[]}>
-        {/* Transparency, the backdrop ramp and the shadow are all global now —
-            see the root layout. Only the title is per-screen. */}
-        <Stack.Screen options={{ title: data.title }} />
-
+      <Screen
+        edges={[]}
+        /* Replaces the page's flat `#121212`. In the `backdrop` slot so it sits
+           outside the safe-area inset and reaches the top of the display — and
+           outside the top bar, which is the layer above it and blurs this. */
+        backdrop={<ScrollAmbience scrollY={scrollY} distance={scrollDistance} palette={palette} />}
+        /* The title is the game's, and the bar gets out of the way as you read
+           down the page — the masthead below it already says which game this is
+           in art three hundred points tall. */
+        topBar={<FrostedTopBar title={data.title} back scrollY={scrollY} />}>
         {/* One FlatList with a single item: the tab bar has to scroll away with
             the masthead, and nesting a ScrollView inside a ScrollView would
             break that. The tab content itself is short enough not to need
             windowing. */}
-        <FlatList
+        <AnimatedFlatList
           data={[null]}
           keyExtractor={() => 'body'}
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          /* Both measurements land in shared values, so neither re-renders the
+             page. `distance` is what the gradient divides the offset by; a
+             floor of 1 keeps the worklet from dividing by zero before the first
+             layout pass has run. */
+          onLayout={(event) => {
+            viewportHeight.set(event.nativeEvent.layout.height);
+          }}
+          onContentSizeChange={(_, contentHeight) => {
+            scrollDistance.set(Math.max(1, contentHeight - viewportHeight.get()));
+          }}
           contentContainerStyle={styles.content}
           ListHeaderComponent={
             <>
@@ -658,10 +770,6 @@ const styles = StyleSheet.create({
    */
   header: { gap: Spacing.x24, paddingHorizontal: Spacing.x16, marginBottom: Spacing.x24 },
   hero: { marginHorizontal: -Spacing.x16 },
-  /* Bled past the header's horizontal padding so the ramp reaches both screen
-     edges — a gradient that stopped short of them would reintroduce exactly the
-     vertical seams this replaced. */
-  ambience: { position: 'absolute', top: 0, left: -Spacing.x16, right: -Spacing.x16 },
   /* `marginTop` is supplied inline — it scales with the case.
      `flex-end` so the two columns share a baseline at the bottom: the case is a
      fixed shape and the copy is not, and aligning their tops would leave the
@@ -672,7 +780,11 @@ const styles = StyleSheet.create({
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
-  myLog: { gap: Spacing.x8 },
+  myLog: {
+    gap: Spacing.x8,
+    padding: Spacing.x16,
+    borderRadius: Radius.card,
+  },
   myLogHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tabBody: { padding: Spacing.x16, gap: Spacing.x16 },
   reviewRow: { marginBottom: Spacing.x12 },

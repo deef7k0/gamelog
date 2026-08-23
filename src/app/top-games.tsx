@@ -1,14 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { HeroArt } from '@/components/ui/hero-art';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { getPopularGames } from '@/lib/news';
 import type { ChartBasis } from '@/lib/news';
 
@@ -34,6 +36,7 @@ const GAP = Spacing.x12;
  */
 export default function TopGamesScreen() {
   const { width } = useWindowDimensions();
+  const { scrollY, onScroll } = useTopBarScroll();
 
   const chart = useQuery({
     queryKey: ['popular-games', TOP_N],
@@ -47,14 +50,16 @@ export default function TopGamesScreen() {
 
   return (
     /*
-     * No `insetHeader`: the hero is meant to run under the floating header and
-     * off the top of the display, the same way the game page does.
+     * No `insetHeader`, and no title: the hero runs under the bar and off the
+     * top of the display, the same way the game page does, and the headline
+     * printed over that art already says "Top 10 Most Popular". Repeating it in
+     * the bar would be the same words twice, 40dp apart.
      */
-    <Screen edges={[]}>
-      <Stack.Screen options={{ title: '' }} />
-
-      <FlatList
+    <Screen edges={[]} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+      <Animated.FlatList
         data={entries}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}
         keyExtractor={(entry) => entry.gameId}
@@ -69,6 +74,8 @@ export default function TopGamesScreen() {
               coverUrl: item.coverUrl,
               heroUrl: item.heroUrl,
               releaseYear: item.releaseYear,
+              edition: item.edition,
+              steamAppId: item.steamAppId,
             }}
             width={tileWidth}
             rank={item.rank}

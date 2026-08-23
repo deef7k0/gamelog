@@ -1,3 +1,4 @@
+import { BlurTargetView } from 'expo-blur';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
@@ -5,6 +6,7 @@ import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useHeaderHeight } from '@/hooks/use-header-height';
+import { ScreenChromeProvider } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ScreenProps = {
@@ -37,6 +39,27 @@ export type ScreenProps = {
    * screens, under the status bar; nothing in it can be reached.
    */
   backdrop?: ReactNode;
+  /**
+   * The page's floating top bar — a `<FrostedTopBar>`.
+   *
+   * Its own slot rather than a child, and the reason is structural: the bar
+   * blurs the page, so it has to be a *sibling* of the content it blurs and sit
+   * outside the `<BlurTargetView>` below. A bar rendered as a child would be
+   * inside its own blur source.
+   *
+   * It draws over the content and reserves no space, exactly like the native
+   * header it replaces — screens that do not open on artwork pair it with
+   * `insetHeader`.
+   */
+  topBar?: ReactNode;
+  /**
+   * This page is presented as a modal.
+   *
+   * Only affects where the top bar's content sits: an iOS sheet already starts
+   * below the status bar and must not be inset again. Set it on the four modal
+   * routes and nowhere else — `useTopBarInset` has the reasoning.
+   */
+  modal?: boolean;
 };
 
 /** Page shell: themed background, safe-area insets, centred max-width column. */
@@ -46,29 +69,56 @@ export function Screen({
   padded = false,
   insetHeader = false,
   backdrop,
+  topBar,
+  modal = false,
 }: ScreenProps) {
   const theme = useTheme();
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useHeaderHeight(modal);
 
   return (
-    /* The outer view owns the fill so the backdrop can sit on top of it and
-       still be under the safe area. `SafeAreaView` is transparent as a result —
-       it is doing insets and nothing else. */
-    <View style={[styles.flex, { backgroundColor: theme.background }]}>
-      {backdrop}
+    <ScreenChromeProvider modal={modal}>
+      {({ blurTargetRef }) => (
+        <View style={styles.flex}>
+          {/*
+            Everything the top bar is allowed to blur, and nothing else.
 
-      <SafeAreaView style={styles.flex} edges={edges}>
-        <View
-          style={[
-            styles.flex,
-            styles.column,
-            padded && styles.padded,
-            insetHeader && { paddingTop: headerHeight },
-          ]}>
-          {children}
+            On iOS and the web this is a plain `<View>` — those platforms sample
+            whatever is behind a translucent layer without being told. On Android
+            it is a native `BlurTarget`, the only thing `expo-blur` can read
+            from; see `hooks/use-screen-chrome`. The bar is deliberately outside
+            it.
+
+            **The page fill lives here, not on the view above.** Android's blur
+            renders this subtree and nothing else, so a background painted on an
+            ancestor is not part of what the bar samples — on a screen with no
+            `backdrop` the glass would come back with whatever the window's own
+            drawable happens to be rather than `#121212`. It also keeps the
+            backdrop over the fill and under the safe area, which is what
+            `backdrop` is for; `SafeAreaView` stays transparent and does insets
+            and nothing else.
+          */}
+          <BlurTargetView
+            ref={blurTargetRef}
+            style={[styles.flex, { backgroundColor: theme.background }]}>
+            {backdrop}
+
+            <SafeAreaView style={styles.flex} edges={edges}>
+              <View
+                style={[
+                  styles.flex,
+                  styles.column,
+                  padded && styles.padded,
+                  insetHeader && { paddingTop: headerHeight },
+                ]}>
+                {children}
+              </View>
+            </SafeAreaView>
+          </BlurTargetView>
+
+          {topBar}
         </View>
-      </SafeAreaView>
-    </View>
+      )}
+    </ScreenChromeProvider>
   );
 }
 

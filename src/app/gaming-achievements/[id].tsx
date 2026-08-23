@@ -1,17 +1,20 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { steamCoverUrl, steamHeaderUrl } from '@/components/gaming/game-tile';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import {
@@ -37,6 +40,7 @@ const SHOWCASE_ICON = 56;
  * gets its own row underneath, where it belongs.
  */
 export default function GamingAchievementsScreen() {
+  const { scrollY, onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === id;
@@ -70,7 +74,10 @@ export default function GamingAchievementsScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen
+        edges={['bottom']}
+        insetHeader
+        topBar={<FrostedTopBar title="Steam Achievements" back />}>
         <EmptyState title="Not found" />
       </Screen>
     );
@@ -78,8 +85,11 @@ export default function GamingAchievementsScreen() {
 
   if (!account.isLoading && !account.data) {
     return (
-      <Screen edges={['bottom']} padded insetHeader>
-        <Stack.Screen options={{ title: 'Achievements' }} />
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        topBar={<FrostedTopBar title="Achievements" back />}>
         <EmptyState
           title="No Steam account linked"
           message={
@@ -97,11 +107,14 @@ export default function GamingAchievementsScreen() {
   const overall = stats.data;
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: 'Steam Achievements' }} />
-
-      <FlatList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar title="Steam Achievements" back scrollY={scrollY} />}>
+      <Animated.FlatList
         data={games}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         keyExtractor={(game) => game.appId}
         renderItem={({ item }) => <GameProgressRow game={item} userId={id} />}
         contentContainerStyle={styles.content}

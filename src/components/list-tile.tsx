@@ -2,94 +2,82 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { CollectionMosaic } from '@/components/collection-mosaic';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Poster } from '@/components/ui/poster';
 import { Text } from '@/components/ui/text';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { displayNameFor } from '@/lib/format';
 import type { ListSummary } from '@/lib/api';
 
-/** Width of the box art. 2:3 makes the tile 87 tall. */
-const COVER = 58;
+/**
+ * Edge length of the mosaic, and therefore of the whole tile.
+ *
+ * Fixed dp like every other artwork size in the app, so retuning the spacing
+ * ladder moves the interface and leaves the art alone. 164 puts two tiles plus
+ * the page margins across a 390pt phone with a real gap between them, and makes
+ * each quarter of the mosaic 82 — comfortably large enough to recognise a cover.
+ */
+const TILE = 164;
 
 /**
- * A collection rendered as one piece of box art, its metadata, and a chevron.
+ * A collection as a compact block: its artwork, then its name and who made it.
  *
- * It used to be a 2x2 collage of the first four covers. Four covers at 46px
- * each is four illegible thumbnails — you could tell a collection had games in
- * it but not which ones — and it made every collection look the same shape
- * regardless of what was in it. One cover at full size is recognisable at a
- * glance, and the owner picks which one (`cover_game_id`, migration 0014), so
- * the tile can lead with the game that actually represents the collection.
+ * This was a full-width horizontal row — cover on the left, title and metadata
+ * in the middle, a chevron panel pinned right. That shape had two problems. It
+ * spent an entire screen width on one collection, so three of them filled the
+ * viewport and browsing meant scrolling past things one at a time. And the
+ * chevron panel was 34dp of chrome restating what the whole row already did.
  *
- * The chevron sits in its own panel against the right edge rather than floating
- * beside the text: it is the affordance for the whole row, and giving it a
- * surface makes the row read as a thing you open rather than a line of text
- * with an arrow after it.
+ * A square block of artwork with two lines under it is the shape every media
+ * app converged on for this, and it converged there for a reason: the artwork is
+ * the recognisable part, so it should be as large as the layout can afford, and
+ * everything else is a caption. Two per row instead of one per screen.
+ *
+ * **The title never wraps to a third line and the byline never wraps at all.**
+ * Tiles in a grid have to share a baseline, and a title that runs long is far
+ * less noticeable truncated than it is shoving the row below it out of line.
  */
 export function ListTile({ list }: { list: ListSummary }) {
   const theme = useTheme();
+
+  const owner = displayNameFor(list.owner);
+  const count = `${list.itemCount} ${list.itemCount === 1 ? 'game' : 'games'}`;
 
   return (
     <Link href={{ pathname: '/list/[id]', params: { id: list.id } }} asChild>
       <PressableScale
         accessibilityRole="button"
-        accessibilityLabel={`${list.title}, ${list.itemCount} ${
-          list.itemCount === 1 ? 'game' : 'games'
-        }`}
-        scaleTo={0.98}
-        style={StyleSheet.flatten([
-          styles.row,
-          Elevation.card,
-          { backgroundColor: theme.surface },
-        ])}>
-        <Poster
-          coverUrl={list.preview?.cover_url ?? null}
-          heroUrl={list.preview?.hero_url ?? null}
-          title={list.title}
-          width={COVER}
-        />
+        accessibilityLabel={`${list.title}, by ${owner}, ${count}`}
+        scaleTo={0.97}
+        style={styles.tile}>
+        {/* The shadow sits on a wrapper because the mosaic clips its corners,
+            and Android's elevation does not survive `overflow: 'hidden'`. */}
+        <View style={[styles.artwork, Elevation.card, { backgroundColor: theme.surface }]}>
+          <CollectionMosaic
+            covers={list.mosaic}
+            size={TILE}
+            title={list.title}
+            award={list.kind === 'awards'}
+          />
+        </View>
 
-        <View style={styles.body}>
+        <View style={styles.caption}>
           <Text variant="h5" numberOfLines={2}>
             {list.title}
           </Text>
 
-          {list.description && (
-            <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
-              {list.description}
-            </Text>
-          )}
-
-          <View style={styles.meta}>
-            <Text variant="caption" color="textMuted">
-              {list.itemCount} {list.itemCount === 1 ? 'game' : 'games'}
-            </Text>
-            {list.is_ranked && (
-              <View style={styles.metaItem}>
-                <Ionicons name="list" size={11} color={theme.textMuted} />
-                <Text variant="caption" color="textMuted">
-                  Ranked
-                </Text>
-              </View>
+          {/* Owner and count on one line, separated by a dot — they are one
+              fact about provenance, not two independent pieces of metadata. */}
+          <View style={styles.byline}>
+            {list.kind === 'tier' && <Ionicons name="layers" size={11} color={theme.textMuted} />}
+            {list.is_ranked && list.kind !== 'tier' && (
+              <Ionicons name="list" size={11} color={theme.textMuted} />
             )}
-            {list.kind === 'tier' && (
-              <View style={styles.metaItem}>
-                <Ionicons name="layers" size={11} color={theme.primaryText} />
-                <Text variant="caption" style={{ color: theme.accent }}>
-                  Tier list
-                </Text>
-              </View>
-            )}
+            <Text variant="bodySmall" color="textMuted" numberOfLines={1} style={styles.bylineText}>
+              {owner} • {count}
+            </Text>
           </View>
-        </View>
-
-        {/* Decorative: the row already carries the accessible label. */}
-        <View
-          style={[styles.arrow, { backgroundColor: theme.surfaceElevated }]}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants">
-          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
         </View>
       </PressableScale>
     </Link>
@@ -97,24 +85,11 @@ export function ListTile({ list }: { list: ListSummary }) {
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x8,
-    paddingRight: Spacing.x4,
-    borderRadius: Radius.card,
-  },
-  body: { flex: 1, gap: Spacing.x4 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12, marginTop: 2 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  /* Full-height panel pinned to the right edge, matching the cover's height so
-     the row reads as two blocks with content between them. */
-  arrow: {
-    alignSelf: 'stretch',
-    width: 34,
-    borderRadius: Radius.control,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  tile: { width: TILE, gap: Spacing.x8 },
+  artwork: { borderRadius: Radius.image },
+  /* 2px between the title and the byline: they are one caption block, and a
+     real gap makes them read as two separate facts about the collection. */
+  caption: { gap: 2 },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  bylineText: { flex: 1 },
 });

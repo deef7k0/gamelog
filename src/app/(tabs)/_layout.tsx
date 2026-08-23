@@ -39,6 +39,11 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
+        // Every tab draws its own `<FrostedTopBar>` — see the root layout for
+        // why no screen in this app uses a native header any more. Set once
+        // here rather than per screen, which is how `create` ended up with a
+        // stock grey bar nobody had asked for.
+        headerShown: false,
         tabBarActiveTintColor: theme.primaryText,
         tabBarInactiveTintColor: theme.textMuted,
         tabBarShowLabel: true,
@@ -57,15 +62,11 @@ export default function TabsLayout() {
           paddingTop: Spacing.x8,
           paddingBottom: Spacing.x8,
         },
-        headerStyle: { backgroundColor: theme.background },
-        headerTitleStyle: { color: theme.text, ...Type.h1 },
-        headerShadowVisible: false,
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'GameLog',
-          headerShown: false,
           tabBarAccessibilityLabel: 'Home',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
@@ -77,7 +78,6 @@ export default function TabsLayout() {
         name="search"
         options={{
           title: 'Search',
-          headerShown: false,
           tabBarAccessibilityLabel: 'Search',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
@@ -94,7 +94,6 @@ export default function TabsLayout() {
         name="news"
         options={{
           title: 'News',
-          headerShown: false,
           tabBarAccessibilityLabel: 'News',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'newspaper' : 'newspaper-outline'} size={24} color={color} />
@@ -106,7 +105,6 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          headerShown: false,
           tabBarAccessibilityLabel: 'Profile',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />

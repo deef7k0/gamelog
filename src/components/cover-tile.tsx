@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import type { EditionKind } from '@/constants/game-editions';
 import { Spacing } from '@/constants/theme';
 
 export type CoverTileGame = {
@@ -13,6 +14,14 @@ export type CoverTileGame = {
   coverUrl: string | null;
   heroUrl: string | null;
   releaseYear: number | null;
+  /**
+   * Release type, for the badge. Optional because the chart callers build this
+   * shape by hand from a ranking payload rather than passing a whole
+   * `GameSearchResult`.
+   */
+  edition?: EditionKind | null;
+  /** Steam appid, for official store artwork. Optional for the same reason. */
+  steamAppId?: string | null;
 };
 
 export type CoverTileProps = {
@@ -59,6 +68,8 @@ export function CoverTile({ game, width, rank }: CoverTileProps) {
           coverUrl={game.coverUrl}
           heroUrl={game.heroUrl}
           title={game.title}
+          edition={game.edition ?? null}
+          steamAppId={game.steamAppId ?? null}
           width={artWidth}
           rounded="image"
         />

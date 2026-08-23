@@ -1,10 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Card } from '@/components/ui/surface';
@@ -12,6 +14,7 @@ import { Text } from '@/components/ui/text';
 import { rarityFor } from '@/constants/rarity';
 import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import {
   cacheGameAchievements,
@@ -26,6 +29,7 @@ export default function AchievementsScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { scrollY, onScroll } = useTopBarScroll();
   const userId = useAuth((state) => state.session?.user.id);
   const steamId = useAuth((state) => state.profile?.steam_id);
 
@@ -84,7 +88,7 @@ export default function AchievementsScreen() {
 
   if (game.isLoading || achievements.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Achievements" back />}>
         <LoadingState />
       </Screen>
     );
@@ -92,7 +96,7 @@ export default function AchievementsScreen() {
 
   if (achievements.isError) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Achievements" back />}>
         <ErrorState error={achievements.error} />
       </Screen>
     );
@@ -106,11 +110,16 @@ export default function AchievementsScreen() {
 
   return (
     <AccentProvider artwork={game.data?.coverUrl ?? game.data?.heroUrl} genres={game.data?.genres}>
-      <Screen edges={['bottom']} insetHeader>
-        <Stack.Screen options={{ title: game.data?.title ?? 'Achievements' }} />
-
-        <FlatList
+      <Screen
+        edges={['bottom']}
+        insetHeader
+        topBar={
+          <FrostedTopBar title={game.data?.title ?? 'Achievements'} back scrollY={scrollY} />
+        }>
+        <Animated.FlatList
           data={list}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           keyExtractor={(entry) => entry.id}
           contentContainerStyle={list.length === 0 ? styles.emptyContent : styles.content}
           showsVerticalScrollIndicator={false}

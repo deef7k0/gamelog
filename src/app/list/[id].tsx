@@ -1,13 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 
+import { AwardShow } from '@/components/award-show';
 import { CollectionHeader } from '@/components/collection-header';
-import { EngagementBar } from '@/components/engagement-bar';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { Button } from '@/components/ui/button';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -15,6 +17,7 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, type ThemePalette } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import {
   deleteList,
@@ -32,9 +35,17 @@ import { useAuth } from '@/store/auth';
 
 const POSTER = 58;
 
-/** Four across, matching the library, studio and Top 10 grids. */
-const GRID_COLUMNS = 4;
-const GRID_GAP = Spacing.x8;
+/**
+ * Three across.
+ *
+ * Wider than the library and Top 10 grids' four, and the reason is that this
+ * screen opens on a half-display of artwork: a four-across grid under that puts
+ * 88dp covers below a 390dp block of the same covers, which reads as the page
+ * losing interest in its own subject. Three keeps the box art large enough to
+ * recognise without its title.
+ */
+const GRID_COLUMNS = 3;
+const GRID_GAP = Spacing.x12;
 
 /**
  * `default` is the collection's own order — the sequence the owner arranged, or
@@ -69,6 +80,7 @@ export default function ListDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { scrollY, onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [sort, setSort] = useState<GameSort>('default');
@@ -211,7 +223,7 @@ export default function ListDetailScreen() {
 
   if (list.isLoading) {
     return (
-      <Screen edges={['bottom']}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
     );
@@ -219,7 +231,7 @@ export default function ListDetailScreen() {
 
   if (list.isError) {
     return (
-      <Screen edges={['bottom']}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
         <ErrorState error={list.error} />
       </Screen>
     );
@@ -227,7 +239,7 @@ export default function ListDetailScreen() {
 
   if (!list.data) {
     return (
-      <Screen edges={['bottom']}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
         <EmptyState title="List not found" />
       </Screen>
     );
@@ -236,16 +248,22 @@ export default function ListDetailScreen() {
   const data = list.data;
   const isOwner = data.user_id === userId;
   const isTierList = data.kind === 'tier';
+  const isAwards = data.kind === 'awards';
 
   const header = (
     /* Cancels the list's horizontal padding so the hero reaches both edges and
        runs under the floating header, the way a game page opens. The header's
        own body re-applies the inset to its text. */
     <View style={styles.headerBleed}>
+      {/* Every action lives in the masthead's circular row now — share, like,
+          change preview, add games, delete. Liking used to be a separate
+          `<EngagementBar>` below the header, which put the like count in one
+          place and the like button in another. */}
       <CollectionHeader
         collection={data}
         owner={owner.data ?? null}
         isOwner={isOwner}
+        engagement={engagement.data}
         onShare={() =>
           Share.share({
             message: `${data.title} — ${items.length} games on GameLog`,
@@ -253,59 +271,34 @@ export default function ListDetailScreen() {
         }
         onEdit={isOwner ? openPicker : undefined}
         onDelete={isOwner ? () => destroy.mutate() : undefined}
+        onPickCover={isOwner ? () => setPickingCover(true) : undefined}
       />
 
-      {/* Which cover represents this collection on a tile. Owner-only, and only
-          worth offering once there is a choice to make — with one game the
-          fallback already picks it. */}
-      {isOwner && items.length > 1 && (
+      {/* The picking mode's own bar. Only while the mode is on: the control
+          that *enters* it is the masthead's image button. */}
+      {pickingCover && (
         <View style={styles.controls}>
-          {pickingCover ? (
-            <View style={[styles.coverHint, { backgroundColor: theme.surfaceElevated }]}>
-              <Text variant="bodySmall" color="textSecondary" style={styles.coverHintText}>
-                Tap a game to use its cover as this collection&rsquo;s preview.
-              </Text>
-              <Button
-                title="Cancel"
-                variant="ghost"
-                size="small"
-                onPress={() => setPickingCover(false)}
-              />
-            </View>
-          ) : (
+          <View style={[styles.coverHint, { backgroundColor: theme.surfaceElevated }]}>
+            <Text variant="bodySmall" color="textSecondary" style={styles.coverHintText}>
+              Tap a game to use its cover as this collection&rsquo;s preview.
+            </Text>
             <Button
-              title="Change preview"
-              variant="secondary"
+              title="Cancel"
+              variant="ghost"
               size="small"
-              icon="image-outline"
-              onPress={() => setPickingCover(true)}
+              onPress={() => setPickingCover(false)}
             />
-          )}
+          </View>
         </View>
       )}
 
-      {/* Collections are likeable, and the like is what ranks them in Search →
-          Collections. The same polymorphic `likes` row a post or a review uses;
-          only the target type differs. Comments are deliberately not offered —
-          a collection is a shelf, not a thread. */}
-      {!isTierList && data.kind === 'list' && (
-        <View style={styles.controls}>
-          <EngagementBar
-            targetType="list"
-            targetId={data.id}
-            engagement={engagement.data}
-            shareMessage={`${data.title} — ${items.length} games on GameLog`}
-          />
-        </View>
-      )}
+      {/* A tier list is grouped by tier, so reordering it by year would
+          scramble the only structure it has — no sort row there.
 
-      {/* "Add games" is in the header's action row now, beside Share and
-          Delete. A second full-width copy of it here was the same button
-          twice, forty pixels apart.
-
-          A tier list is grouped by tier, so reordering it by year would
-          scramble the only structure it has — no sort row there. */}
-      {!isTierList && items.length > 1 && (
+          Nor on an award show, where the row was rendering and doing nothing:
+          the ballot comes from `list_awards` and `sort` only ever reorders
+          `items`, so every option on it was a control that moved nothing. */}
+      {!isTierList && !isAwards && items.length > 1 && (
         <View style={styles.controls}>
           <SortBar
             options={SORTS}
@@ -319,20 +312,36 @@ export default function ListDetailScreen() {
   );
 
   /*
-   * Two layouts, one screen.
+   * Three layouts, one screen.
    *
-   * A tier list is a ranking: each entry needs its tier badge, its position and
-   * its remove control, so it stays a row. Everything else is a shelf, and a
-   * four-across poster grid shows far more of it per screen — which is the whole
-   * point of a collection.
+   * An award show is a ballot of *categories* — rows that exist before there is
+   * a game in them — so it reads `list_awards` rather than the items above and
+   * lives in its own component. A tier list is a ranking: each entry needs its
+   * tier badge, its position and its remove control, so it stays a row.
+   * Everything else is a shelf, and a four-across poster grid shows far more of
+   * it per screen — which is the whole point of a collection.
+   *
+   * The kind is not known until the list query resolves, which is why this
+   * branches here rather than at the top of the file: every tile in the app
+   * links to `/list/<id>` without knowing what shape is behind it.
    */
+  if (isAwards) {
+    return (
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+        <AwardShow listId={id!} isOwner={isOwner} header={header} onScroll={onScroll} />
+      </Screen>
+    );
+  }
+
   if (!isTierList) {
     return (
-      <Screen edges={['bottom']}>
-        <Stack.Screen options={{ title: 'Collection' }} />
-
-        <FlatList
+      /* The mosaic runs full-bleed under the bar, so no `insetHeader` and no
+         title: the collection's name is set over its own artwork right below. */
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+        <Animated.FlatList
           data={ordered}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           key="collection-grid"
           numColumns={GRID_COLUMNS}
           keyExtractor={(item) => item.game_id}
@@ -407,11 +416,11 @@ export default function ListDetailScreen() {
   }
 
   return (
-    <Screen edges={['bottom']}>
-      <Stack.Screen options={{ title: 'Collection' }} />
-
-      <FlatList
+    <Screen edges={['bottom']} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+      <Animated.FlatList
         data={items}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         keyExtractor={(item) => item.game_id}
         contentContainerStyle={items.length === 0 ? styles.empty : styles.content}
         showsVerticalScrollIndicator={false}

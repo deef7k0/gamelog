@@ -1,13 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { getUpcomingReleases } from '@/lib/news';
 
 const COLUMNS = 3;
@@ -23,6 +25,7 @@ const GAP = Spacing.x12;
  */
 export default function UpcomingScreen() {
   const { width } = useWindowDimensions();
+  const { scrollY, onScroll } = useTopBarScroll();
   const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
   const upcoming = useQuery({
@@ -32,11 +35,14 @@ export default function UpcomingScreen() {
   });
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: 'Coming soon' }} />
-
-      <FlatList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar title="Coming soon" back scrollY={scrollY} />}>
+      <Animated.FlatList
         data={upcoming.data ?? []}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}
         keyExtractor={(game) => game.id}

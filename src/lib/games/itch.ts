@@ -2,6 +2,7 @@ import {
   makeGameId,
   stripHtml,
   yearFrom,
+  NO_EDITION,
   type Game,
   type GameProvider,
   type GameSearchResult,
@@ -88,6 +89,8 @@ function toGame(raw: ItchGame): Game {
     score: null,
     storeUrl: raw.url ?? null,
     screenshots: [],
+    // itch.io records no relationship between a game and its editions.
+    ...NO_EDITION,
   };
 }
 
@@ -114,6 +117,10 @@ async function search(query: string, signal?: AbortSignal): Promise<GameSearchRe
       genres: game.genres,
       platforms: game.platforms,
       score: game.score,
+      edition: game.edition,
+      editionTitle: game.editionTitle,
+      parentId: game.parentId,
+      steamAppId: game.steamAppId,
     };
   });
 }

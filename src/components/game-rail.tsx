@@ -1,17 +1,34 @@
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { FlatList, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useReducedMotion,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useRailDrift, type RailGeometry } from '@/hooks/use-rail-drift';
 import { useTheme } from '@/hooks/use-theme';
 import type { GameCharacter } from '@/lib/games/igdb';
 import type { GameSearchResult } from '@/lib/games';
 
 const RAIL_POSTER = 92;
 const CAST_AVATAR = 56;
+
+/**
+ * Where each poster sits. `leading` is 0 because `styles.rail` pads only its
+ * right edge — this rail bleeds off the left of the display by design.
+ */
+const RAIL_GEOMETRY: RailGeometry = {
+  pitch: RAIL_POSTER + Spacing.x12,
+  leading: 0,
+  itemWidth: RAIL_POSTER,
+};
 
 /**
  * Horizontal rails shared by the game Overview tab, the studio catalogue and the
@@ -24,10 +41,27 @@ const CAST_AVATAR = 56;
 export function GamePosterRail({
   games,
   emptyLabel,
+  parallax = false,
 }: {
   games: GameSearchResult[];
   emptyLabel?: string;
+  /**
+   * Let the artwork sit behind its frame and slide as the rail moves. Off by
+   * default: this rail also serves the game page's franchise and studio bands,
+   * and Home is the only screen that asked for the effect. Ignored under a
+   * reduced-motion preference.
+   */
+  parallax?: boolean;
 }) {
+  const reduceMotion = useReducedMotion();
+  const scrollX = useSharedValue(0);
+
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollX.set(event.contentOffset.x);
+  });
+
+  const driver = parallax && !reduceMotion ? scrollX : null;
+
   if (games.length === 0) {
     return emptyLabel ? (
       <Text variant="bodySmall" color="textMuted">
@@ -37,36 +71,56 @@ export function GamePosterRail({
   }
 
   return (
-    <FlatList
+    <Animated.FlatList
       data={games}
       horizontal
       showsHorizontalScrollIndicator={false}
       keyExtractor={(game) => game.id}
       contentContainerStyle={styles.rail}
-      renderItem={({ item }) => (
-        <Link href={{ pathname: '/game/[id]', params: { id: item.id } }} asChild>
-          <PressableScale accessibilityRole="button" accessibilityLabel={item.title} scaleTo={0.95}>
-            <View style={styles.railItem}>
-              <Poster
-                coverUrl={item.coverUrl}
-                heroUrl={item.heroUrl}
-                title={item.title}
-                width={RAIL_POSTER}
-                rounded="image"
-              />
-              <Text variant="caption" numberOfLines={2}>
-                {item.title}
-              </Text>
-              {item.releaseYear !== null && (
-                <Text variant="caption" color="textMuted">
-                  {item.releaseYear}
-                </Text>
-              )}
-            </View>
-          </PressableScale>
-        </Link>
-      )}
+      onScroll={driver ? onScroll : undefined}
+      scrollEventThrottle={16}
+      renderItem={({ item, index }) => <RailPoster game={item} index={index} scrollX={driver} />}
     />
+  );
+}
+
+/** One poster, lifted out of `renderItem` so it can hold `useRailDrift`. */
+function RailPoster({
+  game,
+  index,
+  scrollX,
+}: {
+  game: GameSearchResult;
+  index: number;
+  scrollX: SharedValue<number> | null;
+}) {
+  const drift = useRailDrift(scrollX, index, RAIL_GEOMETRY);
+
+  return (
+    <Link href={{ pathname: '/game/[id]', params: { id: game.id } }} asChild>
+      <PressableScale accessibilityRole="button" accessibilityLabel={game.title} scaleTo={0.95}>
+        <View style={styles.railItem}>
+          <Poster
+            coverUrl={game.coverUrl}
+            heroUrl={game.heroUrl}
+            title={game.title}
+            edition={game.edition}
+            steamAppId={game.steamAppId}
+            width={RAIL_POSTER}
+            rounded="image"
+            parallax={drift}
+          />
+          <Text variant="caption" numberOfLines={2}>
+            {game.title}
+          </Text>
+          {game.releaseYear !== null && (
+            <Text variant="caption" color="textMuted">
+              {game.releaseYear}
+            </Text>
+          )}
+        </View>
+      </PressableScale>
+    </Link>
   );
 }
 

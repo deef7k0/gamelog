@@ -8,6 +8,7 @@ import { DiscoverCollections, DiscoverReviews } from '@/components/discover-list
 import { DiscoverPeople } from '@/components/discover-people';
 import { GameSearchResults, MIN_QUERY_LENGTH } from '@/components/game-search-results';
 import { Avatar } from '@/components/ui/avatar';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
@@ -113,7 +114,14 @@ export default function SearchScreen() {
   }
 
   return (
-    <Screen edges={[]}>
+    /*
+     * The bar does not hide here, and is not given a `scrollY` to hide against.
+     * Search has four tabs and each one brings its own scroller — there is no
+     * single "the page's list" to follow — and the field and the tab bar under
+     * the header are what you came to use. Chrome that gets out of the way is
+     * for reading screens; this is a working one.
+     */
+    <Screen edges={[]} insetHeader topBar={<FrostedTopBar title="Search" />}>
       <View style={styles.header}>
         {searchable && (
           <TextField

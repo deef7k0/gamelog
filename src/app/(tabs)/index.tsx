@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useRouter } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { GameCardRail } from '@/components/game-card-rail';
 import { GamePosterRail } from '@/components/game-rail';
@@ -10,12 +11,15 @@ import { ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
 import { ArticleCard } from '@/components/news-cards';
 import { Avatar } from '@/components/ui/avatar';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ErrorState, Screen } from '@/components/ui/screen';
 import { SoftGlow } from '@/components/ui/soft-glow';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useHeaderHeight } from '@/hooks/use-header-height';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { getHomeReviews, getRecentCollections, getUnreadCount, getUserLogs } from '@/lib/api';
 import { displayNameFor, greetingFor } from '@/lib/format';
@@ -33,17 +37,28 @@ const RECOMMENDED_LIMIT = 12;
 /*
  * Glow geometry.
  *
- * Sized against the masthead rather than the screen. The circle's centre sits
- * up and to the left of the corner, so what lands on screen is only the outer
- * shoulder of the falloff — the brightest thing visible is well under the 50%
- * peak, which is what keeps it reading as light in the room rather than as a
- * blurred disc. With these numbers the last visible trace is around 300dp down,
- * which puts it just above "Welcome back".
+ * Simulated rather than guessed: composited over `#121212`, this puts the
+ * top-left corner at roughly 1.7:1 against the page and fades to nothing by
+ * about 270dp down — which lands just past "Welcome back" and well before the
+ * first rail, matching the reference.
+ *
+ * The previous numbers (460 / blur 90 / centre at -60,-110) measured 1.04:1,
+ * i.e. invisible. See the note in `ui/soft-glow.tsx` for why; the short version
+ * is that the centre must stay near the screen and `blur` is a sigma.
+ *
+ * **The glow belongs to the page, not to the bar.** Its centre sits at y=20,
+ * which is *behind* the frosted top bar, and that is the intended composition
+ * rather than an oversight: the bar has no colour of its own and no gradient in
+ * it, it just blurs whatever the page put underneath. The brightest part of the
+ * spotlight reaching it as a soft colour wash is the whole effect. Never give
+ * the bar its own gradient to compensate — there would then be two ramps
+ * meeting at the bar's bottom edge, which is a seam.
  */
-const GLOW_SIZE = 460;
-const GLOW_BLUR = 90;
-const GLOW_X = -60;
-const GLOW_Y = -110;
+const GLOW_SIZE = 620;
+const GLOW_BLUR = 24;
+const GLOW_X = 80;
+const GLOW_Y = 20;
+const GLOW_OPACITY = 0.62;
 
 /**
  * Home.
@@ -80,6 +95,8 @@ const GLOW_Y = -110;
 export default function HomeScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
+  const { scrollY, onScroll } = useTopBarScroll();
   const userId = useAuth((state) => state.session?.user.id);
   const profile = useAuth((state) => state.profile);
 
@@ -165,52 +182,66 @@ export default function HomeScreen() {
 
   return (
     <Screen
-      edges={['top']}
+      edges={[]}
       /* The `backdrop` slot rather than a child: it renders outside the
          safe-area inset, so the glow reaches the top of the display instead of
-         starting under the status bar and drawing a hard line across it. Inert
-         either way — the canvas takes `pointerEvents="none"`. */
+         starting under the status bar and drawing a hard line across it. It is
+         also outside the top bar, which is the layer above — the bar blurs this,
+         it does not contain it. Inert either way: the canvas takes
+         `pointerEvents="none"`. */
       backdrop={
-        <SoftGlow size={GLOW_SIZE} blurRadius={GLOW_BLUR} offsetX={GLOW_X} offsetY={GLOW_Y} />
-      }>
-      {/* The masthead sits outside the ScrollView: the title and the bell are
-          the page's fixed furniture, and a notification count that scrolls away
-          is a notification count you will not see. */}
-      <View style={styles.masthead}>
-        <View style={styles.mastheadText}>
-          <Text variant="display">GameLog</Text>
-          <Text variant="bodySmall" color="textSecondary">
-            {greetingFor()}
-          </Text>
-        </View>
-
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel={
-            unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+        <SoftGlow
+          size={GLOW_SIZE}
+          blurRadius={GLOW_BLUR}
+          offsetX={GLOW_X}
+          offsetY={GLOW_Y}
+          opacity={GLOW_OPACITY}
+        />
+      }
+      /* The wordmark, the greeting and the bell are the page's furniture, so
+         they live in the bar rather than in the scroll content. The bar gets out
+         of the way on the way down and is back the instant you scroll up, which
+         is the one arrangement where an unread count is both out of the way and
+         never more than a flick from view. */
+      topBar={
+        <FrostedTopBar
+          title="GameLog"
+          subtitle={greetingFor()}
+          scrollY={scrollY}
+          right={
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={
+                unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+              }
+              onPress={() => router.push('/notifications')}
+              scaleTo={0.94}
+              style={styles.bell}>
+              <Ionicons name="notifications-outline" size={24} color={theme.text} />
+              {unreadCount > 0 && (
+                <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                  <Text variant="caption" style={{ color: theme.onPrimary }}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </PressableScale>
           }
-          onPress={() => router.push('/notifications')}
-          scaleTo={0.94}
-          style={styles.bell}>
-          <Ionicons name="notifications-outline" size={24} color={theme.text} />
-          {unreadCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: theme.primary }]}>
-              <Text variant="caption" style={{ color: theme.onPrimary }}>
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </Text>
-            </View>
-          )}
-        </PressableScale>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.content}
+        />
+      }>
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        contentContainerStyle={[styles.content, { paddingTop: headerHeight + Spacing.x8 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refreshAll}
             tintColor={theme.primary}
+            /* Otherwise the spinner drops out of the very top of the display,
+               behind the bar, and a pull-to-refresh looks like it did nothing. */
+            progressViewOffset={headerHeight}
           />
         }>
         {/* Who you are, and a way into your own profile. Two lines rather than
@@ -242,9 +273,16 @@ export default function HomeScreen() {
             title="Games for you"
             subtitle="Based on the games you rated highest."
             seeAll="/search">
+            {/* Home's three game rails all run the parallax — see the note
+                above `PARALLAX_OVERSCAN` in `ui/poster.tsx`. It is one idea
+                applied to one class of object, which is why it is on every
+                rail here and on nothing else: the collections rail shows a
+                2×2 mosaic, and four windows inside one tile is the same effect
+                doing four things at once. */}
             <GameCardRail
               games={recommendedGames}
               loading={recommended.isLoading || logs.isLoading}
+              parallax
             />
           </HomeSection>
         )}
@@ -278,7 +316,7 @@ export default function HomeScreen() {
           {releases.isLoading ? (
             <RailSkeleton />
           ) : (
-            <GamePosterRail games={(releases.data ?? []).slice(0, 15)} />
+            <GamePosterRail games={(releases.data ?? []).slice(0, 15)} parallax />
           )}
         </HomeSection>
 
@@ -286,7 +324,7 @@ export default function HomeScreen() {
           {upcoming.isLoading ? (
             <RailSkeleton />
           ) : (
-            <GamePosterRail games={(upcoming.data ?? []).slice(0, 15)} />
+            <GamePosterRail games={(upcoming.data ?? []).slice(0, 15)} parallax />
           )}
         </HomeSection>
 
@@ -295,11 +333,16 @@ export default function HomeScreen() {
             title="Fresh collections"
             subtitle="Recently updated by other people."
             seeAll="/search">
-            <View style={styles.stack}>
+            {/* Horizontal, not stacked: the tile is a square block now, and a
+                column of them would waste most of every row. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.tileRail}>
               {collections.data!.map((list) => (
                 <ListTile key={list.id} list={list} />
               ))}
-            </View>
+            </ScrollView>
           </HomeSection>
         )}
 
@@ -324,7 +367,7 @@ export default function HomeScreen() {
             </Text>
           </PressableScale>
         </Link>
-      </ScrollView>
+      </Animated.ScrollView>
     </Screen>
   );
 }
@@ -340,16 +383,6 @@ function RailSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  masthead: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.x16,
-    paddingVertical: Spacing.x12,
-  },
-  /* 2px between the wordmark and the greeting: they are one block, and a real
-     gap would make the greeting read as the first item of the page below. */
-  mastheadText: { gap: 2 },
   bell: { padding: Spacing.x8 },
   badge: {
     position: 'absolute',
@@ -362,15 +395,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* 24 between bands — the page's only structural rhythm, and the reason a
-     stack of unrelated sections still reads as one document. */
-  content: { paddingBottom: Spacing.x48, gap: Spacing.x24 },
+  /* `x64` (48) between bands, not `x24` (18).
+     
+     The page's only structural rhythm, and the reason a stack of unrelated
+     sections still reads as one document rather than one long scroll. At 18 the
+     gap between two sections was barely larger than the gap between a heading
+     and its own rail, so the headings read as captions floating in a continuous
+     column. The interval separating sections has to be unmistakably bigger than
+     any interval inside one. */
+  content: { paddingBottom: Spacing.x48, gap: Spacing.x64 },
   welcome: { paddingHorizontal: Spacing.x16, gap: Spacing.x8, paddingTop: Spacing.x4 },
   welcomeUser: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   /* Shrinks rather than pushing the row wide — a long display name truncates
      instead of shoving the avatar off the left edge. */
   welcomeName: { flex: 1 },
   stack: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
+  /* Same 16 gap the captioned game rail uses — a block with a caption under it
+     needs the gap to beat its own internal spacing, or two tiles read as one. */
+  tileRail: { paddingHorizontal: Spacing.x16, gap: Spacing.x16 },
   railSkeleton: { flexDirection: 'row', gap: Spacing.x12, paddingHorizontal: Spacing.x16 },
   footer: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x8 },
 });

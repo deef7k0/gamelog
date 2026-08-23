@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { parseReviewMetrics } from '@/constants/review-metrics';
-import { Radius, Spacing, withAlpha } from '@/constants/theme';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getListMembership, saveLog, toggleSingletonMembership } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
@@ -55,6 +56,10 @@ export function formatReleaseDate(iso: string): string {
  */
 export function GameActions({ game, log }: GameActionsProps) {
   const theme = useTheme();
+  /* The masthead sits on the brightest stop of `<ScrollAmbience>`; see the note
+     on `AccentRoles.quietInk`. Every grey in this component was measured there
+     and failed. */
+  const accent = useAccent();
   const router = useRouter();
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id);
@@ -139,9 +144,9 @@ export function GameActions({ game, log }: GameActionsProps) {
     <View style={styles.wrapper}>
       {unreleased && game.releaseDate && (
         <View style={[styles.unreleased, { borderColor: theme.border }]}>
-          <Ionicons name="calendar-outline" size={16} color={theme.textSecondary} />
+          <Ionicons name="calendar-outline" size={16} color={accent.quietInk} />
           <View style={styles.unreleasedText}>
-            <Text variant="caption" color="textMuted">
+            <Text variant="label" style={{ color: accent.quietInk }}>
               PLANNED RELEASE
             </Text>
             <Text variant="h5">{formatReleaseDate(game.releaseDate)}</Text>
@@ -154,13 +159,9 @@ export function GameActions({ game, log }: GameActionsProps) {
           icon="star"
           outline="star-outline"
           active={favorited}
-          tint={theme.accent}
           label="Favourite"
           onPress={() => toggleList.mutate({ kind: 'favorites', next: !favorited })}
         />
-        {/* No tint: a wishlist is a list you are on or off, with no verdict
-            attached, so it takes the same one-step-lighter selected state as
-            every other control in the app. */}
         <Action
           icon="bookmark"
           outline="bookmark-outline"
@@ -173,7 +174,6 @@ export function GameActions({ game, log }: GameActionsProps) {
             icon="game-controller"
             outline="game-controller-outline"
             active={log?.status === 'playing'}
-            tint={theme.success}
             label="Playing"
             onPress={() => setStatus.mutate('playing')}
           />
@@ -209,51 +209,66 @@ export function GameActions({ game, log }: GameActionsProps) {
         />
       )}
 
+      {/* On a lit page `danger` (#F35555) measures 1.96:1 — the one message
+          that has to be read was the least readable thing here. An opaque
+          surface restores it to the 4.61:1 the token was chosen for, and gives
+          the message an edge so it reads as a notice rather than as stray red
+          text under a button. */}
       {error && (
-        <Text variant="caption" color="danger">
-          {error instanceof Error ? error.message : 'Could not update.'}
-        </Text>
+        <View style={[styles.error, { backgroundColor: theme.surface }]}>
+          <Ionicons name="alert-circle" size={14} color={theme.danger} />
+          <Text variant="caption" color="danger" style={styles.errorText}>
+            {error instanceof Error ? error.message : 'Could not update.'}
+          </Text>
+        </View>
       )}
     </View>
   );
 }
 
 /**
- * One quick-action toggle.
+ * One quick-action toggle, in the colour of the page it sits on.
  *
- * `tint` is the exception, not the default. Two of these carry meaning a
- * greyscale state cannot: Favourite is the same judgement the rating scale's
- * warm colour expresses, and Playing is a live status the app colours `success`
- * wherever else it appears. The rest — Wishlist, Played, Share — had borrowed
- * `primary` for no semantic reason and now take the ordinary one-step-lighter
- * selected state, so the strip reads as four quiet controls and two meanings
- * rather than five competing colours.
+ * The `tint` prop is gone. It existed so Favourite could be `accent` and Playing
+ * `success` while the other three stayed grey, which was three colour stories in
+ * five adjacent buttons — defensible when the page was greyscale, incoherent now
+ * that the whole screen is lit by the game's own artwork.
  */
 function Action({
   icon,
   outline,
   active,
-  tint,
   label,
   onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   outline: keyof typeof Ionicons.glyphMap;
   active: boolean;
-  /** Only for states whose meaning is the colour. Omit for everything else. */
-  tint?: string;
   label: string;
   onPress: () => void;
 }) {
+  const accent = useAccent();
   const theme = useTheme();
 
-  const background = active
-    ? tint
-      ? withAlpha(tint, 0.12)
-      : theme.surfaceSelected
-    : theme.surfaceElevated;
-  const border = active ? (tint ? withAlpha(tint, 0.4) : theme.borderStrong) : theme.border;
-  const glyph = active ? (tint ?? theme.text) : theme.textMuted;
+  /*
+   * Every one of these is a solid block of the game's colour — the same fill and
+   * the same near-black ink as the primary button below them, so the action row
+   * and "Write a review" read as one family rather than as a grey strip above a
+   * coloured button.
+   *
+   * **State is not the fill.** With all five filled there is no fill left to
+   * change, so on/off is carried by the two things that are still free:
+   *
+   *  - the **glyph**, outline when off and solid when on. This is the oldest
+   *    convention there is for a toggle of exactly this shape — an outlined star
+   *    against a filled one — and it survives being the only difference because
+   *    the shapes differ, not merely their colour.
+   *  - the **label** underneath, which steps from `textSecondary` to `text`.
+   *
+   * Two carriers, neither of them hue, which is what keeps the row readable for
+   * someone who cannot separate the colours at all.
+   */
+  const glyph = accent.ink;
 
   return (
     <PressableScale
@@ -263,13 +278,24 @@ function Action({
       onPress={onPress}
       scaleTo={0.92}
       style={styles.action}>
-      {/* Same rectangle as every other control; only the fill and the edge move
-          when it turns on, so five of these in a row stay a quiet strip until
-          one of them is active. */}
-      <View style={[styles.actionIcon, { backgroundColor: background, borderColor: border }]}>
+      {/* Border colour matches the fill rather than being dropped: the
+          hairline is load-bearing for *size*, and removing it would shrink
+          every button by a pixel and break the row's alignment with the
+          primary button under it. */}
+      <View
+        style={[
+          styles.actionIcon,
+          Elevation.control,
+          { backgroundColor: accent.color, borderColor: accent.color },
+        ]}>
         <Ionicons name={active ? icon : outline} size={20} color={glyph} />
       </View>
-      <Text variant="caption" color={active ? 'text' : 'textMuted'}>
+      {/* `quietInk`, not `textSecondary`. This row sits on the brightest part
+          of the page's ambient gradient, where the grey measured 2.76:1 — so
+          the *off* half of a two-carrier toggle was the half you could not
+          read. Near-white-carrying-the-hue holds ≥4.66:1 there and still steps
+          down clearly from `text`. */}
+      <Text variant="caption" style={{ color: active ? theme.text : accent.quietInk }}>
         {label}
       </Text>
     </PressableScale>
@@ -288,6 +314,15 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   unreleasedText: { gap: 1 },
+  error: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x8,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x12,
+    borderRadius: Radius.control,
+  },
+  errorText: { flex: 1 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   action: { alignItems: 'center', gap: Spacing.x4, flex: 1 },
   actionIcon: {

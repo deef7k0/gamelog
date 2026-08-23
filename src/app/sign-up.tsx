@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Screen } from '@/components/ui/screen';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
@@ -65,7 +66,11 @@ export default function SignUpScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} padded insetHeader>
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      topBar={<FrostedTopBar title="Create account" back />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

@@ -13,6 +13,18 @@ import {
 export * from './types';
 export * from './sort';
 export { fetchSteamUnlocks, isSteamAchievementSyncAvailable } from './steam';
+/* The filtered search and its two vocabulary lookups. Re-exported here so a
+   screen never reaches into `games/igdb` directly — that path is the provider's
+   implementation, and everything else in the app goes through this barrel. */
+export {
+  getGameEditions,
+  getGenres,
+  getPlatforms,
+  searchGamesFiltered,
+  EARLIEST_IGDB_YEAR,
+  type GameFilters,
+  type IgdbTag,
+} from './igdb';
 
 /**
  * IGDB is the *only* catalogue the app surfaces.

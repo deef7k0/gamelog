@@ -2,6 +2,7 @@ import {
   makeGameId,
   stripHtml,
   yearFrom,
+  NO_EDITION,
   type Achievement,
   type Game,
   type GameProvider,
@@ -116,6 +117,8 @@ function toGame(raw: RawgGame): Game {
     screenshots: (raw.short_screenshots ?? [])
       .map((shot) => shot.image)
       .filter((url): url is string => !!url),
+    // RAWG records no relationship between a game and its editions.
+    ...NO_EDITION,
   };
 }
 
@@ -142,6 +145,10 @@ async function search(term: string, signal?: AbortSignal): Promise<GameSearchRes
       genres: game.genres,
       platforms: game.platforms,
       score: game.score,
+      edition: game.edition,
+      editionTitle: game.editionTitle,
+      parentId: game.parentId,
+      steamAppId: game.steamAppId,
     };
   });
 }

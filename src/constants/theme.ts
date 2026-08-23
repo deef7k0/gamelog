@@ -41,7 +41,7 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-import { ensureContrast, readableInk, tint, withAlpha } from '@/lib/color';
+import { ensureContrast, mix, readableInk, tint, withAlpha } from '@/lib/color';
 
 export { ensureContrast, readableInk, tint, withAlpha } from '@/lib/color';
 
@@ -60,12 +60,22 @@ export const Colors = {
     /**
      * The quiet step — timestamps, counts, captions.
      *
-     * Was #767676, which measured 4.12:1 on the page and so failed AA on the
-     * two steps that use it most, both of which render at 10px. #808080 is
-     * 4.74:1 and is the smallest change that clears the line; going quieter
-     * again is not a style choice available here.
+     * Was #767676 (4.12:1 on the page), then #808080, which cleared the *page*
+     * at 4.74:1 and stopped there. That was the bug: this token is used on
+     * cards far more often than on the page, and #808080 measured **4.32:1 on
+     * `surface`, 3.93:1 on `surfaceElevated` and 3.63:1 on `surfaceSelected`**
+     * — failing AA on all three of the surfaces it actually lands on, at 10px.
+     *
+     * #8F8F8F clears every step the app has a fill for: 5.79 page, 5.27
+     * surface, 4.80 elevated. (`surfaceSelected` reaches 4.44, 0.06 short; no
+     * call site puts this token on that fill — it carries `textSecondary`.)
+     *
+     * **The cost, stated plainly:** the gap to `textSecondary` narrows from 40
+     * RGB units to 25 (5.79:1 against 7.88:1 on the page). Two quiet steps that
+     * close is the price of the quieter one being legible on a card, and it is
+     * the right way round — a tier nobody can read is not a tier.
      */
-    textMuted: '#808080',
+    textMuted: '#8F8F8F',
 
     /** The page. Never true black: #000 on OLED smears on scroll and kills the
      *  sense of depth the surface steps are built on. */
@@ -215,19 +225,25 @@ export const Colors = {
     /*
      * The ambient glow in Home's top-left corner. See `ui/soft-glow.tsx`.
      *
-     * Deep muted purple, and the two darkest chromatic values in the palette by
-     * a wide margin — `glowCore` is 0.026 relative luminance against the page's
-     * 0.0055. That is the whole point: this sits *behind* the masthead, so it
-     * has to read as light in the room rather than as a surface. Anything with
-     * the chroma of the identity ramp would compete with the title on top of it.
+     * `glowCore` was #3A2050 and the glow was **invisible on a device** — not
+     * dim, invisible. That hex is 1.34:1 against the page at *full* opacity, and
+     * the glow never runs at full opacity: after the radial falloff and the blur
+     * the brightest on-screen pixel measured #1A151E, which is 1.04:1. There was
+     * nothing to see because there was nothing there.
+     *
+     * #6B4C9A is 2.79:1 at full strength, which lands the composited corner
+     * around 1.7:1 — a glow you can see, that still could not be mistaken for a
+     * surface. The old value survives as `glowEdge`, where it is doing the job
+     * it is actually suited to: the *outer* half of the ramp, where the light is
+     * meant to be nearly gone.
      *
      * Not part of the identity system and not available to it. This is the one
      * decorative colour in the app, it appears in exactly one place, and it is
      * fixed rather than derived precisely so Home does not shift hue with
      * whatever game happens to be on it.
      */
-    glowCore: '#3A2050',
-    glowEdge: '#2D1B3D',
+    glowCore: '#6B4C9A',
+    glowEdge: '#3A2050',
 
     /** Scrim over hero artwork so text stays legible on any cover. */
     scrim: 'rgba(0, 0, 0, 0.6)',
@@ -338,6 +354,37 @@ export type AccentRoles = {
   onSurface: string;
   /** Near-black or white — whichever is legible *on* `color`. */
   ink: string;
+  /**
+   * Secondary type on a surface **lit by this hue** — the scroll gradient.
+   *
+   * Near-white carrying a trace of the accent, not grey. `textSecondary`
+   * (#A8A8A8) is chosen against a near-black page and has no headroom left on a
+   * coloured one: at the gradient's brightest stop it measures 2.75:1, and the
+   * only ways to fix that are to darken the backdrop into invisibility or to
+   * stop using grey on it. This is the second. It reads as quieter than `text`
+   * because it is dimmer, and it belongs to the page because it carries the
+   * page's hue — which is also the rule for secondary text on any coloured
+   * surface, not a special case for this one.
+   *
+   * ## There is no third step, and it is not for want of trying
+   *
+   * The obvious next move is a `mutedInk` below this one, so a lit page can
+   * have the same three-tier hierarchy the greyscale palette does. **It cannot
+   * exist.** The brightest ambience stop is fixed at luminance 0.11 by
+   * construction (`VIBRANT_LUMINANCE`), so 4.5:1 against it requires an ink at
+   * luminance ≥ 0.67 — which is roughly where `quietInk` already sits. Every
+   * dimmer candidate was measured across all eleven hues and the ceiling is
+   * **4.20:1 at L=0.62**, falling to 2.92:1 by L=0.42. There is no room.
+   *
+   * So a page running `<ScrollAmbience>` has exactly **two** legible ink steps —
+   * `text` and this — and anything that needs a third has to earn it with an
+   * opaque surface (`surface` / `elevated` below), not with a paler colour.
+   * That is why the game page's own log block sits on a tinted fill: its status
+   * and score colours are *data* and cannot be lifted without destroying the
+   * ramp they belong to (lifting `statusPlayed` to AA on the gradient moves it
+   * 165 RGB units, from #2E93E8 to a pale #C0DFF8).
+   */
+  quietInk: string;
   /** 14% fill behind an active chip, pill or badge. */
   wash: string;
   /** The page surface, carrying the hue at the same lightness. */
@@ -357,6 +404,15 @@ export function accentRoles(hue: string): AccentRoles {
        3.98:1, which is the exact case this role exists to prevent. */
     onSurface: ensureContrast(hue, Colors.dark.surfaceElevated, 4.5),
     ink: readableInk(hue),
+    /* 0.24, not the 0.3 this shipped with. Every hue in the identity ramp
+       cleared AA at 0.3 (4.89–5.71:1), which is why the drift went unnoticed —
+       but `primary` is also a legal accent here, and it is the one a game with
+       unreadable art and unknown genres falls back to. The house blue at 0.3
+       measured **4.24:1** on the brightest stop, under AA, on the one page that
+       had no colour of its own to use instead. 0.24 puts the worst case at
+       4.66:1 — which is the number this file and `artwork-color.ts` were
+       already claiming. The docs were right; the constant was not. */
+    quietInk: mix('#FFFFFF', hue, 0.24),
     wash: withAlpha(hue, 0.14),
     surface: tint(Colors.dark.surface, hue, SURFACE_TINT),
     elevated: tint(Colors.dark.surfaceElevated, hue, SURFACE_TINT),
@@ -433,6 +489,14 @@ export const Spacing = {
   x32: 24,
   x40: 30,
   x48: 36,
+  /*
+   * The one step above the compressed ladder, and it is not compressed: 48 is
+   * 48. It exists for a single job — the gap *between* Home's sections — where
+   * the point is that the interval is unmistakably larger than any spacing
+   * inside a section. Compressing it to 36 would put it a hair above `x40`'s 30
+   * and the distinction would stop reading.
+   */
+  x64: 48,
 } as const;
 
 /**
@@ -637,6 +701,20 @@ export const Motion = {
 
 /** Minimum tap target, per both platforms' guidelines. Nothing tappable is smaller. */
 export const TapTarget = 44;
+
+/**
+ * The floating top bar's content row, above the safe-area inset.
+ *
+ * 56 on both platforms. The native stack header this replaced was 44pt on iOS
+ * and 56dp on Android; matching that split would put the same title at two
+ * different heights for no reason now that the bar is drawn rather than
+ * platform-supplied, and 44 is too tight for the title-plus-subtitle variant.
+ *
+ * Read it through `useHeaderHeight()`, which adds the inset. Lives here rather
+ * than in `<FrostedTopBar>` so the hook and the component can both have it
+ * without importing each other.
+ */
+export const TopBarHeight = 56;
 
 /** Portrait box art. Every poster in the app uses this ratio. */
 export const PosterAspectRatio = 2 / 3;

@@ -1,4 +1,5 @@
 import { igdbQuery } from '../games/igdb';
+import { editionKindFor } from '../../constants/game-editions';
 import { makeGameId, type GameSearchResult } from '../games';
 import type { ChartEntry, GameEvent, PopularChart, Trailer } from './types';
 
@@ -24,6 +25,11 @@ type IgdbGameLite = {
   name?: string;
   first_release_date?: number;
   total_rating?: number;
+  external_games?: { category?: number; uid?: string }[];
+  game_type?: number;
+  parent_game?: number;
+  version_parent?: number;
+  version_title?: string;
   cover?: { image_id?: string };
   artworks?: { image_id?: string }[];
   screenshots?: { image_id?: string }[];
@@ -47,11 +53,27 @@ function toSearchResult(raw: IgdbGameLite): GameSearchResult {
     genres: [],
     platforms: [],
     score: typeof raw.total_rating === 'number' ? Math.round(raw.total_rating) : null,
+    /* The charts badge a remaster the same way search does — the News tab is
+       full of them, and "Silent Hill 2" appearing twice with no way to tell the
+       1999 game from the 2024 remake is the exact confusion this fixes. */
+    edition: editionKindFor({
+      gameType: raw.game_type ?? null,
+      versionParent: raw.version_parent ?? null,
+    }),
+    editionTitle: raw.version_title ?? null,
+    // Category 1 is Steam. Same read as `steamAppIdOf` in games/igdb.ts.
+    steamAppId: (raw.external_games ?? []).find((e) => e.category === 1 && e.uid)?.uid ?? null,
+    parentId:
+      (raw.version_parent ?? raw.parent_game)
+        ? makeGameId('igdb', (raw.version_parent ?? raw.parent_game)!)
+        : null,
   };
 }
 
 const LITE_FIELDS = `
   fields name, first_release_date, total_rating,
+         game_type, parent_game, version_parent, version_title,
+         external_games.category, external_games.uid,
          cover.image_id, artworks.image_id, screenshots.image_id;
 `;
 
@@ -185,6 +207,8 @@ function toChartEntry(raw: IgdbGameLite, rank: number): ChartEntry {
     coverUrl: game.coverUrl,
     heroUrl: game.heroUrl,
     releaseYear: game.releaseYear,
+    edition: game.edition,
+    steamAppId: game.steamAppId,
   };
 }
 

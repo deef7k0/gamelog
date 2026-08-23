@@ -1,30 +1,46 @@
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-/**
- * Height of the native stack's title bar, excluding the status bar.
- *
- * The platform defaults, not a guess: UIKit's compact navigation bar is 44pt
- * and Material's top app bar is 56dp.
- */
-const BAR_HEIGHT = Platform.select({ ios: 44, android: 56, default: 56 });
+import { TopBarHeight } from '@/constants/theme';
+import { useScreenChrome } from '@/hooks/use-screen-chrome';
 
 /**
- * Total height the stack header occupies, safe area included.
+ * How far the top bar's content row sits below the top of the page.
  *
- * Needed because the header is transparent app-wide (see `HeaderBackdrop`), so
- * it no longer pushes content down — every screen that is *not* leading with
- * hero artwork has to reserve the space itself, via `<Screen insetHeader>`.
+ * The status bar inset on an ordinary screen — the bar runs edge to edge and
+ * pushes its own content clear of the notch.
  *
- * React Navigation ships a `useHeaderHeight` that reads the real measured
- * height, but Expo Router v57 vendors React Navigation inside its own build
- * output and re-exports no such hook, so reaching it would mean importing from
- * `expo-router/build/react-navigation/elements` — a private path that is not
- * covered by semver. The arithmetic below is what that hook computes for a
- * plain (non-large-title, non-search) header, which is the only kind this app
- * uses.
+ * **Zero inside a modal on iOS.** A sheet-presented modal starts *below* the
+ * status bar, so it has no notch to clear; adding the window inset there would
+ * leave a status-bar-sized band of empty glass above the title. Android presents
+ * modals full-screen and keeps the inset. `<Screen modal>` is what flags it, and
+ * it reaches here through the chrome context so a screen never has to state it
+ * twice.
+ *
+ * The `modal` argument is for `<Screen>` alone, which sits *above* its own
+ * provider and so cannot read the context it is about to publish. Everyone else
+ * omits it.
  */
-export function useHeaderHeight(): number {
+export function useTopBarInset(modal?: boolean): number {
   const insets = useSafeAreaInsets();
-  return insets.top + BAR_HEIGHT;
+  const chrome = useScreenChrome();
+  const isModal = modal ?? chrome?.modal ?? false;
+  return isModal && Platform.OS === 'ios' ? 0 : insets.top;
+}
+
+/**
+ * Total height the floating top bar occupies, inset included.
+ *
+ * Needed because `<FrostedTopBar>` is `position: absolute` — it draws over the
+ * page and pushes nothing down. Screens that open on artwork want exactly that;
+ * every other screen reserves the space back with `<Screen insetHeader>`, which
+ * is the only caller that should need this number directly.
+ *
+ * The bar is one height on both platforms, so there is no `Platform.select` on
+ * the row itself any more: the native stack header this replaced was 44pt on iOS
+ * and 56dp on Android, and matching those would have made the same title sit at
+ * two different heights for no reason once the bar stopped being native.
+ */
+export function useHeaderHeight(modal?: boolean): number {
+  return useTopBarInset(modal) + TopBarHeight;
 }

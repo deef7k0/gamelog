@@ -1,41 +1,42 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { Share, StyleSheet, View, useWindowDimensions, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EngagementBar } from '@/components/engagement-bar';
-import { GameCaseDisplay } from '@/components/game-case-display';
-import { ReviewMeta } from '@/components/review-meta';
 import { ReviewMetricsBreakdown } from '@/components/review-metrics';
 import { Avatar } from '@/components/ui/avatar';
-import { Ambience } from '@/components/ui/ambience';
-import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
-import { Chip } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { labelFor, scoreColor } from '@/constants/score';
 import { parseReviewMetrics } from '@/constants/review-metrics';
-import { Spacing, Type } from '@/constants/theme';
-import { AccentProvider } from '@/hooks/use-accent';
+import { Radius, Spacing, Type, tint, withAlpha } from '@/constants/theme';
+import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
+import { useArtworkPalette } from '@/hooks/use-artwork-palette';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
 import { useAuth } from '@/store/auth';
 
 /**
- * The full review: landscape key art, the game's identity and score raised
- * above everything else, then the article itself.
+ * Full-screen Review presentation inspired by the "Now Playing" aesthetic.
  *
- * Deliberately a ScrollView rather than a FlatList — this is one continuous
- * document, not a list, and the body needs to flow as a single Text block for
- * paragraph spacing to work.
+ * Top bar: Reviewer context ("Now viewing [User]'s review")
+ * Center: Large game cover artwork with dynamic ambient backdrop gradient
+ * Track info: Game title in bold + publisher / developer
+ * Score: Standout centered score display ("89/100")
+ * Review: Title + body prose
+ * Bottom: Interactive like, comment, and share actions
  */
-/** Matches the game page. See the note on `AMBIENCE_COVER` there. */
-const AMBIENCE_COVER = 0.55;
-
 export default function ReviewScreen() {
   const window = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
 
@@ -51,9 +52,14 @@ export default function ReviewScreen() {
     enabled: !!id,
   });
 
+  const game = log.data?.game;
+  const artworkUrl = game?.cover_url ?? game?.hero_url;
+  const accent = useGameAccent(artworkUrl, game?.genres);
+  const palette = useArtworkPalette(artworkUrl);
+
   if (log.isLoading) {
     return (
-      <Screen edges={[]}>
+      <Screen edges={['top', 'bottom']}>
         <LoadingState />
       </Screen>
     );
@@ -61,148 +67,226 @@ export default function ReviewScreen() {
 
   if (log.isError) {
     return (
-      <Screen edges={[]}>
-        <ErrorState error={log.error} />
+      <Screen edges={['top', 'bottom']}>
+        <ErrorState
+          error={log.error}
+          action={
+            <PressableScale onPress={() => router.back()}>
+              <Text variant="h5" color="primaryText">
+                Go back
+              </Text>
+            </PressableScale>
+          }
+        />
       </Screen>
     );
   }
 
   if (!log.data) {
     return (
-      <Screen edges={[]}>
+      <Screen edges={['top', 'bottom']}>
         <EmptyState title="Review not found" />
       </Screen>
     );
   }
 
   const review = log.data;
-  const game = review.game;
-  /* Same one-ramp composition as the game page — see AMBIENCE_COVER there. */
-  const heroHeight = heroHeightFor(window.width, window.height);
-  const ambienceHeight = Math.round(heroHeight / AMBIENCE_COVER);
   const author = review.profile;
   const metrics = parseReviewMetrics(review.review_metrics);
+  const dominantColor = palette?.[0] ?? accent.color;
+  const scoreTone = review.rating !== null ? scoreColor(review.rating, theme) : theme.textMuted;
+  const publisherName = game?.publisher ?? game?.developer ?? '';
+
+  // Artwork sizing — Spotify album art proportion
+  const artWidth = Math.min(window.width - 64, 320);
+  const artHeight = Math.round(artWidth * 1.28); // 2:3 box art proportion
+
+  async function handleShare() {
+    try {
+      const shareText = review.review_title
+        ? `${review.review_title} — ${game?.title ?? ''} review by ${displayNameFor(author)} on GameLog`
+        : `${game?.title ?? 'Game'}: ${review.rating ?? ''}/100 review by ${displayNameFor(author)} on GameLog`;
+      await Share.share({ message: shareText });
+    } catch {
+      // Dismissed
+    }
+  }
 
   return (
-    /* A review is a dedicated presentation of one game, so it runs on that
-       game's colour the same way the game's own page does. */
-    <AccentProvider artwork={game?.cover_url ?? game?.hero_url} genres={game?.genres}>
-      <Screen edges={[]}>
-        {/* Transparency is global — see the root layout. */}
-        <Stack.Screen options={{ title: '' }} />
+    <AccentProvider artwork={artworkUrl} genres={game?.genres}>
+      <Screen
+        edges={[]}
+        backdrop={
+          <LinearGradient
+            pointerEvents="none"
+            style={StyleSheet.absoluteFill}
+            colors={[
+              withAlpha(dominantColor, 0.75),
+              tint(theme.background, dominantColor, 0.5),
+              tint(theme.background, dominantColor, 0.15),
+              theme.background,
+            ]}
+            locations={[0, 0.35, 0.65, 1]}
+          />
+        }>
+        {/* Top Header Bar */}
+        <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Close review"
+            scaleTo={0.92}
+            onPress={() => router.back()}
+            style={styles.headerButton}>
+            <Ionicons name="chevron-down" size={26} color={theme.text} />
+          </PressableScale>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Hero: landscape key art. It draws no fade of its own — the ramp
-              below closes over its bottom edge instead, so there is one
-              gradient down this page rather than two meeting in the middle. */}
-          <View style={styles.hero}>
-            <HeroArt uri={game?.hero_url} height={heroHeight} scrim fade={false} />
-          </View>
-
-          <View pointerEvents="none" style={[styles.ambience, { height: ambienceHeight }]}>
-            <Ambience coverAt={AMBIENCE_COVER} />
-          </View>
-
-          {/* Game identity + score. The score is the loudest thing here. */}
-          <View style={styles.masthead}>
-            {/* A review is a dedicated game presentation, so the case belongs
-              here — unlike the review *cards* in feeds, which stay flat. */}
-            <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
-              <PressableScale accessibilityRole="button" scaleTo={0.97}>
-                <GameCaseDisplay
-                  coverUrl={game?.cover_url}
-                  heroUrl={game?.hero_url}
-                  title={game?.title}
-                  platforms={game?.platforms}
-                  size="medium"
-                />
-              </PressableScale>
-            </Link>
-
-            <View style={styles.mastheadText}>
-              <Text variant="h3" numberOfLines={3}>
-                {game?.title ?? 'Unknown game'}
-              </Text>
-              <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
-                {[game?.release_year, game?.developer].filter(Boolean).join(' · ')}
-              </Text>
-
-              {/* No status here — `ReviewMeta` below states it beside the score,
-                and saying it twice in adjacent blocks makes it look like two
-                different facts. */}
-              <View style={styles.mastheadMeta}>
-                {review.platinum && (
-                  <View style={styles.badge}>
-                    <Ionicons name="trophy" size={11} color={theme.platinum} />
-                    <Text variant="caption" style={{ color: theme.platinum }}>
-                      Platinum
-                    </Text>
-                  </View>
-                )}
-                {review.hours_played != null && (
-                  <Text variant="caption" color="textMuted">
-                    {review.hours_played}h played
-                  </Text>
-                )}
-              </View>
-            </View>
-          </View>
-
-          {/* The same block the feed card leads with, so a review looks like
-            itself whether you meet it in a list or open it. */}
-          <View style={styles.scoreBlock}>
-            {/* No status tag: this page only exists because there is a review to
-              read, and "PLAYED" above someone's writing about a game is a fact
-              the writing already implies. A bare log has no page here. */}
-            <ReviewMeta
-              score={review.rating}
-              gameTitle={game?.title ?? 'Unknown game'}
-              status={review.review ? null : review.status}
-            />
-          </View>
-
-          {/* Only present when the reviewer scored by category — the headline
-            number above is the mean of exactly these. */}
-          {metrics && <ReviewMetricsBreakdown metrics={metrics} />}
-
-          {game?.platforms && game.platforms.length > 0 && (
-            <View style={styles.chips}>
-              {game.platforms.slice(0, 5).map((platform) => (
-                <Chip key={platform} label={platform} />
-              ))}
-            </View>
-          )}
-
-          {/* The article. */}
-          <View style={styles.article}>
-            {review.review_title && <Text variant="display">{review.review_title}</Text>}
-
+          <View style={styles.topBarCenter}>
+            <Text variant="caption" color="textMuted" style={styles.nowViewingBadge}>
+              NOW VIEWING REVIEW
+            </Text>
             {author && (
               <Link href={{ pathname: '/profile/[id]', params: { id: author.id } }} asChild>
-                <PressableScale accessibilityRole="button" scaleTo={0.99} style={styles.byline}>
-                  <Avatar uri={author.avatar_url} name={displayNameFor(author)} size={36} />
-                  <View style={styles.bylineText}>
-                    <Text variant="h5">{displayNameFor(author)}</Text>
-                    <Text variant="caption" color="textMuted">
-                      @{author.username} · {timeAgo(review.created_at)}
-                    </Text>
-                  </View>
+                <PressableScale
+                  accessibilityRole="button"
+                  scaleTo={0.97}
+                  style={StyleSheet.flatten(styles.reviewerRow)}>
+                  <Avatar uri={author.avatar_url} name={displayNameFor(author)} size={18} />
+                  <Text variant="bodySmall" numberOfLines={1} style={styles.reviewerText}>
+                    {displayNameFor(author)}
+                  </Text>
                 </PressableScale>
               </Link>
             )}
+          </View>
+
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Share review"
+            scaleTo={0.92}
+            onPress={handleShare}
+            style={styles.headerButton}>
+            <Ionicons name="share-outline" size={22} color={theme.text} />
+          </PressableScale>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, 24) + 32 },
+          ]}
+          showsVerticalScrollIndicator={false}>
+          {/* Centered Album-Style Game Cover */}
+          <View style={styles.artSection}>
+            <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`View ${game?.title ?? 'game'}`}
+                scaleTo={0.97}
+                style={StyleSheet.flatten([
+                  styles.coverCard,
+                  {
+                    width: artWidth,
+                    height: artHeight,
+                    borderColor: withAlpha('#FFFFFF', 0.12),
+                  },
+                ])}>
+                <Image
+                  source={artworkUrl}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={200}
+                />
+              </PressableScale>
+            </Link>
+          </View>
+
+          {/* Game Title & Publisher Info */}
+          <View style={styles.titleSection}>
+            <View style={styles.titleTextColumn}>
+              <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
+                <PressableScale accessibilityRole="button" scaleTo={0.98}>
+                  <Text variant="h1" style={styles.gameTitle} numberOfLines={2}>
+                    {game?.title ?? 'Unknown Game'}
+                  </Text>
+                </PressableScale>
+              </Link>
+              {publisherName.length > 0 && (
+                <Text
+                  variant="body"
+                  color="textSecondary"
+                  numberOfLines={1}
+                  style={styles.publisherName}>
+                  {publisherName}
+                </Text>
+              )}
+            </View>
+
+            {review.platinum && (
+              <View
+                style={[styles.trophyPill, { backgroundColor: withAlpha(theme.platinum, 0.15) }]}>
+                <Ionicons name="trophy" size={16} color={theme.platinum} />
+              </View>
+            )}
+          </View>
+
+          {/* Standout Centered Score Display */}
+          {review.rating !== null && (
+            <View style={styles.scoreContainer}>
+              <View
+                style={[
+                  styles.scoreBox,
+                  {
+                    borderColor: withAlpha(scoreTone, 0.28),
+                    backgroundColor: withAlpha(scoreTone, 0.08),
+                  },
+                ]}>
+                <View style={styles.scoreRow}>
+                  <Text style={[styles.scoreNumber, { color: scoreTone }]}>{review.rating}</Text>
+                  <Text variant="h3" color="textMuted" style={styles.scoreDenominator}>
+                    /100
+                  </Text>
+                </View>
+                <Text variant="caption" style={[styles.verdictLabel, { color: scoreTone }]}>
+                  {labelFor(review.rating)}
+                </Text>
+              </View>
+
+              {review.hours_played != null && (
+                <Text variant="caption" color="textMuted" style={styles.hoursPlayed}>
+                  {review.hours_played} hours logged · {timeAgo(review.created_at)}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Metrics breakdown (if reviewer scored by category) */}
+          {metrics && (
+            <View style={styles.metricsContainer}>
+              <ReviewMetricsBreakdown metrics={metrics} />
+            </View>
+          )}
+
+          {/* Review Article (Title and Body Content) */}
+          <View style={styles.reviewArticle}>
+            {review.review_title && (
+              <Text variant="h2" style={styles.reviewTitle}>
+                {review.review_title}
+              </Text>
+            )}
 
             {review.review ? (
-              <Text variant="body" style={styles.body}>
+              <Text variant="body" style={styles.reviewBody}>
                 {review.review}
               </Text>
             ) : (
-              <Text variant="body" color="textMuted">
-                No written review — just a score.
+              <Text variant="body" color="textMuted" style={styles.emptyReviewNotice}>
+                Scored without a written review.
               </Text>
             )}
           </View>
 
-          <View style={[styles.footer, { borderTopColor: theme.border }]}>
+          {/* Engagement Buttons (Like, Comment, Share) */}
+          <View style={[styles.footerBar, { borderTopColor: theme.border }]}>
             <EngagementBar
               targetType="log"
               targetId={review.id}
@@ -222,42 +306,138 @@ export default function ReviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.x48 },
-  hero: { width: '100%' },
-  ambience: { position: 'absolute', top: 0, left: 0, right: 0 },
-  masthead: {
-    flexDirection: 'row',
-    gap: Spacing.x16,
-    paddingHorizontal: Spacing.x16,
-    marginTop: -Spacing.x32,
-  },
-  mastheadText: { flex: 1, gap: Spacing.x4, justifyContent: 'flex-end' },
-  mastheadMeta: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.x12,
-    flexWrap: 'wrap',
-    marginTop: Spacing.x4,
-  },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  /* No container: the score pill is already a coloured block, and wrapping a
-     block in a block was the clearest bubble on the page. */
-  scoreBlock: { marginHorizontal: Spacing.x16, marginTop: Spacing.x16 },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.x8,
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.x16,
+    paddingBottom: Spacing.x12,
+  },
+  topBarCenter: {
+    alignItems: 'center',
+    gap: 2,
+    flex: 1,
+    paddingHorizontal: Spacing.x8,
+  },
+  nowViewingBadge: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  reviewerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x8,
+  },
+  reviewerText: {
+    fontWeight: '600',
+  },
+  headerButton: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.x24,
+    paddingTop: Spacing.x8,
+  },
+  artSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: Spacing.x16,
+  },
+  coverCard: {
+    borderRadius: Radius.card,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  titleSection: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginTop: Spacing.x16,
+    gap: Spacing.x12,
+  },
+  titleTextColumn: {
+    flex: 1,
+    gap: Spacing.x4,
+  },
+  gameTitle: {
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  publisherName: {
+    fontWeight: '500',
+  },
+  trophyPill: {
+    padding: Spacing.x8,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreContainer: {
+    alignItems: 'center',
+    marginTop: Spacing.x24,
+    gap: Spacing.x8,
+  },
+  scoreBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x24,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+    gap: 2,
+    minWidth: 140,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  scoreNumber: {
+    fontSize: 38,
+    fontWeight: '900',
+    lineHeight: 44,
+  },
+  scoreDenominator: {
+    fontWeight: '600',
+  },
+  verdictLabel: {
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  hoursPlayed: {
+    textAlign: 'center',
+  },
+  metricsContainer: {
     marginTop: Spacing.x16,
   },
-  article: { paddingHorizontal: Spacing.x16, marginTop: Spacing.x24, gap: Spacing.x16 },
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
-  bylineText: { flex: 1, gap: 1 },
-  // Looser than default body copy — this is long-form reading, not UI text.
-  body: { ...Type.prose },
-  footer: {
+  reviewArticle: {
+    marginTop: Spacing.x24,
+    gap: Spacing.x12,
+  },
+  reviewTitle: {
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  reviewBody: {
+    ...Type.prose,
+    lineHeight: 24,
+  },
+  emptyReviewNotice: {
+    fontStyle: 'italic',
+  },
+  footerBar: {
     marginTop: Spacing.x32,
-    paddingHorizontal: Spacing.x16,
     paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },

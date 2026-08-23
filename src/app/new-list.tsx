@@ -5,12 +5,13 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { createList, type ListKind } from '@/lib/api';
+import { createAwardsList, createList, type ListKind } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 
 type Shape = { kind: ListKind; label: string; hint: string; ranked: boolean };
@@ -20,6 +21,12 @@ const SHAPES: Shape[] = [
   { kind: 'list', label: 'Collection', hint: 'An unordered set of games', ranked: false },
   { kind: 'list', label: 'Ranked list', hint: 'Numbered, best to worst', ranked: true },
   { kind: 'tier', label: 'Tier list', hint: 'Sort games into S–F tiers', ranked: false },
+  {
+    kind: 'awards',
+    label: 'Award show',
+    hint: 'Categories with a winner and your reasons',
+    ranked: false,
+  },
 ];
 
 export default function NewListScreen() {
@@ -36,6 +43,15 @@ export default function NewListScreen() {
     mutationFn: async () => {
       if (!userId) throw new Error('You must be signed in.');
       const shape = SHAPES[shapeIndex];
+
+      /* An award show is created by an RPC, not an insert: it arrives with its
+         eight categories already in place, and a list that existed with half a
+         ballot would be worse than one that failed. The function reads
+         `auth.uid()` itself, which is why `userId` is only checked here. */
+      if (shape.kind === 'awards') {
+        return createAwardsList({ title, description });
+      }
+
       return createList(userId, {
         title,
         description,
@@ -50,7 +66,15 @@ export default function NewListScreen() {
   });
 
   return (
-    <Screen edges={['bottom']} padded>
+    /* `modal`: an iOS sheet already begins below the status bar, so the bar must
+       not inset itself again — see `useTopBarInset`. `dismiss` for the same
+       reason the chevron is wrong here: a sheet closes, it does not go back. */
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      modal
+      topBar={<FrostedTopBar title="New collection" dismiss />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

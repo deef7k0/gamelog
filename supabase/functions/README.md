@@ -2,10 +2,11 @@
 
 ## Why these exist
 
-Two secrets can never ship in an Expo bundle, because anyone can unzip an APK:
+Three secrets can never ship in an Expo bundle, because anyone can unzip an APK:
 
 - the Twitch `client_secret` IGDB authenticates with (`igdb`)
 - the Steam Web API key (`steam-auth`, `steam-sync`)
+- the IsThereAnyDeal API key (`itad`)
 
 And one operation can never be trusted to a client at all: verifying a Steam
 OpenID assertion. A client that skipped verification could claim any SteamID64
@@ -15,19 +16,42 @@ can set it.
 
 ## Deploying
 
-All three need a Supabase access token (`sbp_…`) in the environment or passed
+All four need a Supabase access token (`sbp_…`) in the environment or passed
 with `--token`.
 
 ```bash
 # One-time secrets
 supabase secrets set TWITCH_CLIENT_ID=xxx TWITCH_CLIENT_SECRET=yyy
 supabase secrets set STEAM_API_KEY=zzz
+supabase secrets set ITAD_API_KEY=aaa
 
 # Functions
 supabase functions deploy igdb        --project-ref <ref> --use-api
+supabase functions deploy itad        --project-ref <ref> --use-api
 supabase functions deploy steam-sync  --project-ref <ref> --use-api
 supabase functions deploy steam-auth  --project-ref <ref> --use-api --no-verify-jwt
 ```
+
+### Where the IsThereAnyDeal key comes from
+
+Register an app at <https://isthereanydeal.com/apps/>. That page issues three
+things and **only one of them is used here**:
+
+| Credential | Used? | What it is for |
+| --- | --- | --- |
+| API key | **yes** — `ITAD_API_KEY` | App-authenticated endpoints: lookups and prices |
+| Client ID | no | OAuth, for acting on *a user's* waitlist or collection |
+| Client secret | no | The same OAuth flow |
+
+The app never signs a user in to ITAD, so there is no OAuth flow to run and
+nothing to store per user. If that changes — a "add to my ITAD waitlist" button
+would need it — the client id and secret go in as two more secrets and the
+function grows an authorization-code leg; nothing about the key path changes.
+
+Without `ITAD_API_KEY` the function returns a 500 that says exactly that, rather
+than letting ITAD answer 401 and sending you looking at the wrong layer. The
+game page degrades to no "Where to buy" section, which is the same thing it does
+for a game ITAD does not track.
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
 by the platform — do **not** set them as secrets.

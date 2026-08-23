@@ -20,6 +20,7 @@ import {
   metricsFromDraft,
   type ReviewMetricsDraft,
 } from '@/components/review-metrics';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { ScoreInput } from '@/components/ui/score-input';
 import { Text } from '@/components/ui/text';
@@ -53,7 +54,11 @@ export default function LogGameScreen() {
 
   if (game.isLoading || existing.isLoading) {
     return (
-      <Screen edges={['bottom']}>
+      <Screen
+        edges={['bottom']}
+        insetHeader
+        modal
+        topBar={<FrostedTopBar title="Log game" dismiss />}>
         <LoadingState />
       </Screen>
     );
@@ -61,7 +66,11 @@ export default function LogGameScreen() {
 
   if (game.isError) {
     return (
-      <Screen edges={['bottom']}>
+      <Screen
+        edges={['bottom']}
+        insetHeader
+        modal
+        topBar={<FrostedTopBar title="Log game" dismiss />}>
         <ErrorState error={game.error} />
       </Screen>
     );
@@ -69,7 +78,11 @@ export default function LogGameScreen() {
 
   if (!game.data) {
     return (
-      <Screen edges={['bottom']}>
+      <Screen
+        edges={['bottom']}
+        insetHeader
+        modal
+        topBar={<FrostedTopBar title="Log game" dismiss />}>
         <EmptyState title="Game not found" />
       </Screen>
     );
@@ -196,7 +209,15 @@ function LogForm({ game, existing, userId }: LogFormProps) {
   const mutationError = save.error ?? remove.error;
 
   return (
-    <Screen edges={['bottom']} padded>
+    /* `modal`: an iOS sheet already begins below the status bar, so the bar must
+       not inset itself again — see `useTopBarInset`. `dismiss` for the same
+       reason the chevron is wrong here: a sheet closes, it does not go back. */
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      modal
+      topBar={<FrostedTopBar title={existing ? 'Edit log' : 'Log game'} dismiss />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

@@ -85,13 +85,17 @@ export function DiscoverCollections() {
     <FlatList
       data={collections.data ?? []}
       keyExtractor={(list) => list.id}
+      /* Two across, since the tile stopped being full-width. `columnWrapperStyle`
+         spaces the pair; `content` still owns the page margins. */
+      numColumns={2}
+      columnWrapperStyle={styles.column}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       refreshing={collections.isRefetching}
       onRefresh={() => collections.refetch()}
       renderItem={({ item }) => (
-        <View>
+        <View style={styles.cell}>
           <ListTile list={item} />
           {item.likeCount > 0 && (
             <View style={styles.likes}>
@@ -115,6 +119,12 @@ export function DiscoverCollections() {
 
 const styles = StyleSheet.create({
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
+  /* `space-between` rather than a gap: the tile is a fixed 164 wide, so on a
+     narrow phone the pair should sit at the margins and on a wide one it should
+     not stretch to fill — which is exactly what a fixed-width child inside a
+     space-between row does. */
+  column: { justifyContent: 'space-between' },
+  cell: { marginBottom: Spacing.x24 },
   likes: {
     flexDirection: 'row',
     alignItems: 'center',

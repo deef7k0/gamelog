@@ -2,6 +2,7 @@ import {
   makeGameId,
   stripHtml,
   yearFrom,
+  NO_EDITION,
   type Achievement,
   type Game,
   type GameProvider,
@@ -134,6 +135,10 @@ async function search(query: string, signal?: AbortSignal): Promise<GameSearchRe
         genres: [],
         platforms: [],
         score: toNumberOrNull(item.metascore),
+        // Steam records no relationship between a game and its editions —
+        // but it obviously knows its own appid.
+        ...NO_EDITION,
+        steamAppId: String(item.id),
       }))
   );
 }
@@ -196,6 +201,10 @@ async function getById(sourceId: string, signal?: AbortSignal): Promise<Game | n
     screenshots: (data.screenshots ?? [])
       .map((shot) => shot.path_full)
       .filter((url): url is string => !!url),
+    // Steam records no relationship between a game and its editions —
+    // but it obviously knows its own appid.
+    ...NO_EDITION,
+    steamAppId: sourceId,
   };
 
   rememberDetail(game);

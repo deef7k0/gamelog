@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -99,7 +100,7 @@ export default function CommentsScreen() {
 
   if (comments.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Comments" back />}>
         <LoadingState />
       </Screen>
     );
@@ -107,14 +108,17 @@ export default function CommentsScreen() {
 
   if (comments.isError) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Comments" back />}>
         <ErrorState error={comments.error} />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader>
+    /* A composer is pinned to the bottom of this screen, so the header stays put
+       too — chrome that comes and goes around a text field you are typing into
+       is chrome that is in the way. */
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Comments" back />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

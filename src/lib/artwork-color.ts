@@ -37,7 +37,7 @@ import { atLuminance, hexToRgb, rgbToHex, saturate } from '@/lib/color';
  */
 
 /** Cache version. Bump to invalidate every stored swatch after a scoring change. */
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_PREFIX = `artwork-color:${CACHE_VERSION}:`;
 
 /**
@@ -95,6 +95,16 @@ export type ArtworkColor = {
   color: string;
   /** The raw colour as it appears in the art, before normalisation. Diagnostics. */
   raw: string;
+  /**
+   * The same hue at three depths, brightest first.
+   *
+   * For the scroll-reactive page background, which needs a *ramp* rather than a
+   * single accent. Derived from the one extracted hue rather than pulling the
+   * second and third most common hues out of the image, deliberately: a cover
+   * with a red logo on a blue field would otherwise produce a background that
+   * fights itself. One hue at three depths always resolves as one atmosphere.
+   */
+  palette: readonly [vibrant: string, deep: string, dark: string];
 };
 
 /**
@@ -133,10 +143,8 @@ export async function extractArtworkColor(uri: string): Promise<ArtworkColor | n
     const raw = dominantOf(image.data);
     if (!raw) return null;
 
-    const result: ArtworkColor = {
-      color: atLuminance(saturate(raw, SATURATION_FLOOR), TARGET_LUMINANCE),
-      raw,
-    };
+    const color = atLuminance(saturate(raw, SATURATION_FLOOR), TARGET_LUMINANCE);
+    const result: ArtworkColor = { color, raw, palette: paletteFor(color) };
     await writeCache(uri, result);
     return result;
   } catch {
@@ -221,12 +229,76 @@ function dominantOf(data: Uint8Array | Uint8ClampedArray): string | null {
   });
 }
 
+/**
+ * One hue at three depths: what the page fades *through* as you scroll it.
+ *
+ * All three stops are placed by **luminance**, not by mixing toward the page.
+ * Mixing was the first approach and it misbehaved in the middle: `mix` works in
+ * sRGB, so 35% of a bright accent into `#121212` lands much lighter than it
+ * reads on paper, and the middle stop — the one most of the screen actually sits
+ * on — put `textSecondary` at 4.14:1, under AA. Setting each stop's luminance
+ * directly makes the ramp say what it means, and the middle stop now measures
+ * 5.49:1 while the top is *brighter* than the mixed version was.
+ *
+ * Saturation is raised first, and that part is free: contrast depends only on
+ * relative luminance, so a more vivid colour at the same lightness reads as
+ * dramatically more solid at exactly zero cost to legibility. That is most of
+ * where this ramp's strength comes from — the luminances moved a little, the
+ * chroma moved a lot.
+ */
+export function paletteFor(color: string): readonly [string, string, string] {
+  const vivid = saturate(color, PALETTE_SATURATION);
+  return [
+    atLuminance(vivid, VIBRANT_LUMINANCE),
+    atLuminance(vivid, DEEP_LUMINANCE),
+    atLuminance(vivid, DARK_LUMINANCE),
+  ];
+}
+
+/**
+ * Saturation floor for the backdrop ramp, well above the accent's own 0.5.
+ *
+ * The accent has to survive as a button label and a 2px underline, where a
+ * screaming hue is a liability. A backdrop has the opposite job: it is a large
+ * flat field that has to read as a colour at all, and a field is where low
+ * chroma looks like a rendering fault rather than a choice.
+ */
+const PALETTE_SATURATION = 0.78;
+
+/**
+ * Lightness of the three stops, as WCAG relative luminance.
+ *
+ * Chosen against what has to stay readable, measured across every hue the
+ * extractor can produce:
+ *
+ *  - `vibrant` (0.11) reads 2.87:1 against the page — the loud end, and the
+ *    reason the backdrop looks like a colour rather than a tint.
+ *  - `deep` (0.052) is the middle of the diagonal and therefore most of the
+ *    screen.
+ *  - `dark` (0.016) is close to the page's own 0.0055, so the bottom of a
+ *    scrolled page resolves into the ordinary dark room.
+ *
+ * **These are only reachable because the game page stopped putting grey on
+ * them.** Against `textSecondary` the ceiling was 0.065; the token measures
+ * 2.75:1 at 0.11 and no amount of tuning fixes that, because #A8A8A8 was chosen
+ * against a near-black page. `accentRoles().quietInk` — near-white carrying the
+ * hue — holds 4.66:1 on the brightest stop and 7.33:1 on the middle one, and
+ * `text` holds 5.99:1. Put grey back on this backdrop and the ceiling comes
+ * back with it.
+ */
+const VIBRANT_LUMINANCE = 0.11;
+const DEEP_LUMINANCE = 0.052;
+const DARK_LUMINANCE = 0.016;
+
 async function readCache(uri: string): Promise<ArtworkColor | null> {
   try {
     const stored = await AsyncStorage.getItem(CACHE_PREFIX + uri);
     if (!stored) return null;
     const parsed = JSON.parse(stored) as ArtworkColor;
-    return hexToRgb(parsed.color) ? parsed : null;
+    if (!hexToRgb(parsed.color)) return null;
+    // Older cache entries predate `palette`; derive it rather than discarding an
+    // extraction that is still perfectly good.
+    return parsed.palette ? parsed : { ...parsed, palette: paletteFor(parsed.color) };
   } catch {
     return null;
   }

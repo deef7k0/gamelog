@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import { gridItemWidth } from '@/components/gaming/game-tile';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
@@ -11,6 +13,7 @@ import { Skeleton } from '@/components/ui/surface';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { gameSortOptions, sortGames, type GameSort } from '@/lib/games';
 import { getCompanyGames } from '@/lib/games/igdb';
 
@@ -44,6 +47,7 @@ const SORTS = gameSortOptions(['newest', 'oldest', 'rating', 'title']);
  */
 export default function StudioScreen() {
   const { width } = useWindowDimensions();
+  const { scrollY, onScroll } = useTopBarScroll();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const companyId = Number(id);
   const [sort, setSort] = useState<GameSort>('newest');
@@ -61,19 +65,21 @@ export default function StudioScreen() {
 
   if (!Number.isFinite(companyId)) {
     return (
-      <Screen edges={['bottom']} insetHeader>
-        <Stack.Screen options={{ title: 'Studio' }} />
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Studio" back />}>
         <EmptyState title="Studio not found" />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: name ?? 'Studio' }} />
-
-      <FlatList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar title={name ?? 'Studio'} back scrollY={scrollY} />}>
+      <Animated.FlatList
         data={ordered}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}
         keyExtractor={(game) => game.id}

@@ -1,3 +1,5 @@
+import type { EditionKind } from '../../constants/game-editions';
+
 /** A headline from one of the gaming outlets we aggregate. */
 export type Article = {
   id: string;
@@ -35,6 +37,16 @@ export type ChartEntry = {
   coverUrl: string | null;
   heroUrl: string | null;
   releaseYear: number | null;
+  /**
+   * Release type, for the tile's badge.
+   *
+   * Charts are where this matters most: a remaster and its original are the
+   * same title and often the same key art, and a Popular grid listing both with
+   * nothing to tell them apart is the confusion the badge exists to remove.
+   */
+  edition: EditionKind | null;
+  /** Steam appid, for official store artwork on the chart tiles. */
+  steamAppId: string | null;
 };
 
 /**

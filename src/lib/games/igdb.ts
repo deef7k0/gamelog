@@ -1,3 +1,4 @@
+import { editionKindFor, editionRank } from '../../constants/game-editions';
 import { supabase } from '../supabase';
 import { makeGameId, yearFrom, type Game, type GameProvider, type GameSearchResult } from './types';
 
@@ -39,7 +40,61 @@ type IgdbGame = {
   /** 0-100 already. */
   total_rating?: number;
   url?: string;
+
+  /*
+   * What kind of release this is. See `constants/game-editions.ts`.
+   *
+   * `game_type` is the current field; `category` is the deprecated one it
+   * replaced, and the two carry the same numbers. Only `game_type` is
+   * *requested* — asking for a field IGDB does not have fails the whole query,
+   * and `GAME_FIELDS` is shared by every screen — but both are read, so a
+   * response from an older deployment still resolves.
+   */
+  game_type?: number;
+  /** @deprecated IGDB's own name for `game_type` before 2024. Read, never asked for. */
+  category?: number;
+
+  /** The base game, for a DLC, expansion, remake, remaster or port. */
+  parent_game?: number;
+  /**
+   * The game this repackages, for a "Game of the Year Edition" and friends.
+   *
+   * Distinct from `parent_game`: a version is the *same game* in a different
+   * box, where a remake is a different game. Every catalogue query in this app
+   * filters on `version_parent = null`, so these surface only on the parent's
+   * own page.
+   */
+  version_parent?: number;
+  /** The marketing name of that repackage — "Definitive Edition". */
+  version_title?: string;
+
+  /**
+   * Storefront listings. Only `category = 1` (Steam) is read here, for its
+   * appid — see `steamAppIdOf`.
+   */
+  external_games?: { category?: number; uid?: string }[];
 };
+
+/** IGDB's `external_games.category` for Steam. */
+const STEAM_EXTERNAL_CATEGORY = 1;
+
+/**
+ * The game's Steam appid, when it has a Steam listing.
+ *
+ * Read from the shared field list rather than through `getGameStores()`, which
+ * is one request per game. A poster grid asks for artwork for fifty games at
+ * once; fifty extra IGDB round trips to learn fifty appids would cost more than
+ * the artwork is worth. The nested array is a few dozen bytes per row.
+ *
+ * Null for the many games that are not on Steam at all — every console
+ * exclusive, and everything on itch.io. Those keep IGDB's own cover art.
+ */
+function steamAppIdOf(raw: IgdbGame): string | null {
+  const listing = (raw.external_games ?? []).find(
+    (entry) => entry.category === STEAM_EXTERNAL_CATEGORY && entry.uid
+  );
+  return listing?.uid ?? null;
+}
 
 /**
  * IGDB returns image ids, not URLs; you pick a size when building the URL.
@@ -57,7 +112,9 @@ const GAME_FIELDS = `
          cover.image_id, artworks.image_id, screenshots.image_id,
          genres.name, platforms.name, platforms.abbreviation,
          involved_companies.developer, involved_companies.publisher,
-         involved_companies.company.name;
+         involved_companies.company.name,
+         game_type, parent_game, version_parent, version_title,
+         external_games.category, external_games.uid;
 `;
 
 /**
@@ -115,6 +172,31 @@ function toGame(raw: IgdbGame): Game {
     screenshots: (raw.screenshots ?? [])
       .map((shot) => imageUrl(shot, 'screenshot_huge'))
       .filter((url): url is string => !!url),
+    ...editionOf(raw),
+    steamAppId: steamAppIdOf(raw),
+  };
+}
+
+/**
+ * The release-type half of a `Game`: what kind of release it is, and what it
+ * descends from.
+ *
+ * `parent_game` and `version_parent` are different relationships (see the field
+ * notes above) but they answer the same question for a reader — *which game is
+ * this a version of* — so they collapse into one `parentId`. The kind is what
+ * keeps them distinguishable where it matters.
+ */
+function editionOf(raw: IgdbGame): Pick<Game, 'edition' | 'editionTitle' | 'parentId'> {
+  const parent = raw.version_parent ?? raw.parent_game ?? null;
+
+  return {
+    edition: editionKindFor({
+      // `category` is the pre-2024 name and is only read, never requested.
+      gameType: raw.game_type ?? raw.category ?? null,
+      versionParent: raw.version_parent ?? null,
+    }),
+    editionTitle: raw.version_title ?? null,
+    parentId: parent === null ? null : makeGameId('igdb', parent),
   };
 }
 
@@ -131,6 +213,10 @@ function toSearchResult(game: Game): GameSearchResult {
     genres: game.genres,
     platforms: game.platforms,
     score: game.score,
+    edition: game.edition,
+    editionTitle: game.editionTitle,
+    parentId: game.parentId,
+    steamAppId: game.steamAppId,
   };
 }
 
@@ -274,6 +360,21 @@ export async function getGameExtras(
  * Ordered by release rather than rating because a franchise list is read as a
  * chronology — "what came before this one" — not as a leaderboard.
  */
+/**
+ * The clause that keeps a series rail to the games themselves.
+ *
+ * `version_parent = null` was already dropping repackages — "Game of the Year
+ * Edition" and friends. `game_type = 0` additionally drops remakes, remasters,
+ * ports, DLC, expansions and bundles, which were filling a franchise rail with
+ * things that are not entries in the series: Mafia's rail listed Mafia, Mafia
+ * II, Mafia III *and* three Definitive Editions, so the same games appeared
+ * twice and the chronology stopped being one.
+ *
+ * They have not gone anywhere — the parent game's own page lists them under
+ * "Editions & extras", which is the question they actually answer.
+ */
+const ORIGINALS_ONLY = 'version_parent = null & game_type = 0';
+
 export async function getCollectionGames(
   collectionId: number,
   signal?: AbortSignal
@@ -281,7 +382,7 @@ export async function getCollectionGames(
   const raw = await igdbQuery<IgdbGame[]>(
     'games',
     `${GAME_FIELDS}
-     where collection = ${collectionId} & version_parent = null;
+     where collection = ${collectionId} & ${ORIGINALS_ONLY};
      sort first_release_date asc;
      limit 50;`,
     signal
@@ -296,12 +397,52 @@ export async function getFranchiseGames(
   const raw = await igdbQuery<IgdbGame[]>(
     'games',
     `${GAME_FIELDS}
-     where franchises = (${franchiseId}) & version_parent = null;
+     where franchises = (${franchiseId}) & ${ORIGINALS_ONLY};
      sort first_release_date asc;
      limit 50;`,
     signal
   );
   return (raw ?? []).map(toGame).map(toSearchResult);
+}
+
+/**
+ * Everything that descends from one game: its remakes, remasters, ports, DLC,
+ * expansions, bundles and repackaged editions.
+ *
+ * One query, not eight. IGDB exposes this as reverse relations on the parent
+ * (`remakes`, `dlcs`, `expansions`, …) and the obvious implementation reads
+ * those arrays and then fetches each id — nine round trips to fill one rail.
+ * Asking the *children* which parent they point at is the same answer in a
+ * single request, and it catches both relationships at once: `parent_game` for
+ * a remake or a DLC, `version_parent` for a repackage.
+ *
+ * Sorted here rather than by IGDB, because the useful order mixes two fields —
+ * kind first (see `editionRank`: other versions of the game before add-ons to
+ * it), release date second — and APIcalypse cannot express that.
+ */
+export async function getGameEditions(
+  sourceId: string,
+  signal?: AbortSignal
+): Promise<GameSearchResult[]> {
+  const numeric = Number(sourceId);
+  if (!Number.isFinite(numeric)) return [];
+
+  const raw = await igdbQuery<IgdbGame[]>(
+    'games',
+    `${GAME_FIELDS}
+     where parent_game = ${numeric} | version_parent = ${numeric};
+     limit 50;`,
+    signal
+  );
+
+  return (raw ?? [])
+    .map(toGame)
+    .map(toSearchResult)
+    .sort(
+      (a, b) =>
+        editionRank(a.edition) - editionRank(b.edition) ||
+        (a.releaseYear ?? 0) - (b.releaseYear ?? 0)
+    );
 }
 
 /**
@@ -442,6 +583,128 @@ export async function getGameCharacters(
     // Until then the Cast section simply does not appear.
     return [];
   }
+}
+
+/* -------------------------------------------------------------------------
+ * Filtered search
+ *
+ * The plain `search` above is the one every browse screen uses: a title, ranked
+ * by IGDB's relevance, and nothing else. Award shows need the other question —
+ * "what came out in 2019 that was a Nintendo Switch platformer" — where the term
+ * is optional and the filters are the query.
+ * ---------------------------------------------------------------------------- */
+
+/** One entry from IGDB's `genres` or `platforms` reference tables. */
+export type IgdbTag = { id: number; name: string };
+
+/**
+ * Every filter the award picker can apply. All optional; all combinable.
+ *
+ * Ids rather than names for genre and platform because IGDB indexes those and
+ * matching on the nested name is both slower and ambiguous ("Adventure" also
+ * matches "Point-and-click Adventure"). Studio is a name, because there is no
+ * company picker to choose an id from — see `studio` below.
+ */
+export type GameFilters = {
+  /** Free text. Optional: filters alone are a valid query. */
+  term?: string;
+  genreId?: number | null;
+  platformId?: number | null;
+  /** Developer or publisher name, matched case-insensitively as a substring. */
+  studio?: string | null;
+  /** Inclusive release year range. Either end may stand alone. */
+  fromYear?: number | null;
+  toYear?: number | null;
+};
+
+/** IGDB's earliest dated release is 1958 (Tennis for Two). */
+export const EARLIEST_IGDB_YEAR = 1958;
+
+/** Unix seconds for 1 January of `year`, which is how IGDB stores release dates. */
+function yearStart(year: number): number {
+  return Math.floor(Date.UTC(year, 0, 1) / 1000);
+}
+
+/** Escapes a value for an APIcalypse string literal. See `search`. */
+function quote(value: string): string {
+  return value.trim().replace(/"/g, '\\"');
+}
+
+/**
+ * Search the catalogue with any combination of term, genre, platform, studio
+ * and release-year range.
+ *
+ * ## Why the sort is conditional
+ *
+ * IGDB rejects `sort` on a `search` query — search results *are* an ordering, by
+ * relevance, and asking for a second one is an error rather than a tiebreak. So
+ * a query with a term keeps relevance order, and a query without one is sorted
+ * newest-first, which is the only useful default when the filters are doing all
+ * the work. Callers that want another order re-sort in memory with `sortGames`.
+ *
+ * ## Why `total_rating_count` on the filters-only path
+ *
+ * "Everything on Switch" is forty thousand rows and the first page of them by
+ * date is shovelware. Requiring a handful of ratings is the cheapest available
+ * proxy for "a real release", and it is only applied when there is no term —
+ * with a term the user has already said what they want and filtering it out
+ * because nobody rated it would be wrong.
+ */
+export async function searchGamesFiltered(
+  filters: GameFilters,
+  signal?: AbortSignal
+): Promise<GameSearchResult[]> {
+  const term = filters.term?.trim() ?? '';
+  const where: string[] = ['version_parent = null'];
+
+  if (filters.genreId) where.push(`genres = (${filters.genreId})`);
+  if (filters.platformId) where.push(`platforms = (${filters.platformId})`);
+  if (filters.studio?.trim()) {
+    where.push(`involved_companies.company.name ~ *"${quote(filters.studio)}"*`);
+  }
+  if (filters.fromYear) where.push(`first_release_date >= ${yearStart(filters.fromYear)}`);
+  // Exclusive upper bound on 1 Jan of the *next* year, so `toYear` is inclusive.
+  if (filters.toYear) where.push(`first_release_date < ${yearStart(filters.toYear + 1)}`);
+
+  if (!term) where.push('total_rating_count >= 5');
+
+  const clause = `where ${where.join(' & ')};`;
+  const body = term
+    ? `search "${quote(term)}"; ${GAME_FIELDS} ${clause} limit 40;`
+    : `${GAME_FIELDS} ${clause} sort first_release_date desc; limit 40;`;
+
+  const raw = await igdbQuery<IgdbGame[]>('games', body, signal);
+  return (raw ?? []).map(toGame).map(toSearchResult);
+}
+
+/**
+ * IGDB's genre and platform vocabularies, for the filter pickers.
+ *
+ * Both endpoints are already on the Edge Function allowlist. The lists are
+ * static in practice — IGDB adds a platform every few years — so callers should
+ * cache them for the session rather than refetching per keystroke.
+ *
+ * Platforms are capped and sorted by `generation` descending so the console
+ * someone is likely to mean is near the top; IGDB lists ~200 platforms
+ * including arcade boards and calculators, and an unsorted picker of those is
+ * unusable.
+ */
+export async function getGenres(signal?: AbortSignal): Promise<IgdbTag[]> {
+  const raw = await igdbQuery<IgdbTag[]>(
+    'genres',
+    'fields name; sort name asc; limit 100;',
+    signal
+  );
+  return (raw ?? []).filter((entry) => entry.name);
+}
+
+export async function getPlatforms(signal?: AbortSignal): Promise<IgdbTag[]> {
+  const raw = await igdbQuery<(IgdbTag & { generation?: number })[]>(
+    'platforms',
+    'fields name, generation; where category = (1,5,6); sort generation desc; limit 100;',
+    signal
+  );
+  return (raw ?? []).filter((entry) => entry.name).map(({ id, name }) => ({ id, name }));
 }
 
 export const igdbProvider: GameProvider = {

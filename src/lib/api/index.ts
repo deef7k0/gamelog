@@ -4,6 +4,7 @@
  * Split by domain, re-exported here so callers keep importing from
  * `@/lib/api` regardless of which file a function lives in.
  */
+export * from './awards';
 export * from './core';
 export * from './diary';
 export * from './discover';

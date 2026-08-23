@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { GameSearchResults } from '@/components/game-search-results';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -72,16 +73,28 @@ export default function AddToListScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} padded>
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        modal
+        topBar={<FrostedTopBar title="Add games" dismiss />}>
         <EmptyState title="Collection not found" />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['bottom']}>
-      <Stack.Screen options={{ title: list.data ? `Add to ${list.data.title}` : 'Add games' }} />
-
+    /* `modal`: an iOS sheet already begins below the status bar, so the bar must
+       not inset itself again — see `useTopBarInset`. `dismiss` for the same
+       reason the chevron is wrong here: a sheet closes, it does not go back. */
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={
+        <FrostedTopBar title={list.data ? `Add to ${list.data.title}` : 'Add games'} dismiss />
+      }>
       <View style={styles.header}>
         <TextField
           value={input}

@@ -1,15 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { Share, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
+import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
-import { setLiked, type Engagement, type TargetType } from '@/lib/api';
-import { useAuth } from '@/store/auth';
+import type { Engagement, TargetType } from '@/lib/api';
 
 export type EngagementBarProps = {
   targetType: TargetType;
@@ -36,36 +34,14 @@ export function EngagementBar({
 }: EngagementBarProps) {
   const theme = useTheme();
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const userId = useAuth((state) => state.session?.user.id);
 
-  /*
-   * Optimistic local state. The feed's engagement map is fetched in bulk and
-   * only refreshed on pull-to-refresh, so without this a tapped heart would
-   * stay grey until the next refetch.
-   */
-  const [override, setOverride] = useState<{ liked: boolean; delta: number } | null>(null);
-
-  const liked = override?.liked ?? engagement?.likedByViewer ?? false;
-  const likeCount = (engagement?.likes ?? 0) + (override?.delta ?? 0);
-  const commentCount = engagement?.comments ?? 0;
-
-  const toggle = useMutation({
-    mutationFn: async (next: boolean) => {
-      if (!userId) throw new Error('You must be signed in.');
-      await setLiked(userId, targetType, targetId, next);
-    },
-    onMutate: (next: boolean) => {
-      const base = engagement?.likedByViewer ?? false;
-      // Delta is relative to the server value, so toggling back to the original
-      // state cancels out to zero rather than drifting.
-      setOverride({ liked: next, delta: next === base ? 0 : next ? 1 : -1 });
-    },
-    onError: () => setOverride(null),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    },
-  });
+  /* The optimistic toggle lives in the hook, shared with the collection
+     masthead — see `hooks/use-like-toggle`. */
+  const { liked, likeCount, commentCount, toggle } = useLikeToggle(
+    targetType,
+    targetId,
+    engagement
+  );
 
   async function handleShare() {
     try {
@@ -89,7 +65,7 @@ export function EngagementBar({
           count={stacked ? undefined : likeCount}
           size={iconSize}
           label={liked ? 'Unlike' : 'Like'}
-          onPress={() => toggle.mutate(!liked)}
+          onPress={toggle}
         />
 
         <Action

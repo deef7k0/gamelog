@@ -8,6 +8,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Screen } from '@/components/ui/screen';
@@ -123,7 +124,10 @@ export default function CreatePostScreen() {
   const error = publish.error ?? pick.error;
 
   return (
-    <Screen edges={[]} padded>
+    /* A form: the bar stays put. Nothing here scrolls far enough for a hiding
+       header to buy back meaningful room, and a composer whose title slides
+       away while you are typing reads as the app losing its place. */
+    <Screen edges={[]} padded insetHeader topBar={<FrostedTopBar title="New post" back />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

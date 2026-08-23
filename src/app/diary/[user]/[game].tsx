@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   FlatList,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -129,7 +130,7 @@ export default function DiaryScreen() {
 
   if (!userId || !gameId) {
     return (
-      <Screen edges={['bottom']} insetHeader>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Diary" back />}>
         <EmptyState title="Diary not found" />
       </Screen>
     );
@@ -139,9 +140,13 @@ export default function DiaryScreen() {
   const ownerName = owner.data ? displayNameFor(owner.data) : 'This player';
 
   return (
-    <Screen edges={['bottom']} insetHeader>
-      <Stack.Screen options={{ title: game.data?.title ?? 'Diary' }} />
-
+    /* No `scrollY`: the tab bar directly under the header switches between the
+       diary and the stats, and a header that slid away would take the game's
+       name — the only thing saying whose diary this is — with it. */
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar title={game.data?.title ?? 'Diary'} back />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

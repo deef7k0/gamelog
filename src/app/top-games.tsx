@@ -37,7 +37,7 @@ const GAP = Spacing.x12;
  */
 export default function TopGamesScreen() {
   const { width } = useWindowDimensions();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
 
   const chart = useQuery({
     queryKey: ['popular-games', TOP_N],
@@ -86,7 +86,7 @@ export default function TopGamesScreen() {
      * printed over that art already says "Top 10 Most Popular". Repeating it in
      * the bar would be the same words twice, 40dp apart.
      */
-    <Screen edges={[]} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+    <Screen edges={[]} topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={tiles}
         onScroll={onScroll}

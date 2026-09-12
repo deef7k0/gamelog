@@ -26,7 +26,7 @@ const GAP = Spacing.x12;
  */
 export default function ReleasesScreen() {
   const { width } = useWindowDimensions();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
   const releases = useQuery({
@@ -36,10 +36,7 @@ export default function ReleasesScreen() {
   });
 
   return (
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title="Latest releases" back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={releases.data ?? []}
         onScroll={onScroll}

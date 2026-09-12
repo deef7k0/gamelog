@@ -1,9 +1,17 @@
 import {
+  Inter_300Light,
   Inter_400Regular,
+  Inter_400Regular_Italic,
   Inter_500Medium,
   Inter_600SemiBold,
+  Inter_600SemiBold_Italic,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import {
+  SourceSerif4_400Regular,
+  SourceSerif4_600SemiBold,
+  SourceSerif4_700Bold,
+} from '@expo-google-fonts/source-serif-4';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
@@ -54,6 +62,33 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    /*
+     * The two italics, for user-written emphasis only — `*italic*` in a
+     * collection's description, through `<RichText>`. `fontStyle: 'italic'` is
+     * the same silent no-op on Android that `fontWeight` is, for the same
+     * reason: a custom family has no oblique to synthesise from.
+     */
+    Inter_400Regular_Italic,
+    Inter_600SemiBold_Italic,
+    /*
+     * Inter Light, for exactly one thing: the release year beside a review's
+     * game title. The brief calls for Graphik Light there, and a year sitting
+     * next to a bold serif title has to recede without shrinking.
+     */
+    Inter_300Light,
+    /*
+     * Source Serif 4 — the **review** typeface, and nothing else in the app.
+     *
+     * The brief asks for Tiempos Text / Tiempos Headline, which is Klim's and
+     * cannot ship in a bundle. Source Serif 4 is the closest thing with an open
+     * licence: a Times-descended modern serif drawn for screen text, with the
+     * same large x-height and low stroke contrast that make Tiempos hold at
+     * body sizes. Three weights, because a magazine needs a headline, a body
+     * and a byline weight and Android synthesises none of them.
+     */
+    SourceSerif4_400Regular,
+    SourceSerif4_600SemiBold,
+    SourceSerif4_700Bold,
   });
 
   // Boot anyway if the font cannot be fetched — tofu glyphs beat a dead splash
@@ -130,13 +165,21 @@ export default function RootLayout() {
               <Stack.Screen name="top-games" />
               <Stack.Screen name="releases" />
               <Stack.Screen name="upcoming" />
+              <Stack.Screen name="surprise" />
               <Stack.Screen name="gaming-achievements/[id]" />
               <Stack.Screen name="gaming-inventory/[id]" />
               <Stack.Screen name="list/[id]" />
+              {/* The "See all" behind Discover's Reviews and Collections bands.
+                  Both used to be tabs inside Search; a popularity chart is not
+                  a search scope, so they are pages now. */}
+              <Stack.Screen name="reviews" />
+              <Stack.Screen name="collections" />
+              {/* Where Search's genre grid leads — one genre, ranked. */}
+              <Stack.Screen name="genre/[id]" />
               <Stack.Screen name="review/[id]" />
-              <Stack.Screen name="article/[id]" />
               <Stack.Screen name="soundtrack/[id]" />
               <Stack.Screen name="notifications/index" />
+              <Stack.Screen name="settings" />
               <Stack.Screen name="comments/[type]/[id]" />
               <Stack.Screen name="log/[id]" options={{ presentation: 'modal' }} />
               {/* Both are edits to one award category, so both are sheets: you
@@ -144,6 +187,7 @@ export default function RootLayout() {
               <Stack.Screen name="award-game/[id]" options={{ presentation: 'modal' }} />
               <Stack.Screen name="award-edit/[id]" options={{ presentation: 'modal' }} />
               <Stack.Screen name="new-list" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="edit-list/[id]" options={{ presentation: 'modal' }} />
               {/* A picker, so it presents as a modal: you are choosing one thing
                   and returning, not navigating somewhere. */}
               <Stack.Screen name="add-to-list/[id]" options={{ presentation: 'modal' }} />

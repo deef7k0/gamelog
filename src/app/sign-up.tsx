@@ -66,11 +66,7 @@ export default function SignUpScreen() {
   }
 
   return (
-    <Screen
-      edges={['bottom']}
-      padded
-      insetHeader
-      topBar={<FrostedTopBar title="Create account" back />}>
+    <Screen edges={['bottom']} padded insetHeader topBar={<FrostedTopBar back />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

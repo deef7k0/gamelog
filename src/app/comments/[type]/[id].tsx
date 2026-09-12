@@ -31,7 +31,11 @@ export default function CommentsScreen() {
   const params = useLocalSearchParams<{ type: string; id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
 
-  const targetType = (params.type === 'log' ? 'log' : 'post') as TargetType;
+  /* Logs are the only commentable target left — `post` was the other half of
+     this route and that feature is gone. Kept as a param rather than hardcoded
+     because the `comments` table is still polymorphic and the CHECK is what
+     would have to change to add another. */
+  const targetType: TargetType = 'log';
   const targetId = params.id;
 
   const [draft, setDraft] = useState('');
@@ -100,7 +104,7 @@ export default function CommentsScreen() {
 
   if (comments.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Comments" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
     );
@@ -108,7 +112,7 @@ export default function CommentsScreen() {
 
   if (comments.isError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Comments" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={comments.error} />
       </Screen>
     );
@@ -118,7 +122,7 @@ export default function CommentsScreen() {
     /* A composer is pinned to the bottom of this screen, so the header stays put
        too — chrome that comes and goes around a text field you are typing into
        is chrome that is in the way. */
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Comments" back />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

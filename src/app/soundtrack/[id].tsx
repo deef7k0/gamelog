@@ -34,13 +34,17 @@ const PREVIEW_SECONDS = 30;
  */
 export default function SoundtrackScreen() {
   const theme = useTheme();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const params = useLocalSearchParams<{
     id: string;
     title?: string;
     artist?: string;
     artwork?: string;
     url?: string;
+    /** App-wide game id, when the caller opened this from a screen about one game. */
+    game?: string;
+    /** That game's title, for the profile credit. Falls back to the album's. */
+    gameTitle?: string;
   }>();
 
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -81,9 +85,18 @@ export default function SoundtrackScreen() {
       }
       await starSong(userId, track, {
         artworkUrl: params.artwork ?? null,
-        // The album is a game soundtrack, so the credit is the album's own
-        // title — this screen never knows the game id it was opened from.
-        gameTitle: params.title ?? null,
+        /*
+         * The game, when the caller knew it.
+         *
+         * This screen used to have no way to know — it is reached from a rail
+         * that passes an album, not a game — so every starred song wrote a null
+         * `game_id` and the profile's "from <game>" credit fell back to the
+         * album's title. Surprise Me opens it from a screen that is *about* one
+         * game and passes the pair through, so those stars now carry a real
+         * reference. Absent, the old fallback is unchanged.
+         */
+        gameId: params.game ?? null,
+        gameTitle: params.gameTitle ?? params.title ?? null,
       });
     },
     onSuccess: () => {
@@ -115,7 +128,7 @@ export default function SoundtrackScreen() {
 
   if (tracks.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Soundtrack" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
     );
@@ -123,7 +136,7 @@ export default function SoundtrackScreen() {
 
   if (tracks.isError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Soundtrack" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={tracks.error} />
       </Screen>
     );
@@ -135,10 +148,7 @@ export default function SoundtrackScreen() {
     : status.currentTime / PREVIEW_SECONDS;
 
   return (
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title={params.title ?? 'Soundtrack'} back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={list}
         onScroll={onScroll}

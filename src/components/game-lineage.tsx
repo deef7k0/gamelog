@@ -6,10 +6,11 @@ import { StyleSheet, View } from 'react-native';
 import { GamePosterRail } from '@/components/game-rail';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { SectionHeader } from '@/components/ui/surface';
+import { InfoCard } from '@/components/ui/info-card';
 import { Text } from '@/components/ui/text';
 import { editionLabel, type EditionKind } from '@/constants/game-editions';
 import { Radius, Spacing } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getGameById, getGameEditions, parseGameId } from '@/lib/games';
 
@@ -44,6 +45,7 @@ export type OriginalGameProps = {
  */
 export function OriginalGame({ parentId, edition }: OriginalGameProps) {
   const theme = useTheme();
+  const accent = useAccent();
   const parsed = parseGameId(parentId);
 
   const parent = useQuery({
@@ -63,15 +65,13 @@ export function OriginalGame({ parentId, edition }: OriginalGameProps) {
   const label = editionLabel(edition) ?? 'version';
 
   return (
-    <View style={styles.section}>
-      <SectionHeader title="Original game" />
-
+    <InfoCard title="Original game">
       <Link href={{ pathname: '/game/[id]', params: { id: game.id } }} asChild>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={`${game.title}, the game this ${label.toLowerCase()} is based on`}
           scaleTo={0.98}
-          style={StyleSheet.flatten([styles.row, { backgroundColor: theme.surface }])}>
+          style={StyleSheet.flatten([styles.row, { backgroundColor: accent.elevated }])}>
           <Poster
             coverUrl={game.coverUrl}
             heroUrl={game.heroUrl}
@@ -92,7 +92,7 @@ export function OriginalGame({ parentId, edition }: OriginalGameProps) {
           <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
         </PressableScale>
       </Link>
-    </View>
+    </InfoCard>
   );
 }
 
@@ -126,25 +126,22 @@ export function GameEditions({ gameId }: { gameId: string }) {
   if (list.length === 0) return null;
 
   return (
-    <View style={styles.section}>
-      <SectionHeader
-        title="Editions & extras"
-        action={
-          <Text variant="bodySmall" color="textMuted">
-            {list.length}
-          </Text>
-        }
-      />
+    <InfoCard
+      title="Editions & extras"
+      action={
+        <Text variant="bodySmall" color="textMuted">
+          {list.length}
+        </Text>
+      }>
       {/* Each poster carries its own badge, which is what makes this rail
           readable — six covers of the same game are only distinguishable by the
           word on them. */}
       <GamePosterRail games={list} />
-    </View>
+    </InfoCard>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: Spacing.x12 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

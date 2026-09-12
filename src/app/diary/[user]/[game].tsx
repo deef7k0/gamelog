@@ -130,7 +130,7 @@ export default function DiaryScreen() {
 
   if (!userId || !gameId) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Diary" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <EmptyState title="Diary not found" />
       </Screen>
     );
@@ -143,10 +143,7 @@ export default function DiaryScreen() {
     /* No `scrollY`: the tab bar directly under the header switches between the
        diary and the stats, and a header that slid away would take the game's
        name — the only thing saying whose diary this is — with it. */
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title={game.data?.title ?? 'Diary'} back />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

@@ -31,17 +31,31 @@ export type CardProps = {
    * ten tinted cards is a colour chart, not a feed.
    */
   tinted?: boolean;
+  /**
+   * The game-page panel shape: `Radius.cardLarge` instead of `Radius.card`.
+   *
+   * Pairs with `tinted` on the screens built out of one hue, so a `<Card>` there
+   * matches the `<InfoCard>`s around it rather than being the one 6dp corner in
+   * a column of 18s. Ignore it everywhere else — a feed row is a list item and
+   * keeps the list shape.
+   */
+  panel?: boolean;
   style?: ViewStyle | ViewStyle[];
 };
 
 /**
  * A modular block of content: filled, rounded, no border.
  *
- * Lifted by a surface step *and* a shadow. The step does most of the work —
- * `surface` (#1C1C1C) against `background` (#121212) is one clear boundary — and
- * `Elevation.card` is what turns that from a painted rectangle into a block
- * resting above the page. A border on top of both would be a third signal for a
- * job already done twice.
+ * Lifted by a surface step *and* a shadow, and the balance between the two has
+ * shifted. `surface` (#1C1C1C) against `background` (#14171b) measures
+ * **1.055:1** — it used to be 1.100:1 against the old neutral floor — so the
+ * step alone is now a *soft* boundary and `Elevation.card` is doing more of the
+ * work than the note here used to claim.
+ *
+ * Still no border. Two signals for one job is enough, and the answer to a card
+ * that does not read is the next `Elevation` tier, not an outline: an edge would
+ * put a third signal on a block that already has two and would look like a
+ * different component beside every other card in the app.
  *
  * 6px corners and 16px of padding, both fixed. A card that needs different
  * numbers is a different component.
@@ -51,6 +65,7 @@ export function Card({
   elevated = false,
   padded = true,
   tinted = false,
+  panel = false,
   style,
 }: CardProps) {
   const theme = useTheme();
@@ -72,8 +87,17 @@ export function Card({
    * Android only. See DESIGN.md § 6.3.
    */
   return (
-    <View style={[styles.card, Elevation.card, { backgroundColor: fill }, style]}>
-      <View style={[styles.cardClip, padded && styles.cardPadded]}>{children}</View>
+    <View
+      style={[
+        styles.card,
+        panel && styles.panel,
+        Elevation.card,
+        { backgroundColor: fill },
+        style,
+      ]}>
+      <View style={[styles.cardClip, panel && styles.panel, padded && styles.cardPadded]}>
+        {children}
+      </View>
     </View>
   );
 }
@@ -243,6 +267,10 @@ const styles = StyleSheet.create({
      is not cut off. */
   card: { borderRadius: Radius.card },
   cardClip: { borderRadius: Radius.card, overflow: 'hidden' },
+  /* `panel`. Both views take it, because the outer one owns the corner the eye
+     sees and the inner one owns the clip — set it on only one and the fill is
+     rounded while its contents are not, or the reverse. */
+  panel: { borderRadius: Radius.cardLarge },
   cardPadded: { padding: Spacing.x16 },
   /* `minHeight`, not `height`.
      

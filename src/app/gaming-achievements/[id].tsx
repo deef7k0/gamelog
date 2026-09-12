@@ -40,7 +40,7 @@ const SHOWCASE_ICON = 56;
  * gets its own row underneath, where it belongs.
  */
 export default function GamingAchievementsScreen() {
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === id;
@@ -74,10 +74,7 @@ export default function GamingAchievementsScreen() {
 
   if (!id) {
     return (
-      <Screen
-        edges={['bottom']}
-        insetHeader
-        topBar={<FrostedTopBar title="Steam Achievements" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <EmptyState title="Not found" />
       </Screen>
     );
@@ -85,11 +82,7 @@ export default function GamingAchievementsScreen() {
 
   if (!account.isLoading && !account.data) {
     return (
-      <Screen
-        edges={['bottom']}
-        padded
-        insetHeader
-        topBar={<FrostedTopBar title="Achievements" back />}>
+      <Screen edges={['bottom']} padded insetHeader topBar={<FrostedTopBar back />}>
         <EmptyState
           title="No Steam account linked"
           message={
@@ -107,10 +100,7 @@ export default function GamingAchievementsScreen() {
   const overall = stats.data;
 
   return (
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title="Steam Achievements" back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={games}
         onScroll={onScroll}

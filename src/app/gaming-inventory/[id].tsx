@@ -62,7 +62,7 @@ export default function GamingInventoryScreen() {
   const account = useLinkedAccount(id ?? null);
   useGamingSync({ userId: id ?? null, enabled: isSelf, sections: ['inventory'] });
 
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
 
   const inventory = useQuery({
     queryKey: ['gaming-inventory', 'steam', id],
@@ -72,7 +72,7 @@ export default function GamingInventoryScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Inventory" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <EmptyState title="Not found" />
       </Screen>
     );
@@ -95,10 +95,7 @@ export default function GamingInventoryScreen() {
   }));
 
   return (
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title="Inventory" back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <AnimatedSectionList
         sections={sections}
         onScroll={onScroll}

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { GameCase, caseHeightFor, type GameCaseSize } from '@/components/game-case';
+import { GameCase, type GameCaseSize } from '@/components/game-case';
 import { Poster } from '@/components/ui/poster';
 import {
   hasCase,
@@ -96,9 +96,23 @@ export function GameCaseDisplay({
   const coverWidth = width ?? COVER_WIDTHS[size];
 
   return (
-    /* Matched to the case's rendered height so switching platforms does not
-       jump the whole masthead up and down. */
-    <View style={[styles.cover, { minHeight: caseHeightFor(coverWidth) }]}>
+    /*
+     * Its own height, which is the poster's — `width / PosterAspectRatio`.
+     *
+     * This carried `minHeight: caseHeightFor(coverWidth)` to stop the masthead
+     * jumping when the platform switcher moved between a case and a cover. It
+     * did not achieve that and could not: a case is 1.259× its width and a 2:3
+     * poster is 1.5×, so the floor was 19% *shorter* than the thing standing on
+     * it and the container grew past it anyway. What it did do was tell every
+     * parent the wrong number — `<GameCaseFlip>` sized its fixed box from the
+     * same function and the poster overflowed it onto the controls below.
+     *
+     * Switching platforms therefore does change the masthead's height now, by
+     * design. That is the honest reading: a PS5 case and a PC cover are
+     * different shapes, and pretending otherwise cost 36dp of overlap on the
+     * platform buttons.
+     */
+    <View style={styles.cover}>
       <View style={[styles.frame, Elevation.card, { borderColor: theme.borderStrong }]}>
         <Poster
           coverUrl={coverUrl}

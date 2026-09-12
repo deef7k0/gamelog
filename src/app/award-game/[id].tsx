@@ -129,12 +129,12 @@ export default function AwardGamePickerScreen() {
   return (
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. */
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      modal
-      topBar={<FrostedTopBar title={award?.label ?? 'Choose a winner'} dismiss />}>
+    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
       <View style={styles.head}>
+        {/* Which award this pick is for. The bar used to say it; it carries a
+            back disc and nothing else now, so the page does. */}
+        <Text variant="h1">{award?.label ?? 'Pick the winner'}</Text>
+
         <TextField
           value={input}
           onChangeText={setInput}

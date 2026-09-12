@@ -192,18 +192,28 @@ export async function getHomeReviews(viewerId: string, limit = 10): Promise<Home
 
   /* Only logs that carry writing. A bare score is a log, not a review, and a
      page of them would be a chart of games wearing their raters' names. */
-  const written = () =>
+  const written = (rows: number) =>
     supabase
       .from('logs')
       .select(LOG_WITH_RELATIONS)
       .not('review', 'is', null)
       .neq('review', '')
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .limit(rows);
 
   const [followedRows, newestRows] = await Promise.all([
-    followedIds.length > 0 ? written().in('user_id', followedIds) : Promise.resolve(null),
-    written(),
+    followedIds.length > 0 ? written(limit).in('user_id', followedIds) : Promise.resolve(null),
+    /*
+     * Over-fetched, and excluding the viewer.
+     *
+     * Two bugs met in this one query. It asked for exactly `limit` rows and
+     * then had the dedupe below remove anything already in `followed` — so a
+     * viewer who follows the three most recent reviewers ended up with an
+     * *empty* "everyone else", punished for following well. And it never
+     * excluded `viewerId`, so you could write a review, open Home, and be
+     * shown your own writing back as though it were a discovery.
+     */
+    written(limit * 4).neq('user_id', viewerId),
   ]);
 
   if (followedRows?.error) throw new Error(followedRows.error.message);
@@ -214,7 +224,9 @@ export async function getHomeReviews(viewerId: string, limit = 10): Promise<Home
 
   return {
     followed,
-    newest: ((newestRows.data ?? []) as LogWithRelations[]).filter((log) => !seen.has(log.id)),
+    newest: ((newestRows.data ?? []) as LogWithRelations[])
+      .filter((log) => !seen.has(log.id))
+      .slice(0, limit),
   };
 }
 

@@ -9,7 +9,6 @@ import {
   CASE_TEMPLATES,
   type CasePlatformKey,
 } from '@/constants/platform-cases';
-import { FontFamily } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type GameCaseSize = 'small' | 'medium' | 'large';
@@ -25,7 +24,6 @@ const WIDTHS: Record<GameCaseSize, number> = {
  * How tall a case face renders at a given width.
  *
  * For callers that have to reserve or overlap space before the case mounts.
- * Excludes the spine, which extends sideways rather than down.
  */
 export function caseHeightFor(width: number): number {
   return (width / CASE_TEMPLATE_SIZE.width) * CASE_TEMPLATE_SIZE.height;
@@ -38,7 +36,11 @@ export type GameCaseProps = {
   /** Drives which template is used. */
   /** Console only — PC and mobile have no case. `<GameCaseDisplay>` decides. */
   platform: CasePlatformKey;
-  /** Printed down the spine. */
+  /**
+   * The game's name. Not printed on the object — the template PNG carries all
+   * of its own branding — but used for the accessibility label and for the
+   * lettered placeholder when there is no artwork.
+   */
   title?: string | null;
   /** Optional badge — "Collector's Edition", "Deluxe". */
   edition?: string | null;
@@ -53,14 +55,19 @@ export type GameCaseProps = {
    */
   width?: number;
   /**
-   * Slight 3D turn, in degrees. 0 renders flat-on.
+   * 3D turn, in degrees. **Defaults to 0 — the case rests square.**
    *
-   * Exposed as a prop rather than fixed so a future "rotate the case" animation
-   * can drive it from a shared value without touching this component.
+   * It defaulted to 6 for a long time, and that resting skew is gone: the case
+   * lands on arrival and turns over on a drag, and those two say "physical
+   * object" better than a permanent rotation did while costing the artwork
+   * nothing. A static tilt foreshortens one edge of the cover for as long as the
+   * page is open.
+   *
+   * Still a prop rather than a constant, because that is the seam
+   * `<GameCaseFlip>` drives every degree of rotation through without touching
+   * this component.
    */
   tilt?: number;
-  /** Show the spine edge. Off for flat-on presentations. */
-  showSpine?: boolean;
 };
 
 /**
@@ -68,14 +75,27 @@ export type GameCaseProps = {
  *
  * Layering, bottom to top:
  *   1. drop shadow (on the outer wrapper, so it follows the whole object)
- *   2. spine slab, offset behind the face
- *   3. cover artwork, positioned into the template's transparent window
- *   4. the platform template PNG
- *   5. a soft diagonal gloss
+ *   2. cover artwork, positioned into the template's transparent window
+ *   3. the platform template PNG
+ *   4. a soft diagonal gloss
  *
  * All geometry is derived from the template metadata in
  * `constants/platform-cases.ts` and scaled to the rendered width, so swapping a
  * template for one with a different window needs no change here.
+ *
+ * ## There is no drawn spine, deliberately
+ *
+ * There used to be: a coloured slab offset behind the face, carrying the game's
+ * title rotated to read bottom-to-top and the platform's short name. It was
+ * *generated* — a rectangle in `spineColor` with app type on it — which put a
+ * hand-drawn element flush against a template PNG that is already a finished
+ * piece of art, in a different colour and a different typeface. The object read
+ * as a case with something stuck to its edge.
+ *
+ * The template is the whole object now. `spineWidth`, `spineColor`,
+ * `spineLabel` and `spineTextColor` survive in `constants/platform-cases.ts`
+ * because `<GameCaseBack>` reads `spineColor` for its branding band — that band
+ * is printing, on a face, matching the front's own strip. Nothing draws a spine.
  *
  * Deliberately NOT for feeds — see the note in CLAUDE.md. Use <Poster /> in any
  * list, card or social context.
@@ -88,8 +108,7 @@ export const GameCase = memo(function GameCase({
   edition,
   size = 'medium',
   width: widthOverride,
-  tilt = 6,
-  showSpine = true,
+  tilt = 0,
 }: GameCaseProps) {
   const theme = useTheme();
   const template = CASE_TEMPLATES[platform];
@@ -108,7 +127,6 @@ export const GameCase = memo(function GameCase({
         width: coverArea.width * scale,
         height: coverArea.height * scale,
       },
-      spineWidth: template.spineWidth * scale,
     };
   }, [template, width]);
 
@@ -119,64 +137,27 @@ export const GameCase = memo(function GameCase({
      * Accessibility only — no geometry, no tokens, no styles.
      *
      * This is the largest element on a game page and it announced as nothing
-     * usable: the rotated spine text ("Elden Ring", then "PS5") followed by the
-     * template PNG and the artwork as unlabelled images, which is to say the
-     * 90% of the object that *is* the cover art announced as silence.
+     * usable: the template PNG and the artwork as unlabelled images, which is to
+     * say the 90% of the object that *is* the cover art announced as silence.
      *
-     * `accessible` collapses the whole composite — template, artwork, spine,
-     * gloss, edition badge — into one node carrying one sentence, which is what
-     * a sighted user gets in one glance. Per CLAUDE.md's preservation rules
-     * this file's look and behaviour are untouched; these are props on the
-     * existing wrapper, not a change to it.
+     * `accessible` collapses the whole composite — template, artwork, gloss,
+     * edition badge — into one node carrying one sentence, which is what a
+     * sighted user gets in one glance.
      */
     <View
       accessible
       accessibilityRole="image"
       accessibilityLabel={[title, edition, platform?.toUpperCase()].filter(Boolean).join(', ')}
-      style={[styles.wrapper, { width: width + geometry.spineWidth }]}>
+      style={[styles.wrapper, { width }]}>
       <View
         style={[
           styles.object,
           {
             width,
             height: geometry.height,
-            marginLeft: showSpine ? geometry.spineWidth : 0,
             transform: [{ perspective: 900 }, { rotateY: `${tilt}deg` }],
           },
         ]}>
-        {/* Spine: a slab behind and to the left of the face. Its title is
-            rotated to read bottom-to-top, the way a shelved case does. */}
-        {showSpine && (
-          <View
-            style={[
-              styles.spine,
-              {
-                width: geometry.spineWidth,
-                height: geometry.height,
-                left: -geometry.spineWidth,
-                backgroundColor: template.spineColor,
-              },
-            ]}>
-            <View style={[styles.spineText, { width: geometry.height }]}>
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.spineTitle,
-                  { color: template.spineTextColor, fontSize: Math.max(7, width * 0.045) },
-                ]}>
-                {title ?? ''}
-              </Text>
-              <Text
-                style={[
-                  styles.spineBrand,
-                  { color: template.spineTextColor, fontSize: Math.max(6, width * 0.038) },
-                ]}>
-                {template.spineLabel}
-              </Text>
-            </View>
-          </View>
-        )}
-
         {/* Artwork, sitting in the template's window. */}
         <View style={[styles.cover, geometry.cover, { backgroundColor: theme.surfaceElevated }]}>
           {source ? (
@@ -232,38 +213,13 @@ export const GameCase = memo(function GameCase({
 const styles = StyleSheet.create({
   wrapper: { alignItems: 'flex-start' },
   object: {
-    // Shadow lives here so it wraps the face and spine as one object.
+    // Shadow lives here so it wraps the whole object.
     shadowColor: '#000',
     shadowOpacity: 0.45,
     shadowRadius: 18,
     shadowOffset: { width: 6, height: 12 },
     elevation: 12,
   },
-  spine: {
-    position: 'absolute',
-    top: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopLeftRadius: 3,
-    borderBottomLeftRadius: 3,
-    overflow: 'hidden',
-  },
-  // Rotating a full-height row is what lets the text run vertically; the width
-  // is set to the case height because it is measured pre-rotation.
-  spineText: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    /* Literal 8, not `Spacing.x8`. The case is a depicted physical object with
-       fixed printed proportions, so none of its internal geometry may ride the
-       interface spacing ladder — that ladder was compressed to scale the chrome
-       down and would have moved this inset by 2dp along with it. Same reasoning
-       as `Type.caseTitle` and `Radius.caseImage` being pinned. */
-    paddingHorizontal: 8,
-    transform: [{ rotate: '90deg' }],
-  },
-  spineTitle: { fontFamily: FontFamily.semibold, flexShrink: 1 },
-  spineBrand: { fontFamily: FontFamily.bold, opacity: 0.85, letterSpacing: 0.5 },
   cover: { position: 'absolute', overflow: 'hidden' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   edition: {
@@ -271,8 +227,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    // Literal 4 for the same reason as `spineText` above — the ladder's atom
-    // happens to still be 4, but the case must not depend on that holding.
+    /* Literal 4, not `Spacing.x4`. The case is a depicted physical object with
+       fixed printed proportions, so none of its internal geometry may ride the
+       interface spacing ladder — that ladder was compressed to scale the chrome
+       down and would have dragged this inset with it. The atom happens to still
+       be 4, but the case must not depend on that holding. Same reasoning as
+       `Type.caseTitle` and `Radius.caseImage` being pinned. */
     paddingVertical: 4,
     alignItems: 'center',
   },

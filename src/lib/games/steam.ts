@@ -130,6 +130,7 @@ async function search(query: string, signal?: AbortSignal): Promise<GameSearchRe
         coverUrl: coverImage(item.id),
         heroUrl: headerImage(item.id),
         // storesearch does not return these; the detail screen fills them in.
+        releaseDate: null,
         releaseYear: null,
         developer: null,
         genres: [],

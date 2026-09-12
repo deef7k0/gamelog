@@ -92,8 +92,11 @@ export type SoftGlowProps = {
  *
  * Worth keeping, because every instinct here was wrong in the same direction —
  * each choice made the glow subtler, and three of them together made it nothing.
- * Measured against `#121212`, the brightest on-screen pixel was `#1A151E`: a
- * contrast ratio of **1.04:1**, which is not "faint", it is imperceptible.
+ * Measured against the page as it then was (`#121212`), the brightest on-screen
+ * pixel was `#1A151E`: a contrast ratio of **1.04:1**, which is not "faint", it
+ * is imperceptible. The page is `#14171b` now, so every number in this section
+ * is fractionally lower than stated — the argument is unaffected, but do not
+ * re-measure against these figures without recomputing them.
  *
  *  1. **The colour was too close to the page.** `#3A2050` is 1.34:1 at *full*
  *     opacity. A glow drawn in it cannot exceed that, and it never runs at full

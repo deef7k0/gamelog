@@ -6,6 +6,15 @@ and where it is going, read [PROJECT.md](PROJECT.md). For how it should **look**
 YAML frontmatter mirrors `src/constants/theme.ts` and is the normative layer.
 The conventions below are the code-level rules that follow from it.
 
+> **One design system, and DESIGN.md is it.** For a period this file pointed at
+> a light, boxy, 2010-era spec ("Social Playback") that the app never
+> implemented — its `scheme` was `light-only` against a hard-coded dark
+> `APP_SCHEME`, and 17 of the 18 token names the two shared held different
+> values. Anyone following the pointer built for the wrong app. That spec is
+> archived, unimplemented, at
+> [DESIGN_SOCIAL_PLAYBACK.md](DESIGN_SOCIAL_PLAYBACK.md); it is a record of a
+> direction that was considered, and nothing in it describes this codebase.
+
 ## Expo SDK 57 has changed — check the docs
 
 This project is on **Expo SDK 57 / React Native 0.86 / React 19.2**, which is
@@ -30,6 +39,7 @@ npm run web        # browser — see the Steam/CORS caveat below
 npx tsc --noEmit   # typecheck
 npx eslint src     # lint
 npx prettier --write "src/**/*.{ts,tsx}"
+npm test           # node:test — the Material 3 scheme generator
 ```
 
 Node is a portable install at `~/.local/node-v24.18.0-linux-x64/bin`, already on
@@ -44,9 +54,11 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    editor. Nothing works before this: there are no tables and every query 404s.
    `0001`–`0011` are already applied to the current project; `0012` onwards are
    not — without `0013` the Reviews/Collections/People tabs 404 on their RPCs
-   and collections cannot be liked, and without `0015`+`0016` an Award show
-   cannot be created at all.
-   `0006` and `0015` must each run **alone** — see the notes in those files.
+   and collections cannot be liked, without `0015`+`0016` an Award show
+   cannot be created at all, and without `0018` posting a comment on a
+   collection fails the CHECK on `comments.target_type`.
+   `0006`, `0015` and `0019` each add an enum value and must run **alone** —
+   see the notes in those files.
 3. Env vars are **inlined at build time**. After editing `.env`, restart with
    `npx expo start --clear` — a hot reload will not pick up the change.
 4. Deploy the IGDB Edge Function — it is now the app's **only** game source, so
@@ -72,7 +84,7 @@ not by `expo export`. A brand-new route file will fail typecheck until you run
 ```
 src/
   app/               Expo Router routes (file = route)
-    (tabs)/          home, search, create, notifications, profile
+    (tabs)/          home, search, news, profile
     game/[id]        game detail + reviews + action row
     log/[id]         create/edit a log (modal)
     achievements/[id]  per-game achievement list
@@ -82,27 +94,46 @@ src/
     award-edit/[id]    name an award, or say why it won (modal)
     comments/[type]/[id]  comment thread for a post or log
     profile/[id]     someone else's profile
-    new-list, edit-profile (modals)
+    new-list, edit-list/[id], edit-profile (modals)
+    settings         one real section: the games hidden from Surprise Me. It was
+                     deliberately empty for a long time and the argument in its
+                     docblock still stands — nothing goes here until it works
+    surprise         Surprise Me: one dealt game, one song from it
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
-                     ui/frosted-top-bar the app bar: blur + scrim, hides on scroll
+                     ui/frosted-top-bar a floating 44dp disc of glass holding the
+                                        back chevron. Not a bar; see § Conventions
                      award-show / award-slot  an award ballot, and one row of it
                      game-filter-bar    genre / platform / studio / year pills
                      game-lineage       original game / editions & extras
+                     game-insights      rating histogram, time to beat, events
+                     game-details-sheet the full IGDB record, behind a button
+                     add-to-collection  pick which collection a game joins
                      store-prices       where to buy, from IsThereAnyDeal
                      ui/soft-glow       Skia radial glow (+ .web.tsx fallback)
                      ui/scroll-ambience scroll-driven page gradient (+ .web.tsx)
-                     collection-mosaic  a collection's first four covers, 2x2
+                     collection-mosaic  a collection's first four covers, 2x2,
+                                        each square (SteamGridDB, IGDB crop below)
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels) and
                      stores.ts (storefront brand marks)
+  theme/
+    dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
+                        DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
+    dynamic-theme-provider  <DynamicThemeProvider> + useDynamicTheme()
   hooks/
     use-accent          the accent in force: house blue, or a game's own colour
+    use-album-art-color the seed for the above — native extractor on a dev build,
+                        pure-JS JPEG decoder in Expo Go. Never import
+                        react-native-image-colors statically; see § Conventions
     use-screen-chrome   what a page publishes to its top bar (Android blur
                         target, modal flag) + `useTopBarScroll()`
-    use-header-height   how much space the floating bar occupies
+    use-header-height   how much space the floating back disc occupies
     use-steam-artwork   Steam CDN URLs + the hashed-path fallback, cached 7 days
+    use-square-cover    a game's 1:1 cover from SteamGridDB, persisted to
+                        AsyncStorage. Returns `resolved` — do not draw the IGDB
+                        cover before it is true; that is the swap it prevents
   lib/
     color.ts         contrast, mixing, luminance-preserving tint, readable ink
     artwork-color.ts dominant hue of a cover, decoded from the real pixels
@@ -110,11 +141,12 @@ src/
                      steam-artwork.ts for Steam CDN covers (preferred over IGDB),
                      sort.ts for in-memory ordering, recommend.ts for
                      "Games for you" (your logs → IGDB similarity),
-                     itad.ts for storefront prices
+                     itad.ts for storefront prices,
+                     steamgriddb.ts for square (1:1) and per-platform cover
+                     art — artwork only, never a catalogue; see the note below
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements
-      feed.ts        the post+log union feed
-      posts.ts       posts, likes, comments
+      engagement.ts  likes and comments (was posts.ts)
       lists.ts       lists, tier lists, favourites, wishlist
       awards.ts      award shows: the ballot and its slots
       notifications.ts
@@ -129,9 +161,13 @@ supabase/
                      0009 gaming accounts, 0010 collection tags, 0011 diary,
                      0012 starred song, 0013 collection likes + ranking fns,
                      0014 chosen collection cover, 0015 awards list kind,
-                     0016 award categories, 0017 game editions
-                     (0006 and 0015 must each run alone — see those files)
+                     0016 award categories, 0017 game editions,
+                     0018 comments on collections,
+                     0019 captioned list kind
+                     (0006, 0015 and 0019 each add an enum value and must run
+                      alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
+  functions/opencritic/  per-outlet critic scores; IGDB has none
   functions/itad/    Edge Function proxying IsThereAnyDeal (prices)
 ```
 
@@ -162,6 +198,45 @@ game has a Steam listing, `<Poster steamAppId>` and `<HeroArt steamAppId>` show
 the publisher's own store assets instead — see the Steam CDN section below. The
 ladder is always **Steam → IGDB → lettered placeholder**, and the middle rung is
 load-bearing: half this catalogue is console-exclusive and has no appid at all.
+
+**SteamGridDB is the square rung, and it is artwork only.** IGDB publishes
+nothing at 1:1, so every square slot was cropping 2:3 box art — which is composed
+for 2:3, so the crop cuts the logo. `lib/games/steamgriddb.ts` is not a provider
+and must never become one: nothing there may put a game *into* the app, only art
+onto a game already in it.
+
+**Exactly three surfaces use it**, all through `useSquareCover()`: a profile's
+Reviews tab (`<ReviewListRow>`, 80dp), the collection mosaic
+(`<CollectionMosaic>`, per tile) and Surprise Me. The mosaic is the one where the
+crop was *structural* — every quarter of that shape is a square. **The rows
+inside a collection are not a square surface** and keep portrait box art; square
+art belongs to the mosaic shape, not to collections.
+
+**There is no per-platform lookup, and rebuilding one against this API will not
+work.** The game page briefly asked for the selected platform's own box front.
+`/grids/{platform}/{id}` takes *store* slugs — `steam`, `gog`, `egs`, `origin`,
+`eshop` — not console families, so `playstation` and `xbox` had no endpoint to
+resolve against and every console tap spent a request to fall back to the cover
+it already had. The switcher re-draws the case's spine, the price and the store
+link; the artwork is IGDB's.
+
+Resolution is Steam appid, then a title search, because `games.source_id` is an
+IGDB id and SteamGridDB does not index IGDB; the title path is a string match and
+its docblock says what that costs. Everything returns `null` on a miss and
+**every caller must have an IGDB fallback** — `null` is the normal answer, not an
+error. No `EXPO_PUBLIC_SGDB_API_KEY` means no requests at all and every slot keeps
+the IGDB cover. Requests are capped at four in flight (`MAX_CONCURRENT`): the
+square lookup is per *tile*, so a Collections tab is eighty of them leaving at
+once, and a 429 is indistinguishable from "no art" once it has been cached.
+
+**`useSquareCover()` returns `{ uri, resolved }` and callers must honour
+`resolved`.** Drawing the IGDB cover while the answer is unknown is what made
+every square slot paint a portrait and then swap it for a square, on every mount,
+forever — a query cache does not survive a cold start. The hook is a module store
+persisted to AsyncStorage (mirroring `use-steam-artwork`) and **caches the misses
+too**, so a game resolves before its first paint on every sighting after the
+first. While `resolved` is false, show a skeleton or the container's own fill —
+anything that is not a *different piece of artwork*.
 
 ## Steam CDN artwork
 
@@ -329,13 +404,30 @@ into one call and persists the result for 7 days.
 - **Reanimated shared values**: use `.get()` / `.set()`, never `.value =`. The
   React Compiler rules flag assignment to `.value` as mutating a captured
   binding; the accessors behave identically. See `ui/pressable-scale.tsx`.
+- **Two families, and the line between them is a rule.** Inter is the
+  *interface*: every label, button, tab, count and caption. **Source Serif 4 is
+  reviews and nothing else** — a review's game title, its prose, and its excerpt
+  in a feed card. The seven `review*` steps in `Type` are the serif's whole
+  extent; reaching for one outside a review surface spends the distinction for
+  nothing. The brief this came from names Tiempos and Graphik, both commercial
+  and unshippable; Source Serif 4 and Inter are the open stand-ins. Every weight
+  is its own family name — Android synthesises neither bold nor oblique from a
+  custom font, so `fontWeight: '700'` on Inter silently renders regular.
+  `proseInk` is the serif's ink: quieter than `textSecondary`, because a thousand
+  words at interface brightness is a wall.
+- **The fixed-colour surface ladder is on the page's hue.** `surface`
+  (`#181C1F`), `surfaceElevated`, `surfaceSelected`, `input` and `skeleton` were
+  neutral greys on a cool near-black page; they now share its hue at their own
+  original lightness, so the ladder's *spacing* is untouched and only its
+  temperature moved. Nothing on a game's own screens uses any of it — those
+  derive their surfaces from the artwork through `accentRoles`.
 - **Typography** goes through `<Text variant="…">` from `components/ui/text`,
-  not raw `<Text>`. `Type` in `constants/theme.ts` is what currently ships;
-  **DESIGN.md § 2 is the specified scale and the code has not been migrated to
-  it yet** (`h1`–`h6`, `label`, `button`, an 11px caption). Follow DESIGN.md for
-  new work and check § 26.2 for the per-variant diff before adding a variant.
-  The same applies to `Radius`: DESIGN.md § 5 specifies 4–6px where the code
-  still ships 12–24px.
+  not raw `<Text>`. `Type` in `constants/theme.ts` and DESIGN.md's `typography:`
+  frontmatter now agree, so either is safe to read and neither needs migrating.
+  They did not agree for a long while, and the note that used to sit here sent
+  new work at a *different* scale on purpose — that instruction is gone because
+  the spec it pointed at is no longer the one this app is built on. Same for
+  `Radius`: the frontmatter's `rounded:` block matches what ships.
 - **Elevation, not borders.** Reach for `Elevation.card` before a `borderWidth`.
 - **`Spacing.x*` names are step names, not dp values.** The ladder was
   compressed to scale the chrome down — `x16` is 12, `x24` is 18, `x48` is 36.
@@ -369,6 +461,25 @@ into one call and persists the result for 7 days.
   schema: every one of them, Game of the Year included, can be renamed,
   reordered and deleted, and `create_awards_list()` exists so a show can never
   arrive with half a ballot.
+- **A captioned board is a fifth kind of list, and the caption is the content.**
+  `kind = 'captioned'` renders three across with each cover under a line of the
+  owner's own text — "Games that should… get a remake / be a TV show". The text
+  lives in `list_items.note`, a 300-character column that has existed unused
+  since 0003, so 0019 adds a *kind* and nothing else; see that file for why it
+  reuses `note` rather than adding a `caption` column. No sort row: the
+  arrangement is authored, so re-ordering it by release year is not a view of the
+  same thing.
+- **IGDB has no per-outlet critic scores.** `aggregated_rating` is one averaged
+  number and a count — nothing in the schema says "IGN gave this 90". The named
+  outlets come from OpenCritic through `functions/opencritic`, which needs
+  `OPENCRITIC_API_KEY`; undeployed, `getCriticReviews` returns empty and the
+  section is absent, exactly as ITAD prices are. The title is the only join
+  available, so the match threshold is deliberately tight — a near-miss would
+  print another game's reviews under this game's name.
+- **`ratingVerdict()` grades a distribution; `labelFor()` grades one score.**
+  They share a scale and make different claims, which is why the superlative
+  bands ("Overwhelmingly Positive") need `CONSENSUS_FLOOR` ratings behind them.
+  Three ratings of 95 is three people, not a consensus.
 - **A remake is not the game, and the catalogue says so.** IGDB models this two
   ways and both are read: `game_type` for a release with its own catalogue entry
   (remake, remaster, port, DLC, expansion) and `version_parent` for a repackage
@@ -397,26 +508,42 @@ into one call and persists the result for 7 days.
   big one showing the *same four covers*, which is why both read items in
   `position` order rather than using the owner's chosen `cover_game_id` — that
   still picks `preview`, which is a different question ("what represents this")
-  from what the mosaic answers ("what is in this").
+  from what the mosaic answers ("what is in this"). **Each tile is square art,
+  not a square crop** — this is the shape where the crop was structural, since
+  every quarter of it is a 1:1 slot. `<Tile>` resolves its own cover through
+  `useSquareCover()` and falls back to the cropped IGDB cover per tile, so a
+  mixed collection draws some composed squares and some crops rather than waiting
+  on the slowest lookup or refusing the feature to every game SteamGridDB has not
+  heard of. The rows *inside* a collection are a list of games and keep portrait
+  box art.
 - **Three ways to show a game, and they are not interchangeable.** `<GameCase />`
   on a game's own page; `<GameListItem />` for a row that needs a surface behind
   it (search results, feeds); `<CoverTile />` for a grid where the artwork *is*
   the screen — the Top 10, the News chart. A CoverTile has no card, no pill and
   no badge on purpose: wrapping covers in the app's rounded containers turns a
   wall of art into a list of buttons with pictures on them.
-- **There is no native header anywhere.** `app/_layout.tsx` and
-  `app/(tabs)/_layout.tsx` both set `headerShown: false`, and every screen draws
-  its own `<FrostedTopBar>` through `<Screen topBar={…}>`. Three things the
-  native header could not do, and all three were the point: it cannot be blurred
-  (`headerBackground` renders inside the platform bar, which is not a sibling of
-  the page and so cannot be handed Android's `BlurTargetView`); it cannot be
-  animated (`@react-navigation/native-stack` has no `header` option and
-  Reanimated cannot translate a platform view); and its back affordance was a
-  chevron on iOS and an arrow on Android. The cost is that a screen now states
-  its own title instead of inheriting one from the layout — which is also the
-  gain, because a dynamic title used to be declared in two places.
-- **The bar is a layer, not a surface.** Blur, then a 30% scrim, then the content
-  row — no `backgroundColor`, ever. It has nothing of its own to show; it softens
+- **There is no header anywhere — native or otherwise.** `app/_layout.tsx` and
+  `app/(tabs)/_layout.tsx` both set `headerShown: false`, and `<FrostedTopBar>`
+  is no longer a bar: it is a **44dp disc of frosted glass holding a back
+  chevron**, floated over the page through `<Screen topBar={…}>`. The full-width
+  version cost `inset + 56` — about 111dp, 13% of an 844pt display — to carry one
+  word and one chevron, and it blurred the top of every piece of key art in an
+  app whose subject is artwork.
+  **Screens therefore have no title and must state their own heading in
+  content** if they open on a list or a form rather than on art; `award-edit` and
+  `award-game` are the worked examples. `title`, `subtitle`,
+  `revealTitleOnScroll` and `hideOnScroll` no longer exist as props — do not
+  reintroduce them. Right-hand controls go through the exported `<TopBarDisc>`
+  so both ends of the row are the same object; an `<IconButton>` there would be a
+  rounded rectangle on a fill beside a circle of glass.
+  **Two screens carry no bar at all**: both profiles' owner tab and Home. Home
+  instead opens with an *in-flow* masthead row — wordmark, greeting, notification
+  bell, settings — which scrolls away with the content because a root tab has
+  nothing to go back to and a floating layer there would be reserving space for
+  two icons.
+- **The bar is a layer, not a surface.** Blur, then a scrim (22% on the disc,
+  lighter than the old bar's 30% because it only has to carry one glyph), then
+  the glyph — no `backgroundColor`, ever. It has nothing of its own to show; it softens
   what the page put behind it, which is why a page's ambience (`<SoftGlow>`,
   `<ScrollAmbience>`) belongs in `<Screen backdrop>` and never in the bar. Giving
   the bar its own gradient would put two ramps in the same column meeting at its
@@ -429,13 +556,13 @@ into one call and persists the result for 7 days.
   Top 10) let content run underneath, and everything else passes
   `<Screen insetHeader>`. Modals additionally pass `<Screen modal>` — an iOS sheet
   starts below the status bar and must not be inset again; see `useTopBarInset`.
-- **Hide on scroll is opt-in per screen, and several screens decline.** Wire it
-  with `useTopBarScroll()` → `<FrostedTopBar scrollY>` plus `onScroll` +
-  `scrollEventThrottle={16}` on the page's *one* main scroller. Reading screens
-  take it. Screens whose bar names the thing a tab bar underneath just switched
-  (News, Search, Library, Diary) and screens with a pinned composer (Comments,
-  Create, the modals) deliberately do not: a header that slides away there takes
-  the only label saying where you are with it.
+- **Nothing hides on scroll any more.** The disc is small enough to stay put, and
+  a back affordance that slides out of reach is a trap rather than a saving.
+  `useTopBarScroll()` survives as a general-purpose UI-thread scroll offset —
+  Home's ambient glow fades against it — but the bar does not read it, and
+  roughly a dozen screens still call it and use nothing from it. That is an inert
+  worklet write per frame: harmless, dead, and worth deleting the next time you
+  are in one of those files.
 - **Gradients end on `withAlpha(colour, 0)`, never `'transparent'`.**
   `expo-linear-gradient` interpolates through black on Android, so fading to the
   keyword leaves a grey bruise mid-ramp. `withAlpha` is in `constants/theme.ts`.
@@ -450,6 +577,77 @@ into one call and persists the result for 7 days.
   Steam library is the exception and sorts in Postgres via `LibrarySort`,
   because it can be nine hundred rows. Sorting is a view: never write the new
   order back, and read a ranked collection's numbers from its stored sequence.
+- **A game's screens run Material 3 dynamic colour, seeded by its box art.**
+  `theme/dynamic-color.ts` turns one seed hex into the twenty-three M3 roles via
+  `DynamicScheme` + `Variant.TONAL_SPOT`. **The tones are read off the palettes,
+  not off the scheme's getters** — those implement whichever M3 spec revision the
+  library defaults to (2021 today, whose dark `surfaceContainer` is tone 12, not
+  the 20 this app wants), so `ROLES` in that file is the single statement of what
+  the colours are and survives a library upgrade.
+  `accentRoles(hue, { tonal: true })` is the bridge: it renames M3's roles onto
+  the app's ten so the twenty-odd components already reading `accent.card` or
+  `accent.elevated` got M3 colours without being edited —
+  `page`→`background`, `card`→`surfaceContainer`, `elevated`→`surfaceContainerHigh`,
+  `color`→`primary`, `ink`→`onPrimary`, `quietInk`→`onSurfaceVariant`. The full
+  set is on `accent.m3` for the roles the ten have no name for
+  (`primaryContainer`, the secondary/tertiary families, `outlineVariant`).
+  **The masthead's selected states are `primaryContainer`, not `primary`**: the
+  review button is the one filled `primary` on the screen, and a lit action key
+  or platform key wearing the same tone would be a second primary action.
+  `tonal: false` is the **house blue** and is unchanged — `primary` is a chosen
+  brand colour on a fixed grey `background`, not a measurement, so the forty
+  screens off a game page move not at all.
+  `npm test` asserts every role is a valid hex and that every ink/surface pair
+  clears 4.5:1, across six seeds and both modes. Run it after touching `ROLES`.
+- **`react-native-image-colors` must never be imported statically.** Its entry is
+  a bare `requireNativeModule('ImageColors')` evaluated at import scope, and Expo
+  Go ships only Expo SDK modules — so a static import throws while the module is
+  *evaluating* and takes down everything that transitively imported it, exactly
+  as `expo-notifications` did. `use-album-art-color.ts` loads it with a lazy
+  `import()` behind a latching availability flag and falls back to
+  `lib/artwork-color.ts` (pure-JS `jpeg-js`, works anywhere). Dev builds get the
+  native extractor; Expo Go gets the decoder; neither branch is a degraded mode.
+- **The game page and Surprise Me have no gradient.** `<ScrollAmbience>` is gone
+  from both; they fill flat with `<Screen background={accent.page}>`. The
+  gradient put the page's brightest colour directly behind the masthead, so
+  every control there was competing with a backdrop made of its own hue — which
+  is why so many notes in those files read "this measures 2.02:1 on the
+  brightest stop". A flat page is a known quantity and gives the accent seven
+  tone steps of headroom. Do not reintroduce it there; `<SoftGlow>` on Home is
+  unaffected.
+- **The game page's Overview tab is cards, and `<InfoCard>` is the one
+  implementation.** Every section on it — About, Studios, Reviews, the insight
+  widgets, Where to buy, Editions, Franchise, Achievements, the diary — is
+  an `<InfoCard>` (read) or an `<InfoCardButton>` (a door), each stating its own
+  subject in an `h6` title. **Screenshots is the deliberate exception**: the art
+  is the content and a frame around a frame is a box in a box. `Radius.cardLarge`
+  (18) is theirs alone and is deliberately far from `Radius.control` (6) — a
+  container must not share the corner of the buttons inside it.
+- **A hidden game is a promise, not a preference.** Double-tapping a cover in
+  Surprise Me writes it to `lib/surprise-hidden.ts` and it never comes up again.
+  **The card does not change when you hide it** — the gesture means "not in
+  future", not "next please", so the game stays on screen and fully usable, a
+  panel says so over the artwork for `NOTICE_MS`, and moving on stays the
+  reader's choice. `excludeHidden` therefore runs inside `getSurpriseBatch` and
+  **never over `batch.data` in the screen**; re-filtering there is what made the
+  deck shorten under the cursor.
+  `excludeHidden` is deliberately unlike `excludeLogged` beside it: that one
+  abandons its filter rather than return an empty batch, which is right for
+  "exclude games I've played" and wrong for an instruction given about one
+  specific game. It is applied **last**, after every other filter, to every mode
+  including `foryou`, and the only way back is the list in `app/settings.tsx`.
+  The list is keyed `['surprise-hidden', userId]` and both writers `setQueryData`
+  with the whole new list rather than invalidating — the store is a single
+  AsyncStorage value, so the write already knows the answer.
+- **Surprise Me's filters are catalogue filters, and `foryou` says so.** Genre,
+  perspective and minimum rating become a `where` clause in `getSurprisePool`;
+  "Based on my games" issues no such query, so `<SurpriseSettings>` replaces the
+  whole group with one line explaining why rather than leaving it inert. Genres
+  and perspectives match as **any of** (`(a,b)` in APIcalypse, never `{a,b}`) —
+  ticking more boxes must widen, or a third genre silently empties the pool.
+  Perspective ids are a local literal in `constants/player-perspectives.ts`
+  because `player_perspectives` is **not** on the Edge Function's allowlist;
+  genres are fetched, under the key `<GenreGrid>` already uses.
 - **`<Link asChild>` needs a flattened `style` on its child.** Expo Router clones
   that child and throws rather than guess precedence when `style` is an array —
   "You are passing an array of styles to a child of `<Slot>`". Wrap it:
@@ -580,6 +778,33 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   ticks. Only Steam can be genuinely synced, via a Steam Web API key plus a
   public profile — and Steam's API returns an *error*, not an empty list, when
   the profile is private.
+- **A platform family is not an IGDB platform.** IGDB publishes 200+ platforms;
+  `PlatformKey` collapses them onto ~35 families a player would actually name,
+  through the substring table in `constants/platform-cases.ts`. **Order in
+  `PATTERNS` is load-bearing and a mistake there is silent** — every entry is a
+  valid key, so nothing type-errors. Two traps already caught: `'nes'` matches
+  inside "Ge**nes**is", so the Sega row must precede the NES row; and a bare
+  `'xbox'` is the *original* console, so "xbox series"/"xbox one" go first.
+  Verify a change by sweeping real IGDB platform names through `platformKeyFor`,
+  not by reading the table. An unmatched name becomes `other` rather than being
+  dropped — silently discarding it made the switcher claim a game was PC-only.
+  **Only the four console families have cases**; everything else renders the bare
+  cover, and `externalCategory`/`storeLabel` are `null` unless the id has been
+  verified against the live API, because a wrong one sends people to the wrong
+  storefront.
+- **Three IGDB endpoints beyond `games`.** `game_time_to_beat` is keyed on
+  `game_id` and returns **seconds** (not minutes — that guess puts every game at
+  60× its length); `events` is filtered on its own `games` array, since IGDB
+  exposes that join in one direction only and there is no `game.events` field to
+  add to `GAME_FIELDS`. `age_ratings` and `language_supports` moved from integer
+  enums to referenced rows — expand `rating_category.rating`,
+  `organization.name` and `language.name`, or a client mapping the old integers
+  gets nothing back and no error.
+- **The rating breakdown is the app's own scores, never IGDB's.** The masthead
+  already carries IGDB's aggregate as `COMMUNITY`; `getRatingBreakdown` reads
+  `logs.rating` and is a separate query from `getGameReviews` on purpose — that
+  one caps at 50 rows and joins profiles because it renders cards, so tallying it
+  would print "up to fifty" as the total.
 - **IGDB has no achievement data at all.** Every game added through search now
   shows zero achievements. Only legacy `steam:` rows and games matched out of a
   linked Steam account still resolve definitions — the game page treats an empty
@@ -616,14 +841,36 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   it to type embedded selects (`select('*, profile:profiles(*)')`). Leave it `[]`
   and every embed resolves to `SelectQueryError` instead of the joined row. Add
   an `FK<…>` entry for each foreign key you actually embed across.
-- **Likes and comments are polymorphic** over `(target_type, target_id)`. Likes
-  work on posts, logs **and lists**; comments still only on posts and logs, so
-  the two CHECK constraints deliberately differ. Postgres cannot FK a
-  polymorphic column, so integrity is enforced by the `assert_target_exists`
-  trigger — extend that function whenever you widen a CHECK, or a like can point
-  at a row that does not exist. `TargetType` is declared **once**, in
-  `database.types.ts`; `api/types.ts` re-exports it. It was declared twice, and
-  the copy silently kept `list` out of the barrel.
+- **Likes and comments are polymorphic** over `(target_type, target_id)`, and
+  since 0018 both work on logs **and lists** — the two CHECK constraints used to
+  differ deliberately and no longer do. Postgres cannot FK a polymorphic column,
+  so integrity is enforced by the `assert_target_exists` trigger. **Widening a
+  CHECK means checking three things, not one**, which is what 0018 exists to
+  demonstrate: `assert_target_exists` (or a like/comment points at a row that
+  does not exist), `notifications.target_type`'s own CHECK (or the AFTER INSERT
+  notification trigger raises 23514 and takes the comment down with it, in the
+  same transaction, reporting the wrong table), and `target_owner()` (or the
+  recipient resolves to null and *nobody is notified*, silently — which is
+  exactly what happened to every like on a collection between 0013 and 0018).
+  `TargetType` is declared **once**, in `database.types.ts`; `api/types.ts`
+  re-exports it. It was declared twice, and the copy silently kept `list` out of
+  the barrel.
+- **Emphasis in user-written text goes through `<RichText>`**, which understands
+  `**bold**`, `*italic*` and `***both***` and nothing else. It is deliberately
+  not markdown — see the component's own docblock for why headings, links and
+  images are each a liability here. Italic is a **family** (`FontFamily.italic`),
+  never `fontStyle: 'italic'`: a custom font has no oblique for Android to
+  synthesise, so the property is the same silent no-op `fontWeight` is.
+- **User posts and articles were removed from the app.** The composer, the
+  article reader, `PostCard`/`ArticleCard`, `MediaCarousel`, the post+log union
+  feed and the whole post API are gone; `posts.ts` became `engagement.ts`
+  because likes and comments were never part of that feature. **The `posts` and
+  `post_media` tables still exist** — nothing was dropped and no migration was
+  written — and `TargetType` no longer includes `'post'` even though the column
+  and its CHECK still accept it. Two things that survive and are easy to confuse
+  with it: **the wall** (`wall_posts`, a different table, still live) and
+  **News** (`lib/news/`, RSS from real outlets, which has its own `ArticleCard`
+  in `news-cards.tsx`).
 - **Notifications are written by triggers, never by the client.** There is
   deliberately no INSERT policy on `notifications`; only the SECURITY DEFINER
   functions in 0003 can create them, so a user cannot forge one.

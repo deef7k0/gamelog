@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
+import { memo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { gridItemWidth } from '@/components/gaming/game-tile';
@@ -23,7 +24,9 @@ const FAVORITE_GAP = Spacing.x8;
  * hands the favourites row the full page width it needs.
  */
 
-export function FavoritesWidget({
+/* Memoised: `items` comes through a shared empty-array constant while the
+ * query is pending, so a loading profile does not defeat the compare. */
+export const FavoritesWidget = memo(function FavoritesWidget({
   items,
   listId,
   isSelf,
@@ -54,16 +57,28 @@ export function FavoritesWidget({
     <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.widgetHead}>
         <View style={styles.widgetTitle}>
-          <Ionicons name="star" size={13} color={theme.primaryText} />
-          <Text variant="caption" color="textSecondary">
-            FAVOURITES
-          </Text>
+          <Ionicons name="star" size={14} color={theme.primaryText} />
+          {/* `h5`, not `caption`. This block is the profile's focal moment —
+              four games the person chose — and it was labelled at 10px, the
+              smallest step in the type scale, while a decorative banner took a
+              third of the screen. Sentence case rather than caps for the same
+              reason: it is a section title, not a metadata tag. */}
+          <Text variant="h5">Favourites</Text>
         </View>
 
         {isSelf && listId && (
           <Link href={{ pathname: '/list/[id]', params: { id: listId } }} asChild>
-            <PressableScale accessibilityRole="button" scaleTo={0.9}>
-              <Text variant="caption" color="primaryText">
+            {/* The only route to changing your top four, and it measured
+                13dp tall by ~20dp wide — no style, no `minHeight`, no
+                `hitSlop`. `hitSlop` rather than padding so the mark stays
+                small while the target clears the floor. */}
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Edit favourites"
+              scaleTo={0.9}
+              hitSlop={Spacing.x16}
+              style={StyleSheet.flatten([styles.editLink])}>
+              <Text variant="bodySmall" color="primaryText">
                 Edit
               </Text>
             </PressableScale>
@@ -116,7 +131,7 @@ export function FavoritesWidget({
       )}
     </View>
   );
-}
+});
 
 /**
  * Achievements widget.
@@ -198,6 +213,10 @@ const styles = StyleSheet.create({
   },
   widgetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   widgetTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  /* Padding on the horizontal only. The heading row's height is set by the
+     title beside it, so growing this vertically would push the whole row down;
+     `hitSlop` covers the remaining vertical reach instead. */
+  editLink: { paddingHorizontal: Spacing.x8 },
   posters: { flexDirection: 'row', gap: FAVORITE_GAP },
   emptySlot: {
     borderRadius: Radius.image,

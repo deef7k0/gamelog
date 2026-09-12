@@ -15,7 +15,7 @@ import { Palette } from '@/constants/theme';
 /**
  * The page background, as a diagonal gradient that darkens as you scroll.
  *
- * Replaces the flat `#121212` on a game's own screen. Three stops run from the
+ * Replaces the flat `background` on a game's own screen. Three stops run from the
  * top-left corner to the bottom-right, in the colour read out of that game's box
  * art, and the whole ramp descends toward the page colour as the scroll position
  * advances — so the top of the page is lit and the bottom of a long page is the

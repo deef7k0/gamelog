@@ -140,6 +140,7 @@ async function search(term: string, signal?: AbortSignal): Promise<GameSearchRes
       title: game.title,
       coverUrl: game.coverUrl,
       heroUrl: game.heroUrl,
+      releaseDate: game.releaseDate,
       releaseYear: game.releaseYear,
       developer: game.developer,
       genres: game.genres,

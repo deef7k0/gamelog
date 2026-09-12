@@ -29,7 +29,7 @@ export default function AchievementsScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const userId = useAuth((state) => state.session?.user.id);
   const steamId = useAuth((state) => state.profile?.steam_id);
 
@@ -88,7 +88,7 @@ export default function AchievementsScreen() {
 
   if (game.isLoading || achievements.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Achievements" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
     );
@@ -96,7 +96,7 @@ export default function AchievementsScreen() {
 
   if (achievements.isError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Achievements" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={achievements.error} />
       </Screen>
     );
@@ -110,12 +110,7 @@ export default function AchievementsScreen() {
 
   return (
     <AccentProvider artwork={game.data?.coverUrl ?? game.data?.heroUrl} genres={game.data?.genres}>
-      <Screen
-        edges={['bottom']}
-        insetHeader
-        topBar={
-          <FrostedTopBar title={game.data?.title ?? 'Achievements'} back scrollY={scrollY} />
-        }>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <Animated.FlatList
           data={list}
           onScroll={onScroll}

@@ -1,9 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { SectionHeader } from '@/components/ui/surface';
+import { InfoCard } from '@/components/ui/info-card';
 import { Text } from '@/components/ui/text';
 import { storeBrand, storeInitial } from '@/constants/stores';
 import { Radius, Spacing, readableInk } from '@/constants/theme';
@@ -97,30 +97,29 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
   const hidden = list.length - shown.length;
 
   return (
-    <View style={styles.section}>
-      <SectionHeader
-        title="Where to buy"
-        action={
-          /* The cheapest number, repeated in the heading. The row below is
-             horizontally scrollable, so the best price can be off-screen at
-             rest — and "from $9.99" is the one fact worth reading without
-             scrolling. */
-          <Text variant="bodySmall" color="textMuted">
-            from {formatPrice(best.amount, best.currency)}
-            {hidden > 0 ? ` · ${shown.length} of ${list.length}` : ''}
-          </Text>
-        }
-      />
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.row}>
+    <InfoCard
+      title="Where to buy"
+      action={
+        <Text variant="bodySmall" color="textMuted">
+          from {formatPrice(best.amount, best.currency)}
+          {hidden > 0 ? ` · ${shown.length} of ${list.length}` : ''}
+        </Text>
+      }>
+      {/*
+        A stacked list, not a horizontal rail.
+ 
+        The rail existed because each storefront was a card and eight cards do
+        not fit across a phone. With the cards gone they are rows, and rows read
+        down — which is also the shape that lets you compare two prices without
+        scrolling one of them off the screen, the only thing anybody is doing
+        here.
+      */}
+      <View style={styles.list}>
         {shown.map((deal) => (
           <StoreButton key={`${deal.shopId}:${deal.url}`} deal={deal} />
         ))}
-      </ScrollView>
-    </View>
+      </View>
+    </InfoCard>
   );
 }
 
@@ -153,10 +152,17 @@ function StoreButton({ deal }: { deal: StorePrice }) {
         });
       }}
       scaleTo={0.96}
-      style={StyleSheet.flatten([
-        styles.button,
-        { backgroundColor: theme.surface, borderColor: theme.border },
-      ])}>
+      /*
+        No fill and no border — a row, not a card.
+ 
+        These sit inside the "Where to buy" `<InfoCard>`, and giving each one its
+        own surface made a card of cards: eight nested rectangles inside a ninth,
+        which is the pattern the whole Overview tab was just cleared of. The
+        storefront's own brand mark on the left is already a strong enough
+        leading edge to separate one row from the next, and the card around them
+        is what says they belong together.
+      */
+      style={styles.button}>
       <View style={[styles.mark, { backgroundColor: brand.color }]}>
         {brand.icon ? (
           <Ionicons name={brand.icon} size={18} color={ink} />
@@ -189,7 +195,7 @@ function StoreButton({ deal }: { deal: StorePrice }) {
         <View style={styles.cutContainer}>
           {/* Opaque, for the same reason as the masthead's copy of this badge:
               a 15% wash of its own hue has no fixed background on a page lit by
-              `<ScrollAmbience>`, so its contrast was whatever the gradient was
+              the page's gradient, so its contrast was whatever that happened to be
               doing underneath. */}
           <View style={[styles.cut, { backgroundColor: theme.surface }]}>
             <Text variant="label" style={{ color: theme.success }}>
@@ -208,18 +214,12 @@ function StoreButton({ deal }: { deal: StorePrice }) {
 }
 
 const styles = StyleSheet.create({
-  section: { gap: Spacing.x12 },
-  /* Cancels the page's own padding so the row can scroll to both edges — the
-     same trick the game rails use. */
-  row: { gap: Spacing.x8, paddingRight: Spacing.x16 },
+  list: { gap: Spacing.x4 },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.x8,
-    padding: Spacing.x8,
-    paddingRight: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x8,
   },
   mark: {
     width: MARK,

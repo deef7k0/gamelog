@@ -47,7 +47,7 @@ const SORTS = gameSortOptions(['newest', 'oldest', 'rating', 'title']);
  */
 export default function StudioScreen() {
   const { width } = useWindowDimensions();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const companyId = Number(id);
   const [sort, setSort] = useState<GameSort>('newest');
@@ -65,17 +65,14 @@ export default function StudioScreen() {
 
   if (!Number.isFinite(companyId)) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Studio" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <EmptyState title="Studio not found" />
       </Screen>
     );
   }
 
   return (
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title={name ?? 'Studio'} back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={ordered}
         onScroll={onScroll}

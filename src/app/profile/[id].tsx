@@ -7,12 +7,14 @@ import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 
 export default function ProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
 
   return (
-    /* No title: the banner runs under the bar and the person's name is the
-       first thing below it. The chevron is the only thing this bar owes you. */
-    <Screen edges={[]} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+    /* Someone *else's* profile keeps the back disc — unlike the Profile tab,
+       this one was pushed and there is somewhere to return to. The banner runs
+       underneath it and the name is the first thing below, so the disc is the
+       only chrome the screen needs. */
+    <Screen edges={[]} topBar={<FrostedTopBar back />}>
       {id ? (
         <ProfileView profileId={id} onScroll={onScroll} />
       ) : (

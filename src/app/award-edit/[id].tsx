@@ -75,12 +75,7 @@ export default function AwardEditScreen() {
   return (
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. */
-    <Screen
-      edges={['bottom']}
-      padded
-      insetHeader
-      modal
-      topBar={<FrostedTopBar title={title} dismiss />}>
+    <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -88,6 +83,11 @@ export default function AwardEditScreen() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
+          {/* The page states its own heading. The top bar carries a back disc
+              and nothing else now, so a screen that opens on a form rather than
+              on artwork has to say what it is — see `<FrostedTopBar>`. */}
+          <Text variant="h1">{title}</Text>
+
           {ready && (
             <AwardForm
               key={initial}

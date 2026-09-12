@@ -118,8 +118,7 @@ export type ProfileAchievementStats = {
 
 // --- 0003_social.sql --------------------------------------------------------
 
-export type PostKind = 'post' | 'recommendation' | 'screenshot' | 'question' | 'article';
-export type ListKind = 'list' | 'favorites' | 'tier' | 'wishlist' | 'awards';
+export type ListKind = 'list' | 'favorites' | 'tier' | 'wishlist' | 'awards' | 'captioned';
 export type NotificationKind =
   'like' | 'comment' | 'follow' | 'reply' | 'friend_request' | 'friend_accepted' | 'wall_post';
 
@@ -151,18 +150,6 @@ export type WallPostRow = {
 // --- 0007_events_and_articles.sql -------------------------------------------
 
 export type AttendanceMode = 'livestream' | 'in_person';
-
-/** Closed vocabulary — see the CHECK constraint on posts.tags. */
-export type ArticleTag =
-  | 'guide'
-  | 'discussion'
-  | 'game-theory'
-  | 'retrospective'
-  | 'why-you-should-play'
-  | 'review'
-  | 'news'
-  | 'opinion'
-  | 'tier-list';
 
 export type EventRow = {
   id: string;
@@ -210,39 +197,20 @@ export type ReviewMetrics = Partial<Record<ReviewMetricKey, number>>;
  * What a like or a comment points at.
  *
  * `list` is likes-only — collections are likeable but not commentable, and the
- * CHECK on `comments.target_type` still allows only the first two. Keeping one
- * union means a comment call with a list id is a *runtime* rejection rather
- * than a compile error; `LIKE_ONLY_TARGETS` below is the reminder.
+ * CHECK on `comments.target_type` still allows only `log`. Keeping one union
+ * means a comment call with a list id is a *runtime* rejection rather than a
+ * compile error; `LIKE_ONLY_TARGETS` below is the reminder.
+ *
+ * **`post` is gone from the client, not from the database.** The columns are
+ * still `text` with a CHECK that accepts it, and rows written before user posts
+ * were removed still carry it. Narrowing the type here is what stops new code
+ * pointing a like at a target the app can no longer render; it is deliberately
+ * not a schema claim.
  */
-export type TargetType = 'post' | 'log' | 'list';
+export type TargetType = 'log' | 'list';
 
 /** Target types that accept likes but not comments. */
 export const LIKE_ONLY_TARGETS: readonly TargetType[] = ['list'];
-
-export type PostRow = {
-  id: string;
-  user_id: string;
-  body: string;
-  kind: PostKind;
-  game_id: string | null;
-  /** Required for articles, null for short posts. */
-  title: string | null;
-  tags: ArticleTag[] | null;
-  /** Blurs the body in previews until the reader opts in. */
-  has_spoilers: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type PostMediaRow = {
-  id: string;
-  post_id: string;
-  url: string;
-  kind: 'image' | 'video';
-  width: number | null;
-  height: number | null;
-  position: number;
-};
 
 export type LikeRow = {
   user_id: string;
@@ -357,6 +325,44 @@ export type StarredSongRow = {
   game_title: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// --- 0020_soundtrack_cache.sql ----------------------------------------------
+
+/**
+ * One track inside a cached soundtrack, as stored in `game_soundtracks.tracks`.
+ *
+ * Structurally a `SoundtrackPick` from `lib/soundtracks.ts`, restated here
+ * because this is the JSON shape on the wire and that one is the app's type.
+ * They are checked against each other by `toSoundtrack()` in
+ * `lib/api/soundtracks.ts`, which is the single place the two meet.
+ */
+export type CachedTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  trackNumber: number | null;
+  durationMs: number | null;
+  previewUrl: string | null;
+  /** Apple Music page for the single track. */
+  trackUrl: string | null;
+  /** Position in a popularity-ordered search; null for tracks it did not surface. */
+  popularityRank: number | null;
+};
+
+export type GameSoundtrackRow = {
+  /** The app-wide game id. Not a foreign key — see the note in migration 0020. */
+  game_id: string;
+  game_title: string;
+  /** False records a completed lookup that came back empty, not a failed one. */
+  found: boolean;
+  album_id: string | null;
+  album_title: string | null;
+  artist: string | null;
+  artwork_url: string | null;
+  external_url: string | null;
+  tracks: CachedTrack[];
+  fetched_at: string;
 };
 
 // --- 0009_gaming_accounts.sql -----------------------------------------------
@@ -589,31 +595,6 @@ export type Database = {
         Update: Partial<UserAchievementRow>;
         Relationships: [];
       };
-      posts: {
-        Row: PostRow;
-        Insert: Insert<
-          PostRow,
-          | 'id'
-          | 'created_at'
-          | 'updated_at'
-          | 'kind'
-          | 'game_id'
-          | 'title'
-          | 'tags'
-          | 'has_spoilers'
-        >;
-        Update: Partial<PostRow>;
-        Relationships: [
-          FK<'posts_user_id_fkey', 'user_id', 'profiles', 'id'>,
-          FK<'posts_game_id_fkey', 'game_id', 'games', 'id'>,
-        ];
-      };
-      post_media: {
-        Row: PostMediaRow;
-        Insert: Insert<PostMediaRow, 'id' | 'kind' | 'width' | 'height' | 'position'>;
-        Update: Partial<PostMediaRow>;
-        Relationships: [FK<'post_media_post_id_fkey', 'post_id', 'posts', 'id'>];
-      };
       likes: {
         Row: LikeRow;
         Insert: Insert<LikeRow, 'created_at'>;
@@ -726,6 +707,17 @@ export type Database = {
           FK<'starred_songs_user_id_fkey', 'user_id', 'profiles', 'id'>,
           FK<'starred_songs_game_id_fkey', 'game_id', 'games', 'id'>,
         ];
+      };
+      /*
+       * The shared soundtrack cache from 0020. No `Relationships` entry, and
+       * that is not an omission: `game_id` is deliberately not a foreign key,
+       * so there is nothing to embed across. See the migration for why.
+       */
+      game_soundtracks: {
+        Row: GameSoundtrackRow;
+        Insert: Insert<GameSoundtrackRow, 'fetched_at' | 'tracks'>;
+        Update: Partial<GameSoundtrackRow>;
+        Relationships: [];
       };
       // --- 0009 linked gaming accounts ---------------------------------------
       // No Insert/Update reaches these from the client: they have no INSERT or

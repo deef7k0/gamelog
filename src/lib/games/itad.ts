@@ -123,13 +123,43 @@ export type StorePrice = {
  * answer than one fewer button.
  */
 export async function getStorePrices(itadId: string, signal?: AbortSignal): Promise<StorePrice[]> {
+  const byId = await getStorePricesBatch([itadId], signal);
+  return byId[itadId] ?? [];
+}
+
+/**
+ * The same question asked for many games at once.
+ *
+ * ITAD's prices endpoint has always taken an array of ids — `getStorePrices`
+ * sent one and dropped every row past the first, which is fine for a game page
+ * and ruinous for a list. A rail of twelve games priced one at a time is twelve
+ * round trips through the Edge Function; here it is one.
+ *
+ * Returns a map rather than an array so a caller can index by the id it already
+ * holds, and so a game ITAD returned nothing for is simply absent instead of
+ * shifting every subsequent index by one.
+ */
+export async function getStorePricesBatch(
+  itadIds: string[],
+  signal?: AbortSignal
+): Promise<Record<string, StorePrice[]>> {
+  const ids = [...new Set(itadIds.filter(Boolean))];
+  if (ids.length === 0) return {};
+
   const rows = await itadCall<ItadPriceRow[]>(
-    { action: 'prices', ids: [itadId], country: PRICE_COUNTRY },
+    { action: 'prices', ids, country: PRICE_COUNTRY },
     signal
   );
 
-  const deals = rows?.[0]?.deals ?? [];
+  const result: Record<string, StorePrice[]> = {};
+  for (const row of rows ?? []) {
+    if (row?.id) result[row.id] = mapDeals(row.deals ?? []);
+  }
 
+  return result;
+}
+
+function mapDeals(deals: ItadDeal[]): StorePrice[] {
   return deals
     .flatMap((deal): StorePrice[] => {
       const amount = deal.price?.amount;

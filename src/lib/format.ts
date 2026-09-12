@@ -23,6 +23,64 @@ export function timeAgo(iso: string, now: number = Date.now()): string {
   });
 }
 
+/** The units `timeAgoLong` counts in, largest first. */
+const LONG_UNITS: readonly { ms: number; one: string; many: string }[] = [
+  { ms: 365 * DAY, one: 'a year', many: 'years' },
+  { ms: 30 * DAY, one: 'a month', many: 'months' },
+  { ms: WEEK, one: 'a week', many: 'weeks' },
+  { ms: DAY, one: 'a day', many: 'days' },
+  { ms: HOUR, one: 'an hour', many: 'hours' },
+  { ms: MINUTE, one: 'a minute', many: 'minutes' },
+];
+
+/** Spelled out to nine, which is where prose stops and numerals start. */
+const SMALL_NUMBERS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+];
+
+/**
+ * Relative time in words: "12 hours ago", "two months ago", "a year ago".
+ *
+ * The wordy sibling of `timeAgo`, and both are worth having. `timeAgo` is a
+ * *stamp* — "4h", "3d" — sized for a corner of a dense feed row where the reader
+ * is scanning and the unit is a single character. This is a *sentence fragment*,
+ * for a review card with room for one, where "3d" reads as a truncation of
+ * something rather than as an answer.
+ *
+ * It stops at years and never falls back to a calendar date, which is the other
+ * difference: `timeAgo` switches to "12 Mar" past a week because precision
+ * starts to matter more than recency in a timeline. On a review, "two years ago"
+ * is the useful fact and the exact date is not.
+ */
+export function timeAgoLong(iso: string, now: number = Date.now()): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+
+  const elapsed = now - then;
+  if (elapsed < MINUTE) return 'just now';
+
+  for (const unit of LONG_UNITS) {
+    const count = Math.floor(elapsed / unit.ms);
+    if (count < 1) continue;
+    if (count === 1) return `${unit.one} ago`;
+    /* Numerals past nine. "Eleven months ago" is a mouthful in a 60dp column,
+       and the row it sits in is being scanned rather than read. */
+    const amount = count < SMALL_NUMBERS.length ? SMALL_NUMBERS[count] : String(count);
+    return `${amount} ${unit.many} ago`;
+  }
+
+  return 'just now';
+}
+
 /**
  * Heading for a chronological group: "Today", "Yesterday", "Last week"…
  *

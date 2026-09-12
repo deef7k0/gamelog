@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { RICH_TEXT_HINT } from '@/components/ui/rich-text';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -21,6 +22,12 @@ const SHAPES: Shape[] = [
   { kind: 'list', label: 'Collection', hint: 'An unordered set of games', ranked: false },
   { kind: 'list', label: 'Ranked list', hint: 'Numbered, best to worst', ranked: true },
   { kind: 'tier', label: 'Tier list', hint: 'Sort games into S–F tiers', ranked: false },
+  {
+    kind: 'captioned',
+    label: 'Captioned board',
+    hint: 'A line of your own under each cover',
+    ranked: false,
+  },
   {
     kind: 'awards',
     label: 'Award show',
@@ -69,12 +76,7 @@ export default function NewListScreen() {
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. `dismiss` for the same
        reason the chevron is wrong here: a sheet closes, it does not go back. */
-    <Screen
-      edges={['bottom']}
-      padded
-      insetHeader
-      modal
-      topBar={<FrostedTopBar title="New collection" dismiss />}>
+    <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -91,14 +93,17 @@ export default function NewListScreen() {
             autoFocus
           />
 
+          {/* Tall enough to write in. This is the collection's argument, not a
+              caption, and a field one line deep tells you to write one line. */}
           <TextField
-            label="Description"
+            label="About"
             value={description}
             onChangeText={setDescription}
             placeholder="What ties these together?"
             multiline
             maxLength={1000}
-            hint="Optional"
+            hint={RICH_TEXT_HINT}
+            style={styles.about}
           />
 
           <View style={styles.section}>
@@ -156,6 +161,7 @@ export default function NewListScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { gap: Spacing.x16, paddingVertical: Spacing.x24 },
+  about: { minHeight: 120, maxHeight: 260 },
   section: { gap: Spacing.x8 },
   shapes: { gap: Spacing.x8 },
   shape: {

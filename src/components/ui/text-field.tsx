@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { forwardRef } from 'react';
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { forwardRef, type ReactNode } from 'react';
+import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
+import { Text } from '@/components/ui/text';
 import { Elevation, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -12,6 +13,17 @@ export type TextFieldProps = TextInputProps & {
   hint?: string;
   /** Leading glyph inside the field — a magnifier on a search bar. */
   icon?: keyof typeof Ionicons.glyphMap;
+  /**
+   * A control inside the field's trailing edge — a progress glyph, a clear
+   * button.
+   *
+   * Inside rather than beside, because both of the things that go here are
+   * *about the field's own contents*: a spinner beside the input would read as
+   * the page loading, and a clear button beside it would read as clearing the
+   * form. It also gives Android somewhere to put the affordance iOS gets free
+   * from `clearButtonMode`, which does nothing on Android at all.
+   */
+  trailing?: ReactNode;
   /**
    * `search` is the tall pill: 56px, fully rounded ends, no outline. Used where
    * the field *is* the screen's primary control rather than one row of a form.
@@ -27,17 +39,26 @@ export type TextFieldProps = TextInputProps & {
  * relationship is what makes a form read as a form.
  */
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, error, hint, icon, variant = 'field', style, multiline, ...rest },
+  { label, error, hint, icon, trailing, variant = 'field', style, multiline, ...rest },
   ref
 ) {
   const theme = useTheme();
   const search = variant === 'search';
 
+  /*
+   * The visible `label` is a *sibling* `<Text>`, and React Native has no
+   * `htmlFor` to tie the two together — so a labelled field was announced with
+   * no name at all, and a label-less one lost its placeholder as its name the
+   * moment it held any text. Falling back through label → placeholder gives
+   * every field a name that survives being filled in; an explicit
+   * `accessibilityLabel` from the caller still wins.
+   */
   const field = (
     <TextInput
       ref={ref}
       placeholderTextColor={theme.textMuted}
       multiline={multiline}
+      accessibilityLabel={label ?? rest.placeholder}
       style={[
         styles.input,
         search && styles.search,
@@ -52,7 +73,11 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
   return (
     <View style={styles.wrapper}>
-      {label && <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>}
+      {label && (
+        <Text variant="bodySmall" color="textSecondary">
+          {label}
+        </Text>
+      )}
 
       <View
         style={[
@@ -70,10 +95,11 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         ]}>
         {icon && <Ionicons name={icon} size={20} color={theme.textMuted} style={styles.icon} />}
         {field}
+        {trailing && <View style={styles.trailing}>{trailing}</View>}
       </View>
 
       {(error || hint) && (
-        <Text style={[styles.footnote, { color: error ? theme.danger : theme.textMuted }]}>
+        <Text variant="bodySmall" color={error ? 'danger' : 'textMuted'}>
           {error ?? hint}
         </Text>
       )}
@@ -83,7 +109,6 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.x8 },
-  label: { ...Type.bodySmall },
   shell: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -94,6 +119,15 @@ const styles = StyleSheet.create({
   },
   shellSearch: { height: 48 },
   icon: { paddingLeft: Spacing.x16 },
+  /* Sized to the floor even though its contents are a 20dp glyph: whatever the
+     caller puts here is tappable often enough that it must not be the one
+     control on the screen a thumb cannot land on. */
+  trailing: {
+    minWidth: TapTarget,
+    minHeight: TapTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   input: {
     flex: 1,
     paddingHorizontal: Spacing.x16,
@@ -114,5 +148,4 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     paddingTop: Spacing.x12,
   },
-  footnote: { ...Type.bodySmall },
 });

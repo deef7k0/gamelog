@@ -28,10 +28,10 @@ import { useTheme } from '@/hooks/use-theme';
  * Notifications used to live here; it now opens from an icon in Home's header
  * instead, freeing the slot for News.
  *
- * **Creating is no longer a tab.** The bar is destinations only — the four
- * things you can *be* looking at — and a composer is an action, not a place.
- * `create` keeps its route (`href: null` only removes the button) so anything
- * can push to it, but nothing currently does; see the note on the screen.
+ * **There is no composer route any more.** `create` was registered here with
+ * `href: null` — in the group, off the bar — and it composed user posts and
+ * articles, which the app no longer has. Nothing pushed to it even before that,
+ * so the screen and its registration went together.
  */
 export default function TabsLayout() {
   const theme = useTheme();
@@ -84,11 +84,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
-      {/* Off the bar, still routable. `href: null` is Expo Router's way of
-          saying "this screen belongs to the group but is not a destination" —
-          the route file stays, so a push to `/create` still works. */}
-      <Tabs.Screen name="create" options={{ href: null, title: 'New post' }} />
 
       <Tabs.Screen
         name="news"

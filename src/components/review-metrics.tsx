@@ -1,6 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRef } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import {
+  InputAccessoryView,
+  Keyboard,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
@@ -12,8 +20,19 @@ import {
   type ReviewMetricKey,
   type ReviewMetrics,
 } from '@/constants/review-metrics';
-import { FontFamily, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { FontFamily, Radius, Spacing, TapTarget, Type, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+
+/**
+ * Shared id for the iOS "Done" bar above the number pad.
+ *
+ * `number-pad` has no return key on iOS, so the `returnKeyType="done"` these
+ * inputs used to carry was a silent no-op and the only way out of the keyboard
+ * was tapping dead space. One accessory view is shared by all fourteen rows —
+ * iOS shows whichever belongs to the focused input, so there is no reason to
+ * mount fourteen of them. Android's number pad has its own dismiss key.
+ */
+const METRIC_KEYBOARD_ACCESSORY = 'review-metric-done';
 
 /**
  * Advanced review metrics — the editor and its read-only counterpart.
@@ -127,6 +146,11 @@ export function ReviewMetricsEditor({
                 accessibilityRole="button"
                 accessibilityLabel="Clear all metrics"
                 onPress={() => onChangeDraft({})}
+                /* A single line of `caption` is 13dp tall. The label cannot grow
+                   without shouting over the hint beside it, so the touch area
+                   grows instead — 13 + 36 clears Android's 48, not just iOS's
+                   44, which is the number this has to be measured against. */
+                hitSlop={{ top: 18, bottom: 18, left: 12, right: 12 }}
                 scaleTo={0.94}>
                 <Text variant="caption" color="primaryText">
                   Clear all
@@ -154,6 +178,23 @@ export function ReviewMetricsEditor({
           </Text>
         </View>
       )}
+
+      {enabled && Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={METRIC_KEYBOARD_ACCESSORY}>
+          <View style={[styles.accessory, { backgroundColor: theme.surfaceElevated }]}>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss the keyboard"
+              onPress={() => Keyboard.dismiss()}
+              scaleTo={0.94}
+              style={StyleSheet.flatten(styles.accessoryButton)}>
+              <Text variant="button" color="primaryText">
+                Done
+              </Text>
+            </PressableScale>
+          </View>
+        </InputAccessoryView>
+      )}
     </View>
   );
 }
@@ -178,8 +219,14 @@ function MetricRow({
   return (
     // Tapping the label focuses the box, so the whole row is the target rather
     // than a 62pt box the user has to hit precisely.
+    //
+    // `accessible={false}` rather than `accessibilityRole="none"`: the row is a
+    // convenience for a finger, not a control in its own right, and the role
+    // declared it non-interactive while it still grabbed focus as one. Opting
+    // the wrapper out entirely leaves the input as the single announced target,
+    // which is what it actually is.
     <Pressable
-      accessibilityRole="none"
+      accessible={false}
       onPress={() => input.current?.focus()}
       style={[
         styles.row,
@@ -194,7 +241,7 @@ function MetricRow({
         value={value}
         onChangeText={onChangeText}
         keyboardType="number-pad"
-        returnKeyType="done"
+        inputAccessoryViewID={Platform.OS === 'ios' ? METRIC_KEYBOARD_ACCESSORY : undefined}
         maxLength={3}
         placeholder="—"
         placeholderTextColor={theme.textMuted}
@@ -226,8 +273,10 @@ export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) 
 
   return (
     <View style={[styles.breakdown, { borderTopColor: theme.border }]}>
-      <Text variant="caption" color="textMuted">
-        SCORE BREAKDOWN · {rows.length} {rows.length === 1 ? 'METRIC' : 'METRICS'}
+      {/* `label`, not `caption` + hand-typed capitals: the token already carries
+          the uppercase transform and its tracking was chosen for it. */}
+      <Text variant="label" color="textMuted">
+        Score breakdown · {rows.length} {rows.length === 1 ? 'metric' : 'metrics'}
       </Text>
 
       <View style={styles.breakdownRows}>
@@ -258,7 +307,15 @@ export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) 
 
 const styles = StyleSheet.create({
   editor: { gap: Spacing.x12 },
-  tickRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x12 },
+  /* Two lines of text put the row at ~36dp on its own. `minHeight` takes it to
+     the floor without adding a gap the tick box would then float inside. */
+  tickRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.x12,
+    paddingVertical: Spacing.x4,
+    minHeight: TapTarget,
+  },
   tick: {
     width: 22,
     height: 22,
@@ -274,6 +331,13 @@ const styles = StyleSheet.create({
   panelHead: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x12 },
   panelHint: { flex: 1 },
 
+  accessory: { alignItems: 'flex-end', paddingHorizontal: Spacing.x16 },
+  accessoryButton: {
+    minHeight: TapTarget,
+    paddingHorizontal: Spacing.x8,
+    justifyContent: 'center',
+  },
+
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -287,15 +351,22 @@ const styles = StyleSheet.create({
     borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,
     textAlign: 'center',
-    fontSize: 17,
+    /* `h2`'s size, not a loose 17: this is the one number on the row and it has
+       to out-weigh the label beside it. No `lineHeight` — on Android that clips
+       descenders inside a fixed-height input. */
+    fontSize: Type.h2.fontSize,
     fontFamily: FontFamily.semibold,
     // Android centres text differently in a fixed-height input.
     paddingVertical: 0,
   },
 
+  /* No horizontal margin of its own: the caller owns the inset.
+     It carried `marginHorizontal: Spacing.x16` while its one caller was already
+     padding to `Spacing.x24`, so the bars rendered 30dp from the edge against
+     18dp for the prose and the score above them — the reviewer's own scorecard
+     was the one block on the page that did not line up with their writing. */
   breakdown: {
-    marginHorizontal: Spacing.x16,
-    marginTop: Spacing.x16,
+    marginTop: Spacing.x4,
     paddingTop: Spacing.x16,
     gap: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,

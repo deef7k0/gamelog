@@ -3,59 +3,70 @@ import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { memo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import Animated, {
-  useReducedMotion,
-  Easing,
-  useAnimatedReaction,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  type SharedValue,
-} from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Text } from '@/components/ui/text';
-import {
-  MaxContentWidth,
-  Motion,
-  Spacing,
-  TapTarget,
-  TopBarHeight,
-  withAlpha,
-} from '@/constants/theme';
+import { MaxContentWidth, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useTopBarInset } from '@/hooks/use-header-height';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * How far the page has to scroll before the bar is allowed to hide.
+ * Diameter of the disc, in dp.
  *
- * Roughly one bar's worth. Under it the bar is pinned open, so the top of every
- * page opens with its title showing no matter how the last screen was left.
+ * `TapTarget` exactly — 44 on iOS, 48 on Android. The glyph inside is the only
+ * thing this control draws, so the circle *is* the touch area and there is no
+ * reason for it to be any bigger or any smaller than the platform floor.
  */
-const REVEAL_ZONE = TopBarHeight;
+const DISC = TapTarget;
 
 /**
- * Dead zone, in dp, around the last committed scroll position.
+ * A floating circular back button, over the page.
  *
- * A finger resting on a list still emits scroll events of a pixel or two in
- * alternating directions; without this the bar flickers open and shut while
- * nothing is really moving.
+ * ## What this replaced, and why
+ *
+ * A full-width sheet of frosted glass with a title on it, pinned across the top
+ * of every screen. It was a good bar and it cost too much: `inset + 56` is about
+ * **111dp of a 844pt display — 13%** — permanently occupied by a strip whose
+ * entire content was one word and one chevron. It also blurred and scrimmed the
+ * top of every piece of key art in the app, which on a page whose subject *is*
+ * artwork is the chrome dimming the content to make room for a label naming the
+ * content.
+ *
+ * A disc says the same thing in 44dp. The page keeps its full height, the
+ * artwork is uninterrupted, and the affordance is exactly where a thumb reaches
+ * for it.
+ *
+ * **The cost, stated plainly: screens no longer carry a title.** Wayfinding now
+ * comes from what the page opens with — a game's own case and name, a
+ * collection's mosaic, a profile's banner — which on every artwork-led screen
+ * was already saying it louder than the bar was. On the handful of screens that
+ * lead with a list rather than art, this is a genuine loss and the page is
+ * expected to state its own heading in the content.
+ *
+ * ## Still glass, and more of it
+ *
+ * The blur is the same `expo-blur` layer at the same intensity; only the shape
+ * changed. The scrim over it is lighter than the bar's 30% — a disc floating on
+ * artwork wants to read as glass rather than as a hole punched in the page, and
+ * with only a glyph to keep legible it can afford the transparency the
+ * full-width bar could not.
+ *
+ * ## Android still needs a target
+ *
+ * Unchanged from the bar: a `<BlurView>` with `blurMethod: 'dimezisBlurView'`
+ * and no `blurTarget` silently falls back to a flat translucent slab. The target
+ * is the page content, wrapped by `<Screen>` in `<BlurTargetView>` and passed
+ * here through `useScreenChrome()`. Outside a `<Screen>` this still renders; it
+ * just loses the blur on Android.
+ *
+ * @example
+ * ```tsx
+ * <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+ * ```
  */
-const SCROLL_THRESHOLD = 8;
-
-/** Out fast enough to feel like it got out of the way, not so fast it vanishes. */
-const HIDE = { duration: Motion.normal, easing: Easing.out(Easing.quad) };
-/** Back quicker than it left: reaching for the bar should feel instant. */
-const SHOW = { duration: Motion.fast, easing: Easing.out(Easing.quad) };
-
 export type FrostedTopBarProps = {
-  /** The page's name. Omit on screens that lead with artwork carrying its own title. */
-  title?: string;
-  /** One quiet line under the title — a greeting, a count, an author. */
-  subtitle?: string;
   /**
-   * Show the back chevron.
+   * Show the back disc.
    *
    * A chevron, never a word and never a glyph typed as text: `chevron-back` is
    * the same shape both platforms use, and it points at the edge you came from.
@@ -65,155 +76,32 @@ export type FrostedTopBarProps = {
   onBack?: () => void;
   /** Swaps the chevron for a close cross. Modals dismiss, they do not go back. */
   dismiss?: boolean;
-  /** Controls on the right — a bell, a menu, a share. Lay them out yourself. */
+  /**
+   * Controls on the right — a bell, a menu, a share.
+   *
+   * Lay them out yourself, but give them the same disc: `<TopBarDisc>` is
+   * exported for exactly that, so the two ends of the row read as one family.
+   */
   right?: ReactNode;
-  /**
-   * The scroll offset the bar hides against, from `useTopBarScroll()`.
-   *
-   * Omit on a screen that does not scroll — with no offset to watch, the bar
-   * simply stays put.
-   */
-  scrollY?: SharedValue<number>;
-  /**
-   * @default true
-   *
-   * Set `false` on a screen whose bar holds something you must always be able
-   * to reach, even though the page scrolls.
-   */
-  hideOnScroll?: boolean;
   /**
    * Blur strength, 1–100.
    *
-   * @default 90 — heavy enough that fine detail is gone and only colour blobs
-   * survive, which is the whole look. Below ~60 the content underneath stays
-   * legible through the bar and the title has to fight it.
+   * @default 80 — a little softer than the bar's 90. At disc size there is far
+   * less area to destroy detail across, and a heavier blur made the circle read
+   * as an opaque grey button rather than as glass.
    */
   intensity?: number;
 };
 
-/**
- * The app's top bar: a sheet of frosted glass over the page.
- *
- * Not a surface with a background colour. It is a translucent layer that blurs
- * whatever the page has put behind it — Home's spotlight gradient, a game's key
- * art, a collection's mosaic — so the colour of the screen reads *through* the
- * chrome instead of being cut off by it. That is why the page's own ambience
- * belongs in `<Screen backdrop>` and never in the bar: the bar has nothing of
- * its own to show, it only softens what is already there.
- *
- * ## Three layers, in this order
- *
- * 1. **The blur.** `expo-blur` at intensity 90, `tint="dark"`.
- * 2. **A dark scrim** at 30%, over the blur. The blur alone preserves the
- *    *brightness* of what it samples, so a title crossing a pale patch of
- *    artwork still loses. The scrim is what makes the bar legible over anything.
- * 3. **The content row**, padded down by the safe-area inset so it clears the
- *    status bar while the glass itself runs to the very top of the display.
- *
- * ## Android needs a target
- *
- * On iOS and the web a translucent layer samples what is behind it for free. On
- * Android nothing does, and `expo-blur` on SDK 57 is explicit about it: a
- * `<BlurView>` with `blurMethod: 'dimezisBlurView'` and no `blurTarget` falls
- * back to `'none'` — a flat translucent slab, no blur at all, with a console
- * warning. The target is the page content, wrapped by `<Screen>` in
- * `<BlurTargetView>` and passed here through `useScreenChrome()`. Outside a
- * `<Screen>` the bar still renders; it just loses the blur on Android.
- *
- * ## Hide on scroll
- *
- * Scroll down and the bar translates up by its full height and is gone; scroll
- * up and it comes straight back. Everything runs in a worklet off `scrollY`, so
- * a scrolling page re-renders nothing — see `hooks/use-screen-chrome`. The two
- * guards that make it feel right rather than twitchy are `SCROLL_THRESHOLD` (a
- * dead zone around the last committed position) and `REVEAL_ZONE` (the bar is
- * pinned open near the top of the page).
- *
- * @example
- * ```tsx
- * const { scrollY, onScroll } = useTopBarScroll();
- *
- * <Screen
- *   edges={['bottom']}
- *   insetHeader
- *   topBar={<FrostedTopBar title="Library" back scrollY={scrollY} />}>
- *   <Animated.ScrollView onScroll={onScroll} scrollEventThrottle={16}>…</Animated.ScrollView>
- * </Screen>
- * ```
- */
 export const FrostedTopBar = memo(function FrostedTopBar({
-  title,
-  subtitle,
   back = false,
   onBack,
   dismiss = false,
   right,
-  scrollY,
-  hideOnScroll = true,
-  intensity = 90,
+  intensity = 80,
 }: FrostedTopBarProps) {
-  const theme = useTheme();
   const router = useRouter();
   const inset = useTopBarInset();
-  const chrome = useScreenChrome();
-
-  const height = inset + TopBarHeight;
-
-  /*
-   * Reduce Motion pins the bar open.
-   *
-   * Hiding it is a ±56dp translation of the largest piece of chrome on screen,
-   * which is precisely the spatial movement the setting exists to spare. There
-   * is no gentler version of it: a crossfade would leave an invisible bar still
-   * catching taps on the back button, and an instant cut is a 56dp jump rather
-   * than less motion.
-   *
-   * So the behaviour is dropped rather than restyled, and what is lost is a
-   * screenful of extra reading room — a trade a person who asked for less
-   * motion has already declared they want. What they gain is chrome that is
-   * always where they left it.
-   */
-  const reduceMotion = useReducedMotion();
-  const canHide = hideOnScroll && !reduceMotion;
-
-  const translateY = useSharedValue(0);
-  /** What the bar is currently animating *towards*, so a repeat is a no-op. */
-  const hidden = useSharedValue(false);
-  /** The last offset that moved the bar. The dead zone is measured from here. */
-  const anchor = useSharedValue(0);
-
-  useAnimatedReaction(
-    () => (canHide && scrollY ? scrollY.get() : 0),
-    (y) => {
-      'worklet';
-      if (!canHide || !scrollY) return;
-
-      /* Pinned open across the first screenful, and across the rubber band above
-         it — a bounce at the top reads as "scrolling down" to the delta below,
-         and hiding the bar because someone over-pulled would be absurd. */
-      if (y <= REVEAL_ZONE) {
-        anchor.set(y);
-        if (hidden.get()) {
-          hidden.set(false);
-          translateY.set(withTiming(0, SHOW));
-        }
-        return;
-      }
-
-      const delta = y - anchor.get();
-      if (Math.abs(delta) < SCROLL_THRESHOLD) return;
-      anchor.set(y);
-
-      const next = delta > 0;
-      if (next === hidden.get()) return;
-
-      hidden.set(next);
-      translateY.set(withTiming(next ? -height : 0, next ? HIDE : SHOW));
-    },
-    [canHide, scrollY, height]
-  );
-
-  const slide = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.get() }] }));
 
   function goBack() {
     if (onBack) return onBack();
@@ -221,98 +109,130 @@ export const FrostedTopBar = memo(function FrostedTopBar({
   }
 
   const showLeading = back || dismiss;
+  if (!showLeading && !right) return null;
 
   return (
-    <Animated.View style={[styles.bar, { height }, slide]}>
+    /*
+     * `box-none`, and it is the whole reason this can float.
+     *
+     * The row spans the width so the right-hand controls can sit at the far
+     * edge, but it draws nothing and must not intercept taps — a transparent
+     * full-width strip over the top of the page would swallow every press on
+     * the artwork beneath it. `box-none` lets the discs stay tappable while the
+     * row itself is not there as far as the touch system is concerned.
+     */
+    <View style={[styles.layer, { paddingTop: inset + Spacing.x8 }]} pointerEvents="box-none">
+      <View style={styles.row} pointerEvents="box-none">
+        {showLeading ? (
+          <TopBarDisc
+            icon={dismiss ? 'close' : 'chevron-back'}
+            label={dismiss ? 'Close' : 'Go back'}
+            onPress={goBack}
+            intensity={intensity}
+            /* Optically nudged: `chevron-back` is drawn with its mass to the
+               right of its own box, so a centred glyph sits visibly right of
+               the circle's middle. */
+            nudge={-1}
+          />
+        ) : (
+          <View />
+        )}
+
+        {!!right && <View style={styles.trailing}>{right}</View>}
+      </View>
+    </View>
+  );
+});
+
+export type TopBarDiscProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  /** Required: the glyph is the only content, so there is no label to fall back on. */
+  label: string;
+  onPress: () => void;
+  intensity?: number;
+  /** Horizontal optical correction for glyphs whose mass is off-centre. */
+  nudge?: number;
+};
+
+/**
+ * One disc of glass with a glyph in it.
+ *
+ * Exported so a screen's right-hand controls are the same object as its back
+ * button. A bare `<IconButton>` beside this would be a rounded *rectangle* on a
+ * surface fill — a different shape and a different material in the same row.
+ */
+export function TopBarDisc({ icon, label, onPress, intensity = 80, nudge = 0 }: TopBarDiscProps) {
+  const theme = useTheme();
+  const chrome = useScreenChrome();
+
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      scaleTo={0.9}
+      style={StyleSheet.flatten(styles.disc)}>
       <BlurView
         intensity={intensity}
         tint="dark"
-        style={StyleSheet.absoluteFill}
+        style={styles.glass}
         {...(Platform.OS === 'android'
           ? {
               blurMethod: 'dimezisBlurView' as const,
               blurTarget: chrome?.blurTarget,
-              /* 4 is the default and divides `intensity` down to a radius that
-                 lands near iOS's. Anything higher gives back the fine detail the
-                 heavy blur exists to destroy. */
               blurReductionFactor: 4,
             }
           : null)}
       />
 
-      {/* Over the blur, not under it. A blur preserves brightness — without this
-          a white title crossing a pale patch of key art is unreadable however
-          much detail has been smeared away. */}
+      {/* Over the blur, not under it — a blur preserves brightness, so a white
+          glyph crossing a pale patch of key art is unreadable however much
+          detail has been smeared away. 22% rather than the old bar's 30%: this
+          only has to carry one glyph, and the lighter scrim is what keeps the
+          disc reading as glass instead of as a grey button. */}
       <View
-        style={[styles.scrim, { backgroundColor: withAlpha(theme.shadowInk, 0.3) }]}
+        style={[styles.scrim, { backgroundColor: withAlpha(theme.shadowInk, 0.22) }]}
         pointerEvents="none"
       />
 
-      <View style={[styles.row, { paddingTop: inset }]}>
-        {showLeading && (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={dismiss ? 'Close' : 'Go back'}
-            onPress={goBack}
-            scaleTo={0.9}
-            hitSlop={Spacing.x8}
-            style={styles.leading}>
-            <Ionicons name={dismiss ? 'close' : 'chevron-back'} size={26} color={theme.text} />
-          </PressableScale>
-        )}
-
-        <View style={styles.titles}>
-          {!!title && (
-            <Text variant={subtitle ? 'h2' : 'h3'} numberOfLines={1}>
-              {title}
-            </Text>
-          )}
-          {!!subtitle && (
-            <Text variant="bodySmall" color="textSecondary" numberOfLines={1}>
-              {subtitle}
-            </Text>
-          )}
-        </View>
-
-        {!!right && <View style={styles.trailing}>{right}</View>}
-      </View>
-    </Animated.View>
+      <Ionicons name={icon} size={22} color={theme.text} style={{ marginLeft: nudge }} />
+    </PressableScale>
   );
-});
+}
 
 const styles = StyleSheet.create({
   /*
-   * Absolute and immersive: the glass starts at y=0, behind the status bar, and
-   * the content row is pushed clear of it by the safe-area inset instead. A bar
-   * that began below the notch would draw a hard line across the top of every
-   * screen — the same seam `<Screen backdrop>` exists to avoid.
-   *
-   * No `backgroundColor`. The blur and the scrim are the entire surface; adding
-   * one would make it opaque and there would be nothing left to blur.
+   * Absolute, so it reserves no space and the page runs underneath it. Screens
+   * that do not open on artwork pair it with `<Screen insetHeader>`, exactly as
+   * they did with the bar.
    */
-  bar: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 },
-  scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  layer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
   row: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.x8,
-    paddingHorizontal: Spacing.x12,
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.x16,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  /* Square and `TapTarget` wide, with the chevron optically nudged left so the
-     glyph — not its bounding box — lines up with the content below. */
-  leading: {
-    width: TapTarget,
-    height: TapTarget,
-    marginLeft: -Spacing.x8,
+  trailing: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  disc: {
+    width: DISC,
+    height: DISC,
+    borderRadius: DISC / 2,
     alignItems: 'center',
     justifyContent: 'center',
+    /* The glass has to be clipped to the circle; without this the blur renders
+       as its own square behind a round scrim. */
+    overflow: 'hidden',
   },
-  /* Shrinks rather than pushing the row wide: a long game title truncates
-     instead of shoving the trailing controls off the right edge. */
-  titles: { flex: 1, justifyContent: 'center' },
-  trailing: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  glass: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
 });

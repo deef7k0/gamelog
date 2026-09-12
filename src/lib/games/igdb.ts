@@ -103,7 +103,12 @@ function steamAppIdOf(raw: IgdbGame): string | null {
  */
 function imageUrl(image: IgdbImage | undefined, size: string): string | null {
   if (!image?.image_id) return null;
-  return `https://images.igdb.com/igdb/image/upload/t_${size}/${image.image_id}.jpg`;
+  /* `t_` is added here, so callers pass a bare size — 'cover_big', not
+     't_cover_big'. Passing the prefixed form builds `.../upload/t_t_cover_big/`,
+     which IGDB 404s, and a 404 on an `<Image>` is a silent blank rather than an
+     error. Stripping a leading `t_` costs nothing and removes the trap. */
+  const bare = size.startsWith('t_') ? size.slice(2) : size;
+  return `https://images.igdb.com/igdb/image/upload/t_${bare}/${image.image_id}.jpg`;
 }
 
 /** Common field list so search and detail return the same shape. */
@@ -208,6 +213,7 @@ function toSearchResult(game: Game): GameSearchResult {
     title: game.title,
     coverUrl: game.coverUrl,
     heroUrl: game.heroUrl,
+    releaseDate: game.releaseDate,
     releaseYear: game.releaseYear,
     developer: game.developer,
     genres: game.genres,
@@ -529,62 +535,6 @@ export async function getGameStores(
   }
 }
 
-export type GameCharacter = {
-  id: number;
-  name: string;
-  description: string | null;
-  portraitUrl: string | null;
-  /**
-   * Who played or voiced them.
-   *
-   * Always null from IGDB: its v4 API has a `characters` endpoint but no actor,
-   * credits or people data of any kind — the `credits` endpoint from v2/v3 was
-   * removed and never replaced. The field exists so a provider that does have it
-   * can populate it without changing this shape or the UI.
-   */
-  actor: string | null;
-};
-
-type IgdbCharacter = {
-  id: number;
-  name?: string;
-  description?: string;
-  mug_shot?: IgdbImage;
-};
-
-/** Characters appearing in a game, for the Overview tab's Cast section. */
-export async function getGameCharacters(
-  sourceId: string,
-  signal?: AbortSignal
-): Promise<GameCharacter[]> {
-  const numeric = Number(sourceId);
-  if (!Number.isFinite(numeric)) return [];
-
-  try {
-    const raw = await igdbQuery<IgdbCharacter[]>(
-      'characters',
-      `fields name, description, mug_shot.image_id;
-       where games = (${numeric}) & mug_shot != null;
-       limit 24;`,
-      signal
-    );
-
-    return (raw ?? [])
-      .filter((entry) => entry.name)
-      .map((entry) => ({
-        id: entry.id,
-        name: entry.name!,
-        description: entry.description ?? null,
-        portraitUrl: imageUrl(entry.mug_shot, 'thumb'),
-        actor: null,
-      }));
-  } catch {
-    // `characters` needs adding to the Edge Function allowlist and a redeploy.
-    // Until then the Cast section simply does not appear.
-    return [];
-  }
-}
-
 /* -------------------------------------------------------------------------
  * Filtered search
  *
@@ -677,6 +627,217 @@ export async function searchGamesFiltered(
   return (raw ?? []).map(toGame).map(toSearchResult);
 }
 
+/* -------------------------------------------------------------------------
+ * Surprise Me — one batch of candidate games
+ * ---------------------------------------------------------------------- */
+
+/** Which slice of the catalogue a roll draws from. */
+export type SurprisePool = 'random' | 'popular' | 'hidden';
+
+/**
+ * The narrowing a roll may carry on top of its pool.
+ *
+ * Separate from `SurprisePool` because the two answer different questions. The
+ * pool is *which slice of the catalogue* — famous, obscure, anything — and is
+ * one of three. These are *what the game has to be*, and every one of them is
+ * optional, combinable and orthogonal to the pool: "a hidden gem, isometric,
+ * rated 80 or better" is a coherent request and needs no fourth pool.
+ *
+ * Every field is a list or a bound rather than a single value, so an empty list
+ * and a null bound mean "no constraint" and nothing has to encode "all".
+ */
+export type SurprisePoolFilters = {
+  /**
+   * IGDB genre ids, **matched as "any of"**.
+   *
+   * `(a,b,c)` in APIcalypse, not `{a,b,c}`. Picking three genres means "I would
+   * take any of these", which is what a person choosing *more* boxes expects
+   * from a discovery feature — and "all of" is the reading that quietly returns
+   * nothing, since a game tagged Platformer **and** Horror **and** Racing
+   * roughly does not exist. Widening as you select is the only behaviour here
+   * that cannot dead-end.
+   */
+  genreIds?: readonly number[];
+  /** IGDB player-perspective ids, matched the same way. See `constants/player-perspectives.ts`. */
+  perspectiveIds?: readonly number[];
+  /**
+   * A floor on IGDB's own aggregate, 0-100, or null for none.
+   *
+   * IGDB's number, not the app's: this filters the *catalogue*, and `logs.rating`
+   * only exists for games somebody here has already logged — which is almost
+   * none of the pool a roll draws from. The masthead already labels the same
+   * figure `COMMUNITY`, so the two agree about whose score it is.
+   */
+  minRating?: number | null;
+};
+
+/**
+ * How many games one request brings back.
+ *
+ * This is the number that decides the feature's API cost. The screen keeps the
+ * batch and walks a cursor through it, so "Another game" is fifty presses of
+ * free before a second request is needed. IGDB's own ceiling is 500, but a
+ * larger batch is dead weight — nobody rerolls fifty times, and the unused rows
+ * are paid for in latency on the roll that matters, the first one.
+ */
+const SURPRISE_BATCH = 50;
+
+/**
+ * The furthest into a sorted result set a roll will reach.
+ *
+ * `offset` is not used anywhere else in this codebase and IGDB's own behaviour
+ * at large offsets is documented only as "degrades", so this stays well short
+ * of anywhere interesting happens. `SURPRISE_BATCH` is subtracted so
+ * `offset + limit` never crosses 5000.
+ */
+const MAX_OFFSET = 5000 - SURPRISE_BATCH;
+
+/**
+ * The same ceiling, for a roll that carries filters.
+ *
+ * An unfiltered pool is tens of thousands of rows deep and a random offset
+ * anywhere in the first 5,000 lands on something. One genre plus a rating floor
+ * can be a few hundred rows in total, and at that size the *usual* outcome of a
+ * 5,000-deep offset is an empty page — the retry at `offset 0` then serves the
+ * top of the list, so "completely random with two boxes ticked" would quietly
+ * become "the same forty games, every time".
+ *
+ * 450 keeps the offset inside the range a narrow filter plausibly has, and a
+ * pool smaller than that still falls back to its own first page, which for a
+ * pool that small genuinely is a fine answer.
+ */
+const FILTERED_MAX_OFFSET = 450;
+
+/**
+ * Orderings for the `random` pool.
+ *
+ * A single fixed sort plus a capped offset can only ever reach the first
+ * `MAX_OFFSET` games of one ordering — the same ~5,000 rows, roll after roll,
+ * which would make "Completely random" a claim the code does not honour.
+ * Choosing the ordering at random too multiplies the reachable window by eight
+ * for the cost of an array. `id` is included because it is effectively catalogue
+ * insertion order, which correlates with nothing a player would notice — the
+ * most genuinely arbitrary axis available.
+ */
+const RANDOM_SORTS = [
+  'id asc',
+  'id desc',
+  'first_release_date asc',
+  'first_release_date desc',
+  'total_rating_count asc',
+  'total_rating_count desc',
+  'total_rating asc',
+  'total_rating desc',
+] as const;
+
+function randomInt(maxExclusive: number): number {
+  return Math.floor(Math.random() * maxExclusive);
+}
+
+function pickOne<T>(values: readonly T[]): T {
+  return values[randomInt(values.length)];
+}
+
+/**
+ * A batch of candidate games for one Surprise Me roll.
+ *
+ * ## Why three pools rather than one query with knobs
+ *
+ * "Popular", "hidden gem" and "random" are not three intensities of the same
+ * filter — they are three different questions, and each one needs a different
+ * `sort` as well as a different `where`. Hidden gems in particular cannot be
+ * expressed as "popular, but less": the defining trait is a *high rating from
+ * few raters*, which is a ratio, and reversing the popular sort just returns
+ * the games nobody rated because they are bad.
+ *
+ * ## The shared floor
+ *
+ * Every pool requires `cover != null` (the whole interface is box art, and a
+ * lettered placeholder is not a discovery) and `version_parent = null`, so a
+ * roll lands on Dark Souls rather than on Dark Souls: Prepare to Die Edition.
+ * `searchGamesFiltered` applies the same two for the same reasons.
+ *
+ * ## Randomness
+ *
+ * IGDB has no `sort random`, so the randomness is a random `offset` into a
+ * sorted set — plus, for the `random` pool, a random ordering to sort by. An
+ * empty response means the offset landed past the end of that pool; the one
+ * retry at `offset 0` is there because a pool small enough for that to happen
+ * is small enough that the first page is a fine answer.
+ *
+ * ## Filters sit on top of the pool, not beside it
+ *
+ * `filters` adds `where` clauses and changes nothing else — not the sort, not
+ * the batch size, not the retry. A pool is a slice of the catalogue and a filter
+ * is a property of a game, so they compose: "hidden gem" keeps its rating
+ * ceiling and its rating-descending sort whether or not a genre is also named.
+ * The one thing they do change is how deep the random offset may reach; see
+ * `FILTERED_MAX_OFFSET`.
+ */
+export async function getSurprisePool(
+  pool: SurprisePool,
+  filters: SurprisePoolFilters = {},
+  signal?: AbortSignal
+): Promise<GameSearchResult[]> {
+  const where = ['cover != null', 'version_parent = null'];
+  let sort: string;
+
+  if (pool === 'popular') {
+    // Two hundred ratings is roughly "a game people have heard of". Sorting by
+    // the count rather than the score is deliberate: this pool answers "famous",
+    // and the best-*reviewed* games are a different, much narrower list.
+    where.push('total_rating_count >= 200');
+    sort = 'total_rating_count desc';
+  } else if (pool === 'hidden') {
+    // Well liked, by few. The upper bound is what makes it a hidden gem rather
+    // than a good game; the lower bound is what keeps it from being an accident
+    // of three friends rating their mate's jam entry.
+    where.push('total_rating >= 75', 'total_rating_count >= 8', 'total_rating_count <= 60');
+    sort = 'total_rating desc';
+  } else {
+    // The same shovelware floor `searchGamesFiltered` uses on its filters-only
+    // path. Without it "random" mostly returns store listings nobody has played.
+    where.push('total_rating_count >= 5');
+    sort = pickOne(RANDOM_SORTS);
+  }
+
+  /*
+   * `(…)` is "has any of these", which is the reading that widens as you tick
+   * more boxes. See `SurprisePoolFilters.genreIds` for why the alternative is
+   * a dead end rather than a preference.
+   */
+  const genreIds = filters.genreIds ?? [];
+  const perspectiveIds = filters.perspectiveIds ?? [];
+  if (genreIds.length > 0) where.push(`genres = (${genreIds.join(',')})`);
+  if (perspectiveIds.length > 0) {
+    where.push(`player_perspectives = (${perspectiveIds.join(',')})`);
+  }
+  /*
+   * `> 0` rather than `!= null`: zero is the "no minimum" value the picker
+   * writes, and a `total_rating >= 0` clause is not harmless — it silently drops
+   * every unrated game, which is most of the catalogue and exactly what the
+   * "Any" option promises to keep.
+   */
+  if (filters.minRating != null && filters.minRating > 0) {
+    where.push(`total_rating >= ${Math.round(filters.minRating)}`);
+  }
+
+  const filtered = genreIds.length > 0 || perspectiveIds.length > 0 || !!filters.minRating;
+  const clause = `where ${where.join(' & ')};`;
+
+  async function fetchAt(offset: number): Promise<GameSearchResult[]> {
+    const body = `${GAME_FIELDS} ${clause} sort ${sort}; limit ${SURPRISE_BATCH}; offset ${offset};`;
+    const raw = await igdbQuery<IgdbGame[]>('games', body, signal);
+    return (raw ?? []).map(toGame).map(toSearchResult);
+  }
+
+  const offset = randomInt(filtered ? FILTERED_MAX_OFFSET : MAX_OFFSET);
+  const games = await fetchAt(offset);
+  if (games.length > 0 || offset === 0) return games;
+
+  return fetchAt(0);
+}
+
 /**
  * IGDB's genre and platform vocabularies, for the filter pickers.
  *
@@ -716,3 +877,340 @@ export const igdbProvider: GameProvider = {
   search,
   getById,
 };
+
+// ---------------------------------------------------------------------------
+// Time to beat
+// ---------------------------------------------------------------------------
+
+/**
+ * How long a game takes, in seconds, from IGDB's own aggregation.
+ *
+ * Three lengths and the number of submissions behind them. `count` is not
+ * decoration: a "55 hours to complete" drawn from two people is a different
+ * claim from one drawn from four hundred, and the widget prints it for exactly
+ * that reason.
+ */
+export type TimeToBeat = {
+  /** Straight through, skipping what can be skipped. */
+  hastily: number | null;
+  /** The way most people play it. */
+  normally: number | null;
+  /** Everything. */
+  completely: number | null;
+  /** How many players submitted times. */
+  count: number;
+};
+
+type IgdbTimeToBeat = {
+  game_id?: number;
+  hastily?: number;
+  normally?: number;
+  completely?: number;
+  count?: number;
+};
+
+/**
+ * IGDB's `game_time_to_beat` endpoint.
+ *
+ * A separate endpoint keyed by `game_id`, not a field on `games` — it cannot be
+ * folded into `GAME_FIELDS` and has to be its own request.
+ *
+ * **Seconds, not hours.** The API returns raw seconds and the widget divides;
+ * treating them as minutes (the obvious guess) puts every game at sixty times
+ * its real length, which reads as plausible for a long RPG and is the kind of
+ * wrong that ships.
+ *
+ * Returns null rather than zeroes when IGDB has nothing, so the caller can drop
+ * the section instead of drawing "0 H" three times.
+ */
+export async function getTimeToBeat(
+  sourceId: string,
+  signal?: AbortSignal
+): Promise<TimeToBeat | null> {
+  const numeric = Number(sourceId);
+  if (!Number.isFinite(numeric)) return null;
+
+  const raw = await igdbQuery<IgdbTimeToBeat[]>(
+    'game_time_to_beat',
+    `fields hastily, normally, completely, count;
+     where game_id = ${numeric};
+     limit 1;`,
+    signal
+  );
+
+  const first = raw?.[0];
+  if (!first) return null;
+
+  const value = {
+    hastily: first.hastily ?? null,
+    normally: first.normally ?? null,
+    completely: first.completely ?? null,
+    count: first.count ?? 0,
+  };
+
+  // Every length missing is the same as no record at all.
+  if (value.hastily === null && value.normally === null && value.completely === null) return null;
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+/** A showcase, conference or award show a game appeared at. */
+export type GameEvent = {
+  id: number;
+  name: string;
+  /** Unix seconds. Null for an event with no announced date. */
+  startTime: number | null;
+  description: string | null;
+  /** Landscape key art for the event itself, not for the game. */
+  logoUrl: string | null;
+  /** The event's own page, when it publishes one. */
+  liveStreamUrl: string | null;
+};
+
+type IgdbEvent = {
+  id: number;
+  name?: string;
+  start_time?: number;
+  description?: string;
+  event_logo?: IgdbImage;
+  live_stream_url?: string;
+  event_networks?: { url?: string }[];
+};
+
+/**
+ * A YouTube thumbnail for a watch/live/short URL, or null.
+ *
+ * **This is the fallback that makes the events widget worth having.** IGDB's
+ * `event_logo` is populated for a minority of events — the big publisher
+ * showcases have one and almost nothing else does — so a widget that only read
+ * that field rendered a column of blank cards for most games that had any events
+ * at all.
+ *
+ * Every event that streamed has a URL, and in practice that URL is YouTube.
+ * `img.youtube.com/vi/<id>/hqdefault.jpg` is a static path with no API, no key
+ * and no quota, and it exists for every public video — so the stream link the
+ * event already carries is also a picture of it.
+ *
+ * `hqdefault` rather than `maxresdefault`: the latter 404s for any video not
+ * uploaded at 1080p or above, which includes most streams from before ~2016,
+ * and a 404 here would put us back at the blank card. 480×360 is more than a
+ * card this size needs.
+ */
+export function youtubeThumbnail(url: string | null | undefined): string | null {
+  if (!url) return null;
+
+  // youtu.be/<id>, /watch?v=<id>, /live/<id>, /embed/<id>, /shorts/<id>
+  const match = url.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|live\/|embed\/|shorts\/))([\w-]{11})/
+  );
+  if (!match) return null;
+  return `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
+}
+
+/**
+ * Every event a game was featured in, most recent first.
+ *
+ * Queried from the `events` endpoint filtered on its `games` array rather than
+ * from the game — `games` is a many-to-many and IGDB exposes the join only in
+ * this direction, so there is no `game.events` field to add to `GAME_FIELDS`.
+ *
+ * Most games have none, which is the point: an appearance at The Game Awards or
+ * a Nintendo Direct is a fact about the game's life that no other section of the
+ * page carries, and it is worth a widget precisely because it is rare.
+ */
+export async function getGameEvents(sourceId: string, signal?: AbortSignal): Promise<GameEvent[]> {
+  const numeric = Number(sourceId);
+  if (!Number.isFinite(numeric)) return [];
+
+  /*
+   * Two attempts, richest first.
+   *
+   * IGDB rejects an *entire* query when one field expansion is not valid for the
+   * endpoint, so a single bad name here costs every event rather than one field
+   * of them — and the failure surfaces as an empty widget with nothing to say
+   * why. The narrow retry is the field set `lib/news/discovery.ts` has been
+   * running against this endpoint all along, so it is known-good: worst case the
+   * section renders without artwork instead of not rendering at all.
+   */
+  const raw = await igdbQuery<IgdbEvent[]>(
+    'events',
+    `fields name, start_time, description, event_logo.image_id, live_stream_url,
+            event_networks.url;
+     where games = (${numeric});
+     sort start_time desc;
+     limit 10;`,
+    signal
+  ).catch(() =>
+    igdbQuery<IgdbEvent[]>(
+      'events',
+      `fields name, start_time, description, live_stream_url;
+       where games = (${numeric});
+       sort start_time desc;
+       limit 10;`,
+      signal
+    ).catch(() => [] as IgdbEvent[])
+  );
+
+  return (raw ?? [])
+    .filter((entry) => !!entry.name)
+    .map((entry) => ({
+      id: entry.id,
+      name: entry.name!,
+      startTime: entry.start_time ?? null,
+      description: entry.description ?? null,
+      /* IGDB's own art first, then a frame of the stream it links to. Both can
+         be null, and the widget draws a lettered placeholder when they are —
+         but between the two, most events now have a picture. */
+      logoUrl:
+        imageUrl(entry.event_logo, 'screenshot_med') ??
+        youtubeThumbnail(entry.live_stream_url) ??
+        youtubeThumbnail(entry.event_networks?.[0]?.url),
+      liveStreamUrl: entry.live_stream_url ?? entry.event_networks?.[0]?.url ?? null,
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// The full detail sheet
+// ---------------------------------------------------------------------------
+
+/** One age rating, already resolved to a readable organisation and grade. */
+export type AgeRating = {
+  /** "ESRB", "PEGI", "USK"… */
+  organization: string;
+  /** "M", "18", "Teen"… */
+  rating: string;
+};
+
+/**
+ * Everything the "More information" sheet prints.
+ *
+ * All of it is IGDB-only and none of it belongs on the shared `Game` shape —
+ * `Game` is the cross-provider contract and hanging fifteen nullable IGDB fields
+ * off it to serve one sheet would make every Steam and RAWG row carry them too.
+ */
+export type GameDetails = {
+  developers: string[];
+  publishers: string[];
+  genres: string[];
+  themes: string[];
+  gameModes: string[];
+  playerPerspectives: string[];
+  /** IGDB's `collection` — the numbered series. */
+  series: string | null;
+  franchises: string[];
+  engines: string[];
+  ageRatings: AgeRating[];
+  /** Languages with any support at all, deduped and sorted. */
+  languages: string[];
+};
+
+type IgdbNamed = { id?: number; name?: string };
+
+type IgdbDetails = {
+  involved_companies?: { developer?: boolean; publisher?: boolean; company?: IgdbNamed }[];
+  genres?: IgdbNamed[];
+  themes?: IgdbNamed[];
+  game_modes?: IgdbNamed[];
+  player_perspectives?: IgdbNamed[];
+  collection?: IgdbNamed;
+  franchises?: IgdbNamed[];
+  game_engines?: IgdbNamed[];
+  age_ratings?: {
+    organization?: { name?: string };
+    rating_category?: { rating?: string };
+  }[];
+  language_supports?: { language?: { name?: string } }[];
+};
+
+/** Unique, non-empty names, in the order IGDB returned them. */
+function namesOf(list: IgdbNamed[] | undefined): string[] {
+  const out: string[] = [];
+  for (const entry of list ?? []) {
+    const name = entry.name?.trim();
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+/**
+ * One request for everything the detail sheet shows.
+ *
+ * Deliberately one query rather than six: these are all fields on `games`, and
+ * the sheet opens as a unit, so splitting them would be six round trips to fill
+ * one panel.
+ *
+ * **`age_ratings` and `language_supports` are the two that changed shape.** IGDB
+ * moved both from integer enums to referenced rows — `rating_category.rating`
+ * and `organization.name` replace the old numeric `category`/`rating` pair, and
+ * a client still mapping those integers gets nothing back rather than an error.
+ * Expanding the references is what makes them readable without a lookup table
+ * this app would then have to keep in sync.
+ */
+export async function getGameDetails(
+  sourceId: string,
+  signal?: AbortSignal
+): Promise<GameDetails | null> {
+  const numeric = Number(sourceId);
+  if (!Number.isFinite(numeric)) return null;
+
+  const raw = await igdbQuery<IgdbDetails[]>(
+    'games',
+    `fields involved_companies.developer, involved_companies.publisher,
+            involved_companies.company.name,
+            genres.name, themes.name, game_modes.name, player_perspectives.name,
+            collection.name, franchises.name, game_engines.name,
+            age_ratings.organization.name, age_ratings.rating_category.rating,
+            language_supports.language.name;
+     where id = ${numeric};
+     limit 1;`,
+    signal
+  );
+
+  const first = raw?.[0];
+  if (!first) return null;
+
+  const developers: string[] = [];
+  const publishers: string[] = [];
+  for (const entry of first.involved_companies ?? []) {
+    const name = entry.company?.name?.trim();
+    if (!name) continue;
+    // A company can be both, and both credits are worth printing.
+    if (entry.developer && !developers.includes(name)) developers.push(name);
+    if (entry.publisher && !publishers.includes(name)) publishers.push(name);
+  }
+
+  const ageRatings: AgeRating[] = [];
+  for (const entry of first.age_ratings ?? []) {
+    const organization = entry.organization?.name?.trim();
+    const rating = entry.rating_category?.rating?.trim();
+    if (!organization || !rating) continue;
+    if (ageRatings.some((existing) => existing.organization === organization)) continue;
+    ageRatings.push({ organization, rating });
+  }
+
+  const languages: string[] = [];
+  for (const entry of first.language_supports ?? []) {
+    const name = entry.language?.name?.trim();
+    // One row per language *per support type* — audio, subtitles, interface —
+    // so the same language arrives up to three times.
+    if (name && !languages.includes(name)) languages.push(name);
+  }
+  languages.sort((a, b) => a.localeCompare(b));
+
+  return {
+    developers,
+    publishers,
+    genres: namesOf(first.genres),
+    themes: namesOf(first.themes),
+    gameModes: namesOf(first.game_modes),
+    playerPerspectives: namesOf(first.player_perspectives),
+    series: first.collection?.name?.trim() ?? null,
+    franchises: namesOf(first.franchises),
+    engines: namesOf(first.game_engines),
+    ageRatings,
+    languages,
+  };
+}

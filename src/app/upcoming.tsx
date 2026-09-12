@@ -25,7 +25,7 @@ const GAP = Spacing.x12;
  */
 export default function UpcomingScreen() {
   const { width } = useWindowDimensions();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
   const upcoming = useQuery({
@@ -35,10 +35,7 @@ export default function UpcomingScreen() {
   });
 
   return (
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title="Coming soon" back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={upcoming.data ?? []}
         onScroll={onScroll}

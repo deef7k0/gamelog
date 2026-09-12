@@ -1,12 +1,9 @@
 import type {
   AwardRow,
   CachedGame,
-  GameLog,
   ListKind,
   ListRow,
   NotificationKind,
-  PostKind,
-  PostRow,
   Profile,
   TargetType,
 } from '../database.types';
@@ -18,34 +15,11 @@ import type {
  * kinds added in 0005 — and did it again to `TargetType` when 0013 added
  * `list`, which is why that one is now imported above rather than written out.
  */
-export type { ListKind, NotificationKind, PostKind, TargetType };
+export type { ListKind, NotificationKind, TargetType };
 
 export type Tier = 'S' | 'A' | 'B' | 'C' | 'D' | 'F';
 
 export const TIERS: readonly Tier[] = ['S', 'A', 'B', 'C', 'D', 'F'];
-
-export type PostMedia = {
-  id: string;
-  post_id: string;
-  url: string;
-  kind: 'image' | 'video';
-  width: number | null;
-  height: number | null;
-  position: number;
-};
-
-/*
- * Aliased rather than restated. An earlier hand-written copy of this shape
- * silently dropped columns added by later migrations (title, tags,
- * has_spoilers) because it shadowed the real row type through the barrel.
- */
-export type Post = PostRow;
-
-export type PostWithRelations = Post & {
-  profile: Profile | null;
-  game: CachedGame | null;
-  media: PostMedia[];
-};
 
 export type Comment = {
   id: string;
@@ -103,7 +77,21 @@ export type AwardSlot = AwardRow & { game: CachedGame | null };
 export type ListWithAwards = GameList & { awards: AwardSlot[] };
 
 /** Artwork for one game, enough to render it as a cover. */
-export type ListCover = { cover_url: string | null; hero_url: string | null };
+/**
+ * Just enough of a game to draw one tile of a collection's artwork.
+ *
+ * `id` and `title` are carried for the mosaic's square-cover lookup, not for
+ * display: `<CollectionMosaic>` asks SteamGridDB for a 1:1 grid per tile, and
+ * the title is the only identity almost any game in this catalogue has (see
+ * `lib/games/steamgriddb`). They cost two columns on an embed the summary
+ * queries were already making.
+ */
+export type ListCover = {
+  id: string;
+  title: string;
+  cover_url: string | null;
+  hero_url: string | null;
+};
 
 /** A list plus just enough artwork to render its tile. */
 export type ListSummary = GameList & {
@@ -130,7 +118,12 @@ export type ListSummary = GameList & {
    * mid-deletion, and `displayNameFor` already renders that as "Someone" rather
    * than leaving a hole in the byline.
    */
-  owner: { username: string | null; display_name: string | null } | null;
+  owner: {
+    username: string | null;
+    display_name: string | null;
+    /** The tile puts a face on the byline, so the summary select fetches it. */
+    avatar_url: string | null;
+  } | null;
 };
 
 export type AppNotification = {
@@ -144,16 +137,3 @@ export type AppNotification = {
   created_at: string;
   actor: Profile | null;
 };
-
-/**
- * The home feed mixes two different things. A discriminated union keeps the
- * renderer honest about which fields exist.
- */
-export type FeedItem =
-  | { type: 'post'; id: string; createdAt: string; post: PostWithRelations }
-  | {
-      type: 'log';
-      id: string;
-      createdAt: string;
-      log: GameLog & { game: CachedGame | null; profile: Profile | null };
-    };

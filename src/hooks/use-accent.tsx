@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 import { identityColorFor } from '@/constants/identity';
 import { accentRoles, type AccentRoles } from '@/constants/theme';
+import { useAlbumArtColor } from '@/hooks/use-album-art-color';
 import { useTheme } from '@/hooks/use-theme';
-import { extractArtworkColor } from '@/lib/artwork-color';
+import { DynamicThemeValueProvider } from '@/theme/dynamic-theme-provider';
 
 /**
  * The accent in force for this part of the tree.
@@ -40,9 +40,23 @@ export type AccentProviderProps = {
 
 export function AccentProvider({ children, artwork, genres, color }: AccentProviderProps) {
   const hue = useArtworkHue({ artwork, genres, color });
-  const roles = useMemo(() => accentRoles(hue), [hue]);
+  /* `tonal`: this hue came off box art, so the whole screen is built out of it —
+     a Material 3 tonal palette seeds the page, the surfaces, the cards and the
+     one loud fill. The house blue below stays in the legacy mode. See
+     `accentRoles`. */
+  const roles = useMemo(() => accentRoles(hue, { tonal: true }), [hue]);
 
-  return <AccentContext.Provider value={roles}>{children}</AccentContext.Provider>;
+  /* Both contexts, from one extraction. `useAccent()` is what the app's own
+     components read; `useDynamicTheme()` is the full M3 role set underneath it,
+     for the places that need a role the app's ten have no name for. Nesting them
+     rather than mounting `<DynamicThemeProvider>` separately is what guarantees
+     they agree — two independent extractions of the same URI would agree only
+     once the shared query cache had filled. */
+  return (
+    <AccentContext.Provider value={roles}>
+      <DynamicThemeValueProvider colors={roles.m3}>{children}</DynamicThemeValueProvider>
+    </AccentContext.Provider>
+  );
 }
 
 /**
@@ -55,12 +69,11 @@ export function AccentProvider({ children, artwork, genres, color }: AccentProvi
  * The genre ramp is what catches all of that, so a page always has a colour and
  * never a grey hole where one should be.
  *
- * The extraction is a TanStack Query keyed on the URL, so it is fetched and
- * decoded once per game per session and served from `AsyncStorage` on every
- * later visit — see `artwork-color.ts`. While it resolves, the genre hue is
- * already on screen, which is why the page never opens colourless and then
- * lurches: the two are usually close, and the change lands as a settle rather
- * than a flash.
+ * The extraction is a TanStack Query keyed on the URL, so it runs once per game
+ * per session and is served from `AsyncStorage` on every later visit — see
+ * `use-album-art-color.ts`. While it resolves, the genre hue is already on
+ * screen, which is why the page never opens colourless and then lurches: the two
+ * are usually close, and the change lands as a settle rather than a flash.
  */
 function useArtworkHue({
   artwork,
@@ -70,17 +83,26 @@ function useArtworkHue({
   const theme = useTheme();
   const fallback = color ?? identityColorFor(genres, theme);
 
-  const extracted = useQuery({
-    queryKey: ['artwork-color', artwork],
-    queryFn: () => extractArtworkColor(artwork!),
-    enabled: !color && !!artwork,
-    // The colour of a piece of box art does not change. Ever.
-    staleTime: Infinity,
-    gcTime: Infinity,
-    retry: false,
-  });
+  /*
+   * `useAlbumArtColor` rather than a query on `extractArtworkColor` directly.
+   *
+   * Two changes, both of which matter. It reaches for `react-native-image-colors`
+   * first — the native extractor, which reads the decoded bitmap and handles
+   * every format the platform can display — and falls back to the pure-JS JPEG
+   * decoder only where that module cannot load, which is Expo Go. And it seeds
+   * from the artwork's **raw dominant colour** rather than from the normalised
+   * accent hue that `extractArtworkColor` also returns.
+   *
+   * That second one is the important one now. The normalisation existed to drag
+   * a muted average up to something usable as a button fill, because the old
+   * ramp used the hue directly at a fixed saturation. A Material 3 palette does
+   * that job itself and does it better: `TONAL_SPOT` rebuilds the primary
+   * palette at chroma 36 whatever the seed's own chroma was. Pre-saturating the
+   * seed would be applying the correction twice.
+   */
+  const seed = useAlbumArtColor(color ? null : artwork, { fallback });
 
-  return color ?? extracted.data?.color ?? fallback;
+  return color ?? seed;
 }
 
 /**
@@ -109,5 +131,5 @@ export function useGameAccent(
   genres: readonly string[] | null | undefined
 ): AccentRoles {
   const hue = useArtworkHue({ artwork, genres });
-  return useMemo(() => accentRoles(hue), [hue]);
+  return useMemo(() => accentRoles(hue, { tonal: true }), [hue]);
 }

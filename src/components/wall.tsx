@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -100,7 +100,12 @@ export function WallComposer({
 }
 
 /** A written note on someone's wall. */
-export function WallPostRow({ post }: { post: WallPost }) {
+/*
+ * Memoised because this renders once per row of a virtualised timeline, and the
+ * screen above it re-renders as each of its eight mount-time queries lands. The
+ * props are a query-owned object plus two strings, so the shallow compare holds.
+ */
+export const WallPostRow = memo(function WallPostRow({ post }: { post: WallPost }) {
   const theme = useTheme();
 
   return (
@@ -124,7 +129,7 @@ export function WallPostRow({ post }: { post: WallPost }) {
       </Text>
     </View>
   );
-}
+});
 
 /**
  * One derived activity line — "reviewed X", "is now friends with Y".
@@ -132,7 +137,12 @@ export function WallPostRow({ post }: { post: WallPost }) {
  * Rendered flatter and quieter than a wall post: these are automatic, and at
  * full card weight they would drown out the things people actually wrote.
  */
-export function ActivityRow({
+/*
+ * Memoised because this renders once per row of a virtualised timeline, and the
+ * screen above it re-renders as each of its eight mount-time queries lands. The
+ * props are a query-owned object plus two strings, so the shallow compare holds.
+ */
+export const ActivityRow = memo(function ActivityRow({
   entry,
   ownerName,
   ownerId,
@@ -283,7 +293,7 @@ export function ActivityRow({
   }
 
   return body;
-}
+});
 
 const styles = StyleSheet.create({
   composer: { gap: Spacing.x8 },

@@ -25,7 +25,6 @@ export default function EditProfileScreen() {
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? '');
-  const [bannerUrl, setBannerUrl] = useState(profile?.banner_url ?? '');
   const [favoritePlatform, setFavoritePlatform] = useState(profile?.favorite_platform ?? '');
   const [location, setLocation] = useState(profile?.location ?? '');
   const [steamId, setSteamId] = useState(profile?.steam_id ?? '');
@@ -44,7 +43,10 @@ export default function EditProfileScreen() {
         display_name: displayName.trim() || null,
         bio: bio.trim() || null,
         avatar_url: avatarUrl.trim() || null,
-        banner_url: bannerUrl.trim() || null,
+        /* `banner_url` is deliberately not written. The editor no longer offers
+           it, so sending `null` here would quietly erase a value the user set
+           before the field was removed — a destructive side effect of saving an
+           unrelated change. Leaving it out of the patch leaves the column alone. */
         favorite_platform: favoritePlatform.trim() || null,
         location: location.trim() || null,
         steam_id: trimmedSteamId || null,
@@ -64,12 +66,7 @@ export default function EditProfileScreen() {
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. `dismiss` for the same
        reason the chevron is wrong here: a sheet closes, it does not go back. */
-    <Screen
-      edges={['bottom']}
-      padded
-      insetHeader
-      modal
-      topBar={<FrostedTopBar title="Edit profile" dismiss />}>
+    <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -104,14 +101,11 @@ export default function EditProfileScreen() {
             hint="Image uploads are not built yet — paste a link for now."
           />
 
-          <TextField
-            label="Banner URL"
-            value={bannerUrl}
-            onChangeText={setBannerUrl}
-            placeholder="https://…"
-            autoCapitalize="none"
-            keyboardType="url"
-          />
+          {/* No banner field. The profile no longer renders one — see the note
+              on `<ProfileView>`. `profiles.banner_url` is left in the schema and
+              in the types rather than dropped, the same way the `posts` tables
+              were: a migration to remove a column nothing reads buys nothing and
+              cannot be undone. Any value already stored is simply not shown. */}
 
           <View style={styles.row}>
             <View style={styles.rowItem}>

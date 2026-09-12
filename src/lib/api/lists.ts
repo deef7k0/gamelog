@@ -18,7 +18,7 @@ function unwrap<T>(data: T | null, error: { message: string } | null): T {
  */
 export type SummaryRow = GameList & {
   items: { position: number; game_id: string; game: ListCover | null }[];
-  owner: { username: string | null; display_name: string | null } | null;
+  owner: { username: string | null; display_name: string | null; avatar_url: string | null } | null;
 };
 
 /**
@@ -30,8 +30,8 @@ export type SummaryRow = GameList & {
  * row instead of `SelectQueryError` — see the note in CLAUDE.md.
  */
 export const SUMMARY_ITEMS =
-  'items:list_items(position, game_id, game:games(cover_url, hero_url)), ' +
-  'owner:profiles!lists_user_id_fkey(username, display_name)';
+  'items:list_items(position, game_id, game:games(id, title, cover_url, hero_url)), ' +
+  'owner:profiles!lists_user_id_fkey(username, display_name, avatar_url)';
 
 /**
  * Pick the one cover a collection tile shows.
@@ -144,6 +144,69 @@ export async function createList(
 
   if (error) throw new Error(error.message);
   return data.id;
+}
+
+/**
+ * Rename a collection, or rewrite what it says about itself.
+ *
+ * Title and description only. `kind` and `is_ranked` are deliberately not here:
+ * a tier list whose items carry tiers cannot become a plain collection without
+ * deciding what happens to those tiers, and an award show's rows exist in
+ * `list_awards` before they exist in `list_items` — flipping either one is a
+ * migration of the collection's contents, not an edit to its details, and a
+ * settings field that silently discarded data would be the worst way to offer
+ * it.
+ *
+ * `.eq('user_id', userId)` belts the RLS policy's braces. The policy is what
+ * actually enforces this; the filter is what makes a non-owner's attempt come
+ * back as "nothing matched" instead of a permission error.
+ */
+export async function updateListDetails(
+  userId: string,
+  listId: string,
+  input: { title: string; description?: string | null }
+): Promise<void> {
+  const title = input.title.trim();
+  if (!title) throw new Error('Give the collection a title.');
+
+  const { error } = await supabase
+    .from('lists')
+    .update({
+      title,
+      description: input.description?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', listId)
+    .eq('user_id', userId);
+
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Write the caption under a game in a captioned collection.
+ *
+ * Stored in `list_items.note`, which has held a 300-character text field since
+ * 0003 and never had a consumer — see migration 0019 for why the caption reuses
+ * it rather than adding a column.
+ *
+ * An empty string clears it rather than storing `''`. A caption is the whole
+ * point of the row in this kind of list, so "no caption" has to be a state the
+ * grid can detect and prompt for, and `null` is that state.
+ */
+export async function setItemCaption(
+  listId: string,
+  gameId: string,
+  caption: string | null
+): Promise<void> {
+  const trimmed = caption?.trim();
+
+  const { error } = await supabase
+    .from('list_items')
+    .update({ note: trimmed || null })
+    .eq('list_id', listId)
+    .eq('game_id', gameId);
+
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteList(userId: string, listId: string): Promise<void> {

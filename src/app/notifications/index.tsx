@@ -63,7 +63,7 @@ export default function NotificationsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const userId = useAuth((state) => state.session?.user.id);
 
   const notifications = useQuery({
@@ -110,7 +110,7 @@ export default function NotificationsScreen() {
 
   if (notifications.isLoading) {
     return (
-      <Screen edges={[]} insetHeader topBar={<FrostedTopBar title="Notifications" back />}>
+      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
     );
@@ -118,17 +118,14 @@ export default function NotificationsScreen() {
 
   if (notifications.isError) {
     return (
-      <Screen edges={[]} insetHeader topBar={<FrostedTopBar title="Notifications" back />}>
+      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={notifications.error} />
       </Screen>
     );
   }
 
   return (
-    <Screen
-      edges={[]}
-      insetHeader
-      topBar={<FrostedTopBar title="Notifications" back scrollY={scrollY} />}>
+    <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
       <AnimatedSectionList
         sections={sections}
         onScroll={onScroll}

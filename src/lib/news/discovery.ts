@@ -34,7 +34,17 @@ type IgdbGameLite = {
   artworks?: { image_id?: string }[];
   screenshots?: { image_id?: string }[];
   videos?: { video_id?: string; name?: string }[];
+  genres?: { name?: string }[];
+  platforms?: { name?: string }[];
+  involved_companies?: { developer?: boolean; company?: { name?: string } }[];
 };
+
+/** First credited developer, matching `companyNamed` on the search path. */
+function developerOf(raw: IgdbGameLite): string | null {
+  return (
+    (raw.involved_companies ?? []).find((entry) => entry.developer)?.company?.name?.trim() || null
+  );
+}
 
 function toSearchResult(raw: IgdbGameLite): GameSearchResult {
   return {
@@ -46,12 +56,36 @@ function toSearchResult(raw: IgdbGameLite): GameSearchResult {
     heroUrl:
       igdbImage(raw.artworks?.[0]?.image_id, '1080p') ??
       igdbImage(raw.screenshots?.[0]?.image_id, '1080p'),
+    /* The News tab is mostly unreleased games, so this is the one producer
+       where the full date is load-bearing rather than decorative: it is what
+       lets a row say "Pre-order" instead of quoting a price for something
+       nobody can play yet. */
+    releaseDate: raw.first_release_date
+      ? new Date(raw.first_release_date * 1000).toISOString().slice(0, 10)
+      : null,
     releaseYear: raw.first_release_date
       ? new Date(raw.first_release_date * 1000).getFullYear()
       : null,
-    developer: null,
-    genres: [],
-    platforms: [],
+    /*
+     * These three were hard-coded to `null` / `[]` and that was the whole bug.
+     *
+     * `<GameListItem>` renders each of its metadata lines conditionally, so a
+     * row with no developer, no genres and no platforms silently collapses to a
+     * title, a year and a score. The component was never the problem — every
+     * list in the app has always used the same one — but everything produced by
+     * *this* file arrived pre-emptied, which is why Highly rated, Upcoming and
+     * the release rails looked like an older, thinner design than the search
+     * results one tap away.
+     *
+     * Genres matter twice over: they are also what `identityColorFor` reads, so
+     * until now every game reached through News or Discover had no identity hue
+     * either and fell back to the house blue.
+     */
+    developer: developerOf(raw),
+    genres: (raw.genres ?? []).map((genre) => genre.name).filter((name): name is string => !!name),
+    platforms: (raw.platforms ?? [])
+      .map((platform) => platform.name)
+      .filter((name): name is string => !!name),
     score: typeof raw.total_rating === 'number' ? Math.round(raw.total_rating) : null,
     /* The charts badge a remaster the same way search does — the News tab is
        full of them, and "Silent Hill 2" appearing twice with no way to tell the
@@ -70,10 +104,27 @@ function toSearchResult(raw: IgdbGameLite): GameSearchResult {
   };
 }
 
+/**
+ * What every News and Discover query asks IGDB for.
+ *
+ * "Lite" relative to `GAME_FIELDS` on the search path — it still omits
+ * `summary`, `storyline`, `url` and the full screenshot set, which are a game
+ * *page's* needs and would be several kilobytes per row across a forty-row
+ * chart nobody has opened a game from yet.
+ *
+ * It is **not** lite on the things a list row renders. Genres, platforms and the
+ * developer credit were left out of this list, so every row produced here was
+ * missing exactly the three facts `<GameListItem>` shows below the title. Three
+ * nested expansions is the honest cost of a row that says what it is; the
+ * saving before this was measured in bytes and paid for in the app looking like
+ * two different apps.
+ */
 const LITE_FIELDS = `
   fields name, first_release_date, total_rating,
          game_type, parent_game, version_parent, version_title,
          external_games.category, external_games.uid,
+         genres.name, platforms.name,
+         involved_companies.developer, involved_companies.company.name,
          cover.image_id, artworks.image_id, screenshots.image_id;
 `;
 
@@ -209,6 +260,7 @@ function toChartEntry(raw: IgdbGameLite, rank: number): ChartEntry {
     releaseYear: game.releaseYear,
     edition: game.edition,
     steamAppId: game.steamAppId,
+    platforms: game.platforms,
   };
 }
 

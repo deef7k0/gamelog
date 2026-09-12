@@ -118,6 +118,10 @@ export type GameSearchResult = Pick<
   | 'title'
   | 'coverUrl'
   | 'heroUrl'
+  // Both, not one: `releaseYear` is what a compact line wants, and the full
+  // date is the only honest way to know a game has not come out yet — which is
+  // what turns a price into a pre-order on `<GameListItem>`.
+  | 'releaseDate'
   | 'releaseYear'
   | 'developer'
   | 'genres'

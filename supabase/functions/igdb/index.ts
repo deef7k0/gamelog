@@ -36,10 +36,14 @@ const ALLOWED_ENDPOINTS = new Set([
   // here has no effect until the function is redeployed:
   //   supabase functions deploy igdb --project-ref <ref> --use-api
   'events',
-  // Cast, franchise and studio sections on the game Overview tab. Franchise and
-  // studio catalogues are queried through `games` with a `where` filter, so only
-  // `characters` is strictly new — the rest are allowed for direct lookups.
-  'characters',
+  // Franchise and studio sections on the game Overview tab. Both are queried
+  // through `games` with a `where` filter; `collections` is the numbered-series
+  // lookup behind the franchise rail's title.
+  //
+  // `characters` was here for a Cast section that has been removed from the app.
+  // Dropped rather than left in place: an allowlist is a statement of what the
+  // client is permitted to ask for, and an entry nothing calls is a permission
+  // granted for no reason.
   'collections',
   // The monthly popularity chart. Returns game ids and scores only — the ids
   // are resolved through `games`, which is already allowed. `popularity_types`
@@ -47,6 +51,11 @@ const ALLOWED_ENDPOINTS = new Set([
   // checked without another deploy.
   'popularity_primitives',
   'popularity_types',
+  // How long a game takes, for the Overview tab's Time to beat widget. Its own
+  // endpoint keyed on `game_id` rather than a field on `games`, so it cannot
+  // ride the entry above it. Like every addition here, it does nothing until:
+  //   supabase functions deploy igdb --project-ref <ref> --use-api
+  'game_time_to_beat',
 ]);
 
 const CORS_HEADERS = {

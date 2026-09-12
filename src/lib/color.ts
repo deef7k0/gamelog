@@ -208,6 +208,87 @@ export function saturate(color: string, floor: number): string {
   return rgbToHex({ r: push(r) * 255, g: push(g) * 255, b: push(b) * 255 });
 }
 
+export type Hsl = { h: number; s: number; l: number };
+
+/** sRGB hex → HSL, with `h` in degrees and `s`/`l` in 0–1. */
+export function toHsl(color: string): Hsl | null {
+  const rgb = hexToRgb(color);
+  if (!rgb) return null;
+
+  const r = rgb.r / 255;
+  const g = rgb.g / 255;
+  const b = rgb.b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const delta = max - min;
+
+  if (delta === 0) return { h: 0, s: 0, l };
+
+  const s = delta / (1 - Math.abs(2 * l - 1));
+  const h =
+    max === r
+      ? 60 * (((g - b) / delta + 6) % 6)
+      : max === g
+        ? 60 * ((b - r) / delta + 2)
+        : 60 * ((r - g) / delta + 4);
+
+  return { h, s, l };
+}
+
+/** HSL → sRGB hex. The inverse of `toHsl`. */
+export function fromHsl({ h, s, l }: Hsl): string {
+  const chroma = (1 - Math.abs(2 * l - 1)) * s;
+  const hue = (((h % 360) + 360) % 360) / 60;
+  const second = chroma * (1 - Math.abs((hue % 2) - 1));
+  const match = l - chroma / 2;
+
+  const [r, g, b] =
+    hue < 1
+      ? [chroma, second, 0]
+      : hue < 2
+        ? [second, chroma, 0]
+        : hue < 3
+          ? [0, chroma, second]
+          : hue < 4
+            ? [0, second, chroma]
+            : hue < 5
+              ? [second, 0, chroma]
+              : [chroma, 0, second];
+
+  return rgbToHex({ r: (r + match) * 255, g: (g + match) * 255, b: (b + match) * 255 });
+}
+
+/**
+ * Restate a hue at a given saturation and lightness.
+ *
+ * **The one primitive behind a game's whole palette.** Everything else in this
+ * file adjusts a colour you already have — lift its contrast, raise its
+ * saturation floor, mix a hue into a fixed grey while holding its luminance.
+ * This does the opposite: it throws away everything about the input except *which
+ * colour it is* and rebuilds it at a stated tone.
+ *
+ * That is what a tonal ramp needs. A hue read out of box art arrives at whatever
+ * lightness the artwork happened to average to — `#b69254` for a warm cover, but
+ * it could as easily have been `#4a3a1f` or `#e8d0a0` for artwork that reads
+ * identically to a person. Deriving a page background by *darkening* that
+ * measurement propagates the accident; deriving it by restating the hue at a
+ * fixed 6% lightness does not. Two games with the same colour and different
+ * exposure then get the same page, which is the whole point.
+ *
+ * Hue is preserved exactly. `s` and `l` are clamped to 0–1.
+ */
+export function atTone(color: string, s: number, l: number): string {
+  const hsl = toHsl(color);
+  if (!hsl) return color;
+
+  return fromHsl({
+    h: hsl.h,
+    s: Math.max(0, Math.min(1, s)),
+    l: Math.max(0, Math.min(1, l)),
+  });
+}
+
 /**
  * Tint a surface with a hue **without changing how light it is**.
  *

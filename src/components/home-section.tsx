@@ -8,13 +8,29 @@ import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
+/**
+ * Lifts "See all" from 36dp to 48 without growing the heading row.
+ *
+ * Slop rather than padding because the row's height is set by the title beside
+ * it: adding 6dp of padding here would push every band's heading apart to fix a
+ * touch problem that has nothing to do with spacing.
+ */
+const SEE_ALL_SLOP = { top: 6, bottom: 6, left: 8, right: 8 };
+
 export type HomeSectionProps = {
   title: string;
   /** Optional one-line explanation of what the section is showing and why. */
   subtitle?: string;
   /** Where "See all" goes. Omit to render the heading without one. */
   seeAll?: Href;
-  children: ReactNode;
+  /**
+   * The band's content.
+   *
+   * Optional, for the one case where the host owns the rows: a band whose items
+   * are a `FlatList`'s own data cannot nest them here, so it uses this for the
+   * heading and lets the list render underneath.
+   */
+  children?: ReactNode;
 };
 
 /**
@@ -27,8 +43,8 @@ export type HomeSectionProps = {
  * a section that wants to look different is a section that will make Home look
  * assembled by two people.
  *
- * 24px between sections, set by the page rather than here, so a section never
- * decides its own separation from its neighbours.
+ * Separation between sections is set by the page (`Spacing.x64`, 48dp) rather
+ * than here, so a section never decides its own distance from its neighbours.
  */
 export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionProps) {
   const theme = useTheme();
@@ -42,7 +58,9 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
               on the page — the bands read as a continuous scroll with labels
               rather than as separate sections. 19px bold is the step where the
               heading reads first. */}
-          <Text variant="h2">{title}</Text>
+          <Text variant="h2" accessibilityRole="header">
+            {title}
+          </Text>
           {subtitle && (
             <Text variant="bodySmall" color="textMuted">
               {subtitle}
@@ -53,8 +71,9 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
         {seeAll && (
           <Link href={seeAll} asChild>
             <PressableScale
-              accessibilityRole="button"
+              accessibilityRole="link"
               accessibilityLabel={`See all ${title.toLowerCase()}`}
+              hitSlop={SEE_ALL_SLOP}
               scaleTo={0.96}
               style={styles.seeAll}>
               <Text variant="bodySmall" color="primaryText">
@@ -81,8 +100,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x16,
   },
   headText: { flex: 1, gap: 2 },
-  /* Padded to clear 44 on the cross axis without the row growing: the label is
-     18px tall, so the padding is doing the tap-target work. */
+  /* The padding alone does NOT clear the floor, which is what the note here
+     used to claim. `bodySmall` is a 16dp line box, not 18, and `Spacing.x12` is
+     10, not 12 — so this measured 36dp against 44 (iOS) and 48 (Android), on
+     every band heading in the app. `SEE_ALL_SLOP` is what actually clears it;
+     the padding is spacing. */
   seeAll: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
@@ -64,7 +64,20 @@ export function ConnectAccountCard({
           variant="ghost"
           size="small"
           loading={unlink.isPending}
-          onPress={() => unlink.mutate()}
+          /* Confirms first. Unlinking drops a synced library, its achievements,
+             inventory and badges — for a large account that is several passes of
+             a rate-limited API to rebuild, and the button fired on the first
+             tap with nothing said about what was being thrown away. */
+          onPress={() =>
+            Alert.alert(
+              `Disconnect ${instance.label}?`,
+              'Your imported library, achievements and badges will be removed. You can reconnect at any time.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Disconnect', style: 'destructive', onPress: () => unlink.mutate() },
+              ]
+            )
+          }
         />
       ) : (
         <Button

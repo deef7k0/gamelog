@@ -7,10 +7,12 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
+import { PlatformMarks } from '@/components/ui/platform-chip';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { platformFamilies } from '@/constants/platform-family';
 import { Spacing } from '@/constants/theme';
 import { useRailDrift, type RailGeometry } from '@/hooks/use-rail-drift';
 import type { GameSearchResult } from '@/lib/games';
@@ -176,6 +178,12 @@ function GameCard({
           <Text variant="bodySmall" color="textMuted" numberOfLines={1} ellipsizeMode="tail">
             {game.developer ?? (game.releaseYear ? String(game.releaseYear) : '—')}
           </Text>
+
+          {/* Third line, and every card gets one so the row keeps its shared
+              baseline — a card with no known platforms renders nothing here and
+              is the same height, exactly as the studio line falls back rather
+              than collapsing. Marks only: a 132dp card cannot hold capsules. */}
+          <PlatformMarks families={platformFamilies(game.platforms)} />
         </View>
       </PressableScale>
     </Link>

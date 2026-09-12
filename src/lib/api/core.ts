@@ -8,6 +8,7 @@ import type {
 } from '../database.types';
 import { fetchSteamUnlocks, getGameAchievements, parseGameId, type Game } from '../games';
 import { supabase } from '../supabase';
+import { getEngagement } from './engagement';
 
 /** Columns for a log plus the game and author it renders with. */
 const LOG_WITH_RELATIONS = '*, game:games(*), profile:profiles(*)';
@@ -144,6 +145,65 @@ export async function getLogById(logId: string): Promise<LogWithRelations | null
 
   if (error) throw new Error(error.message);
   return data as LogWithRelations | null;
+}
+
+/**
+ * How this app's own users scored a game, as a 10-bucket histogram.
+ *
+ * ## Why a dedicated query and not a tally of `getGameReviews`
+ *
+ * That one is capped at 50 rows and joins the full profile and game on each,
+ * because it renders cards. This needs every rating and nothing else, so it
+ * selects one integer column — a game with four hundred ratings costs about
+ * 1.6 KB here against several hundred KB there, and the number it prints is the
+ * true total rather than "up to fifty".
+ *
+ * ## The buckets
+ *
+ * Ten of them, 1–10, 11–20 … 91–100, which maps the 0–100 scale onto the ten
+ * bars the graph draws. **0 is folded into the first bucket**: `Math.ceil(0/10)`
+ * is 0 and would fall outside the array, and a zero is a "1–10" opinion by any
+ * reading.
+ *
+ * Returns `null` when nobody has rated it — distinct from an all-zero histogram,
+ * which cannot happen, and which the widget would otherwise draw as ten empty
+ * columns under a real heading.
+ */
+export type RatingBreakdown = {
+  /** Ten counts, lowest band first. */
+  buckets: number[];
+  total: number;
+  /** Mean of every rating, 0-100. */
+  average: number;
+};
+
+export async function getRatingBreakdown(gameId: string): Promise<RatingBreakdown | null> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select('rating')
+    .eq('game_id', gameId)
+    .not('rating', 'is', null);
+
+  if (error) throw new Error(error.message);
+
+  const ratings = (data ?? [])
+    .map((row) => row.rating)
+    .filter((rating): rating is number => rating !== null);
+
+  if (ratings.length === 0) return null;
+
+  const buckets = new Array<number>(10).fill(0);
+  let sum = 0;
+  for (const rating of ratings) {
+    const clamped = Math.max(0, Math.min(100, rating));
+    // `ceil` puts 10 in the first band and 11 in the second; `- 1` makes it an
+    // index. `max(0, …)` is what catches a literal 0.
+    const index = Math.max(0, Math.ceil(clamped / 10) - 1);
+    buckets[index] += 1;
+    sum += clamped;
+  }
+
+  return { buckets, total: ratings.length, average: Math.round(sum / ratings.length) };
 }
 
 /** Every log for a game that carries a rating or review — the game's reviews. */
@@ -407,17 +467,94 @@ export async function updateProfile(
   if (error) throw new Error(error.message);
 }
 
-export async function searchProfiles(query: string): Promise<Profile[]> {
-  const trimmed = query.trim();
+/** Longest query worth sending. A name is not a paragraph. */
+const PROFILE_QUERY_MAX = 60;
+
+/**
+ * Make a user's text safe to use as an ILIKE pattern.
+ *
+ * Two separate hazards, both of which shipped. `%` and `_` are SQL wildcards, so
+ * a bare `_` matched *every* profile in the table; and PostgREST rewrites `*`
+ * into `%` on its way to `ILIKE`, so an asterisk did the same thing by a
+ * different route. Backslash is Postgres's default LIKE escape, so it has to be
+ * escaped first or it would escape whatever followed it.
+ */
+function likeLiteral(input: string): string {
+  return input.replace(/\*/g, '').replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Rank a name match the way a person searching for a person expects.
+ *
+ * Lower is better. Postgres has no opinion about which of 25 matching rows is
+ * the one you meant, so this supplies it: the exact handle first, then anything
+ * *starting* with the term, then anything merely containing it.
+ */
+function profileRank(profile: Profile, needle: string): number {
+  const username = profile.username?.toLowerCase() ?? '';
+  const name = profile.display_name?.toLowerCase() ?? '';
+
+  if (username === needle) return 0;
+  if (name === needle) return 1;
+  if (username.startsWith(needle)) return 2;
+  if (name.startsWith(needle)) return 3;
+  return 4;
+}
+
+/**
+ * Find people by handle or display name.
+ *
+ * **Two queries rather than one `.or()`, deliberately.** The `.or()` filter is a
+ * *logic tree parsed from a string*, so a comma, `(` or `)` anywhere in the
+ * user's text broke the tree and came back as a 400 — which the People tab then
+ * rendered as a raw PostgREST parser message in place of the page. A single
+ * `.ilike()` sends its pattern as one opaque value and has no such grammar, so
+ * splitting the search into two filters removes that entire failure class
+ * instead of trying to escape its way around it.
+ *
+ * The results are then merged, de-duplicated and ranked here. There is no
+ * ordering the database can supply — relevance to a text query is not a column —
+ * and without one Postgres returned an arbitrary 25 of the matching rows, so an
+ * exact username match was not guaranteed to be among them and the same search
+ * could answer differently twice in a row.
+ */
+export async function searchProfiles(query: string, signal?: AbortSignal): Promise<Profile[]> {
+  const trimmed = query.trim().slice(0, PROFILE_QUERY_MAX);
   if (!trimmed) return [];
 
-  const { data, error } = await supabase
+  const pattern = `%${likeLiteral(trimmed)}%`;
+
+  /* Both filters are fetched wide and narrowed here, so the row that ranks
+     first is chosen from the whole match set rather than from whichever half
+     the database happened to return. */
+  const byHandle = supabase.from('profiles').select('*').ilike('username', pattern).limit(50);
+  const byDisplayName = supabase
     .from('profiles')
     .select('*')
-    .or(`username.ilike.%${trimmed}%,display_name.ilike.%${trimmed}%`)
-    .limit(25);
+    .ilike('display_name', pattern)
+    .limit(50);
 
-  return unwrap(data, error);
+  const [byUsername, byName] = await Promise.all([
+    signal ? byHandle.abortSignal(signal) : byHandle,
+    signal ? byDisplayName.abortSignal(signal) : byDisplayName,
+  ]);
+
+  const rows = [...unwrap(byUsername.data, byUsername.error), ...unwrap(byName.data, byName.error)];
+
+  const needle = trimmed.toLowerCase();
+  const unique = new Map<string, Profile>();
+  for (const profile of rows) {
+    if (!unique.has(profile.id)) unique.set(profile.id, profile);
+  }
+
+  return [...unique.values()]
+    .sort((a, b) => {
+      const byRank = profileRank(a, needle) - profileRank(b, needle);
+      /* Alphabetical inside a band, so the order is stable across identical
+         searches rather than following whatever the two queries returned. */
+      return byRank !== 0 ? byRank : (a.username ?? '').localeCompare(b.username ?? '');
+    })
+    .slice(0, 25);
 }
 
 export async function followUser(followerId: string, followingId: string): Promise<void> {
@@ -434,6 +571,54 @@ export async function unfollowUser(followerId: string, followingId: string): Pro
     .eq('follower_id', followerId)
     .eq('following_id', followingId);
   if (error) throw new Error(error.message);
+}
+
+/*
+ * The people behind the counts.
+ *
+ * `getProfileStats` has counted followers and following since the profile
+ * existed, but nothing could ever list them — the numbers were rendered in the
+ * tappable-count idiom every social app uses and led nowhere, because there was
+ * no screen and no query to open. These two are the missing half.
+ *
+ * The embed is what makes one round trip enough: `follows` holds only two ids,
+ * so the profile is pulled through the foreign key rather than by a second
+ * query over the returned list. Both `FK<>` entries are declared in
+ * `database.types.ts`, which is what stops supabase-js resolving the embed to
+ * `SelectQueryError` — see the note in CLAUDE.md.
+ *
+ * The direction of the join is the whole difference between them, and it is
+ * easy to get backwards: a *follower* is someone whose `following_id` is this
+ * profile, so the row we want the profile from is `follower_id`.
+ */
+type FollowWithProfile = { profile: Profile | null };
+
+/** People who follow this profile, most recent first. */
+export async function getFollowers(profileId: string): Promise<Profile[]> {
+  const { data, error } = await supabase
+    .from('follows')
+    .select('profile:profiles!follows_follower_id_fkey(*)')
+    .eq('following_id', profileId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as FollowWithProfile[])
+    .map((row) => row.profile)
+    .filter((profile): profile is Profile => profile !== null);
+}
+
+/** People this profile follows, most recent first. */
+export async function getFollowing(profileId: string): Promise<Profile[]> {
+  const { data, error } = await supabase
+    .from('follows')
+    .select('profile:profiles!follows_following_id_fkey(*)')
+    .eq('follower_id', profileId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as FollowWithProfile[])
+    .map((row) => row.profile)
+    .filter((profile): profile is Profile => profile !== null);
 }
 
 export type ProfileStats = {
@@ -495,4 +680,230 @@ export async function getAchievementStats(profileId: string): Promise<ProfileAch
       hours_played: 0,
     }
   );
+}
+
+/**
+ * One review of this game, with its like count and whether you liked it.
+ *
+ * `likes` is what ranks it, `likedByViewer` is what the like button reads.
+ */
+export type TopReview = {
+  log: LogWithRelations;
+  likes: number;
+  likedByViewer: boolean;
+};
+
+/**
+ * How many written reviews to weigh before picking one.
+ *
+ * The rank is computed here rather than in Postgres, so this is the cost knob:
+ * every row comes back over the wire and its id goes into the likes query. Ten
+ * is enough that the genuinely popular review is almost always among them —
+ * they arrive newest-first, and a review with real likes on a game with more
+ * than ten reviews is not going to be the eleventh-newest.
+ */
+const RANKED_REVIEWS = 10;
+
+/**
+ * The review worth showing for a game.
+ *
+ * ## Why this is composed rather than an RPC
+ *
+ * 0013 ships `popular_reviews()`, which is exactly this ranking — but globally,
+ * with no game filter, so it cannot answer "for *this* game". Adding a second
+ * function would mean a migration for a read that two existing calls already
+ * cover, and this feature has to work on a database nobody has re-run.
+ *
+ * So: the newest written reviews for the game, then `getEngagement` for their
+ * like counts in one batched pair, then the same ordering `popular_reviews`
+ * uses — most liked first, **recency breaking ties**. That tiebreak is not a
+ * detail: without it a game whose reviews all have zero likes would have no
+ * defined winner, and the block would flicker between them on every deal.
+ *
+ * Returns null when the game has no written review, which is the common case
+ * and not an error.
+ */
+export async function getTopGameReview(
+  gameId: string,
+  viewerId: string | null
+): Promise<TopReview | null> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .eq('game_id', gameId)
+    /* A star rating alone is not a review — this block prints prose, and an
+       empty body under someone's name reads as a loading failure. */
+    .not('review', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(RANKED_REVIEWS);
+
+  if (error) throw new Error(error.message);
+
+  const reviews = (data as LogWithRelations[] | null) ?? [];
+  const written = reviews.filter((log) => (log.review ?? '').trim().length > 0);
+  if (written.length === 0) return null;
+
+  const engagement = await getEngagement(
+    'log',
+    written.map((log) => log.id),
+    viewerId
+  );
+
+  const best = written.reduce((winner, log) => {
+    const a = engagement[log.id]?.likes ?? 0;
+    const b = engagement[winner.id]?.likes ?? 0;
+    if (a !== b) return a > b ? log : winner;
+    // Already newest-first, so the incumbent is the more recent of a tie.
+    return winner;
+  }, written[0]);
+
+  return {
+    log: best,
+    likes: engagement[best.id]?.likes ?? 0,
+    likedByViewer: engagement[best.id]?.likedByViewer ?? false,
+  };
+}
+
+/* -------------------------------------------------------------------------
+ * The reviews sheet
+ * ---------------------------------------------------------------------- */
+
+/** How the review list is ordered. Filters are separate; see `ReviewFilters`. */
+export type ReviewSort = 'popular' | 'newest' | 'week' | 'month';
+
+export type ReviewFilters = {
+  /** `played_on` exactly as the reviewer recorded it. Null means every platform. */
+  platform?: string | null;
+  /** Lowest score to include, inclusive. 60 shows 60-100. */
+  minScore?: number | null;
+  /** Highest score to include, inclusive. Only used by the "below 60" band. */
+  maxScore?: number | null;
+  /** Only reviews of a game the writer platinumed. */
+  platinumOnly?: boolean;
+};
+
+export type ReviewListItem = {
+  log: LogWithRelations;
+  likes: number;
+  /**
+   * How many replies the review has.
+   *
+   * `getEngagement` has always returned this in the same batch as the likes —
+   * it is one more tally over rows already fetched, so carrying it costs
+   * nothing. It was dropped on the floor here until the review rows grew a
+   * comment button, which could not have shown a count without it.
+   */
+  comments: number;
+  likedByViewer: boolean;
+};
+
+/**
+ * The most rows the sheet will hold.
+ *
+ * Popularity is ranked in memory — Postgres cannot order these by a count over
+ * `likes` without a function per sort — so this is the ceiling on both the
+ * transfer and the ranking. A hundred reviews is more than any game in this app
+ * has, and far more than anybody scrolls.
+ */
+const REVIEW_PAGE = 100;
+
+/** Days in each windowed sort. `popular` and `newest` are unwindowed. */
+const WINDOW_DAYS: Partial<Record<ReviewSort, number>> = { week: 7, month: 30 };
+
+/**
+ * Every review of a game, ordered and filtered for the reviews sheet.
+ *
+ * ## Why the ordering happens here and not in SQL
+ *
+ * Three of the four sorts rank by like count, and PostgREST cannot order a
+ * resource by an aggregate over an embedded one — the same limitation 0013's
+ * five functions exist to work around. Adding four more functions would mean a
+ * migration for a read, on a schema whose owner has not run 0012 onwards yet. So
+ * Postgres does what it is good at (filtering, windowing, limiting) and the
+ * ranking happens over the hundred rows that come back.
+ *
+ * ## What "this week" means
+ *
+ * Reviews *written* in the last seven days, ordered by likes — not reviews that
+ * collected likes this week. The second reading needs a date filter on the likes
+ * themselves, which would rank a two-year-old review as this week's most popular
+ * because it got three likes on Tuesday. What a reader wants from "this week" is
+ * what is new and landing well.
+ */
+export async function getGameReviewList(
+  gameId: string,
+  sort: ReviewSort,
+  filters: ReviewFilters,
+  viewerId: string | null
+): Promise<ReviewListItem[]> {
+  let query = supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .eq('game_id', gameId)
+    .not('review', 'is', null);
+
+  const days = WINDOW_DAYS[sort];
+  if (days) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60_000).toISOString();
+    query = query.gte('created_at', since);
+  }
+
+  if (filters.platform) query = query.eq('played_on', filters.platform);
+  if (filters.platinumOnly) query = query.eq('platinum', true);
+  if (filters.minScore != null) query = query.gte('rating', filters.minScore);
+  if (filters.maxScore != null) query = query.lte('rating', filters.maxScore);
+
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(REVIEW_PAGE);
+
+  if (error) throw new Error(error.message);
+
+  const written = ((data as LogWithRelations[] | null) ?? []).filter(
+    (log) => (log.review ?? '').trim().length > 0
+  );
+  if (written.length === 0) return [];
+
+  const engagement = await getEngagement(
+    'log',
+    written.map((log) => log.id),
+    viewerId
+  );
+
+  const items: ReviewListItem[] = written.map((log) => ({
+    log,
+    likes: engagement[log.id]?.likes ?? 0,
+    comments: engagement[log.id]?.comments ?? 0,
+    likedByViewer: engagement[log.id]?.likedByViewer ?? false,
+  }));
+
+  /* `newest` is already in order from the query. The other three rank by likes,
+     and the rows arrive newest-first, so a stable sort leaves recency as the
+     tiebreak — the same rule `popular_reviews` uses in 0013. */
+  if (sort === 'newest') return items;
+  return items.sort((a, b) => b.likes - a.likes);
+}
+
+/**
+ * The platforms this game has actually been reviewed on.
+ *
+ * Built from the reviews rather than from the game's platform list, because the
+ * filter is only useful for values that will return something — offering "Xbox
+ * Series X" on a game nobody reviewed there is a control that can only
+ * disappoint. Null entries are dropped: plenty of logs record no platform.
+ */
+export async function getReviewPlatforms(gameId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select('played_on')
+    .eq('game_id', gameId)
+    .not('review', 'is', null)
+    .not('played_on', 'is', null);
+
+  if (error) throw new Error(error.message);
+
+  const seen = new Set<string>();
+  for (const row of data ?? []) {
+    const value = (row.played_on ?? '').trim();
+    if (value) seen.add(value);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
 }

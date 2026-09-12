@@ -47,6 +47,17 @@ export type ChartEntry = {
   edition: EditionKind | null;
   /** Steam appid, for official store artwork on the chart tiles. */
   steamAppId: string | null;
+  /**
+   * Raw provider platform names, for the marks under a chart tile.
+   *
+   * Carried rather than looked up because the chart is the one game list in the
+   * app that does *not* go through `GameSearchResult` — without this the
+   * carousel is the only surface where a game appears with no answer to "can I
+   * play this", which is what made Discover read as a different app from the
+   * search results beside it. Collapsed to families at render time by
+   * `platformFamilies`, exactly as every other surface does.
+   */
+  platforms: string[];
 };
 
 /**

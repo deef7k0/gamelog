@@ -4,6 +4,7 @@ import { StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native'
 
 import { Text } from '@/components/ui/text';
 import { Radius, withAlpha } from '@/constants/theme';
+import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import type { ListCover } from '@/lib/api';
 
@@ -69,10 +70,20 @@ export type CollectionMosaicProps = {
  * square where art should be reads as a failed image load, and a collection with
  * three games is not broken.
  *
- * The covers are cropped square from portrait 2:3 art. That is a real crop and
- * it is the right one: a mosaic of correctly-proportioned posters would need
- * gaps or letterboxing, and the point of this shape is that it is one solid
- * block of artwork.
+ * ## Square art, per tile
+ *
+ * Every quarter of this shape is itself a square, so this is the one place in
+ * the app where the crop was structural rather than incidental — four 2:3
+ * covers centre-cropped to 1:1, four logos cut in half, in a block whose whole
+ * job is to be readable as four games. Each tile now asks SteamGridDB for a true
+ * 1:1 grid (`useSquareCover`) and falls back to the cropped IGDB cover when
+ * there is none, so a mixed collection draws some composed squares and some
+ * crops rather than waiting on the slowest lookup or refusing the feature to
+ * every game SteamGridDB has never heard of.
+ *
+ * **Only the mosaic.** The rows inside a collection are a list of games and keep
+ * portrait box art; square art here is a property of this shape, not of
+ * collections.
  */
 export function CollectionMosaic({
   covers,
@@ -182,9 +193,19 @@ function Tile({
   style: ImageStyle;
   blurRadius?: number;
 }) {
+  /* Per tile rather than per mosaic: four independent lookups that each resolve
+     when they resolve. Batching them would mean the block could not draw until
+     the slowest one answered, for a result that is allowed to be mixed anyway.
+
+     `resolved` gates the draw — a tile that painted the IGDB crop and then
+     replaced it with a square would put that swap four times over in one 164dp
+     block. Until then the mosaic's own `surfaceElevated` fill shows through. */
+  const square = useSquareCover({ gameId: cover.id, title: cover.title });
+  const uri = square.resolved ? (square.uri ?? cover.cover_url ?? cover.hero_url ?? '') : '';
+
   return (
     <Image
-      source={{ uri: cover.cover_url ?? cover.hero_url ?? '' }}
+      source={uri ? { uri } : undefined}
       style={style}
       contentFit="cover"
       /* No transition on the blurred copy: it is the same cached image as the

@@ -1,58 +1,55 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useState } from 'react';
+import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CollectionMosaic } from '@/components/collection-mosaic';
 import { Avatar } from '@/components/ui/avatar';
-import { BLUR_RADIUS, FADE_HEIGHT, RAMP_COLORS, RAMP_STOPS } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { RichText } from '@/components/ui/rich-text';
 import { Text } from '@/components/ui/text';
 import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
 import { displayNameFor } from '@/lib/format';
-import type { Engagement, ListItem, ListWithItems } from '@/lib/api';
+import type { Engagement, ListCover, ListItem, ListWithItems } from '@/lib/api';
 import type { Profile } from '@/lib/database.types';
 
 /**
  * How much of the display the artwork block occupies.
  *
- * A bit under half, which is the proportion the reference sets and a different
- * question from `HeroHeightRatio`'s 0.38 on the game page. The two screens open
- * differently on purpose: a game leads with landscape key art above a case and a
- * synopsis, so its art is a band. A collection leads with a *square* of four
- * covers and everything under it is centred on the axis that square establishes,
- * so the art has to be big enough to read as the subject rather than as a
- * header image.
+ * **Half, exactly.** The reference sets it there and the reason holds here: a
+ * collection opens on a square of four covers, and half a phone is the point
+ * where that square reads as the subject of the page rather than as a header
+ * image above the real content. Below about 0.45 it becomes a banner; above 0.55
+ * the title is pushed off the first screenful.
  */
-const COVER_RATIO = 0.46;
+const COVER_RATIO = 0.5;
 
 /**
- * The masthead title, in points.
+ * Where the black starts, as a fraction of the cover block's height.
  *
- * Larger than `Type.display`'s 26, and set here rather than added to the scale
- * because it is one screen's opening statement rather than a step anything else
- * should reach for. The name is the single most important thing on the page and
- * it is competing with a half-screen of box art directly above it; at 26 it read
- * as a caption under the artwork instead of as the page's subject.
+ * The title sits *inside* the artwork, a little above the point the fade has
+ * finished — which is what makes the name read as printed on the cover rather
+ * than captioned under it. So the ramp has to be well underway by the time it
+ * reaches the text, and fully closed before the buttons.
  */
-const TITLE_SIZE = 32;
-const TITLE_LINE = 38;
+const FADE_START = 0.42;
 
-/** The one filled action. Diameter in dp. */
-const PRIMARY_BUTTON = 72;
+/** The one filled action. */
+const PILL_HEIGHT = 52;
+/** Every circular action beside it. */
+const CIRCLE = 52;
+
 /**
- * Every outlined action beside it.
+ * Lines of description shown before "See more".
  *
- * 48 rather than the 52 the reference measures at, because an owner sees five
- * of these and the reference's subject saw three. Four secondaries plus the
- * primary plus four gaps is 312dp, which clears a 360dp-wide Android phone's
- * 324dp of usable width; at 52 it came to 328 and overflowed by four. Still
- * comfortably past the 44dp tap-target floor.
+ * Three, and it is the reference's number. One line is a caption and cannot
+ * carry an argument; the whole thing unclamped pushes the list itself off the
+ * screen on any collection whose owner actually wrote something.
  */
-const SECONDARY_BUTTON = 48;
+const DESCRIPTION_LINES = 3;
 
 export type CollectionHeaderProps = {
   collection: ListWithItems;
@@ -61,6 +58,8 @@ export type CollectionHeaderProps = {
   /** Like count and whether the viewer is one of them. */
   engagement?: Engagement;
   onEdit?: () => void;
+  /** Rename the collection and rewrite its About. Owner-only. */
+  onEditDetails?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
   /** Enter the "tap a game to use its cover" mode. Owner-only. */
@@ -68,37 +67,33 @@ export type CollectionHeaderProps = {
 };
 
 /**
- * Collection masthead — artwork, name, stats, description, actions.
+ * Collection masthead — artwork, name, one row of actions, description.
  *
- * ## The shape
+ * ## The shape, and what changed
  *
- * A near-half-screen block of artwork that dissolves into the page, then
- * everything else centred on its axis: the name at display size, one line of
- * stats, the description, and a row of circular actions with the primary one
- * filled and twice the size of its neighbours. It is the artist-page
- * arrangement, and it suits a collection for the same reason it suits an artist:
- * the thing has a face, a name, two numbers worth knowing, and a small number of
- * things you can do with it. The previous version stacked a left-aligned title,
- * a byline, a metadata row, tags and a wrapping row of outlined buttons, which
- * is five left edges and no focal point.
+ * Half a screen of artwork fading to black; the name and the byline set *over*
+ * the bottom of it; one row of actions on the dark below; then the description,
+ * tight under the actions. Everything is centred on the artwork's axis.
  *
- * ## The fade is the game page's, not a copy of it
+ * Two things were wrong before and both were structural rather than cosmetic.
  *
- * `<HeroArt>` dissolves a blurred copy of the art into the sharp one through a
- * gradient mask, then ramps to the page colour. That component takes a single
- * `uri` and a collection's artwork is a 2×2 mosaic, so this cannot call it — but
- * it imports `BLUR_RADIUS`, `RAMP_STOPS`, `RAMP_COLORS` and `FADE_HEIGHT` from
- * it rather than restating them, so the two screens cannot drift apart on the
- * next retune. The blurred layer is a second `<CollectionMosaic blurRadius>`,
- * which is the whole reason that prop exists.
+ * **The fade was a blurred copy of the artwork revealed through a gradient
+ * mask.** That is the game page's treatment and it belongs there, where the
+ * subject is one photographic key art. A collection's artwork is a 2×2 grid of
+ * covers, and blurring it produced four smeared rectangles whose seams were
+ * still visible — the grid survived the blur, so the "dissolve" read as the
+ * image going out of focus rather than as it ending. A plain black ramp is what
+ * the reference uses and it is the honest one: the artwork does not dissolve,
+ * the page gets dark underneath it.
  *
- * The mosaic stays the artwork at both sizes — the tile you tapped and this
- * banner show the same four covers, in `position` order, which is the rule that
- * makes a tile read as a small version of the thing rather than an unrelated
- * preview of it.
- *
- * The caller owns the bleed: cancel any horizontal padding on the scroll
- * container around this.
+ * **The action row wrapped.** An owner saw six controls — share, edit details,
+ * change preview, add games, delete, like — which is 356dp against a small
+ * phone's ~324, so the last one dropped to a second line and the description
+ * moved down with it. The fix is not smaller buttons: it is that four of those
+ * six are *owner administration* and do not belong in the same row as the one
+ * thing a reader came to do. They are behind the overflow now, so the row is
+ * always exactly three objects wide — circle, pill, circle — on every phone and
+ * for every viewer.
  */
 export function CollectionHeader({
   collection,
@@ -106,261 +101,365 @@ export function CollectionHeader({
   isOwner,
   engagement,
   onEdit,
+  onEditDetails,
   onDelete,
   onShare,
   onPickCover,
 }: CollectionHeaderProps) {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
+  const [expanded, setExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const items = collection.items ?? [];
   const covers = coversFrom(items);
-  const tags = collection.tags ?? [];
   const isAwards = collection.kind === 'awards';
+  const description = collection.description?.trim();
 
   const { liked, likeCount, toggle } = useLikeToggle('list', collection.id, engagement);
 
   /*
    * The mosaic is square and the block is not, so it is sized to cover the
    * block's longer axis and centred on both — a centre crop rather than a
-   * stretch. On a phone the block is very nearly square already and the offsets
-   * come out at zero; on a tablet the square is far taller than the block and
-   * the vertical offset is what keeps the crop centred instead of top-anchored.
+   * stretch.
    */
   const coverHeight = Math.round(height * COVER_RATIO);
   const mosaicSize = Math.max(width, coverHeight);
   const offsetX = Math.round((width - mosaicSize) / 2);
   const offsetY = Math.round((coverHeight - mosaicSize) / 2);
 
-  const artwork = (blurRadius: number) => (
-    <View style={[styles.coverArt, { left: offsetX, top: offsetY }]}>
-      <CollectionMosaic
-        covers={covers}
-        size={mosaicSize}
-        title={collection.title}
-        rounded="none"
-        award={isAwards}
-        blurRadius={blurRadius}
-      />
-    </View>
-  );
+  const ownerActions = isOwner && (onEditDetails || onEdit || onPickCover || onDelete);
 
   return (
     <View>
       <View style={[styles.cover, { height: coverHeight }]}>
-        {artwork(0)}
+        <View style={[styles.coverArt, { left: offsetX, top: offsetY }]}>
+          <CollectionMosaic
+            covers={covers}
+            size={mosaicSize}
+            title={collection.title}
+            rounded="none"
+            award={isAwards}
+          />
+        </View>
 
-        {/* The blurred copy, revealed through the ramp's alpha. Only when there
-            is real artwork: the empty-state mosaic is a flat fill behind a
-            letter, and blurring that produces a slightly different flat fill
-            with a seam where the mask ends. */}
-        {covers.length > 0 && (
-          <MaskedView
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-            maskElement={
-              <LinearGradient colors={RAMP_COLORS} locations={RAMP_STOPS} style={styles.fill} />
-            }>
-            {artwork(BLUR_RADIUS)}
-          </MaskedView>
-        )}
+        {/*
+          One black ramp, and no blur anywhere in it.
 
-        {/* Weighted dark in the middle rather than a straight ramp — a linear
-            fade spends its first half barely tinting anything and then closes
-            the whole distance at once, which on artwork reads as the art
-            dropping off a shelf. Every stop ends on a colour at an explicit
-            alpha, never the keyword `transparent`: expo-linear-gradient
-            premultiplies on Android and would fade the keyword through black. */}
+          Weighted rather than linear: a straight fade spends its first half
+          barely tinting anything and then closes the whole distance at once,
+          which on artwork reads as the image dropping off a shelf. Every stop
+          ends on a colour at an explicit alpha and never the keyword
+          `transparent` — expo-linear-gradient premultiplies on Android and
+          would fade the keyword through black, leaving a grey bruise mid-ramp.
+        */}
         <LinearGradient
           colors={[
             withAlpha(theme.background, 0),
-            withAlpha(theme.background, 0.72),
+            withAlpha(theme.background, 0.55),
+            withAlpha(theme.background, 0.92),
             theme.background,
           ]}
-          locations={[0, 0.55, 1]}
-          style={[styles.fade, { height: `${FADE_HEIGHT * 100}%` }]}
+          locations={[0, 0.45, 0.8, 1]}
+          style={[styles.fade, { top: `${FADE_START * 100}%` }]}
           pointerEvents="none"
         />
 
-        {/* Darkens the top so the floating back arrow stays legible over a
-            bright cover. */}
+        {/* Keeps the floating back disc legible over a bright cover. */}
         <LinearGradient
           colors={[withAlpha(Palette.shadowInk, 0.5), withAlpha(Palette.shadowInk, 0)]}
           style={styles.scrim}
           pointerEvents="none"
         />
+
+        {/*
+          The name and the byline, set over the artwork.
+
+          Anchored to the bottom of the cover block rather than placed after it,
+          so they sit on ground the fade has already darkened — printed on the
+          cover rather than captioned beneath it. `paddingBottom` is what keeps
+          them clear of the very bottom edge, where the ramp is fully black and
+          the text would look like it had fallen out of the image.
+        */}
+        <View style={styles.titleBlock} pointerEvents="box-none">
+          <Text variant="display" numberOfLines={2} style={styles.title}>
+            {collection.title}
+          </Text>
+
+          {owner && (
+            <Link href={{ pathname: '/profile/[id]', params: { id: owner.id } }} asChild>
+              <PressableScale
+                accessibilityRole="link"
+                accessibilityLabel={`${displayNameFor(owner)}'s profile`}
+                scaleTo={0.98}
+                style={StyleSheet.flatten(styles.byline)}>
+                <Avatar uri={owner.avatar_url} name={displayNameFor(owner)} size={20} />
+                <Text variant="h5" numberOfLines={1}>
+                  {displayNameFor(owner)}
+                </Text>
+              </PressableScale>
+            </Link>
+          )}
+
+          <Text variant="bodySmall" color="textMuted">
+            {collectionKindLabel(collection)} · {items.length}{' '}
+            {items.length === 1 ? 'game' : 'games'}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.body}>
-        <Text
-          variant="display"
-          numberOfLines={2}
-          style={StyleSheet.flatten([styles.centred, styles.title])}>
-          {collection.title}
-        </Text>
-
-        {/* The two numbers worth knowing, on one line, in the order the
-            reference sets: what it holds, then how it has landed. */}
-        <Text variant="body" color="textSecondary" style={styles.centred}>
-          {items.length} {items.length === 1 ? 'game' : 'games'} · {likeCount}{' '}
-          {likeCount === 1 ? 'like' : 'likes'}
-        </Text>
-
-        {/* Kind and ranking sit *under* the stats rather than above the title.
-            A label over a heading is a kicker, and the heading here does not
-            need help — but which of the three shapes this is genuinely changes
-            what you are looking at, so it cannot simply be dropped. */}
-        {(isAwards || collection.kind === 'tier' || collection.is_ranked) && (
-          <View style={styles.kindRow}>
-            {isAwards && <Ionicons name="trophy" size={11} color={theme.identityGold} />}
-            <Text
-              variant="label"
-              color={isAwards ? undefined : 'textMuted'}
-              style={isAwards ? { color: theme.identityGold } : undefined}>
-              {isAwards ? 'AWARD SHOW' : collection.kind === 'tier' ? 'TIER LIST' : 'RANKED'}
-            </Text>
-          </View>
-        )}
-
-        {/* About: who made it, then what they said about it. */}
-        {owner && (
-          <Link href={{ pathname: '/profile/[id]', params: { id: owner.id } }} asChild>
-            <PressableScale accessibilityRole="button" scaleTo={0.98} style={styles.creator}>
-              <Avatar uri={owner.avatar_url} name={displayNameFor(owner)} size={24} />
-              <Text variant="bodySmall" color="textSecondary" numberOfLines={1}>
-                {displayNameFor(owner)}
-              </Text>
-            </PressableScale>
-          </Link>
-        )}
-
-        {collection.description && (
-          <Text variant="body" color="textSecondary" style={styles.centred}>
-            {collection.description}
-          </Text>
-        )}
-
-        {tags.length > 0 && (
-          <View style={styles.tags}>
-            {tags.map((tag) => (
-              <View key={tag} style={[styles.tag, { borderColor: theme.border }]}>
-                <Text variant="caption" color="textSecondary">
-                  {tag}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
         {/*
-          The action row. Liking is the filled one because it is the only
-          control here with a state to be in, and because it is what a reader
-          who is not the owner came to do — the owner's four are edits to
-          something that already exists. An owner sees five and the like lands
-          dead centre of them; a visitor sees two.
+          Three objects, always. Never four, never a second line.
+
+          The pill is the like because that is the one thing a *reader* came to
+          do, and it is the only control here with a state to be in. Share sits
+          to its left; everything an owner can do to the collection is behind the
+          overflow to its right, which is what guarantees the row measures the
+          same for a visitor and for the person who made it.
         */}
         <View style={styles.actions}>
-          {onShare && (
-            <CircleAction
-              icon="share-outline"
-              label={`Share ${collection.title}`}
-              onPress={onShare}
-            />
+          {onShare ? (
+            <CircleAction icon="share-outline" label="Share this collection" onPress={onShare} />
+          ) : (
+            <View style={styles.circleSpacer} />
           )}
 
-          {isOwner && onPickCover && items.length > 1 && (
-            <CircleAction
-              icon="image-outline"
-              label="Change the preview cover"
-              onPress={onPickCover}
-            />
-          )}
-
-          <CircleAction
-            primary
-            active={liked}
-            icon={liked ? 'heart' : 'heart-outline'}
-            label={liked ? 'Unlike this collection' : 'Like this collection'}
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={liked ? 'Unlike this collection' : 'Like this collection'}
+            accessibilityState={{ selected: liked }}
             onPress={toggle}
-          />
+            scaleTo={0.95}
+            style={StyleSheet.flatten([
+              styles.pill,
+              { backgroundColor: liked ? theme.danger : theme.text },
+            ])}>
+            {/* Near-black ink in both states, and it is the only arrangement
+                that measures: white on `danger` is 3.09:1, near-black on it is
+                5.57:1. The solid-vs-outline glyph is the second carrier, so
+                "liked" never rests on hue alone. */}
+            <Ionicons name={liked ? 'heart' : 'heart-outline'} size={22} color={theme.background} />
+            <Text variant="button" style={{ color: theme.background }}>
+              {likeCount > 0 ? `${likeCount}` : 'Like'}
+            </Text>
+          </PressableScale>
 
-          {isOwner && onEdit && (
-            <CircleAction icon="add" label="Add games to this collection" onPress={onEdit} />
-          )}
-
-          {isOwner && onDelete && (
+          {ownerActions ? (
             <CircleAction
-              icon="trash-outline"
-              label="Delete this collection"
-              danger
-              onPress={onDelete}
+              icon="ellipsis-horizontal"
+              label="More actions for this collection"
+              onPress={() => setMenuOpen(true)}
             />
+          ) : (
+            <View style={styles.circleSpacer} />
           )}
         </View>
+
+        {/*
+          The description, tight under the actions.
+
+          `gap` on the body is deliberately small: the reference stacks these
+          with almost nothing between them, and the compactness is what keeps the
+          list itself on the first screenful.
+        */}
+        {description ? (
+          <View style={styles.about}>
+            <RichText
+              variant="body"
+              color="textSecondary"
+              numberOfLines={expanded ? undefined : DESCRIPTION_LINES}>
+              {description}
+            </RichText>
+
+            {/* Shown unconditionally rather than measured. `onTextLayout` would
+                tell us whether the clamp actually bit, but it costs a render
+                pass on every description and gets it wrong on the first frame;
+                a "See more" that opens three lines you had already read is a far
+                smaller cost than a truncated argument with no way in. */}
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={expanded ? 'Show less' : 'Show the full description'}
+              onPress={() => setExpanded((open) => !open)}
+              hitSlop={Spacing.x8}
+              scaleTo={0.98}>
+              <Text variant="h5" color="textSecondary">
+                {expanded ? 'Less' : 'More'}
+              </Text>
+            </PressableScale>
+          </View>
+        ) : (
+          <Text variant="body" color="textMuted">
+            No description
+          </Text>
+        )}
       </View>
+
+      {ownerActions && (
+        <OwnerMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          canPickCover={!!onPickCover && items.length > 1}
+          onEditDetails={onEditDetails}
+          onEdit={onEdit}
+          onPickCover={onPickCover}
+          onDelete={onDelete}
+        />
+      )}
     </View>
   );
+}
+
+/** What kind of thing this is, in the reference's "Playlist · 2026" slot. */
+function collectionKindLabel(collection: ListWithItems): string {
+  switch (collection.kind) {
+    case 'awards':
+      return 'Award show';
+    case 'tier':
+      return 'Tier list';
+    case 'captioned':
+      return 'Board';
+    case 'favorites':
+      return 'Favourites';
+    case 'wishlist':
+      return 'Wishlist';
+    default:
+      return collection.is_ranked ? 'Ranked list' : 'Collection';
+  }
 }
 
 /**
  * One circular action.
  *
- * `primary` is the filled white disc from the reference, and `active` flips its
- * fill to `danger` while the glyph goes solid. **Two carriers, and neither of
- * them is the fill alone** — outline-vs-solid says "liked" to a viewer who
- * cannot separate the two hues. The glyph stays near-black in both states,
- * which is also the only arrangement that measures: white ink on `danger` is
- * 3.09:1 against a 4.5:1 requirement, while near-black on it is 5.57:1.
- *
- * **The ring is always white, including on the destructive one.** A ring of
- * `danger` at 40% composites to #6C2D2D, which is 1.83:1 on the page and fails
- * the 3:1 a control boundary owes; the white ring is 3.62:1. So the delete
- * button carries its meaning on the *glyph* (5.57:1) and shares everyone else's
- * edge — which is the same rule `<Chip color>` follows, tinting the label and
- * never the container.
+ * Outlined, never filled — the pill between them is the only filled object in
+ * the row, which is what makes it read as the primary one. The ring is always
+ * white, including on a destructive action: `danger` at 40% composites to
+ * #6C2D2D, 1.83:1 on the page, against the 3:1 a control boundary owes. Meaning
+ * rides on the glyph instead, which is the same rule `<Chip color>` follows.
  */
 function CircleAction({
   icon,
   label,
   onPress,
-  primary = false,
-  active = false,
-  danger = false,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
-  primary?: boolean;
-  active?: boolean;
-  danger?: boolean;
 }) {
   const theme = useTheme();
-  const size = primary ? PRIMARY_BUTTON : SECONDARY_BUTTON;
-
-  const fill = primary ? (active ? theme.danger : theme.text) : 'transparent';
-  const ink = primary ? theme.background : danger ? theme.danger : theme.text;
 
   return (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={primary ? { selected: active } : undefined}
       onPress={onPress}
       scaleTo={0.92}
-      style={StyleSheet.flatten([
-        styles.circle,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: fill,
-          /* The outlined ones carry their edge; the filled one would be a white
-             disc with a white ring around it. */
-          borderWidth: primary ? 0 : 1.5,
-          borderColor: withAlpha(theme.text, 0.4),
-        },
-      ])}>
-      <Ionicons name={icon} size={primary ? 30 : 22} color={ink} />
+      style={StyleSheet.flatten([styles.circle, { borderColor: withAlpha(theme.text, 0.4) }])}>
+      <Ionicons name={icon} size={22} color={theme.text} />
+    </PressableScale>
+  );
+}
+
+/**
+ * Everything an owner can do, on a sheet.
+ *
+ * Off the action row on purpose. These are administration — rename it, add to
+ * it, change its cover, delete it — and none of them is what a person opening a
+ * collection came to do. Keeping them in the row cost a wrapped second line on
+ * every phone and put a delete button a thumb's width from the like.
+ */
+function OwnerMenu({
+  open,
+  onClose,
+  canPickCover,
+  onEditDetails,
+  onEdit,
+  onPickCover,
+  onDelete,
+}: {
+  open: boolean;
+  onClose: () => void;
+  canPickCover: boolean;
+  onEditDetails?: () => void;
+  onEdit?: () => void;
+  onPickCover?: () => void;
+  onDelete?: () => void;
+}) {
+  const theme = useTheme();
+
+  function run(action?: () => void) {
+    onClose();
+    action?.();
+  }
+
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      {/* The scrim dismisses. A sheet with no way out but its own buttons is a
+          trap on Android, where there is no swipe-down to close a transparent
+          modal. */}
+      <Pressable
+        style={[styles.backdrop, { backgroundColor: withAlpha(Palette.shadowInk, 0.6) }]}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        onPress={onClose}>
+        <Pressable
+          style={[styles.sheet, { backgroundColor: theme.surfaceElevated }]}
+          /* Swallows the tap so pressing the sheet itself does not dismiss it. */
+          onPress={() => {}}>
+          {onEditDetails && (
+            <MenuRow
+              icon="create-outline"
+              label="Edit name and description"
+              onPress={() => run(onEditDetails)}
+            />
+          )}
+          {onEdit && <MenuRow icon="add" label="Add games" onPress={() => run(onEdit)} />}
+          {canPickCover && onPickCover && (
+            <MenuRow
+              icon="image-outline"
+              label="Change preview cover"
+              onPress={() => run(onPickCover)}
+            />
+          )}
+          {onDelete && (
+            <MenuRow
+              icon="trash-outline"
+              label="Delete collection"
+              danger
+              onPress={() => run(onDelete)}
+            />
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function MenuRow({
+  icon,
+  label,
+  onPress,
+  danger = false,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
+  const theme = useTheme();
+  const ink = danger ? theme.danger : theme.text;
+
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      scaleTo={0.98}
+      style={StyleSheet.flatten(styles.menuRow)}>
+      <Ionicons name={icon} size={20} color={ink} />
+      <Text variant="h5" style={{ color: ink }}>
+        {label}
+      </Text>
     </PressableScale>
   );
 }
@@ -368,64 +467,94 @@ function CircleAction({
 /**
  * The first four items' covers, in list order.
  *
- * Mirrors `resolveMosaic` in `api/lists.ts`, which does the same job on the
- * summary row the tile is built from. Two functions rather than one because the
- * shapes genuinely differ — this walks `ListItem[]` with a full `CachedGame`
- * attached, that walks the summary's lighter embed — but they must stay in
- * agreement, because the whole point is that the tile and the banner show the
- * same four covers.
+ * Mirrors `resolveMosaic` in `api/lists.ts`. Two functions rather than one
+ * because the shapes genuinely differ — this walks `ListItem[]` with a full
+ * `CachedGame` attached, that walks the summary's lighter embed — but they must
+ * stay in agreement, because the whole point is that the tile and the banner
+ * show the same four covers.
  */
-function coversFrom(items: ListItem[]): { cover_url: string | null; hero_url: string | null }[] {
+function coversFrom(items: ListItem[]): ListCover[] {
   return items
     .slice()
     .sort((a, b) => a.position - b.position)
     .map((item) => item.game)
     .filter((game): game is NonNullable<typeof game> => game !== null)
-    .map((game) => ({ cover_url: game.cover_url, hero_url: game.hero_url }))
+    .map((game) => ({
+      id: game.id,
+      title: game.title,
+      cover_url: game.cover_url,
+      hero_url: game.hero_url,
+    }))
     .slice(0, 4);
 }
 
 const styles = StyleSheet.create({
   cover: { position: 'relative', width: '100%', overflow: 'hidden' },
   coverArt: { position: 'absolute' },
-  fill: { flex: 1 },
+  /* `top` is supplied inline — the ramp begins partway down the artwork. */
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   scrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '22%' },
 
-  body: {
-    paddingHorizontal: Spacing.x24,
+  titleBlock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
-    gap: Spacing.x12,
-    /* Pulled up into the artwork. The fade has already resolved to the page
-       colour by the time the title arrives, so this sits on `background` rather
-       than on covers — it just gets there without a band of empty page between
-       the art and the name. */
-    marginTop: -Spacing.x48,
+    gap: Spacing.x4,
+    paddingHorizontal: Spacing.x24,
+    paddingBottom: Spacing.x16,
   },
-  centred: { textAlign: 'center' },
-  title: { fontSize: TITLE_SIZE, lineHeight: TITLE_LINE },
-  kindRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  creator: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Spacing.x8 },
-  tag: {
-    paddingHorizontal: Spacing.x12,
-    paddingVertical: Spacing.x4 + 1,
-    borderRadius: Radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  /* Centred rather than spread: an owner's five and a visitor's two have to
-     read as the same row, and `space-between` would fling two buttons to
-     opposite edges of the display. `wrap` is the safety net for a display
-     narrower than anything shipping today, or a very large system font scale:
-     the row drops one button to a second centred line instead of clipping it. */
+  title: { textAlign: 'center' },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+
+  /* Tight. The reference leaves almost nothing between the buttons and the
+     description, and that compactness is what keeps the list on screen. */
+  body: { paddingHorizontal: Spacing.x24, alignItems: 'center', gap: Spacing.x12 },
+
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.x16,
-    marginTop: Spacing.x8,
-    minHeight: TapTarget,
+    gap: Spacing.x20,
+    marginTop: Spacing.x12,
   },
-  circle: { alignItems: 'center', justifyContent: 'center' },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.x8,
+    height: PILL_HEIGHT,
+    minWidth: 132,
+    paddingHorizontal: Spacing.x24,
+    borderRadius: PILL_HEIGHT / 2,
+  },
+  circle: {
+    width: CIRCLE,
+    height: CIRCLE,
+    borderRadius: CIRCLE / 2,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /* Holds the pill centred when one side has no control. Without it a visitor's
+     row would be pill-plus-share, centred as a pair, and the like would sit off
+     the page's axis. */
+  circleSpacer: { width: CIRCLE, height: CIRCLE },
+
+  about: { alignSelf: 'stretch', gap: Spacing.x4 },
+
+  backdrop: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    borderTopLeftRadius: Radius.card,
+    borderTopRightRadius: Radius.card,
+    paddingVertical: Spacing.x12,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x16,
+    minHeight: TapTarget,
+    paddingHorizontal: Spacing.x24,
+  },
 });

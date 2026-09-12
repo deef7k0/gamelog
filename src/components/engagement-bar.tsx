@@ -9,6 +9,17 @@ import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
 import type { Engagement, TargetType } from '@/lib/api';
 
+/**
+ * Lifts each action to the platform floor without moving anything.
+ *
+ * The row is a 21px glyph with `Spacing.x4` above and below — 29dp, against 44
+ * (iOS) and 48 (Android). Padding would have worked and would also have made
+ * the bar taller on every card in the app, so the touch area grows and the
+ * drawing does not. Horizontal slop stays under half the `Spacing.x24` gap
+ * between actions, so neighbouring targets cannot overlap.
+ */
+const ACTION_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
+
 export type EngagementBarProps = {
   targetType: TargetType;
   targetId: string;
@@ -65,6 +76,7 @@ export function EngagementBar({
           count={stacked ? undefined : likeCount}
           size={iconSize}
           label={liked ? 'Unlike' : 'Like'}
+          selected={liked}
           onPress={toggle}
         />
 
@@ -106,6 +118,7 @@ function Action({
   count,
   label,
   size = 21,
+  selected,
   onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -113,12 +126,18 @@ function Action({
   count?: number;
   label: string;
   size?: number;
+  /** Set only on controls with an on/off state, so the rest stay stateless. */
+  selected?: boolean;
   onPress: () => void;
 }) {
   return (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
+      /* The like button swapped its glyph and its label and announced no state
+         at all, so a screen reader gave the action and never the answer. */
+      accessibilityState={selected === undefined ? undefined : { selected }}
+      hitSlop={ACTION_SLOP}
       onPress={onPress}
       scaleTo={0.9}
       style={styles.action}>

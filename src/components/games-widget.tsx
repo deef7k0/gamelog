@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -136,7 +136,9 @@ export type GamesWidgetProps = {
  * them. The two facts worth keeping are the ones nothing else on the profile
  * says — total achievements and total hours.
  */
-export function GamesWidget({
+/* Memoised: `games` is now a `useMemo`'d shelf rather than a fresh
+ * `buildShelf()` call in the JSX, so the compare finally holds. */
+export const GamesWidget = memo(function GamesWidget({
   ownerName,
   profileId,
   games,
@@ -248,6 +250,13 @@ export function GamesWidget({
                       style={styles.art}
                       contentFit="cover"
                       transition={200}
+                      /* Box art never changes, so it belongs on disk — this
+                         shelf is the first thing on a profile and was refetching
+                         five covers on every visit. Keyed by game id so a
+                         re-ordered shelf cannot show the previous cover under
+                         the new title. */
+                      cachePolicy="memory-disk"
+                      recyclingKey={game.gameId ?? game.title}
                       accessibilityIgnoresInvertColors
                     />
                   ) : (
@@ -290,7 +299,7 @@ export function GamesWidget({
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   widget: {

@@ -119,27 +119,30 @@ export type TopBarScroll = {
 };
 
 /**
- * The scroll offset a top bar hides against.
- *
- * Called by the *screen*, and wired to two places:
+ * A page's live scroll offset, on the UI thread.
  *
  * ```tsx
  * const { scrollY, onScroll } = useTopBarScroll();
- *
- * <Screen insetHeader topBar={<FrostedTopBar title="Library" back scrollY={scrollY} />}>
- *   <Animated.FlatList onScroll={onScroll} scrollEventThrottle={16} … />
- * </Screen>
+ * <Animated.FlatList onScroll={onScroll} scrollEventThrottle={16} … />
  * ```
  *
  * `scrollEventThrottle={16}` is required on iOS and harmless on Android; without
- * it iOS delivers scroll events only when the gesture ends and the bar appears
- * to lag by a whole flick.
+ * it iOS delivers scroll events only when the gesture ends.
  *
  * The handler is a worklet, so the offset never crosses to the JS thread and a
  * scrolling page causes exactly zero re-renders.
  *
- * One per screen — the bar follows the page's main scroller. A screen with a
- * horizontal rail inside it does not wire the rail up.
+ * ## The bar no longer reads this
+ *
+ * It is named for the job it was written for — hiding `<FrostedTopBar>` on the
+ * way down. That bar is gone: it is a 44dp disc now, small enough to stay put,
+ * and a back affordance that slides out of reach is a trap rather than a saving.
+ *
+ * What is left is a general-purpose scroll offset, and Home still uses it for
+ * real (its ambient glow fades against it). Several screens call this and then
+ * read nothing from it — an inert worklet write per frame, harmless but dead,
+ * and the next person touching one of those files should delete the call rather
+ * than wire something new to it.
  */
 export function useTopBarScroll(): TopBarScroll {
   const scrollY = useSharedValue(0);

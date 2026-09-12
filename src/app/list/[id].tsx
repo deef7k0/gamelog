@@ -7,6 +7,10 @@ import Animated from 'react-native-reanimated';
 
 import { AwardShow } from '@/components/award-show';
 import { CollectionHeader } from '@/components/collection-header';
+import { CaptionedGrid } from '@/components/captioned-grid';
+import { CommentSection } from '@/components/comment-section';
+import { CollectionRow } from '@/components/collection-row';
+import { CollectionToolbar, type CollectionLayout } from '@/components/collection-toolbar';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
@@ -14,7 +18,6 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
-import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTopBarScroll } from '@/hooks/use-screen-chrome';
@@ -30,32 +33,24 @@ import {
   TIERS,
   type ListItem,
 } from '@/lib/api';
-import { gameSortOptions, sortGames, type GameSort } from '@/lib/games';
+import { sortGames, type GameSort } from '@/lib/games';
 import { useAuth } from '@/store/auth';
 
 const POSTER = 58;
 
 /**
- * Three across.
+ * Four across, matching the library and Top 10 grids.
  *
- * Wider than the library and Top 10 grids' four, and the reason is that this
- * screen opens on a half-display of artwork: a four-across grid under that puts
- * 88dp covers below a 390dp block of the same covers, which reads as the page
- * losing interest in its own subject. Three keeps the box art large enough to
- * recognise without its title.
+ * It was three, on the argument that this screen opens on a half-display of
+ * artwork and a denser grid under that reads as the page losing interest in its
+ * own subject. Four wins anyway, for a reason the argument missed: a collection
+ * is a *shelf*, and the number of games you can see at once is most of what
+ * makes it feel like one. Three across put nine games on the first screenful of
+ * a fifty-game collection. `gridItemWidth` still subtracts the gutters, so the
+ * covers stay as large as the width allows.
  */
-const GRID_COLUMNS = 3;
+const GRID_COLUMNS = 4;
 const GRID_GAP = Spacing.x12;
-
-/**
- * `default` is the collection's own order — the sequence the owner arranged, or
- * the ranking if it is a ranked list — so it leads and is what the screen opens
- * on. Everything else is a temporary way of reading the same shelf; none of it
- * is written back.
- */
-const SORTS = gameSortOptions(['default', 'title', 'newest', 'oldest', 'rating'], {
-  default: 'List order',
-});
 
 /**
  * The tier ramp, warm → cool so the ordering reads before the letters do.
@@ -80,10 +75,11 @@ export default function ListDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [sort, setSort] = useState<GameSort>('default');
+  const [layout, setLayout] = useState<CollectionLayout>('grid');
   const [pickingCover, setPickingCover] = useState(false);
 
   const { width } = useWindowDimensions();
@@ -249,6 +245,7 @@ export default function ListDetailScreen() {
   const isOwner = data.user_id === userId;
   const isTierList = data.kind === 'tier';
   const isAwards = data.kind === 'awards';
+  const isCaptioned = data.kind === 'captioned';
 
   const header = (
     /* Cancels the list's horizontal padding so the hero reaches both edges and
@@ -270,6 +267,11 @@ export default function ListDetailScreen() {
           }).catch(() => undefined)
         }
         onEdit={isOwner ? openPicker : undefined}
+        onEditDetails={
+          isOwner
+            ? () => router.push({ pathname: '/edit-list/[id]', params: { id: data.id } })
+            : undefined
+        }
         onDelete={isOwner ? () => destroy.mutate() : undefined}
         onPickCover={isOwner ? () => setPickingCover(true) : undefined}
       />
@@ -292,22 +294,46 @@ export default function ListDetailScreen() {
         </View>
       )}
 
-      {/* A tier list is grouped by tier, so reordering it by year would
-          scramble the only structure it has — no sort row there.
+      {/*
+        Sort and layout, on one row directly above the games.
 
-          Nor on an award show, where the row was rendering and doing nothing:
-          the ballot comes from `list_awards` and `sort` only ever reorders
-          `items`, so every option on it was a control that moved nothing. */}
-      {!isTierList && !isAwards && items.length > 1 && (
+        A tier list is grouped by tier and an award show's rows come from
+        `list_awards`, so neither can be re-ordered by this control — but both
+        can still be *drawn* two ways, which is why the toolbar renders for them
+        with `showSort` off rather than being suppressed entirely. A captioned
+        board is the one shape that gets neither: its arrangement is authored,
+        nine tiles answering one question in the order their owner put them, and
+        it has its own layout by definition.
+      */}
+      {!isCaptioned && items.length > 1 && (
         <View style={styles.controls}>
-          <SortBar
-            options={SORTS}
-            value={sort}
-            onChange={setSort}
-            accessibilityLabel="Sort this collection"
+          <CollectionToolbar
+            sort={sort}
+            onSort={setSort}
+            layout={layout}
+            onLayout={setLayout}
+            showSort={!isTierList && !isAwards}
           />
         </View>
       )}
+    </View>
+  );
+
+  /*
+   * The conversation about the collection, under it.
+   *
+   * Migration 0018 is what makes this possible — `comments` only accepted a post
+   * or a log until then, which is why a collection could be liked but not
+   * answered. Curation is an argument (the About says so in the owner's own
+   * words) and an argument nobody can reply to is a broadcast.
+   *
+   * Not rendered while picking a cover: that mode turns every tile into a
+   * different control, and a composer underneath it is an invitation to tap
+   * something that does something else.
+   */
+  const footer = pickingCover ? null : (
+    <View style={styles.comments}>
+      <CommentSection targetType="list" targetId={data.id} />
     </View>
   );
 
@@ -327,8 +353,114 @@ export default function ListDetailScreen() {
    */
   if (isAwards) {
     return (
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
         <AwardShow listId={id!} isOwner={isOwner} header={header} onScroll={onScroll} />
+      </Screen>
+    );
+  }
+
+  /*
+   * A captioned board.
+   *
+   * Its own branch rather than a flag on the grid below, because the two are
+   * different objects: that one is a wall of artwork where the cover *is* the
+   * row, and this one is a set of statements where the cover illustrates a line
+   * of the owner's text. They share a data shape and nothing else — different
+   * columns, different tile, different tap target on the caption.
+   *
+   * Rendered inside a single-item list rather than as its own `numColumns` grid
+   * so the masthead, the comments and the board scroll as one column; the grid
+   * lays itself out with `flexWrap`, which a `numColumns` FlatList cannot be
+   * given without also handing it the tile height in advance.
+   */
+  if (isCaptioned) {
+    return (
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+        <Animated.FlatList
+          data={[null]}
+          keyExtractor={() => 'board'}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={header}
+          ListFooterComponent={footer}
+          /* No wrapper and no second padding. `styles.content` already insets
+             this list by `Spacing.x16` on both sides; a `board` View adding its
+             own put 48dp of padding between the screen edges and the grid while
+             the grid was told it had only 24dp taken — so on a 360dp phone it
+             sized three 108dp tiles into 312dp of space and the third wrapped.
+             The width handed down has to be the width that actually exists. */
+          renderItem={() => (
+            <CaptionedGrid
+              listId={data.id}
+              items={ordered}
+              isOwner={isOwner}
+              width={width - Spacing.x16 * 2}
+            />
+          )}
+        />
+      </Screen>
+    );
+  }
+
+  /*
+   * The list layout: one game per row, cover beside title.
+   *
+   * Its own return rather than a branch inside the grid's `renderItem`, because
+   * `numColumns` is not a runtime-switchable prop — React Native warns and
+   * refuses to re-lay-out a `FlatList` whose column count changed. The `key` on
+   * each list is what forces a clean remount when the toggle flips, which is the
+   * documented way to change it at all.
+   */
+  if (!isTierList && layout === 'rows') {
+    return (
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+        <Animated.FlatList
+          data={ordered}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          key="collection-rows"
+          keyExtractor={(item) => item.game_id}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={header}
+          ListFooterComponent={footer}
+          ItemSeparatorComponent={() => (
+            <View style={[styles.rowRule, { backgroundColor: theme.border }]} />
+          )}
+          renderItem={({ item }) => (
+            <CollectionRow
+              item={item}
+              /* The stored rank, not the rendered index — a ranked collection
+                 sorted by year still shows each game the number its owner gave
+                 it. Unranked collections show none at all rather than numbering
+                 a set, which would claim an order that is not there. */
+              rank={data.is_ranked ? (rankOf.get(item.game_id) ?? null) : null}
+              trailing={
+                isOwner && !pickingCover ? (
+                  <IconButton
+                    icon="close"
+                    accessibilityLabel={`Remove ${item.game?.title ?? 'this game'}`}
+                    size="small"
+                    tone="plain"
+                    onPress={() => remove.mutate(item.game_id)}
+                  />
+                ) : null
+              }
+            />
+          )}
+          ListEmptyComponent={
+            <EmptyState
+              title="Nothing here yet"
+              message={
+                isOwner
+                  ? 'Tap "Add games", then tap a search result to add it.'
+                  : 'This collection is empty.'
+              }
+            />
+          }
+        />
       </Screen>
     );
   }
@@ -337,7 +469,7 @@ export default function ListDetailScreen() {
     return (
       /* The mosaic runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
         <Animated.FlatList
           data={ordered}
           onScroll={onScroll}
@@ -349,6 +481,7 @@ export default function ListDetailScreen() {
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={header}
+          ListFooterComponent={footer}
           renderItem={({ item }) => {
             const tile = (
               <View style={{ width: gridWidth }}>
@@ -416,7 +549,7 @@ export default function ListDetailScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} topBar={<FrostedTopBar back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={items}
         onScroll={onScroll}
@@ -425,6 +558,7 @@ export default function ListDetailScreen() {
         contentContainerStyle={items.length === 0 ? styles.empty : styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
+        ListFooterComponent={footer}
         renderItem={({ item, index }) => (
           <View style={[styles.row, { borderTopColor: theme.border }]}>
             {data.is_ranked && !isTierList && (
@@ -565,6 +699,8 @@ export default function ListDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  comments: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x32 },
+  rowRule: { height: StyleSheet.hairlineWidth, marginLeft: Spacing.x16 },
   grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GRID_GAP },
   column: { gap: GRID_GAP },
   headerBleed: { marginHorizontal: -Spacing.x16 },

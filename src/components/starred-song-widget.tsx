@@ -67,10 +67,10 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
   return (
     <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.head}>
-        <Ionicons name="star" size={13} color={theme.primaryText} />
-        <Text variant="caption" color="textSecondary">
-          STARRED SONG
-        </Text>
+        <Ionicons name="star" size={14} color={theme.primaryText} />
+        {/* Matched to Favourites and the shelf: one heading treatment on this
+            page, not three. */}
+        <Text variant="h5">Starred song</Text>
       </View>
 
       <PressableScale

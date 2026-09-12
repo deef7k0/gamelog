@@ -33,6 +33,46 @@ export type TabBarProps<T extends string> = {
   tabs: readonly TabItem<T>[];
   value: T;
   onChange: (value: T) => void;
+  /**
+   * What this set of tabs is choosing between — "What to search", "Library view".
+   *
+   * Read out before the tabs themselves, so a screen-reader user is told what
+   * the row decides rather than just hearing four words in a line.
+   */
+  label?: string;
+  /**
+   * Draw the glyph and drop the printed word.
+   *
+   * Every tab must still carry an `icon` and a `label`: the label becomes the
+   * accessible name, so a screen reader hears "Collections, tab 2 of 4" exactly
+   * as it did before. Only sighted readers lose the word.
+   *
+   * **That loss is real** — an icon strip is recognition rather than reading,
+   * and it is only affordable where the glyphs are conventions the reader has
+   * already met. Use it where the set is small, stable and iconic; a row of five
+   * invented marks is a puzzle, not a control.
+   *
+   * The row also stops scrolling in this mode and divides the width evenly.
+   * Glyphs are all the same size, so there is nothing to scroll for, and an
+   * icon strip that ran off the edge would hide a destination behind a gesture
+   * with nothing to suggest it.
+   */
+  iconOnly?: boolean;
+  /**
+   * Where a short row sits when it does not fill the width.
+   *
+   * `start` (the default) is right for a bar that is one of several things on a
+   * line, and for any row long enough to scroll — a centred row that overflows
+   * would start mid-label.
+   *
+   * `center` is for a bar that is *the* control on its own line and has too few
+   * tabs to reach the edges. The game page is the worked example: it lost its
+   * Reviews tab to a sheet and three pills left-aligned under a full-width
+   * masthead read as a row that had lost something rather than as a complete
+   * set. Centring costs nothing when the content overflows — `flexGrow` only has
+   * slack to distribute when there is slack.
+   */
+  align?: 'start' | 'center';
 };
 
 /**
@@ -70,67 +110,110 @@ export type TabBarProps<T extends string> = {
  * Scrollable rather than evenly divided: label widths vary a lot ("OVERVIEW"
  * vs "SOUNDTRACK") and five in a fixed grid truncate on a narrow phone.
  */
-export function TabBar<T extends string>({ tabs, value, onChange }: TabBarProps<T>) {
+export function TabBar<T extends string>({
+  tabs,
+  value,
+  onChange,
+  label,
+  iconOnly = false,
+  align = 'start',
+}: TabBarProps<T>) {
   const theme = useTheme();
 
+  const items = tabs.map((tab, index) => {
+    const active = tab.key === value;
+    const showCount = tab.count != null && tab.count > 0;
+
+    return (
+      <PressableScale
+        key={tab.key}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={showCount ? `${tab.label}, ${tab.count}` : tab.label}
+        /* Position has to be spoken explicitly: a horizontal `ScrollView`
+           is not a list, so nothing derives "2 of 4" on its own. */
+        accessibilityHint={`${index + 1} of ${tabs.length}`}
+        onPress={() => onChange(tab.key)}
+        scaleTo={0.95}
+        style={StyleSheet.flatten([
+          styles.tab,
+          iconOnly && styles.tabIcon,
+          /* The pill is drawn only when selected. An inactive tab has no
+             fill and no outline at all — a row of empty outlines would read
+             as five buttons, and only one of these is a destination. */
+          active ? { backgroundColor: withAlpha(theme.text, 0.14) } : null,
+        ])}>
+        {tab.icon && (
+          <Ionicons
+            name={tab.icon}
+            size={iconOnly ? 22 : 15}
+            color={active ? theme.text : theme.textMuted}
+          />
+        )}
+
+        {!iconOnly && (
+          <Text
+            variant="h5"
+            style={[styles.label, { color: active ? theme.text : theme.textMuted }]}>
+            {tab.label}
+          </Text>
+        )}
+
+        {!iconOnly &&
+          showCount &&
+          (tab.alert ? (
+            <View style={[styles.badge, { backgroundColor: theme.danger }]}>
+              {/* Always white: the badge is a fixed red, so a theme
+                  foreground would go black-on-red in a light scheme. */}
+              <Text variant="caption" color="onPrimary">
+                {tab.count! > 99 ? '99+' : tab.count}
+              </Text>
+            </View>
+          ) : (
+            /* One step quieter than its own label in both states, so the
+               number never competes with the word it belongs to. */
+            <Text
+              variant="caption"
+              style={[
+                styles.count,
+                { color: active ? withAlpha(theme.text, 0.6) : theme.textMuted },
+              ]}>
+              {tab.count}
+            </Text>
+          ))}
+      </PressableScale>
+    );
+  });
+
+  /* A plain row, not a scroller. See the note on `iconOnly`. */
+  if (iconOnly) {
+    return (
+      <View
+        style={[styles.content, styles.contentSpread]}
+        accessibilityRole="tablist"
+        accessibilityLabel={label}>
+        {items}
+      </View>
+    );
+  }
+
   return (
+    /*
+     * `tablist` on the container, and it is not decoration.
+     *
+     * Every pill already carried `role="tab"` and its selected state, but with
+     * no set around them VoiceOver and TalkBack cannot say "tab 2 of 4" — the
+     * reader got four buttons, one of which claimed to be selected, with nothing
+     * saying what it was selected *out of*. This is the app's only in-page tab
+     * implementation, so the role belongs here rather than at each call site.
+     */
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.content}>
-      {tabs.map((tab) => {
-        const active = tab.key === value;
-        const showCount = tab.count != null && tab.count > 0;
-
-        return (
-          <PressableScale
-            key={tab.key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={showCount ? `${tab.label}, ${tab.count}` : tab.label}
-            onPress={() => onChange(tab.key)}
-            scaleTo={0.95}
-            style={StyleSheet.flatten([
-              styles.tab,
-              /* The pill is drawn only when selected. An inactive tab has no
-                 fill and no outline at all — a row of empty outlines would read
-                 as five buttons, and only one of these is a destination. */
-              active ? { backgroundColor: withAlpha(theme.text, 0.14) } : null,
-            ])}>
-            {tab.icon && (
-              <Ionicons name={tab.icon} size={15} color={active ? theme.text : theme.textMuted} />
-            )}
-
-            <Text
-              variant="h5"
-              style={[styles.label, { color: active ? theme.text : theme.textMuted }]}>
-              {tab.label}
-            </Text>
-
-            {showCount &&
-              (tab.alert ? (
-                <View style={[styles.badge, { backgroundColor: theme.danger }]}>
-                  {/* Always white: the badge is a fixed red, so a theme
-                      foreground would go black-on-red in a light scheme. */}
-                  <Text variant="caption" color="onPrimary">
-                    {tab.count! > 99 ? '99+' : tab.count}
-                  </Text>
-                </View>
-              ) : (
-                /* One step quieter than its own label in both states, so the
-                   number never competes with the word it belongs to. */
-                <Text
-                  variant="caption"
-                  style={[
-                    styles.count,
-                    { color: active ? withAlpha(theme.text, 0.6) : theme.textMuted },
-                  ]}>
-                  {tab.count}
-                </Text>
-              ))}
-          </PressableScale>
-        );
-      })}
+      accessibilityRole="tablist"
+      accessibilityLabel={label}
+      contentContainerStyle={[styles.content, align === 'center' && styles.contentCenter]}>
+      {items}
     </ScrollView>
   );
 }
@@ -146,6 +229,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x12,
     paddingVertical: Spacing.x8,
   },
+  /* Evenly divided rather than scrolled, for `iconOnly`. */
+  contentSpread: { alignSelf: 'stretch' },
+  /* `flexGrow`, not `width: '100%'`. The content container of a horizontal
+     ScrollView is sized by its children; growing it to the viewport gives
+     `justifyContent` something to centre *within*, and when the pills are wider
+     than the screen there is no slack and the row scrolls from its start exactly
+     as it did before. */
+  contentCenter: { flexGrow: 1, justifyContent: 'center' },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -160,6 +251,9 @@ const styles = StyleSheet.create({
        you can press". Same reasoning that keeps `<Chip>` a pill. */
     borderRadius: Radius.pill,
   },
+  /* Each glyph takes an equal share of the row and centres in it, so four
+     destinations sit on a rhythm rather than at four label-driven widths. */
+  tabIcon: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.x8 },
   /* Uppercase and tracked: the row has to read as chrome at a glance, and caps
      at this size are what separate a control strip from a line of prose. */
   label: { textTransform: 'uppercase', letterSpacing: 0.6 },

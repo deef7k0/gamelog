@@ -80,7 +80,7 @@ const TAB_LABELS: Record<LibraryTab, string> = {
  */
 export default function LibraryScreen() {
   const { width } = useWindowDimensions();
-  const { scrollY, onScroll } = useTopBarScroll();
+  const { onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === id;
@@ -172,7 +172,7 @@ export default function LibraryScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar title="Library" back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <EmptyState title="Library not found" />
       </Screen>
     );
@@ -185,10 +185,7 @@ export default function LibraryScreen() {
     /* The tab bar under the header switches the whole page, so the bar it
        belongs to stays put — `scrollY` goes to the grid, which is the thing
        actually worth reclaiming height from. */
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      topBar={<FrostedTopBar title="Library" back scrollY={scrollY} />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <TabBar tabs={tabs} value={tab} onChange={setTab} />
 
       {tab !== 'stats' ? (

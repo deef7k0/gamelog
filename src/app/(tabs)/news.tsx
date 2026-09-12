@@ -118,6 +118,12 @@ export default function NewsScreen() {
 
   const active = { news, trailers, releases: newReleases, charts, events }[tab];
 
+  /* Out now, then coming soon, in one list the row can badge per section. */
+  const releases = [
+    ...(newReleases.data ?? []).map((g) => ({ ...g, _section: 'out' as const })),
+    ...(upcoming.data ?? []).map((g) => ({ ...g, _section: 'soon' as const })),
+  ];
+
   function renderBody() {
     if (active.isLoading) return <LoadingState />;
     if (active.isError) return <ErrorState error={active.error} />;
@@ -150,10 +156,7 @@ export default function NewsScreen() {
       case 'releases':
         return (
           <List
-            data={[
-              ...(newReleases.data ?? []).map((g) => ({ ...g, _section: 'out' as const })),
-              ...(upcoming.data ?? []).map((g) => ({ ...g, _section: 'soon' as const })),
-            ]}
+            data={releases}
             keyOf={(g) => `${g._section}:${g.id}`}
             render={(g) => (
               <GameListItem game={g} badge={g._section === 'soon' ? 'Coming soon' : null} />
@@ -221,10 +224,7 @@ export default function NewsScreen() {
        No `scrollY`: each tab brings its own list, and the dock below the bar is
        how you move between them. A header that slid away would take the name of
        the section you are in with it. */
-    <Screen
-      edges={[]}
-      insetHeader
-      topBar={<FrostedTopBar title={TABS.find((entry) => entry.key === tab)?.label ?? 'News'} />}>
+    <Screen edges={[]} insetHeader topBar={<FrostedTopBar />}>
       <View style={styles.dockRow}>
         <Dock>
           {TABS.map((entry) => (

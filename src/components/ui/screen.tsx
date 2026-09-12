@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useHeaderHeight } from '@/hooks/use-header-height';
@@ -60,6 +61,17 @@ export type ScreenProps = {
    * routes and nowhere else — `useTopBarInset` has the reasoning.
    */
   modal?: boolean;
+  /**
+   * The page fill, when it is not the app's `background`.
+   *
+   * For the screens that are about one game. Those used to paint their colour
+   * with a scroll-driven gradient in `backdrop`; they now fill flat with
+   * `accent.page`, the darkest tone of the game's own hue. A prop rather than a
+   * `backdrop` child because this *is* the page — it has to be the colour the
+   * Android blur target samples, and an `absoluteFill` child of the blur target
+   * is a layer on top of a fill that is still the wrong colour underneath it.
+   */
+  background?: string;
 };
 
 /** Page shell: themed background, safe-area insets, centred max-width column. */
@@ -71,6 +83,7 @@ export function Screen({
   backdrop,
   topBar,
   modal = false,
+  background,
 }: ScreenProps) {
   const theme = useTheme();
   const headerHeight = useHeaderHeight(modal);
@@ -92,14 +105,14 @@ export function Screen({
             renders this subtree and nothing else, so a background painted on an
             ancestor is not part of what the bar samples — on a screen with no
             `backdrop` the glass would come back with whatever the window's own
-            drawable happens to be rather than `#121212`. It also keeps the
+            drawable happens to be rather than `background`. It also keeps the
             backdrop over the fill and under the safe area, which is what
             `backdrop` is for; `SafeAreaView` stays transparent and does insets
             and nothing else.
           */}
           <BlurTargetView
             ref={blurTargetRef}
-            style={[styles.flex, { backgroundColor: theme.background }]}>
+            style={[styles.flex, { backgroundColor: background ?? theme.background }]}>
             {backdrop}
 
             <SafeAreaView style={styles.flex} edges={edges}>
@@ -140,9 +153,11 @@ export type EmptyStateProps = {
   title: string;
   message?: string;
   action?: ReactNode;
+  /** Developer-facing detail. Rendered only where the caller passes one. */
+  footnote?: string;
 };
 
-export function EmptyState({ title, message, action }: EmptyStateProps) {
+export function EmptyState({ title, message, action, footnote }: EmptyStateProps) {
   return (
     <View style={styles.centered}>
       <Text variant="h3" style={styles.centeredText}>
@@ -154,13 +169,57 @@ export function EmptyState({ title, message, action }: EmptyStateProps) {
         </Text>
       )}
       {action && <View style={styles.action}>{action}</View>}
+      {footnote && (
+        <Text variant="caption" color="textMuted" style={[styles.centeredText, styles.footnote]}>
+          {footnote}
+        </Text>
+      )}
     </View>
   );
 }
 
-export function ErrorState({ error, action }: { error: unknown; action?: ReactNode }) {
-  const message = error instanceof Error ? error.message : 'Something went wrong.';
-  return <EmptyState title="Could not load" message={message} action={action} />;
+/**
+ * What the reader is told when a request fails.
+ *
+ * Not `error.message`. That string is written for whoever is holding the stack
+ * trace — "failed to parse logic tree", "JWT expired", a PostgREST error code —
+ * and printing it as the body of a page tells the one person who cannot act on
+ * it. The distinction the reader actually needs is whether to try again, so
+ * that is what this decides; the raw text stays available in `__DEV__`.
+ */
+function readableError(error: unknown): string {
+  const raw = error instanceof Error ? error.message.toLowerCase() : '';
+
+  if (raw.includes('network') || raw.includes('fetch') || raw.includes('timeout')) {
+    return 'No connection to GameLog. Check your network and try again.';
+  }
+  if (raw.includes('jwt') || raw.includes('unauthorized') || raw.includes('not signed in')) {
+    return 'Your session expired. Sign in again to continue.';
+  }
+  return 'Something went wrong on our side. Try again in a moment.';
+}
+
+export function ErrorState({
+  error,
+  action,
+  onRetry,
+}: {
+  error: unknown;
+  action?: ReactNode;
+  /** Renders a "Try again" button. Prefer this over hand-rolling one as `action`. */
+  onRetry?: () => void;
+}) {
+  return (
+    <EmptyState
+      title="Could not load"
+      message={readableError(error)}
+      /* Every failure on a read-only surface is worth one more attempt, and
+         before this not a single `ErrorState` in the app offered one — a failed
+         screen was a dead end with a stack trace on it. */
+      action={action ?? (onRetry ? <Button title="Try again" onPress={onRetry} /> : undefined)}
+      footnote={__DEV__ && error instanceof Error ? error.message : undefined}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -176,4 +235,5 @@ const styles = StyleSheet.create({
   },
   centeredText: { textAlign: 'center' },
   action: { marginTop: Spacing.x12 },
+  footnote: { marginTop: Spacing.x8, opacity: 0.7 },
 });

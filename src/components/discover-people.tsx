@@ -1,16 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Avatar } from '@/components/ui/avatar';
-import { PressableScale } from '@/components/ui/pressable-scale';
-import { EmptyState, LoadingState } from '@/components/ui/screen';
+import { PersonRow } from '@/components/person-row';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import { getPopularPeople, getRecommendedPeople, getTopReviewers } from '@/lib/api';
 import type { RankedProfile } from '@/lib/api';
-import { displayNameFor } from '@/lib/format';
 import { useAuth } from '@/store/auth';
 
 /**
@@ -48,8 +44,36 @@ export function DiscoverPeople() {
     staleTime: 10 * 60_000,
   });
 
-  const loading = reviewers.isLoading && popular.isLoading;
-  if (loading) return <LoadingState />;
+  /* `||`, not `&&`. With `&&` the page rendered as soon as *either* query
+     resolved, so a slower section appeared as an absence rather than as
+     something still arriving. */
+  if (reviewers.isLoading || popular.isLoading) return <LoadingState />;
+
+  /*
+   * The error branch has to come *before* the emptiness check, and this is the
+   * whole reason it exists.
+   *
+   * Without it a failed RPC left both arrays empty, `hasAnything` false, and the
+   * screen told the reader "Nobody here yet — once people start reviewing games,
+   * they will show up in these lists." That is a claim about the product's user
+   * base made on the strength of a dropped connection, to the one person who
+   * cannot check it — and on a product that genuinely has no users yet, it is
+   * indistinguishable from the truth, so the failure was invisible. The same
+   * mistake was found and argued out in `lib/games/index.ts`; this is the other
+   * place it was live.
+   */
+  if (reviewers.isError || popular.isError) {
+    return (
+      <ErrorState
+        error={reviewers.error ?? popular.error}
+        onRetry={() => {
+          recommended.refetch();
+          reviewers.refetch();
+          popular.refetch();
+        }}
+      />
+    );
+  }
 
   const hasAnything =
     (recommended.data ?? []).length + (reviewers.data ?? []).length + (popular.data ?? []).length >
@@ -102,7 +126,9 @@ export function DiscoverPeople() {
 
       <Section
         title="Most liked"
-        hint="Total likes across their reviews and posts."
+        /* "and posts" until now — posts were removed from the app, so the line
+           described a feature that no longer exists. */
+        hint="Total likes across their reviews."
         people={popular.data ?? []}
         describe={(person) => `${person.metric} like${person.metric === 1 ? '' : 's'}`}
       />
@@ -121,39 +147,39 @@ function Section({
   people: RankedProfile[];
   describe: (person: RankedProfile) => string;
 }) {
-  const theme = useTheme();
   if (people.length === 0) return null;
 
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
-        <Text variant="h4">{title}</Text>
-        <Text variant="caption" color="textMuted">
+        {/* `h2` per DESIGN.md § 17. This was `h4` — 14px against the `h3` and
+            `h5` two other Discover surfaces were using, which is how one screen
+            ended up announcing its bands four different ways. */}
+        <Text variant="h2" accessibilityRole="header">
+          {title}
+        </Text>
+        <Text variant="bodySmall" color="textMuted">
           {hint}
         </Text>
       </View>
 
-      {people.map((person) => (
-        <Link
+      {/* `<PersonRow>` rather than a fourth hand-written copy of it. The
+          component was extracted *because* this file and the search tab had
+          duplicated the row, and then neither caller was migrated — so the same
+          list of people announced itself three different ways depending on which
+          screen you reached it from. The metric line goes in `trailing`, which
+          is what that slot is for. */}
+      {people.map((person, index) => (
+        <PersonRow
           key={person.id}
-          href={{ pathname: '/profile/[id]', params: { id: person.id } }}
-          asChild>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`${displayNameFor(person)}, ${describe(person)}`}
-            scaleTo={0.99}
-            style={StyleSheet.flatten([styles.row, { borderTopColor: theme.border }])}>
-            <Avatar uri={person.avatar_url} name={displayNameFor(person)} size={44} />
-            <View style={styles.rowText}>
-              <Text variant="h5" numberOfLines={1}>
-                {displayNameFor(person)}
-              </Text>
-              <Text variant="caption" color="textMuted" numberOfLines={1}>
-                {describe(person)}
-              </Text>
-            </View>
-          </PressableScale>
-        </Link>
+          profile={person}
+          divided={index > 0}
+          trailing={
+            <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
+              {describe(person)}
+            </Text>
+          }
+        />
       ))}
     </View>
   );
@@ -162,13 +188,5 @@ function Section({
 const styles = StyleSheet.create({
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48, gap: Spacing.x24 },
   section: { gap: Spacing.x4 },
-  sectionHead: { gap: 1, paddingBottom: Spacing.x8 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    paddingVertical: Spacing.x12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  rowText: { flex: 1, gap: Spacing.x4 },
+  sectionHead: { gap: 2, paddingBottom: Spacing.x8 },
 });

@@ -9,10 +9,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { PlatformMarks } from '@/components/ui/platform-chip';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { platformFamilies } from '@/constants/platform-family';
 import { MaxContentWidth, PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
 import type { ChartEntry } from '@/lib/news';
 
@@ -159,11 +161,18 @@ function CarouselCard({
             <Text variant="h5" numberOfLines={1}>
               {entry.title}
             </Text>
-            {entry.releaseYear !== null && (
-              <Text variant="caption" color="textMuted">
-                {entry.releaseYear}
-              </Text>
-            )}
+
+            {/* Year and platforms on one line — the caption is under a cover and
+                a third stacked line would push the next card's art out of
+                alignment with this one. */}
+            <View style={styles.captionMeta}>
+              {entry.releaseYear !== null && (
+                <Text variant="caption" color="textMuted">
+                  {entry.releaseYear}
+                </Text>
+              )}
+              <PlatformMarks families={platformFamilies(entry.platforms)} max={2} />
+            </View>
           </View>
         </PressableScale>
       </Link>
@@ -182,4 +191,5 @@ const styles = StyleSheet.create({
   rail: { flexDirection: 'row', gap: Spacing.x12 },
   card: { gap: Spacing.x8 },
   caption: { gap: 1 },
+  captionMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
 });

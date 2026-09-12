@@ -79,3 +79,48 @@ export function scoreColor(score: number, theme: ThemePalette): string {
       return theme.scoreLow;
   }
 }
+
+/**
+ * The Steam-style verdict for a *distribution*, not for one score.
+ *
+ * ## Why this is separate from `labelFor`
+ *
+ * `labelFor` grades a single number: one person gave this game a 74, so it is
+ * "Good". This grades the room — four hundred people averaged 74 — and the two
+ * are different claims that happen to share a scale. Steam's own wording makes
+ * the distinction with the same word doing different work: a review is
+ * "Recommended", a *game* is "Very Positive".
+ *
+ * ## The count is part of the verdict
+ *
+ * Below `CONSENSUS_FLOOR` no band above "Positive" is offered, however high the
+ * average. Three ratings of 95 is not "Overwhelmingly Positive"; it is three
+ * people. Steam does the same thing and for the same reason — the superlative
+ * bands are a claim about agreement, and agreement needs a crowd.
+ */
+export const CONSENSUS_FLOOR = 30;
+
+export type RatingVerdict = { label: string; tone: 'high' | 'mid' | 'low' };
+
+export function ratingVerdict(average: number, total: number): RatingVerdict {
+  if (average < 20) return { label: 'Overwhelmingly Negative', tone: 'low' };
+  if (average < 35) return { label: 'Very Negative', tone: 'low' };
+  if (average < 45) return { label: 'Mostly Negative', tone: 'low' };
+  if (average < 55) return { label: 'Mixed', tone: 'mid' };
+  if (average < 70) return { label: 'Mostly Positive', tone: 'mid' };
+
+  /* The two superlatives need a crowd behind them; see `CONSENSUS_FLOOR`. */
+  if (total < CONSENSUS_FLOOR) return { label: 'Positive', tone: 'high' };
+  if (average < 85) return { label: 'Very Positive', tone: 'high' };
+  return { label: 'Overwhelmingly Positive', tone: 'high' };
+}
+
+/**
+ * The critic threshold that earns "Critically Acclaimed".
+ *
+ * 80 is the number the request named and it is also roughly where the trade
+ * press's own language changes. It is applied to an *average of outlets*, never
+ * to one review: a single 90 is one writer's opinion, and the label claims a
+ * consensus.
+ */
+export const ACCLAIM_THRESHOLD = 80;

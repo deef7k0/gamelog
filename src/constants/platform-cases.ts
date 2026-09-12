@@ -20,7 +20,49 @@ import type { ImageSourcePropType } from 'react-native';
  * Nothing in <GameCase /> needs to change when you do.
  */
 
-export type PlatformKey = 'ps5' | 'ps4' | 'xbox' | 'switch' | 'pc' | 'ios' | 'android';
+export type PlatformKey =
+  /* Current and recent, in the order a switcher should offer them. */
+  | 'ps5'
+  | 'xbox'
+  | 'switch2'
+  | 'switch'
+  | 'ps4'
+  | 'pc'
+  | 'ios'
+  | 'android'
+  /* Streaming. */
+  | 'stadia'
+  | 'luna'
+  /* PlayStation back catalogue. */
+  | 'ps3'
+  | 'ps2'
+  | 'ps1'
+  | 'psp'
+  | 'vita'
+  /* Xbox back catalogue. */
+  | 'xbox360'
+  | 'xboxOriginal'
+  /* Nintendo back catalogue. */
+  | 'wiiu'
+  | 'wii'
+  | 'gamecube'
+  | 'n64'
+  | 'snes'
+  | 'nes'
+  | 'threeds'
+  | 'ds'
+  | 'gba'
+  | 'gbc'
+  | 'gameboy'
+  /* Sega. */
+  | 'dreamcast'
+  | 'saturn'
+  | 'genesis'
+  /* Everything older, and everything genuinely unusual. */
+  | 'atari'
+  | 'arcade'
+  | 'vr'
+  | 'other';
 
 /**
  * The platforms that get a physical case.
@@ -57,10 +99,23 @@ export type PlatformMeta = {
     | 'logo-steam'
     | 'logo-apple'
     | 'logo-google-playstore'
-    | 'game-controller';
+    | 'logo-google'
+    | 'logo-amazon'
+    | 'game-controller'
+    | 'glasses'
+    | 'hardware-chip'
+    | 'tv';
   accent: string;
-  /** What the "open the store" line says for this platform. */
-  storeLabel: string;
+  /**
+   * What the "open the store" line says for this platform, or **null when there
+   * is no store to open**.
+   *
+   * Null and `externalCategory: null` always travel together: a platform whose
+   * store IGDB does not publish a link for has nothing to label. Retro consoles
+   * and the ones added without a verified category are all in this state, and
+   * the price block renders no link rather than an inert one.
+   */
+  storeLabel: string | null;
   /**
    * IGDB `external_games.category`, used to resolve the store link.
    *
@@ -71,20 +126,38 @@ export type PlatformMeta = {
   externalCategory: number | null;
 };
 
+/**
+ * Every platform family the app can present, keyed by our own id rather than
+ * IGDB's.
+ *
+ * ## Why a family and not a platform
+ *
+ * IGDB publishes over two hundred platforms, and most of the distinctions are
+ * not ones a player makes. "PlayStation 5" and "PlayStation 5 (Digital)" are the
+ * same shelf; so are the six revisions of the Game Boy. A key here is the thing
+ * somebody would *say* they played it on, and `PATTERNS` collapses IGDB's names
+ * onto it.
+ *
+ * ## `externalCategory` is null unless it has been verified
+ *
+ * It resolves the "Open in <store>" link, and a wrong number silently sends
+ * somebody to the wrong storefront. Only the ids already confirmed against the
+ * live API carry a value; every platform added since is `null`, which renders no
+ * store link at all rather than a guess. PRODUCT.md's second principle: when a
+ * provider does not give us the fact, hide the feature.
+ *
+ * ## The icon set is Ionicons, so some of these are approximations
+ *
+ * Nintendo, Sega and Atari have no marks in the set, and borrowing another
+ * vendor's logo would be worse than a generic one. They take a controller (or a
+ * chip, for hardware old enough that "console" is the wrong word), and the
+ * `label` carries the real name.
+ */
 export const PLATFORMS: Record<PlatformKey, PlatformMeta> = {
   ps5: {
     key: 'ps5',
     label: 'PlayStation 5',
     short: 'PS5',
-    icon: 'logo-playstation',
-    accent: '#4C8DFF',
-    storeLabel: 'Open in PlayStation Store',
-    externalCategory: 36,
-  },
-  ps4: {
-    key: 'ps4',
-    label: 'PlayStation 4',
-    short: 'PS4',
     icon: 'logo-playstation',
     accent: '#4C8DFF',
     storeLabel: 'Open in PlayStation Store',
@@ -99,6 +172,15 @@ export const PLATFORMS: Record<PlatformKey, PlatformMeta> = {
     storeLabel: 'Open in Microsoft Store',
     externalCategory: 11,
   },
+  switch2: {
+    key: 'switch2',
+    label: 'Nintendo Switch 2',
+    short: 'SWITCH 2',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: 'Open in Nintendo eShop',
+    externalCategory: null,
+  },
   switch: {
     key: 'switch',
     label: 'Nintendo Switch',
@@ -107,6 +189,15 @@ export const PLATFORMS: Record<PlatformKey, PlatformMeta> = {
     accent: '#FF6B6B',
     storeLabel: 'Open in Nintendo eShop',
     externalCategory: null,
+  },
+  ps4: {
+    key: 'ps4',
+    label: 'PlayStation 4',
+    short: 'PS4',
+    icon: 'logo-playstation',
+    accent: '#4C8DFF',
+    storeLabel: 'Open in PlayStation Store',
+    externalCategory: 36,
   },
   pc: {
     key: 'pc',
@@ -134,6 +225,249 @@ export const PLATFORMS: Record<PlatformKey, PlatformMeta> = {
     accent: '#7BD88F',
     storeLabel: 'Open in Google Play',
     externalCategory: 15,
+  },
+  stadia: {
+    key: 'stadia',
+    label: 'Google Stadia',
+    short: 'STADIA',
+    icon: 'logo-google',
+    accent: '#E86A5C',
+    storeLabel: 'Open in Stadia',
+    externalCategory: null,
+  },
+  luna: {
+    key: 'luna',
+    label: 'Amazon Luna',
+    short: 'LUNA',
+    icon: 'logo-amazon',
+    accent: '#7B8CFF',
+    storeLabel: 'Open in Amazon Luna',
+    externalCategory: null,
+  },
+  ps3: {
+    key: 'ps3',
+    label: 'PlayStation 3',
+    short: 'PS3',
+    icon: 'logo-playstation',
+    accent: '#4C8DFF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  ps2: {
+    key: 'ps2',
+    label: 'PlayStation 2',
+    short: 'PS2',
+    icon: 'logo-playstation',
+    accent: '#4C8DFF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  ps1: {
+    key: 'ps1',
+    label: 'PlayStation',
+    short: 'PS1',
+    icon: 'logo-playstation',
+    accent: '#4C8DFF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  psp: {
+    key: 'psp',
+    label: 'PlayStation Portable',
+    short: 'PSP',
+    icon: 'logo-playstation',
+    accent: '#4C8DFF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  vita: {
+    key: 'vita',
+    label: 'PlayStation Vita',
+    short: 'VITA',
+    icon: 'logo-playstation',
+    accent: '#4C8DFF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  xbox360: {
+    key: 'xbox360',
+    label: 'Xbox 360',
+    short: 'X360',
+    icon: 'logo-xbox',
+    accent: '#5DD45D',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  xboxOriginal: {
+    key: 'xboxOriginal',
+    label: 'Xbox',
+    short: 'XBOX',
+    icon: 'logo-xbox',
+    accent: '#5DD45D',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  wiiu: {
+    key: 'wiiu',
+    label: 'Wii U',
+    short: 'WII U',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  wii: {
+    key: 'wii',
+    label: 'Wii',
+    short: 'WII',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  gamecube: {
+    key: 'gamecube',
+    label: 'GameCube',
+    short: 'GCN',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  n64: {
+    key: 'n64',
+    label: 'Nintendo 64',
+    short: 'N64',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  snes: {
+    key: 'snes',
+    label: 'Super Nintendo',
+    short: 'SNES',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  nes: {
+    key: 'nes',
+    label: 'NES',
+    short: 'NES',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  threeds: {
+    key: 'threeds',
+    label: 'Nintendo 3DS',
+    short: '3DS',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  ds: {
+    key: 'ds',
+    label: 'Nintendo DS',
+    short: 'DS',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  gba: {
+    key: 'gba',
+    label: 'Game Boy Advance',
+    short: 'GBA',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  gbc: {
+    key: 'gbc',
+    label: 'Game Boy Color',
+    short: 'GBC',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  gameboy: {
+    key: 'gameboy',
+    label: 'Game Boy',
+    short: 'GB',
+    icon: 'game-controller',
+    accent: '#FF6B6B',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  dreamcast: {
+    key: 'dreamcast',
+    label: 'Dreamcast',
+    short: 'DC',
+    icon: 'game-controller',
+    accent: '#6BA4FF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  saturn: {
+    key: 'saturn',
+    label: 'Sega Saturn',
+    short: 'SATURN',
+    icon: 'game-controller',
+    accent: '#6BA4FF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  genesis: {
+    key: 'genesis',
+    label: 'Sega Genesis',
+    short: 'GENESIS',
+    icon: 'game-controller',
+    accent: '#6BA4FF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  atari: {
+    key: 'atari',
+    label: 'Atari',
+    short: 'ATARI',
+    icon: 'hardware-chip',
+    accent: '#E0A458',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  arcade: {
+    key: 'arcade',
+    label: 'Arcade',
+    short: 'ARCADE',
+    icon: 'hardware-chip',
+    accent: '#E0A458',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  vr: {
+    key: 'vr',
+    label: 'VR',
+    short: 'VR',
+    icon: 'glasses',
+    accent: '#B98CFF',
+    storeLabel: null,
+    externalCategory: null,
+  },
+  other: {
+    key: 'other',
+    label: 'Other',
+    short: 'OTHER',
+    icon: 'tv',
+    accent: '#9BA7B8',
+    storeLabel: null,
+    externalCategory: null,
   },
 };
 
@@ -237,16 +571,57 @@ export const DISC_TEMPLATE = {
 
 /**
  * Preference order when a game lists several platforms and the viewer has not
- * picked one. Current-gen first — that is the edition most people picture.
+ * picked one.
+ *
+ * **PC leads, and it is the only entry here placed for a presentation reason
+ * rather than a recency one.** Everything below it is current-gen-first, which
+ * is the edition most people picture. PC is above all of it because it is the
+ * one platform with no case: `assets/cases/pc_case.png` went unreferenced when
+ * the presentation split by platform, so a PC selection renders the bare
+ * portrait cover. That is the artwork a game page should open on wherever it
+ * exists — the publisher's own box art, undressed — and defaulting to PS5 put a
+ * plastic case in front of it on every multiplatform release.
+ *
+ * A console-exclusive is unaffected: `platformKeysFor` filters this list down to
+ * what the game actually shipped on, so a Switch game still opens in its Switch
+ * case.
  */
 export const PLATFORM_PRIORITY: readonly PlatformKey[] = [
+  'pc',
   'ps5',
   'xbox',
+  'switch2',
   'switch',
   'ps4',
-  'pc',
+  'stadia',
+  'luna',
   'ios',
   'android',
+  'vr',
+  'ps3',
+  'xbox360',
+  'wiiu',
+  'threeds',
+  'vita',
+  'ps2',
+  'psp',
+  'xboxOriginal',
+  'gamecube',
+  'wii',
+  'ds',
+  'gba',
+  'dreamcast',
+  'ps1',
+  'n64',
+  'saturn',
+  'snes',
+  'genesis',
+  'gbc',
+  'gameboy',
+  'nes',
+  'arcade',
+  'atari',
+  'other',
 ];
 
 /**
@@ -259,16 +634,86 @@ export const PLATFORM_PRIORITY: readonly PlatformKey[] = [
  * before a bare "xbox".
  */
 const PATTERNS: readonly { match: readonly string[]; key: PlatformKey }[] = [
+  /* ---- Longest and most specific first. Every entry below this line is only
+     reachable because nothing above it matched, so an ordering mistake here is
+     a silent misfiling rather than a type error. ---- */
+
+  /* PlayStation. "playstation 5" before "playstation" or PS5 lands on PS1. */
   { match: ['playstation 5', 'ps5'], key: 'ps5' },
   { match: ['playstation 4', 'ps4'], key: 'ps4' },
-  { match: ['xbox series', 'xbox one', 'xbox'], key: 'xbox' },
+  { match: ['playstation 3', 'ps3'], key: 'ps3' },
+  { match: ['playstation 2', 'ps2'], key: 'ps2' },
+  { match: ['playstation vr', 'psvr'], key: 'vr' },
+  { match: ['playstation vita', 'ps vita'], key: 'vita' },
+  { match: ['playstation portable', 'psp'], key: 'psp' },
+  /* Last of the family: IGDB calls the original console simply "PlayStation". */
+  { match: ['playstation'], key: 'ps1' },
+
+  /* Xbox. The bare "xbox" is the *original* console, so it goes last here —
+     the reverse of the mistake that would file a Series X as an OG Xbox. */
+  { match: ['xbox series', 'xbox one', 'xbox cloud'], key: 'xbox' },
+  { match: ['xbox 360'], key: 'xbox360' },
+  { match: ['xbox'], key: 'xboxOriginal' },
+
+  /* Nintendo. "switch 2" before "switch". */
+  { match: ['switch 2'], key: 'switch2' },
   { match: ['switch'], key: 'switch' },
-  // Before 'mac': IGDB calls the iPhone platform "iOS", and 'mac' would not
-  // match that anyway — but 'ios' must be tested before the PC bucket claims
-  // anything Apple-shaped.
-  { match: ['ios', 'iphone', 'ipad'], key: 'ios' },
+  { match: ['wii u'], key: 'wiiu' },
+  { match: ['wii'], key: 'wii' },
+  { match: ['new nintendo 3ds', 'nintendo 3ds', '3ds'], key: 'threeds' },
+  { match: ['nintendo ds', 'nintendo dsi'], key: 'ds' },
+  { match: ['game boy advance', 'gba'], key: 'gba' },
+  { match: ['game boy color'], key: 'gbc' },
+  { match: ['game boy'], key: 'gameboy' },
+  { match: ['gamecube'], key: 'gamecube' },
+  { match: ['nintendo 64', 'n64'], key: 'n64' },
+  { match: ['super nintendo', 'super famicom', 'snes'], key: 'snes' },
+
+  /* Sega — and this block *must* stay above the NES row below it.
+     "Genesis" contains the substring "nes", so a bare `'nes'` pattern tested
+     first files every Sega Mega Drive game as a Nintendo Entertainment System
+     game. Caught by the substring sweep in the scratchpad, not by the compiler:
+     both keys are valid `PlatformKey`s and nothing about it is a type error. */
+  { match: ['dreamcast'], key: 'dreamcast' },
+  { match: ['saturn'], key: 'saturn' },
+  { match: ['mega drive', 'genesis', 'master system', 'game gear'], key: 'genesis' },
+
+  /* Last of the Nintendo family, because `'nes'` is the loosest pattern in this
+     table and will match inside any word containing it. */
+  { match: ['family computer', 'famicom', 'nintendo entertainment system', 'nes'], key: 'nes' },
+
+  /* Streaming. */
+  { match: ['stadia'], key: 'stadia' },
+  { match: ['luna'], key: 'luna' },
+
+  /* Headsets. Checked before the desktop bucket, because IGDB names several of
+     them with a platform they run on ("Oculus Rift", "SteamVR", "Meta Quest"). */
+  {
+    match: [
+      'oculus',
+      'meta quest',
+      'steamvr',
+      'vive',
+      'windows mixed reality',
+      'daydream',
+      'gear vr',
+    ],
+    key: 'vr',
+  },
+
+  /* Apple and Google. Before the PC bucket, which would otherwise claim "mac"
+     out of "macOS" and leave the phone platforms unmatched. */
+  { match: ['ios', 'iphone', 'ipad', 'apple tv'], key: 'ios' },
   { match: ['android'], key: 'android' },
-  { match: ['pc', 'windows', 'mac', 'linux'], key: 'pc' },
+
+  /* Desktop. */
+  { match: ['pc', 'windows', 'mac', 'linux', 'dos', 'steam'], key: 'pc' },
+
+  /* Old and unusual. `atari` catches the whole family — 2600, 5200, 7800, ST,
+     Lynx, Jaguar — because nobody distinguishes them on a shelf of modern
+     games, and `arcade` covers Neo Geo and the cabinets. */
+  { match: ['atari', 'lynx', 'jaguar'], key: 'atari' },
+  { match: ['arcade', 'neo geo', 'mame'], key: 'arcade' },
 ];
 
 /** Resolve one provider platform string to a case, or null if unrecognised. */
@@ -292,10 +737,20 @@ export function platformKeyFor(platform: string): PlatformKey | null {
  */
 export function platformKeysFor(platforms: string[] | null | undefined): PlatformKey[] {
   const found = new Set<PlatformKey>();
+  let sawUnknown = false;
+
   for (const platform of platforms ?? []) {
     const key = platformKeyFor(platform);
     if (key) found.add(key);
+    else if (platform.trim()) sawUnknown = true;
   }
+
+  /* An unmatched name becomes `other` rather than disappearing. IGDB lists
+     platforms this app has never heard of — a Sharp X1, a Philips CD-i — and
+     silently dropping them made the switcher claim a game was PC-only when it
+     was not. `other` is honest: it says "released somewhere else too" and shows
+     the bare cover, which is what every caseless platform shows anyway. */
+  if (sawUnknown) found.add('other');
   if (found.size === 0) return ['pc'];
   return PLATFORM_PRIORITY.filter((key) => found.has(key));
 }

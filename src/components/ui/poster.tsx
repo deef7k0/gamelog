@@ -301,10 +301,14 @@ const styles = StyleSheet.create({
      bleeding off it. `Radius.image` matches the artwork's own corner, which is
      what keeps it a rounded square and not a pill — a pill here would read as a
      chip, and chips in this app are metadata you can tap. */
+  /* `start`, not `left`: React Native auto-flips `flexDirection: 'row'` under
+     `I18nManager.isRTL`, so a badge pinned to the physical left ends up on the
+     opposite corner from every row that flipped around it. The radius is
+     uniform, so it has no side to get wrong. */
   badge: {
     position: 'absolute',
     top: Spacing.x4,
-    left: Spacing.x4,
+    start: Spacing.x4,
     paddingHorizontal: Spacing.x8,
     paddingVertical: 2,
     borderRadius: Radius.image,

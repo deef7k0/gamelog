@@ -429,10 +429,18 @@ into one call and persists the result for 7 days.
   the spec it pointed at is no longer the one this app is built on. Same for
   `Radius`: the frontmatter's `rounded:` block matches what ships.
 - **Elevation, not borders.** Reach for `Elevation.card` before a `borderWidth`.
-- **`Spacing.x*` names are step names, not dp values.** The ladder was
-  compressed to scale the chrome down — `x16` is 12, `x24` is 18, `x48` is 36.
-  Only `x4` still equals its name. Read the value in `constants/theme.ts`; never
-  infer it from the token name, and never "fix" a name to match its number.
+- **`Spacing.x*` names are step names, not dp values.** The ladder has been
+  compressed twice to scale the chrome down — `x16` is 10, `x24` is 15, `x48` is
+  30. Only `x4` still equals its name. Read the value in `constants/theme.ts`;
+  never infer it from the token name, and never "fix" a name to match its number.
+- **The interface was zoomed out ~8% (type) and ~17% (spacing from `x12` up),
+  together, on purpose.** The target was density — a review excerpt was getting
+  five lines before it ran out of card. `caption` and `label` held at the 10px
+  floor, which is why the type half is only 8%: tighten it again and it comes out
+  of `display` through `body`, never out of the floor. `Spacing.x4`/`x8` held for
+  the same kind of reason — they are the intervals *inside* a pair, where there
+  was no air to reclaim. **Artwork did not move**: see the next bullet, which is
+  the whole point of art not riding the ladder.
 - **Artwork does not ride the ladder.** Cover, poster and case sizes are fixed dp
   in their components (`BOX_ART_WIDTH`, `POSTER_WIDTH`, `RAIL_POSTER`, the case's
   `WIDTHS`) precisely so retuning `Spacing` or `Type` moves the interface and

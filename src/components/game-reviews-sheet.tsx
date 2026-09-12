@@ -4,9 +4,9 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
-import { Avatar } from '@/components/ui/avatar';
-import { PressableScale } from '@/components/ui/pressable-scale';
+import { ReviewCard } from '@/components/review-card';
 import { ScoreTile } from '@/components/ui/score-tile';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
 import { Card, Skeleton } from '@/components/ui/surface';
@@ -23,17 +23,19 @@ import {
   type ReviewListItem,
   type ReviewSort,
 } from '@/lib/api';
-import { timeAgoLong } from '@/lib/format';
 import { useAuth } from '@/store/auth';
 
 /**
  * How much of a review the list prints.
  *
- * Six, against the two `<TopReviewCard>` shows on Overview, and the difference
- * is deliberate: that card is a sample offered to somebody reading about a game,
- * this is the screen they opened *because* they want the reviews.
+ * Eight, against the three `<TopReviewCard>` shows on Overview, and the
+ * difference is deliberate: that card is a sample offered to somebody reading
+ * about a game, this is the screen they opened *because* they want the reviews.
+ * Eight lines is most of a short review and enough of a long one to tell whether
+ * the writer has a point — and it is a clamp rather than a target, so the row
+ * stays a fixed, scannable height.
  */
-const REVIEW_LINES = 6;
+const REVIEW_LINES = 8;
 
 const SORTS: readonly SortOption<ReviewSort>[] = [
   { key: 'popular', label: 'Most liked' },
@@ -259,12 +261,6 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
         <ReviewRow
           item={item}
           onPress={() => router.push({ pathname: '/review/[id]', params: { id: item.log.id } })}
-          onComment={() =>
-            router.push({
-              pathname: '/comments/[type]/[id]',
-              params: { type: 'log', id: item.log.id },
-            })
-          }
         />
       )}
       ListEmptyComponent={
@@ -394,18 +390,8 @@ function ScoreSummary({
  * enough to tell whether the writer has a point — and the row stays a fixed,
  * scannable height because it is a clamp rather than a target.
  */
-function ReviewRow({
-  item,
-  onPress,
-  onComment,
-}: {
-  item: ReviewListItem;
-  onPress: () => void;
-  onComment: () => void;
-}) {
-  const theme = useTheme();
+function ReviewRow({ item, onPress }: { item: ReviewListItem; onPress: () => void }) {
   const { log } = item;
-  const name = log.profile?.display_name || log.profile?.username || 'Someone';
 
   /* The optimistic heart, from the shared hook rather than a second copy of the
      same override rule. The row is fed a plain count and flag, which is exactly
@@ -420,81 +406,27 @@ function ReviewRow({
     <View style={styles.rowWrap}>
       <Card padded={false} style={styles.rowCard}>
         {/*
-          The card is not one big button any more.
+          The row's interior is `<ReviewCard>`, shared with the game page's
+          Overview card and with Surprise Me.
 
-          It holds two controls of its own now, and a pressable wrapping them
-          would swallow their taps on Android and announce the whole card as a
-          single button to a screen reader. The prose is the link instead, which
-          is also the more honest target: pressing the words opens the words.
+          All three show one person's review of a game you are already looking
+          at, and all three used to draw it differently: this one led with an
+          avatar row and a timestamp beside a 62dp score tile, the Overview card
+          led with the tile alone. One shape, one file — and the game's title
+          appears on none of them, because it is the name of the screen.
+
+          The timestamp went with the redraw. It was the only thing on the row
+          that the review itself did not say, and it was competing for the top
+          line with the writer's name; the full review page prints the date.
         */}
-        <View style={styles.whoRow}>
-          <Avatar uri={log.profile?.avatar_url} name={name} size={28} />
-          <Text variant="h5" numberOfLines={1} style={styles.name}>
-            {name}
-          </Text>
-          {/* Pushed to the far end by the name's `flex: 1`, so it lands on the
-              right edge whatever the name's length. */}
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
-            {timeAgoLong(log.created_at)}
-          </Text>
-        </View>
-
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel={`${name}'s review. Read all of it.`}
-          onPress={onPress}
-          scaleTo={0.99}
-          style={styles.body}>
-          {log.rating !== null && <ScoreTile score={log.rating} size="medium" />}
-          {/* The serif — somebody's writing, not a caption about it. See the
-              review block in `Type`. */}
-          <Text
-            variant="reviewExcerpt"
-            color="proseInk"
-            numberOfLines={REVIEW_LINES}
-            style={styles.prose}>
-            {(log.review ?? '').trim()}
-          </Text>
-        </PressableScale>
-
-        <View style={styles.engagement}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityState={{ selected: liked }}
-            accessibilityLabel={liked ? `Unlike ${name}'s review` : `Like ${name}'s review`}
-            onPress={toggle}
-            scaleTo={0.92}
-            style={styles.engageButton}>
-            <Ionicons
-              name={liked ? 'heart' : 'heart-outline'}
-              size={18}
-              color={liked ? theme.danger : theme.textSecondary}
-            />
-            {likeCount > 0 && (
-              <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
-                {likeCount}
-              </Text>
-            )}
-          </PressableScale>
-
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={
-              item.comments > 0
-                ? `${item.comments} comments on ${name}'s review`
-                : `Comment on ${name}'s review`
-            }
-            onPress={onComment}
-            scaleTo={0.92}
-            style={styles.engageButton}>
-            <Ionicons name="chatbubble-outline" size={17} color={theme.textSecondary} />
-            {item.comments > 0 && (
-              <Text variant="caption" color="textMuted">
-                {item.comments}
-              </Text>
-            )}
-          </PressableScale>
-        </View>
+        <ReviewCard
+          log={log}
+          lines={REVIEW_LINES}
+          liked={liked}
+          likeCount={likeCount}
+          onToggleLike={toggle}
+          onOpen={onPress}
+        />
       </Card>
     </View>
   );

@@ -83,65 +83,70 @@ colors:
   backgroundElement: "#202020"
   backgroundSelected: "#2A2A2A"
 typography:
+  # The whole scale was zoomed out ~8% alongside the spacing ladder. `caption`
+  # and `label` held at the 10px floor and are the reason it is only 8% — every
+  # other step lost a point or two. If it is tightened again it comes out of
+  # `display` through `body`, never out of the floor.
+  # `caseTitle` / `caseEdition` are pinned and did not move: see § 2.3.
   display:
     fontFamily: "Inter_700Bold"
-    fontSize: "26px"
+    fontSize: "24px"
     fontWeight: 700
-    lineHeight: "31px"
+    lineHeight: "29px"
     letterSpacing: "-0.52px"
   h1:
     fontFamily: "Inter_700Bold"
-    fontSize: "23px"
+    fontSize: "21px"
     fontWeight: 700
-    lineHeight: "28px"
+    lineHeight: "26px"
     letterSpacing: "-0.35px"
   h2:
     fontFamily: "Inter_700Bold"
-    fontSize: "19px"
+    fontSize: "17px"
     fontWeight: 700
-    lineHeight: "24px"
+    lineHeight: "21px"
     letterSpacing: "-0.19px"
   h3:
     fontFamily: "Inter_700Bold"
-    fontSize: "16px"
+    fontSize: "15px"
     fontWeight: 700
-    lineHeight: "21px"
+    lineHeight: "20px"
     letterSpacing: "0"
   h4:
-    fontFamily: "Inter_700Bold"
-    fontSize: "14px"
-    fontWeight: 700
-    lineHeight: "19px"
-    letterSpacing: "0"
-  h5:
     fontFamily: "Inter_700Bold"
     fontSize: "13px"
     fontWeight: 700
     lineHeight: "18px"
     letterSpacing: "0"
+  h5:
+    fontFamily: "Inter_700Bold"
+    fontSize: "12px"
+    fontWeight: 700
+    lineHeight: "17px"
+    letterSpacing: "0"
   h6:
     fontFamily: "Inter_700Bold"
-    fontSize: "11px"
+    fontSize: "10px"
     fontWeight: 700
-    lineHeight: "15px"
+    lineHeight: "14px"
     letterSpacing: "0.22px"
   body:
     fontFamily: "Inter_400Regular"
-    fontSize: "13px"
+    fontSize: "12px"
     fontWeight: 400
-    lineHeight: "19px"
+    lineHeight: "18px"
     letterSpacing: "0"
   prose:
     fontFamily: "Inter_400Regular"
-    fontSize: "15px"
+    fontSize: "14px"
     fontWeight: 400
-    lineHeight: "24px"
+    lineHeight: "22px"
     letterSpacing: "0"
   bodySmall:
     fontFamily: "Inter_400Regular"
-    fontSize: "12px"
+    fontSize: "11px"
     fontWeight: 400
-    lineHeight: "16px"
+    lineHeight: "15px"
     letterSpacing: "0"
   caption:
     fontFamily: "Inter_400Regular"
@@ -158,9 +163,9 @@ typography:
     textTransform: "uppercase"
   button:
     fontFamily: "Inter_600SemiBold"
-    fontSize: "13px"
+    fontSize: "12px"
     fontWeight: 600
-    lineHeight: "18px"
+    lineHeight: "17px"
     letterSpacing: "0"
   # Preserved — the game case keeps its own type. See § 2.3. Do not use elsewhere
   # and do not fold these into the scale above.
@@ -188,56 +193,61 @@ typography:
   # ---------------------------------------------------------------------------
   reviewTitle:
     fontFamily: "SourceSerif4_700Bold"
-    fontSize: "22px"
+    fontSize: "20px"
     fontWeight: 700
-    lineHeight: "26px"
+    lineHeight: "24px"
   reviewTitleSmall:
     fontFamily: "SourceSerif4_700Bold"
-    fontSize: "17px"
+    fontSize: "16px"
     fontWeight: 700
-    lineHeight: "21px"
+    lineHeight: "20px"
   reviewProse:
     fontFamily: "SourceSerif4_400Regular"
-    fontSize: "16px"
+    fontSize: "15px"
     fontWeight: 400
-    lineHeight: "26px"
+    lineHeight: "24px"
   reviewExcerpt:
     fontFamily: "SourceSerif4_400Regular"
-    fontSize: "14px"
+    fontSize: "13px"
     fontWeight: 400
-    lineHeight: "22px"
+    lineHeight: "20px"
   reviewYear:
     fontFamily: "Inter_300Light"
-    fontSize: "15px"
+    fontSize: "14px"
     fontWeight: 300
-    lineHeight: "20px"
+    lineHeight: "19px"
   reviewByline:
-    fontFamily: "Inter_600SemiBold"
-    fontSize: "13px"
-    fontWeight: 600
-    lineHeight: "18px"
-  reviewMeta:
     fontFamily: "Inter_600SemiBold"
     fontSize: "12px"
     fontWeight: 600
     lineHeight: "17px"
+  reviewMeta:
+    fontFamily: "Inter_600SemiBold"
+    fontSize: "11px"
+    fontWeight: 600
+    lineHeight: "16px"
 spacing:
-  # STEP NAMES, NOT DP VALUES. The ladder was compressed to scale the chrome
-  # down and the names were deliberately left alone: `x16` is 12, `x24` is 18,
-  # `x48` is 36. Only `x4` still equals its name. Read the value, never infer
-  # it from the token name, and never "fix" a name to match its number.
+  # STEP NAMES, NOT DP VALUES. The ladder has been compressed twice to scale the
+  # chrome down and the names were deliberately left alone: `x16` is 10, `x24`
+  # is 15, `x48` is 30. Only `x4` still equals its name. Read the value, never
+  # infer it from the token name, and never "fix" a name to match its number.
+  #
+  # The second pass took ~17% off every step from `x12` up — the spacing half of
+  # a deliberate zoom-out of the whole interface (see `typography`). `x4` and
+  # `x8` held: they are the intervals *inside* a pair, where there was no air to
+  # reclaim, and below ~6 a gap stops reading as a gap.
   x4: "4px"
   x8: "6px"
-  x12: "10px"
-  x16: "12px"
-  x20: "16px"
-  x24: "18px"
-  x32: "24px"
-  x40: "30px"
-  x48: "36px"
-  # The one step above the compressed ladder, and it is not compressed. It
-  # exists for a single job: the gap *between* Home's sections.
-  x64: "48px"
+  x12: "8px"
+  x16: "10px"
+  x20: "13px"
+  x24: "15px"
+  x32: "20px"
+  x40: "25px"
+  x48: "30px"
+  # The top of the ladder. It exists for a single job: the gap *between* Home's
+  # sections, and it keeps a clear margin over `x48` so that reads.
+  x64: "40px"
 rounded:
   none: "0px"
   xs: "2px"
@@ -299,7 +309,12 @@ components:
   chip:
     backgroundColor: "{colors.surfaceSelected}"
     textColor: "{colors.textSecondary}"
-    typography: "{typography.caption}"
+    typography:
+  # The whole scale was zoomed out ~8% alongside the spacing ladder. `caption`
+  # and `label` held at the 10px floor and are the reason it is only 8% — every
+  # other step lost a point or two. If it is tightened again it comes out of
+  # `display` through `body`, never out of the floor.
+  # `caseTitle` / `caseEdition` are pinned and did not move: see § 2.3. "{typography.caption}"
     rounded: "{rounded.pill}"
     height: "34px"
     padding: "0 14px"
@@ -349,7 +364,12 @@ components:
     unselectedColor: "{colors.textMuted}"
   score:
     display: "bare numeral, verdict colour"
-    typography: "700"
+    typography:
+  # The whole scale was zoomed out ~8% alongside the spacing ladder. `caption`
+  # and `label` held at the 10px floor and are the reason it is only 8% — every
+  # other step lost a point or two. If it is tightened again it comes out of
+  # `display` through `body`, never out of the floor.
+  # `caseTitle` / `caseEdition` are pinned and did not move: see § 2.3. "700"
     sizes: "inline 15 / medium 22 / large 32 / hero 44"
 gameCase:
   templateSize: { width: 540, height: 680 }

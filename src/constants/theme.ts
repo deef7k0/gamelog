@@ -654,47 +654,51 @@ export const Fonts = Platform.select({
 });
 
 /**
- * The 8-point scale, named for the value.
- *
- * `Spacing.x16` is sixteen pixels — there is nothing to remember and nothing to
- * misread, which the old ordinal names (`four` = 16) could not claim. The ladder
- * is fixed: 4, 8, 12, 16, 20, 24, 32, 40, 48. A gap that is not on it is a bug,
- * not a decision.
- */
-/**
  * Spacing ladder.
  *
  * ⚠️ **The names are step names, not dp values.** `x16` is "the sixteenth-step
- * slot", and it currently resolves to 12. They were literal once; the ladder was
+ * slot", and it currently resolves to 10. They were literal once; the ladder was
  * compressed when the interface was scaled down so the artwork would out-weigh
  * the chrome around it, and renaming ~470 call sites to chase the numbers would
  * have been a far larger and riskier diff than the change itself. Read the value
- * here, never infer it from the name. (Tailwind's `p-4` is 16px on the same
- * principle.)
+ * here, never infer it from the name, and never "fix" a name to match its
+ * number. (Tailwind's `p-4` is 16px on the same principle.)
  *
- * `x4` is the atom and did not move — below 4 there is no meaningful gap.
- * Everything above it lost roughly a quarter, which is where the "zoomed in"
- * feeling actually lived: a 16dp page margin and 24dp between sections are what
- * made a 74dp cover look like an incidental thumbnail.
+ * ## Two compressions, and this is the second
+ *
+ * The first took roughly a quarter off everything above `x4`, to stop a 16dp
+ * page margin and 24dp section gaps making a 74dp cover look incidental.
+ *
+ * This one takes a further ~17% off every step from `x12` up. It is the spacing
+ * half of a deliberate zoom-out of the whole interface — see `Type`, which was
+ * scaled at the same time — and the target was **density**: the chrome was
+ * spending so much of a card on air that a review excerpt got four or five lines
+ * before running out of card.
+ *
+ * `x4` and `x8` did not move. Below about 6 a gap stops reading as a gap and
+ * starts reading as a rendering artefact, and those two are the intervals
+ * *inside* a pair — a glyph and its label — where there was never any air to
+ * reclaim. Everything from `x12` up is the space *between* things, which is
+ * where the zoom actually lived.
  */
 export const Spacing = {
   x4: 4,
   x8: 6,
-  x12: 10,
-  x16: 12,
-  x20: 16,
-  x24: 18,
-  x32: 24,
-  x40: 30,
-  x48: 36,
+  x12: 8,
+  x16: 10,
+  x20: 13,
+  x24: 15,
+  x32: 20,
+  x40: 25,
+  x48: 30,
   /*
-   * The one step above the compressed ladder, and it is not compressed: 48 is
-   * 48. It exists for a single job — the gap *between* Home's sections — where
-   * the point is that the interval is unmistakably larger than any spacing
-   * inside a section. Compressing it to 36 would put it a hair above `x40`'s 30
-   * and the distinction would stop reading.
+   * The top of the ladder, and it exists for a single job: the gap *between*
+   * Home's sections, where the point is that the interval is unmistakably larger
+   * than any spacing inside a section. It keeps a clear margin over `x48` (30)
+   * for exactly that reason — close the gap between the two and the distinction
+   * stops reading.
    */
-  x64: 48,
+  x64: 40,
 } as const;
 
 /**
@@ -772,19 +776,19 @@ export const Radius = {
  * recomputing its tracking.
  */
 export const Type = {
-  display: { fontSize: 26, lineHeight: 31, fontFamily: FontFamily.bold, letterSpacing: -0.52 },
-  h1: { fontSize: 23, lineHeight: 28, fontFamily: FontFamily.bold, letterSpacing: -0.35 },
-  h2: { fontSize: 19, lineHeight: 24, fontFamily: FontFamily.bold, letterSpacing: -0.19 },
-  h3: { fontSize: 16, lineHeight: 21, fontFamily: FontFamily.bold },
-  h4: { fontSize: 14, lineHeight: 19, fontFamily: FontFamily.bold },
-  h5: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.bold },
-  h6: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.bold, letterSpacing: 0.22 },
+  display: { fontSize: 24, lineHeight: 29, fontFamily: FontFamily.bold, letterSpacing: -0.52 },
+  h1: { fontSize: 21, lineHeight: 26, fontFamily: FontFamily.bold, letterSpacing: -0.35 },
+  h2: { fontSize: 17, lineHeight: 21, fontFamily: FontFamily.bold, letterSpacing: -0.19 },
+  h3: { fontSize: 15, lineHeight: 20, fontFamily: FontFamily.bold },
+  h4: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.bold },
+  h5: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.bold },
+  h6: { fontSize: 10, lineHeight: 14, fontFamily: FontFamily.bold, letterSpacing: 0.22 },
 
-  body: { fontSize: 13, lineHeight: 19, fontFamily: FontFamily.regular },
+  body: { fontSize: 12, lineHeight: 18, fontFamily: FontFamily.regular },
   /* Long-form reading — an article or review body, not UI copy. Deliberately
      looser than `body`: those two screens are the ones people actually read. */
-  prose: { fontSize: 15, lineHeight: 24, fontFamily: FontFamily.regular },
-  bodySmall: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.regular },
+  prose: { fontSize: 14, lineHeight: 22, fontFamily: FontFamily.regular },
+  bodySmall: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.regular },
 
   /*
    * 10 is the floor. Below this the metadata steps stop being small text and
@@ -792,6 +796,14 @@ export const Type = {
    * is already a point under it, which is affordable for a timestamp or a count
    * and would not be for anything you have to actually read. Do not shrink
    * these two further; take it out of the steps above instead.
+   *
+   * **The scale was zoomed out ~8% and these two are the reason it is only 8%.**
+   * Every other step lost a point or two; `caption` and `label` were already on
+   * the floor and held, which compresses the bottom of the scale — `bodySmall`
+   * is 11 and `h6` is 10, so the three quietest steps now sit within a point of
+   * each other. That is the cost of the zoom and it is paid deliberately: the
+   * alternative is an unreadable timestamp. If the scale is ever tightened
+   * again, it has to come out of `display` through `body`, not out of here.
    */
   caption: { fontSize: 10, lineHeight: 13, fontFamily: FontFamily.regular, letterSpacing: 0.2 },
   label: {
@@ -802,7 +814,7 @@ export const Type = {
     textTransform: 'uppercase',
   },
 
-  button: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
+  button: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semibold },
 
   /* -------------------------------------------------------------------------
    * Reviews, and nothing else in the app.
@@ -821,24 +833,24 @@ export const Type = {
    * ---------------------------------------------------------------------- */
 
   /** The game's name on a review page. The one headline in the app. */
-  reviewTitle: { fontSize: 22, lineHeight: 26, fontFamily: FontFamily.serifBold },
+  reviewTitle: { fontSize: 20, lineHeight: 24, fontFamily: FontFamily.serifBold },
   /** The same, on a feed card, where it shares a column with the artwork. */
-  reviewTitleSmall: { fontSize: 17, lineHeight: 21, fontFamily: FontFamily.serifBold },
+  reviewTitleSmall: { fontSize: 16, lineHeight: 20, fontFamily: FontFamily.serifBold },
   /*
    * The prose. Deliberately looser than `prose`: 26 on 16 is a 1.63 ratio where
    * the sans body runs 1.6 on 15 — a serif at reading length needs the extra
    * leading to keep the lines from knitting together, and this is the one block
    * in the app somebody reads rather than scans.
    */
-  reviewProse: { fontSize: 16, lineHeight: 26, fontFamily: FontFamily.serif },
+  reviewProse: { fontSize: 15, lineHeight: 24, fontFamily: FontFamily.serif },
   /** The excerpt on a feed card, beside the artwork. */
-  reviewExcerpt: { fontSize: 14, lineHeight: 22, fontFamily: FontFamily.serif },
+  reviewExcerpt: { fontSize: 13, lineHeight: 20, fontFamily: FontFamily.serif },
   /** The release year beside a review's title. Recedes without shrinking. */
-  reviewYear: { fontSize: 15, lineHeight: 20, fontFamily: FontFamily.light },
+  reviewYear: { fontSize: 14, lineHeight: 19, fontFamily: FontFamily.light },
   /** "Review by <name>". Sans, because it is a fact about the piece. */
-  reviewByline: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
+  reviewByline: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semibold },
   /** The playthrough block: platform, hours, platinum, date. Tight and compact. */
-  reviewMeta: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semibold },
+  reviewMeta: { fontSize: 11, lineHeight: 16, fontFamily: FontFamily.semibold },
 
   /*
    * Preserved — the physical game case keeps its own type. See DESIGN.md § 2.3.
@@ -862,10 +874,10 @@ export const Type = {
  * is one fact among several; `hero` is the headline number on a review page.
  */
 export const ScoreSizes = {
-  inline: 13,
-  medium: 19,
-  large: 27,
-  hero: 38,
+  inline: 12,
+  medium: 17,
+  large: 25,
+  hero: 35,
 } as const;
 
 /**

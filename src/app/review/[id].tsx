@@ -15,7 +15,7 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { Text } from '@/components/ui/text';
 import { EDITIONS, type EditionKind } from '@/constants/game-editions';
 import { parseReviewMetrics } from '@/constants/review-metrics';
-import { Spacing, TapTarget } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
@@ -81,15 +81,11 @@ export default function ReviewScreen() {
     enabled: !!id,
   });
 
-  /* The optimistic toggle lives in the hook, shared with `<EngagementBar>` and
-     the collection masthead — this screen draws its own footer row but must not
-     grow its own copy of the like state. `id` is a route param and defined by
-     the time anything reads this; the hook is a no-op until the query lands. */
-  const { liked, likeCount, commentCount, toggle } = useLikeToggle(
-    'log',
-    id!,
-    engagement.data?.[id!]
-  );
+  /* The optimistic toggle lives in the hook, shared with the feed card and the
+     collection masthead — this screen draws its own footer row but must not grow
+     its own copy of the like state. `id` is a route param and defined by the
+     time anything reads this; the hook is a no-op until the query lands. */
+  const { liked, likeCount, toggle } = useLikeToggle('log', id!, engagement.data?.[id!]);
 
   /*
    * Every branch below carries a bar, which the previous version did not.
@@ -223,6 +219,7 @@ export default function ReviewScreen() {
                   accessibilityRole="link"
                   accessibilityLabel={`${authorName}'s profile`}
                   scaleTo={0.97}
+                  hitSlop={BYLINE_SLOP}
                   style={StyleSheet.flatten(styles.byline)}>
                   <Avatar uri={author.avatar_url} name={authorName} size={18} />
                   <Text
@@ -345,16 +342,18 @@ export default function ReviewScreen() {
         </View>
 
         {/*
-          The interaction row, at the end of the piece.
+          The like, at the end of the piece, and it is the only thing on this row.
 
-          Not `<EngagementBar>`, and this is the one screen that does not use it.
-          That component is a row of three equal glyphs — like, comment, share —
-          which is right on a card in a feed, where the card is one item among
-          many and every action is the same weight. At the foot of an article the
-          weights are not equal: the like is a response to what you have just
-          read, and it gets the words ("Liked", then the count). The conversation
-          is a *place*, so it sits at the far end as a mark. Share is already a
-          disc in the top bar, where it is on every other screen.
+          Not `<EngagementBar>` — that is a row of three equal glyphs, which is
+          right on a card in a feed where every action is the same weight. At the
+          foot of an article they are not equal: the like is a response to what
+          you have just read, so it gets the words ("Liked", then the count).
+
+          The other two are not missing, they are elsewhere and better placed.
+          Share is a disc in the top bar, where it is on every screen. The
+          conversation is the section directly below this rule with its own
+          heading and its own composer — a second, smaller mark at the far end of
+          this row was a link to something already on screen.
         */}
         <View style={[styles.footer, { borderTopColor: theme.border }]}>
           <PressableScale
@@ -379,28 +378,6 @@ export default function ReviewScreen() {
               </Text>
             )}
           </PressableScale>
-
-          <Link
-            href={{ pathname: '/comments/[type]/[id]', params: { type: 'log', id: review.id } }}
-            asChild>
-            <PressableScale
-              accessibilityRole="link"
-              accessibilityLabel={
-                commentCount > 0
-                  ? `${commentCount} comments. Open the conversation.`
-                  : 'Open the conversation'
-              }
-              hitSlop={FOOTER_SLOP}
-              style={StyleSheet.flatten(styles.commentMark)}
-              scaleTo={0.96}>
-              {commentCount > 0 && (
-                <Text variant="bodySmall" color="textMuted">
-                  {commentCount}
-                </Text>
-              )}
-              <Ionicons name="chatbubble-outline" size={15} color={theme.textMuted} />
-            </PressableScale>
-          </Link>
         </View>
 
         {/* The conversation, under the piece it is about. Below the interaction
@@ -448,6 +425,16 @@ const MASTHEAD_POSTER = 108;
  */
 const FOOTER_SLOP = { top: 14, bottom: 14, left: 10, right: 10 };
 
+/**
+ * Lifts the byline to the platform floor **without reserving any height**.
+ *
+ * An 18dp avatar beside one line of type is about 22dp. A `minHeight` would
+ * close that gap by growing the row, which is what used to put a hole between
+ * the byline and the title; slop grows only the touch area, so the column keeps
+ * one interval from top to bottom.
+ */
+const BYLINE_SLOP = { top: 13, bottom: 13, left: 8, right: 8 };
+
 const styles = StyleSheet.create({
   /* Small margins. The brief asks for a dense editorial page rather than a
      mobile-app one, and the difference is mostly here: `x20` (16) against the
@@ -466,9 +453,21 @@ const styles = StyleSheet.create({
      most reviews, and centring a taller child against a shorter sibling pushes
      the byline above the top of the artwork. */
   lockupColumn: { flex: 1, gap: Spacing.x8 },
-  /* `TapTarget` tall, so the row clears the platform floor without the 18dp
-     avatar having to grow to meet it. */
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, minHeight: TapTarget },
+  /*
+   * **No `minHeight`, and that is the fix.**
+   *
+   * It carried `minHeight: TapTarget` so the row cleared the platform floor
+   * without the avatar having to grow — which is a sound instinct and the wrong
+   * instrument here. An 18dp avatar beside an 17dp line is a ~22dp row, so the
+   * floor added ~22dp of empty box *below the byline*, inside the column's own
+   * `gap`. The result was a hole between "Review by …" and the title while every
+   * other interval in the column was 6.
+   *
+   * `BYLINE_SLOP` does the same job without occupying any space, which is the
+   * same trade the card elsewhere in the app makes. The column now has one
+   * rhythm from the byline to the last metadata line.
+   */
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   bylineName: { flexShrink: 1 },
   /*
    * **No gap.** The four playthrough lines are a block, not a list — the leading
@@ -479,22 +478,27 @@ const styles = StyleSheet.create({
   meta: {},
 
   metrics: { marginTop: Spacing.x20 },
-  /* ~12dp from the bottom of the header to the first line of prose, per the
-     reference. The article is the point of the page; it should not be announced
-     by a hand's width of empty space. */
-  article: { marginTop: Spacing.x16, gap: Spacing.x12 },
+  /*
+   * The one interval on this page that is deliberately larger than its
+   * neighbours.
+   *
+   * It was `x16`, which is the same step as the gaps *inside* the header — so
+   * the standfirst and the article read as one continuous block and the piece
+   * appeared to start mid-sentence. `x32` is unmistakably a section break: the
+   * header is a lockup you scan, the article is a thing you read, and the change
+   * of task deserves the pause. Still nowhere near the `x48` the app puts
+   * between Home's sections; this is one document, not two.
+   */
+  article: { marginTop: Spacing.x32, gap: Spacing.x12 },
 
-  /* The like on the left, the conversation at the far end. `space-between` is
-     the composition: the row has two ends and nothing in the middle. */
+  /* One control, ranged left under the rule that closes the article. */
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginTop: Spacing.x32,
     paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   likeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  commentMark: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   comments: { marginTop: Spacing.x40 },
 });

@@ -8,40 +8,48 @@ import {
   type TextLayoutEventData,
 } from 'react-native';
 
-import { EngagementBar } from '@/components/engagement-bar';
-import { formatReleaseDate } from '@/components/game-actions';
 import { Avatar } from '@/components/ui/avatar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { ReviewMarks, reviewMarkRow } from '@/components/review-marks';
 import { ScoreChip } from '@/components/ui/score-tile';
 import { Card } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { platformFamilies } from '@/constants/platform-family';
 import { labelFor } from '@/constants/score';
 import { STATUS_ICON, STATUS_LABEL, STATUS_VERB, statusColor } from '@/constants/status';
 import { Spacing } from '@/constants/theme';
+import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
 import type { Engagement } from '@/lib/api';
 import type { LogWithRelations } from '@/lib/database.types';
 import { displayNameFor } from '@/lib/format';
 
 /** Box art width. Its height is the 2:3 derivation, and nothing overrides it. */
-const BOX_ART_WIDTH = 96;
+const BOX_ART_WIDTH = 84;
+
+/**
+ * Lifts the heart under the cover to the platform floor.
+ *
+ * A 15px glyph beside a 13dp count is about 17dp, against 44 (iOS) and 48
+ * (Android). Slop rather than padding: padding would push the cover's column
+ * taller than the artwork and put a band of dead space at the foot of the card.
+ * Weighted right, where there is nothing but the card's own margin.
+ */
+const HEART_SLOP = { top: 12, bottom: 12, left: 8, right: 20 };
 
 /**
  * Lines of review shown before "Read more".
  *
- * **Five, down from ten**, and the number follows the column rather than the
- * other way round. Ten lines was right while the prose ran the card's full
- * width: a ~53-character measure, where ten lines is a readable paragraph. In
- * the artwork's column the measure is about 34 characters, and ten lines of that
- * is a narrow ribbon three hundred points tall — the card stops being a card.
+ * **Three**, and the feed is the one surface where that is right. This card is
+ * an *index entry*: it names a game, a person and a verdict, and offers three
+ * lines of the writing as the reason to open it. The screens that exist to be
+ * read — the review's own page, and the "see all reviews" sheet at eight lines —
+ * are one tap away and are where the measure and the room actually are.
  *
- * Five is enough to hear the writer's voice and short enough that the card stays
- * a row in a feed. The review's own page is where it is read; this is the
- * invitation.
+ * It also keeps a feed scrollable. At seven lines a single card could run past a
+ * phone's height on its own, which turns a list of reviews into a list of one.
  */
-const REVIEW_LINES = 5;
+const REVIEW_LINES = 3;
 
 /**
  * The author line is a 20dp avatar beside two lines of small type — about 32dp,
@@ -119,6 +127,11 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
 
+  /* The optimistic heart, from the shared hook rather than a second copy of the
+     override rule. Only drawn when the caller supplied an `engagement`, which is
+     how a compact list opts out of the control entirely. */
+  const { liked, likeCount, toggle: toggleLike } = useLikeToggle('log', log.id, engagement);
+
   const headline = log.review_title?.trim() || null;
   const review = log.review?.trim() || null;
   const title = game?.title ?? 'Unknown game';
@@ -182,18 +195,6 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
   const headerLabel = [headline, verdictLabel].filter(Boolean).join('. ');
 
   /*
-   * The headline, never the essay.
-   *
-   * This used to interpolate the whole untruncated review body into the share
-   * sheet, so a 2,000-word piece became a 2,000-word message; with no writing
-   * at all it shared "Dispatch — wants to play", a fragment with no subject.
-   * Each branch here is a complete thought on its own.
-   */
-  const shareMessage = `${title} — ${
-    headline ?? (log.rating !== null ? `${Math.round(log.rating)}/100` : STATUS_LABEL[log.status])
-  }`;
-
-  /*
    * Only meaningful while collapsed: with `numberOfLines` set, the layout event
    * reports the clipped lines, so filling all ten means there is at least that
    * much. Guarded so it latches once rather than re-setting on every layout.
@@ -224,23 +225,63 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
         four now rather than ten, and the review's own page is where it is read.
       */}
       <View style={styles.card}>
-        {/* The artwork opens the game. In an app built on box art this is the
-            one link that should never have needed arguing for. */}
-        <Link href={gameHref} asChild>
-          <PressableScale
-            accessibilityRole="link"
-            accessibilityLabel={`Open ${title}`}
-            style={styles.art}
-            scaleTo={0.97}>
-            <Poster
-              coverUrl={game?.cover_url}
-              heroUrl={game?.hero_url}
-              title={game?.title}
-              width={BOX_ART_WIDTH}
-              rounded="image"
-            />
-          </PressableScale>
-        </Link>
+        {/*
+          The left column: the artwork, and the heart directly under it.
+
+          The heart used to be one of three glyphs in an `<EngagementBar>` across
+          the foot of the card — like, comment, share, all the same weight. That
+          row is right on a screen where the card is a *post*; in a feed of
+          reviews it was a strip of chrome closing every row, and two of its
+          three actions have better homes (the conversation is its own screen off
+          the review, and sharing is a disc in the top bar there).
+
+          Under the cover it costs no row at all: the artwork is the tallest
+          thing in the card and the space beneath it was already dead. Left edge
+          shared with the poster, so the column still has one margin.
+        */}
+        <View style={styles.artColumn}>
+          {/* The artwork opens the game. In an app built on box art this is the
+              one link that should never have needed arguing for. */}
+          <Link href={gameHref} asChild>
+            <PressableScale
+              accessibilityRole="link"
+              accessibilityLabel={`Open ${title}`}
+              style={styles.art}
+              scaleTo={0.97}>
+              <Poster
+                coverUrl={game?.cover_url}
+                heroUrl={game?.hero_url}
+                title={game?.title}
+                width={BOX_ART_WIDTH}
+                rounded="image"
+              />
+            </PressableScale>
+          </Link>
+
+          {engagement && (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityState={{ selected: liked }}
+              accessibilityLabel={liked ? 'Unlike this review' : 'Like this review'}
+              onPress={toggleLike}
+              hitSlop={HEART_SLOP}
+              scaleTo={0.92}
+              style={StyleSheet.flatten(styles.heart)}>
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={15}
+                /* `liked`, not `danger`: a like is an endorsement, and `danger`
+                   means something is about to be destroyed. See the token. */
+                color={liked ? theme.liked : theme.textMuted}
+              />
+              {likeCount > 0 && (
+                <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
+                  {likeCount}
+                </Text>
+              )}
+            </PressableScale>
+          )}
+        </View>
 
         <View style={styles.column}>
           {/*
@@ -306,9 +347,9 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
                 bury the excerpt. Every mark carries its label to a screen
                 reader, so nothing is lost, only printed.
               */}
-              <View style={styles.verdictRow}>
+              <View style={reviewMarkRow}>
                 {log.rating !== null && <ScoreChip score={log.rating} />}
-                <LogMarks log={log} />
+                <ReviewMarks log={log} />
               </View>
 
               {showStatusLine && (
@@ -319,10 +360,6 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
                   </Text>
                 </View>
               )}
-
-              <Text variant="caption" color="textMuted">
-                {hasArticle ? 'Reviewed' : 'Logged'} {formatReleaseDate(log.created_at)}
-              </Text>
             </PressableScale>
           </Link>
 
@@ -367,81 +404,11 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
               )}
             </View>
           )}
-
-          {engagement && (
-            <EngagementBar
-              targetType="log"
-              targetId={log.id}
-              engagement={engagement}
-              shareMessage={shareMessage}
-            />
-          )}
         </View>
       </View>
     </Card>
   );
 });
-
-/**
- * How this game was played, as **marks** — a platform, a playtime, a trophy.
- *
- * Icons without words, which is the one place in the app that does it, and it
- * needs the argument. The house rule is that colour is never the only carrier
- * and that every status ships its word beside its hue. That rule is about
- * *state* — a thing whose meaning a reader has to be told. These three are not:
- * a platform's own brand mark is the mark that platform puts on its own boxes, a
- * clock is a clock, and a trophy beside a score is the most conventional glyph
- * in this medium.
- *
- * What buys it is the row they sit in. `<ScoreChip>` beside them spells its
- * verdict out in full, so the line is never a run of unglossed symbols — and
- * this column is about 200dp, where four spelled-out facts wrap to three rows
- * and push the excerpt off the card.
- *
- * The playtime keeps its number, because a number is the fact; the icon is only
- * saying which number it is. Every mark carries an `accessibilityLabel`, so a
- * screen reader hears the words a sighted reader is being spared.
- */
-function LogMarks({ log }: { log: LogWithRelations }) {
-  const theme = useTheme();
-
-  /* `played_on` is free text seeded from the game's own platform list, so it
-     may be "PlayStation 5", "PS5" or something a user typed. Matching it to a
-     family gives it a mark when it is recognisable; when it is not, the written
-     value is kept as a word rather than dropped — the user chose to record it. */
-  const family = log.played_on ? platformFamilies([log.played_on])[0] : undefined;
-
-  return (
-    <>
-      {log.played_on &&
-        (family ? (
-          <Ionicons
-            name={family.icon}
-            size={14}
-            color={family.accent}
-            accessibilityLabel={`Played on ${family.label}`}
-          />
-        ) : (
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
-            {log.played_on}
-          </Text>
-        ))}
-
-      {!!log.hours_played && (
-        <View style={styles.mark} accessibilityLabel={`${log.hours_played} hours played`}>
-          <Ionicons name="time-outline" size={13} color={theme.textMuted} />
-          <Text variant="caption" color="textMuted">
-            {log.hours_played}h
-          </Text>
-        </View>
-      )}
-
-      {log.platinum && (
-        <Ionicons name="trophy" size={13} color={theme.platinum} accessibilityLabel="Platinum" />
-      )}
-    </>
-  );
-}
 
 const styles = StyleSheet.create({
   /* The two columns. `flex-start` so the text column sizes to its content and
@@ -451,7 +418,15 @@ const styles = StyleSheet.create({
   /* No `fillHeight` on the poster: the artwork's height is its own 2:3
      derivation and nothing in this row may change it. That is what makes the
      card safe at 200% system text. */
+  /* The cover and the heart share a left edge, which is the card's second
+     margin — the text column is the first. `align-items: flex-start` keeps the
+     heart's target the width of its own content rather than of the column. */
+  artColumn: { width: BOX_ART_WIDTH, alignItems: 'flex-start', gap: Spacing.x8 },
+  /* No `fillHeight` on the poster: the artwork's height is its own 2:3
+     derivation and nothing in this row may change it. That is what makes the
+     card safe at 200% system text. */
   art: { width: BOX_ART_WIDTH },
+  heart: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   /*
    * Everything that is not the cover, in one column with one left edge.
    *
@@ -470,17 +445,6 @@ const styles = StyleSheet.create({
   rule: { height: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
 
   verdict: { gap: Spacing.x8 },
-  /* The score rectangle and the marks on one line. `wrap` because a game on an
-     unrecognised platform falls back to its written name, which is a word rather
-     than a glyph and can need the second row. */
-  verdictRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.x8,
-    rowGap: Spacing.x4,
-  },
-  mark: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   statusLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 
   prose: { gap: Spacing.x8 },

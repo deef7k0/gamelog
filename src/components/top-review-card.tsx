@@ -1,18 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
-import { Avatar } from '@/components/ui/avatar';
+import { ReviewCard } from '@/components/review-card';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { ScoreTile } from '@/components/ui/score-tile';
 import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { TopReview } from '@/lib/api';
 
-/** Matches `<ScoreTile size="medium">`, so the empty state is the same box. */
-const TILE = 62;
+/** The empty state's glyph well. Square, so the "no reviews" block has a shape. */
+const TILE = 52;
 
 /**
  * How much of the review is printed on the card.
@@ -173,7 +172,6 @@ export function TopReviewCard({
   }
 
   const { log, likes } = review;
-  const score = log.rating;
   const name = log.profile?.display_name || log.profile?.username || 'Someone';
 
   return (
@@ -182,62 +180,24 @@ export function TopReviewCard({
       onPress={compact ? onOpenReview : undefined}
       label={`${name}’s review. Read all of it.`}>
       {/*
-        The review is the link.
+        The card's whole interior is `<ReviewCard>` now, shared with the "see all
+        reviews" sheet.
 
-        It used to carry a filled "Read the full review" bar beside the heart,
-        which was a second control for the thing the card already *is* — the
-        excerpt stops mid-sentence, so tapping the words is the obvious gesture
-        and a button telling you to do it was furniture. The heart stays its own
-        control because liking is not reading.
+        The two used to be separate implementations of the same idea and they had
+        drifted into different objects — this one led with a 62dp score tile
+        floated beside the prose, that one with an avatar row and a timestamp.
+        Both show one person's review of a game you are already looking at, so
+        both get the same shape, and the shape lives in one file.
       */}
-      <Body compact={compact} onPress={onOpenReview} label={`${name}’s review. Read all of it.`}>
-        {score !== null ? (
-          <ScoreTile score={score} size="medium" />
-        ) : (
-          <View style={[styles.tile, styles.emptyTile, { borderColor: theme.border }]}>
-            <Ionicons name="chatbubble-outline" size={22} color={theme.textMuted} />
-          </View>
-        )}
-
-        <View style={styles.body}>
-          <View style={styles.who}>
-            <Avatar uri={log.profile?.avatar_url} name={name} size={20} />
-            <Text variant="h5" numberOfLines={1} style={styles.name}>
-              {name}
-            </Text>
-          </View>
-
-          {/* The serif, because this is somebody's writing rather than a
-              caption about it — the same split the review page makes. See the
-              review block in `Type`. `BODY_LINES` for the clamp. */}
-          <Text variant="reviewExcerpt" color="proseInk" numberOfLines={BODY_LINES}>
-            {(log.review ?? '').trim()}
-          </Text>
-        </View>
-      </Body>
-
-      {!compact && (
-        <View style={styles.actions}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityState={{ selected: liked }}
-            accessibilityLabel={liked ? `Unlike ${name}’s review` : `Like ${name}’s review`}
-            onPress={onToggleLike}
-            scaleTo={0.92}
-            style={styles.action}>
-            <Ionicons
-              name={liked ? 'heart' : 'heart-outline'}
-              size={18}
-              color={liked ? theme.danger : theme.textSecondary}
-            />
-            {likes > 0 && (
-              <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
-                {likes}
-              </Text>
-            )}
-          </PressableScale>
-        </View>
-      )}
+      <ReviewCard
+        log={log}
+        lines={BODY_LINES}
+        liked={liked}
+        likeCount={likes}
+        onToggleLike={onToggleLike}
+        onOpen={onOpenReview}
+        wholeCardLink={compact}
+      />
 
       {/* The caller's own footer — on the game page, "See all reviews". It goes
           here rather than in a card of its own below, which is what it used to
@@ -285,45 +245,6 @@ function Shell({
       onPress={onPress}
       scaleTo={0.99}>
       {inner}
-    </PressableScale>
-  );
-}
-
-/**
- * The review's own row: a link when the card around it is not, a plain view when
- * it is.
- *
- * Nesting a pressable inside a pressable works, but it makes the card two
- * overlapping targets for one destination and a screen reader announce the same
- * thing twice. In `compact` the shell has the role and this is inert.
- */
-function Body({
-  compact,
-  onPress,
-  label,
-  children,
-}: {
-  compact: boolean;
-  onPress: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  if (compact) {
-    return (
-      <View style={styles.row} importantForAccessibility="no">
-        {children}
-      </View>
-    );
-  }
-
-  return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      scaleTo={0.99}
-      style={styles.row}>
-      {children}
     </PressableScale>
   );
 }

@@ -54,6 +54,19 @@ export type SlideUpSheetProps = {
   onClose: () => void;
   /** Shown in the grabber row, beside the close control. */
   title?: string;
+  /**
+   * Cap the sheet at a fraction of the display instead of filling it.
+   *
+   * Omit for the full-screen behaviour every existing caller relies on. Pass
+   * `0.5` for a sheet that is a *picker* rather than a screen — a short list of
+   * choices does not need the whole display, and covering the page for four
+   * buttons hides the thing those buttons re-draw.
+   *
+   * The travel distance stays the window height either way, so a dismissed sheet
+   * is still fully off-screen and the drag still feels the same; only the
+   * resting height changes.
+   */
+  maxHeightRatio?: number;
   children: ReactNode;
 };
 
@@ -80,7 +93,13 @@ export type SlideUpSheetProps = {
  * you asked for less animation would be answering an accessibility preference by
  * removing an affordance.
  */
-export function SlideUpSheet({ visible, onClose, title, children }: SlideUpSheetProps) {
+export function SlideUpSheet({
+  visible,
+  onClose,
+  title,
+  maxHeightRatio,
+  children,
+}: SlideUpSheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -160,7 +179,13 @@ export function SlideUpSheet({ visible, onClose, title, children }: SlideUpSheet
       <Animated.View
         style={[
           styles.sheet,
-          { backgroundColor: theme.background, paddingTop: insets.top },
+          /* Capped: `top: 'auto'` releases the top offset so `height` governs,
+             and the safe-area inset is dropped — a sheet that stops short of the
+             status bar has no reason to pad for it. */
+          maxHeightRatio
+            ? { height: height * maxHeightRatio, top: 'auto' as const }
+            : { paddingTop: insets.top },
+          { backgroundColor: theme.background },
           sheetStyle,
         ]}>
         <GestureDetector gesture={drag}>

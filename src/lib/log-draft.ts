@@ -21,16 +21,34 @@ const PREFIX = 'gamelog:log-draft';
 
 /** Everything the form holds, as it holds it — strings stay strings. */
 export type LogDraft = {
-  status: string;
+  /**
+   * Which of the seven progress choices was picked (`constants/progress.ts`),
+   * and for "Completed", how far. Optional because drafts written before the
+   * progress sheet carry `status` and `completed` instead — see
+   * `progressFromDraft`, which reads either shape.
+   */
+  progress?: string;
+  level?: string;
+  /** Pre-progress drafts only. */
+  status?: string;
   rating: number | null;
   advanced: boolean;
   metricDraft: Record<string, string | undefined>;
   reviewTitle: string;
   review: string;
   platinum: boolean;
-  completed: boolean;
+  /* Optional, unlike its siblings: drafts written before 0021 have no such key,
+     and `loadDraft` casts the parsed JSON rather than validating it field by
+     field. A required boolean here would type as `false` on every one of those
+     and read as a decision the author never made. */
+  spoilers?: boolean;
+  /** Pre-progress drafts only: the old "Completed 100%" toggle. */
+  completed?: boolean;
   hours: string;
   playedOn: string;
+  /** Solo or co-op ('' for unsaid) and the player count. Absent before 0023. */
+  play?: string;
+  players?: string;
   /** Epoch ms. Shown to the user, so they can judge whether it is still theirs. */
   savedAt: number;
 };

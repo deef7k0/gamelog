@@ -1,4 +1,4 @@
-import type { PlatformKey } from './platform-cases';
+import { PLATFORMS, platformKeyFor, type PlatformKey } from './platform-cases';
 
 /**
  * A platform *family*, which is not the same thing as a platform.
@@ -24,6 +24,11 @@ export type PlatformFamily = {
   key: PlatformFamilyKey;
   /** The word beside the mark. Short by design — this sits in a chip. */
   label: string;
+  /**
+   * The family's name written out — "PlayStation", not "PS" — for places that
+   * have the room and are read as words: a filter pill, a breakdown row.
+   */
+  name: string;
   /** Ionicons glyph. Nintendo has no mark in the set; see `PLATFORMS`. */
   icon:
     | 'logo-playstation'
@@ -61,6 +66,7 @@ export const PLATFORM_FAMILIES: readonly PlatformFamily[] = [
   {
     key: 'pc',
     label: 'PC',
+    name: 'PC',
     icon: 'logo-steam',
     accent: '#9BA7B8',
     platform: 'pc',
@@ -69,6 +75,7 @@ export const PLATFORM_FAMILIES: readonly PlatformFamily[] = [
   {
     key: 'playstation',
     label: 'PS',
+    name: 'PlayStation',
     icon: 'logo-playstation',
     accent: '#4C8DFF',
     platform: 'ps5',
@@ -77,6 +84,7 @@ export const PLATFORM_FAMILIES: readonly PlatformFamily[] = [
   {
     key: 'xbox',
     label: 'XBOX',
+    name: 'Xbox',
     icon: 'logo-xbox',
     accent: '#5DD45D',
     platform: 'xbox',
@@ -85,6 +93,7 @@ export const PLATFORM_FAMILIES: readonly PlatformFamily[] = [
   {
     key: 'switch',
     label: 'SWITCH',
+    name: 'Switch',
     icon: 'game-controller',
     accent: '#FF6B6B',
     platform: 'switch',
@@ -93,6 +102,7 @@ export const PLATFORM_FAMILIES: readonly PlatformFamily[] = [
   {
     key: 'ios',
     label: 'iOS',
+    name: 'iOS',
     icon: 'logo-apple',
     accent: '#C9C9C9',
     platform: 'ios',
@@ -101,6 +111,7 @@ export const PLATFORM_FAMILIES: readonly PlatformFamily[] = [
   {
     key: 'android',
     label: 'ANDROID',
+    name: 'Android',
     icon: 'logo-google-playstore',
     accent: '#7BD88F',
     platform: 'android',
@@ -143,4 +154,69 @@ export function pricingPlatformFor(families: readonly PlatformFamily[]): Platfor
   }
 
   return null;
+}
+
+/**
+ * Which family each platform belongs to, for the platforms that have one.
+ *
+ * A `Record` over `PlatformKey` would force every retro console into a family,
+ * and there is no honest one for a Saturn among these six — so it is partial,
+ * and a platform with no entry is simply not in any family.
+ */
+const FAMILY_OF: Partial<Record<PlatformKey, PlatformFamilyKey>> = {
+  pc: 'pc',
+  ps5: 'playstation',
+  ps4: 'playstation',
+  ps3: 'playstation',
+  ps2: 'playstation',
+  ps1: 'playstation',
+  psp: 'playstation',
+  vita: 'playstation',
+  xbox: 'xbox',
+  xbox360: 'xbox',
+  xboxOriginal: 'xbox',
+  switch: 'switch',
+  switch2: 'switch',
+  ios: 'ios',
+  android: 'android',
+};
+
+/**
+ * A *stored* platform string → its `PlatformKey`.
+ *
+ * `logs.played_on`, a playthrough's platform, a release's and a copy's all hold
+ * the short form the pickers write ("PS5", "X360", "SWITCH 2"). Logs from before
+ * the picker hold whatever was typed ("PlayStation 4"). So a short form is looked
+ * up exactly, and anything else is matched the way IGDB's names are, through
+ * `platformKeyFor`. Null for a string neither recognises.
+ *
+ * "XBOX" is the short form of both the current family and the original console;
+ * the first match — the current one — wins, which is the right reading for
+ * anything logged today and makes no difference to the family either way.
+ */
+export function platformKeyForStored(value: string | null | undefined): PlatformKey | null {
+  const text = value?.trim();
+  if (!text) return null;
+  const upper = text.toUpperCase();
+  const byShort = (Object.keys(PLATFORMS) as PlatformKey[]).find(
+    (key) => PLATFORMS[key].short.toUpperCase() === upper
+  );
+  return byShort ?? platformKeyFor(text);
+}
+
+/**
+ * A stored platform string → its family, or null when it has none.
+ *
+ * `platformFamilies` matches *provider* names — "Nintendo Switch", "Xbox Series
+ * X|S" — and a short form like "SWITCH" or "X360" matches none of its patterns.
+ * Every stored platform since the log form's picker is a short form, so reading
+ * them through `platformFamilies` quietly lost the family (and the mark on the
+ * review) for most of them. This resolves the key first, then the family.
+ */
+export function familyForStored(value: string | null | undefined): PlatformFamily | null {
+  const key = platformKeyForStored(value);
+  const familyKey = key ? FAMILY_OF[key] : undefined;
+  if (familyKey) return PLATFORM_FAMILIES.find((family) => family.key === familyKey) ?? null;
+  // Free text that is not a platform we know may still name a family ("Windows").
+  return value ? (platformFamilies([value])[0] ?? null) : null;
 }

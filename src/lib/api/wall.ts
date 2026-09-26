@@ -23,7 +23,6 @@ export type ActivityKind =
   | 'platinum'
   | 'watching_event'
   | 'attending_event'
-  | 'diary'
   | 'commented';
 
 export type ActivityEntry = {
@@ -53,7 +52,7 @@ export type ActivityEntry = {
   excerpt: string | null;
   /** Whose review was commented on, for 'commented'. */
   targetAuthor: string | null;
-  /** Target for navigation — a log id for reviews, a game id for diary entries. */
+  /** Target for navigation — a log id for a review, an event id for attendance. */
   refId: string | null;
 };
 
@@ -150,17 +149,6 @@ type AttendanceRow = {
   event: { name: string } | { name: string }[] | null;
 };
 
-type ActivityGame = Pick<CachedGame, 'id' | 'title' | 'cover_url' | 'hero_url'>;
-
-type DiaryRow = {
-  id: string;
-  game_id: string;
-  body: string;
-  entry_date: string;
-  created_at: string;
-  game: ActivityGame | ActivityGame[] | null;
-};
-
 type FriendRow = {
   user_a: string;
   user_b: string;
@@ -171,7 +159,7 @@ type FriendRow = {
 };
 
 async function getActivity(userId: string): Promise<ActivityEntry[]> {
-  const [logs, listItems, friends, attendance, diary, comments] = await Promise.all([
+  const [logs, listItems, friends, attendance, comments] = await Promise.all([
     supabase
       .from('logs')
       .select(
@@ -205,15 +193,6 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       .order('created_at', { ascending: false })
       .limit(20),
 
-    supabase
-      .from('diary_entries')
-      .select(
-        'id, game_id, body, entry_date, created_at, game:games(id, title, cover_url, hero_url)'
-      )
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(20),
-
     /*
      * Comments the owner left on other people's reviews.
      *
@@ -240,7 +219,6 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
   if (listItems.error) throw new Error(listItems.error.message);
   if (friends.error) throw new Error(friends.error.message);
   if (attendance.error) throw new Error(attendance.error.message);
-  if (diary.error) throw new Error(diary.error.message);
   /* Comments are additive detail, not the wall itself. If the embed fails —
      most likely because 0013's FK hint is not there yet — the wall still
      renders everything else rather than erroring out whole. */
@@ -343,27 +321,6 @@ async function getActivity(userId: string): Promise<ActivityEntry[]> {
       excerpt: null,
       targetAuthor: null,
       refId: row.event_id,
-    });
-  }
-
-  for (const row of (diary.data ?? []) as unknown as DiaryRow[]) {
-    const game = Array.isArray(row.game) ? row.game[0] : row.game;
-    entries.push({
-      id: `diary:${row.id}`,
-      kind: 'diary',
-      createdAt: row.created_at,
-      game: game ?? null,
-      person: null,
-      listTitle: null,
-      eventName: null,
-      score: null,
-      reviewTitle: null,
-      // A diary entry is writing too — preview it the way a review is.
-      excerpt: row.body,
-      targetAuthor: null,
-      // The diary screen is keyed by (user, game), so the game id is what the
-      // row needs to navigate — the entry's own id would not locate anything.
-      refId: row.game_id,
     });
   }
 

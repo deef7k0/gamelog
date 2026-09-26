@@ -103,16 +103,56 @@ const styles = StyleSheet.create({
    */
   chip: {
     flexDirection: 'row',
-    alignItems: 'center',
+    /*
+     * **Baselines, not boxes.** The figure is 12px on a 17dp line box and the
+     * band is 9 or 10 on a 12–13dp one; centring those two boxes against each
+     * other lines up their *middles*, which leaves the word's baseline about a
+     * point above the number's and reads as the word floating. Two type sizes on
+     * one line align on the line they are written on.
+     */
+    alignItems: 'baseline',
     alignSelf: 'flex-start',
-    gap: Spacing.x4 + 2,
-    paddingHorizontal: Spacing.x8,
+    /*
+     * 4 inside, 8 outside. They used to both be 6, which is the actual bug this
+     * pass was called for: with the interval between the number and its word
+     * equal to the interval between the word and the edge, the chip read as
+     * three evenly-spaced columns instead of one object with air around it.
+     * Tight within the pair, generous around it — the ordinary rule, applied at
+     * chip scale.
+     */
+    gap: Spacing.x4,
+    paddingHorizontal: Spacing.x12,
     paddingVertical: 3,
     borderRadius: Radius.image,
   },
+  /*
+   * Android adds the font's own ascent and descent padding on top of the line
+   * box unless told not to, and it is asymmetric — which inside a 23dp filled
+   * rectangle holding two different font sizes is exactly the "weird space"
+   * nobody can point at. iOS ignores the property entirely, so this only ever
+   * removes a discrepancy between the two platforms.
+   */
+  chipNumber: { includeFontPadding: false },
+  /* Tighter side padding, because this variant shares a top bar with a username
+     that would rather have the dp. */
+  chipNarrow: { paddingHorizontal: Spacing.x8 },
   /* The band rides slightly darker than the number on the same fill — it is the
-     gloss on the figure, not a second reading of it. */
-  chipBand: { opacity: 0.82 },
+     gloss on the figure, not a second reading of it. `includeFontPadding` for
+     the reason on `chipNumber`: the two have to lose it together or removing it
+     from one would introduce the very offset it is there to prevent. */
+  chipBand: { opacity: 0.82, includeFontPadding: false },
+  /*
+   * The size override is argued in the component's docblock: 9/12 is below the
+   * 10px floor `Type` sets, and it is allowed here because this is an uppercase
+   * word on a filled block acting as a third carrier, not running text. Tracking
+   * drops with it — 0.8 was tuned on 10, and 0.45 is the same optical looseness
+   * at 9.
+   */
+  chipBandNarrow: {
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0.45,
+  },
   /* Tight leading and negative tracking: at display size in a square this small
      the default line box pushes the band label off the bottom. */
   number: { letterSpacing: -0.5 },
@@ -148,7 +188,40 @@ const styles = StyleSheet.create({
  * The word is inside the fill, not beside it. Colour is never the only carrier
  * here (CLAUDE.md), and "61" alone asks the reader to supply a scale.
  */
-export function ScoreChip({ score }: { score: number }) {
+/**
+ * `narrow` is the chip as it appears in a card's top bar, beside a username:
+ * a 9/12 band against the token's 10/13, and tighter side padding.
+ *
+ * ## It prints the whole word
+ *
+ * It used to print an abbreviation — MASTER, OUTSTAND, EXCELL — through a
+ * `shortLabelFor` that has since been deleted. That was the right call for the
+ * layout it was written for, where the chip lived under the box art in a column
+ * fixed at `BOX_ART_WIDTH`, 84dp, and "MASTERPIECE" did not fit. The relayout
+ * that moved it into a top bar spanning the card removed the column and kept the
+ * abbreviation, so for a long while the feed printed "EXCELL" in a row with
+ * room to spare.
+ *
+ * The row is also what guarantees the room now. The chip's block is
+ * `flexShrink: 0` and the author beside it is `flex: 1, minWidth: 0`, so on a
+ * narrow screen a long display name truncates and the verdict never does — which
+ * is the right way round: a name survives an ellipsis, "EXCELL…" does not.
+ *
+ * ## The 9px band is a deliberate exception to the 10px floor
+ *
+ * `Type`'s note is explicit that 10 is the floor and that `caption` and `label`
+ * must not go below it. That rule is about *running text you have to read* — a
+ * timestamp, a count, a chip in a metadata row. This is a two-to-eleven letter
+ * uppercase word on a filled block at `readableInk` contrast, and it is the
+ * **third** carrier on the object after the number and the colour. The chip is
+ * the one member of a crowded row — avatar, name of unknown length, platform
+ * mark, playtime — whose width it can choose, and the point it gives back is
+ * the name's.
+ *
+ * The exception is local to this style — the token is untouched, so nothing else
+ * in the app moves.
+ */
+export function ScoreChip({ score, narrow = false }: { score: number; narrow?: boolean }) {
   const theme = useTheme();
 
   const rounded = Math.round(score);
@@ -157,13 +230,16 @@ export function ScoreChip({ score }: { score: number }) {
 
   return (
     <View
-      style={[styles.chip, { backgroundColor: tint }]}
+      style={[styles.chip, narrow && styles.chipNarrow, { backgroundColor: tint }]}
       accessible
       accessibilityLabel={`Rated ${rounded} out of 100, ${labelFor(score)}`}>
-      <Text variant="h5" style={{ color: ink }}>
+      <Text variant="h5" style={[styles.chipNumber, { color: ink }]}>
         {rounded}
       </Text>
-      <Text variant="label" style={[styles.chipBand, { color: ink }]} numberOfLines={1}>
+      <Text
+        variant="label"
+        style={[styles.chipBand, narrow && styles.chipBandNarrow, { color: ink }]}
+        numberOfLines={1}>
         {labelFor(score).toUpperCase()}
       </Text>
     </View>

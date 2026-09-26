@@ -211,7 +211,7 @@ export const Colors = {
     scoreLow: '#F35555',
 
     /*
-     * Log status. Four states, four hues, aliased onto the ramp.
+     * Log status. Five states, five hues, aliased onto the ramp.
      *
      * `backlog` used to be `textSecondary` — grey, which said "no status" for
      * the one status a logging app is most about. A shelf of things you mean to
@@ -232,6 +232,15 @@ export const Colors = {
     statusBacklog: '#C9A6FF',
     /** Rust, not the alarm red. Dropping a game is a verdict, not an error. */
     statusDropped: '#CE7B62',
+    /**
+     * Gold, for `paused` (0022): the amber light between going and stopped.
+     *
+     * An alias of `identityGold`, not a new hex — a meaning joins the ramp. It
+     * sits apart from the four above on hue *and* on luminance (it is the
+     * lightest of the five), and a reader who cannot tell gold from jade still
+     * has the pause glyph and the word, which every status ships beside it.
+     */
+    statusPaused: '#F3C24B',
 
     /*
      * Achievement rarity, from Steam's global unlock percentage.
@@ -842,15 +851,29 @@ export const Type = {
    * leading to keep the lines from knitting together, and this is the one block
    * in the app somebody reads rather than scans.
    */
-  reviewProse: { fontSize: 15, lineHeight: 24, fontFamily: FontFamily.serif },
+  /* 14/23, down from 15/24. The ratio is what the note above is about and it is
+     preserved — 23 on 14 is 1.64 against the old 1.60, so the serif keeps the
+     extra leading that stops its lines knitting together at reading length. */
+  reviewProse: { fontSize: 14, lineHeight: 23, fontFamily: FontFamily.serif },
   /** The excerpt on a feed card, beside the artwork. */
   reviewExcerpt: { fontSize: 13, lineHeight: 20, fontFamily: FontFamily.serif },
   /** The release year beside a review's title. Recedes without shrinking. */
   reviewYear: { fontSize: 14, lineHeight: 19, fontFamily: FontFamily.light },
   /** "Review by <name>". Sans, because it is a fact about the piece. */
   reviewByline: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semibold },
-  /** The playthrough block: platform, hours, platinum, date. Tight and compact. */
-  reviewMeta: { fontSize: 11, lineHeight: 16, fontFamily: FontFamily.semibold },
+  /**
+   * The playthrough block: platform, hours, platinum, date.
+   *
+   * 13/18, up from 11/16. These are the facts somebody checks *before* deciding
+   * whether to read the review — what it was played on, for how long, how far
+   * through — and at 11 they were the quietest type on a page whose masthead is
+   * a 20px serif title beside a score tile. They are the one part of that
+   * masthead that is information rather than identity, so they get the step.
+   *
+   * Still under the title and the score, which is the constraint: this reads
+   * *after* both, not against them.
+   */
+  reviewMeta: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
 
   /*
    * Preserved — the physical game case keeps its own type. See DESIGN.md § 2.3.

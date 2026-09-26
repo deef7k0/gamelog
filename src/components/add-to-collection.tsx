@@ -87,6 +87,13 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
       queryClient.invalidateQueries({ queryKey: ['lists'] });
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
       queryClient.invalidateQueries({ queryKey: ['list-membership'] });
+      /* The game page's stats strip claims a number of collections and its sheet
+         lists them. Neither shares a key prefix with anything above — they are
+         keyed by *game*, where every other list query is keyed by list or by
+         owner — so they have to be named here or the strip keeps printing the
+         count from before this add. */
+      queryClient.invalidateQueries({ queryKey: ['game-list-count', game.id] });
+      queryClient.invalidateQueries({ queryKey: ['game-lists', game.id] });
       onClose();
     },
   });
@@ -116,6 +123,42 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
             <Ionicons name="close" size={22} color={theme.text} />
           </PressableScale>
         </View>
+
+        {/*
+          Owning the game, above the lists.
+
+          "Collect" is where the intent to *have* a game already lives, so this is
+          where a physical copy is added from — rather than a card on every game
+          page, which for anybody who does not collect boxes would be a permanent
+          invitation to do something they never do. It is a different thing from
+          the rows below (a copy is yours, with a condition; a collection is a
+          curated list), so it is set apart and worded as ownership, not as a
+          list called "Physical".
+        */}
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={`I own a physical copy of ${game.title}. Add it.`}
+          onPress={() => {
+            onClose();
+            router.push({ pathname: '/add-copy', params: { game: game.id } });
+          }}
+          scaleTo={0.98}
+          style={StyleSheet.flatten([
+            styles.row,
+            styles.ownRow,
+            { backgroundColor: theme.surfaceElevated },
+          ])}>
+          <View style={[styles.copyGlyph, { backgroundColor: theme.surfaceSelected }]}>
+            <Ionicons name="disc-outline" size={22} color={theme.text} />
+          </View>
+          <View style={styles.rowText}>
+            <Text variant="h5">I own a copy</Text>
+            <Text variant="bodySmall" color="textMuted">
+              Add it with its release and condition
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.textMuted} />
+        </PressableScale>
 
         {add.isError && (
           <Text variant="bodySmall" color="danger" style={styles.gutter}>
@@ -206,6 +249,18 @@ const styles = StyleSheet.create({
     borderRadius: Radius.card,
   },
   rowText: { flex: 1, gap: 1 },
+  /* Margin, not the `gutter` padding: the row is a surface, and it has to line
+     up with the list rows below, which sit inside `rows`' own inset. */
+  ownRow: { marginHorizontal: Spacing.x16 },
+  /* The same footprint as a list row's mosaic, so the column of titles starts
+     at one x for every row in the sheet. */
+  copyGlyph: {
+    width: ROW_MOSAIC,
+    height: ROW_MOSAIC,
+    borderRadius: Radius.image,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   empty: { alignItems: 'center', gap: Spacing.x12, padding: Spacing.x24 },
   emptyText: { textAlign: 'center' },

@@ -77,6 +77,23 @@ export function resolveMosaic(row: SummaryRow): ListCover[] {
 
 const SUMMARY_SELECT = `*, ${SUMMARY_ITEMS}`;
 
+/**
+ * One row → one summary.
+ *
+ * The three lines this replaces were written out at every call site, which is
+ * the drift `SummaryRow`'s own docblock warns about: `mosaic` was added to two
+ * of them and forgotten in the third, and the collection tiles on that screen
+ * drew a single cover until somebody noticed.
+ */
+function toSummary(row: SummaryRow): ListSummary {
+  return {
+    ...row,
+    itemCount: row.items?.length ?? 0,
+    preview: resolvePreview(row),
+    mosaic: resolveMosaic(row),
+  };
+}
+
 export async function getLists(userId: string): Promise<ListSummary[]> {
   const { data, error } = await supabase
     .from('lists')
@@ -86,12 +103,100 @@ export async function getLists(userId: string): Promise<ListSummary[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as SummaryRow[]).map((row) => ({
-    ...row,
-    itemCount: row.items?.length ?? 0,
-    preview: resolvePreview(row),
-    mosaic: resolveMosaic(row),
-  }));
+  return ((data ?? []) as SummaryRow[]).map(toSummary);
+}
+
+/**
+ * The list kinds that count as "a collection this game is in".
+ *
+ * **`favorites` and `wishlist` are deliberately out.** Both are singleton lists
+ * a toggle writes to — the heart and the bookmark on the game page's action row
+ * — so counting them would turn "In 17 collections" into a wishlist counter, and
+ * on a popular game it would be nothing else: a shelf somebody *built* is rarer
+ * than a game somebody meant to buy by two orders of magnitude. Tapping through
+ * would then be a list of four hundred rows all called "Wishlist".
+ *
+ * The other four are all authored — a plain collection, a tier list, an award
+ * show, a captioned board — and each one is somebody's argument about where this
+ * game belongs, which is the fact the strip is claiming.
+ */
+const SHELF_KINDS: readonly ListKind[] = ['list', 'tier', 'awards', 'captioned'];
+
+/**
+ * How many authored collections hold this game.
+ *
+ * A `head` request: the strip prints one integer and has no use for the rows, so
+ * this is a `COUNT(*)` over the join and no payload at all. The sheet behind it
+ * fetches the collections themselves, and only when it opens.
+ *
+ * `lists!inner(kind)` is the join — `list_items` carries no `kind`, and an
+ * outer embed would count rows whose list was filtered out. The embed is
+ * selected purely so the filter below has something to filter *on*; `head: true`
+ * means none of it crosses the wire.
+ */
+export async function getGameListCount(gameId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('list_items')
+    .select('list_id, lists!inner(kind)', { count: 'exact', head: true })
+    .eq('game_id', gameId)
+    .in('lists.kind', SHELF_KINDS);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/**
+ * Which collections hold this game, most recently added first.
+ *
+ * ## Two round trips, on purpose
+ *
+ * The membership lives on `list_items` and everything a tile draws lives on
+ * `lists` — the title, the owner, and the first four covers the mosaic is made
+ * of. Asking from the `list_items` side with a filtered embed (`lists!inner(…,
+ * items:list_items(…))`) is one request and returns the wrong thing: PostgREST
+ * applies the `game_id` filter to the *inner* embed too, so every collection
+ * comes back holding exactly one item — this game — and every mosaic collapses
+ * to a single cover.
+ *
+ * So: the ids, then the summaries. Both are indexed lookups, it happens once
+ * when a sheet opens, and the alternative is a correct-looking query that
+ * silently ruins the artwork.
+ *
+ * Capped, because a much-loved game can be on thousands of shelves. The caller
+ * has the exact figure from `getGameListCount` and can say so.
+ */
+export async function getGameLists(gameId: string, limit = 50): Promise<ListSummary[]> {
+  const { data: rows, error } = await supabase
+    .from('list_items')
+    .select('list_id, added_at, lists!inner(kind)')
+    .eq('game_id', gameId)
+    .in('lists.kind', SHELF_KINDS)
+    .order('added_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(error.message);
+
+  /* `added_at` order, deduped. A list cannot hold the same game twice — the
+     primary key is `(list_id, game_id)` — so the Set is belt and braces, and it
+     is cheap insurance against a future kind that relaxes that. */
+  const ids = [...new Set((rows ?? []).map((row) => row.list_id))];
+  if (ids.length === 0) return [];
+
+  const { data, error: summaryError } = await supabase
+    .from('lists')
+    .select(SUMMARY_SELECT)
+    .in('id', ids);
+
+  if (summaryError) throw new Error(summaryError.message);
+
+  /* `in()` returns rows in whatever order Postgres found them, which is not the
+     recency order the ids were fetched in. Re-imposing it here rather than
+     ordering in SQL: the sort key lives on the *other* table. */
+  const rank = new Map(ids.map((id, index) => [id, index]));
+
+  return ((data ?? []) as SummaryRow[])
+    .map(toSummary)
+    .sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
 }
 
 /**
@@ -395,10 +500,5 @@ export async function getPublicLists(limit = 30): Promise<ListSummary[]> {
     .order('updated_at', { ascending: false })
     .limit(limit);
 
-  return unwrap(data as SummaryRow[] | null, error).map((row) => ({
-    ...row,
-    itemCount: row.items?.length ?? 0,
-    preview: resolvePreview(row),
-    mosaic: resolveMosaic(row),
-  }));
+  return unwrap(data as SummaryRow[] | null, error).map(toSummary);
 }

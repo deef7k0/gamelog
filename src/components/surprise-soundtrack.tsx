@@ -69,7 +69,7 @@ export function SurpriseSoundtrack({
 
   if (loading) {
     return (
-      <Card tinted elevated panel padded={false} style={styles.pad}>
+      <Card tinted elevated padded={false} style={styles.pad}>
         <View style={styles.row}>
           <Skeleton width={ARTWORK} height={ARTWORK} />
           <View style={styles.meta}>
@@ -96,7 +96,7 @@ export function SurpriseSoundtrack({
         : 'No soundtrack on Apple Music.';
 
     return (
-      <Card tinted elevated panel padded={false} style={styles.pad}>
+      <Card tinted elevated padded={false} style={styles.pad}>
         <View style={styles.row}>
           <View style={[styles.blank, { backgroundColor: theme.surfaceElevated }]}>
             <Ionicons name="musical-notes-outline" size={19} color={theme.textMuted} />
@@ -122,7 +122,7 @@ export function SurpriseSoundtrack({
   const playable = !!track.previewUrl;
 
   return (
-    <Card tinted elevated panel padded={false} style={styles.pad}>
+    <Card tinted elevated padded={false} style={styles.pad}>
       <View style={styles.row}>
         {/* The row's body opens the album. Everything the card used to carry —
             the full track list, Apple Music, the star — lives on that screen. */}

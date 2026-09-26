@@ -51,11 +51,18 @@ const ALLOWED_ENDPOINTS = new Set([
   // checked without another deploy.
   'popularity_primitives',
   'popularity_types',
-  // How long a game takes, for the Overview tab's Time to beat widget. Its own
-  // endpoint keyed on `game_id` rather than a field on `games`, so it cannot
-  // ride the entry above it. Like every addition here, it does nothing until:
+  // How long a game takes, for the game page's stats strip and Time to beat
+  // widget. Its own endpoint keyed on `game_id` rather than a field on `games`,
+  // so it cannot ride the entry above it.
+  //
+  // **Plural**, like every IGDB path. This entry was `game_time_to_beat` for a
+  // long time, which IGDB 404s — so allowing it permitted a request that could
+  // never succeed. The singular is removed rather than kept beside this one: an
+  // entry nothing can use is a permission granted for no reason, the same
+  // argument that took `characters` out above. Like every addition here, it
+  // does nothing until:
   //   supabase functions deploy igdb --project-ref <ref> --use-api
-  'game_time_to_beat',
+  'game_time_to_beats',
 ]);
 
 const CORS_HEADERS = {

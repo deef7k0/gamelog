@@ -361,10 +361,10 @@ function LibraryCard({ entry, width }: { entry: LibraryEntry; width: number }) {
   // dropping it would hide most of a large library.
   if (!entry.gameId) return art;
 
-  /* Straight to the game page rather than to this person's diary. The old
-     Steam-only grid went to the diary because every row *was* theirs; a merged
-     list is mostly games, and a tile that behaved differently depending on
-     which tab surfaced it would be the surprising kind of clever. */
+  /* Straight to the game page rather than to this person's record of it. The
+     old Steam-only grid went to the per-user screen because every row *was*
+     theirs; a merged list is mostly games, and a tile that behaved differently
+     depending on which tab surfaced it would be the surprising kind of clever. */
   return (
     <Link href={{ pathname: '/game/[id]', params: { id: entry.gameId } }} asChild>
       <PressableScale accessibilityRole="button" accessibilityLabel={entry.title} scaleTo={0.95}>

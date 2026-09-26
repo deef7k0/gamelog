@@ -92,12 +92,43 @@ export function DiscoverReviews() {
       data={reviews.data ?? []}
       keyExtractor={(log) => log.id}
       contentContainerStyle={styles.content}
+      /*
+        The gap between cards, and it was missing entirely.
+
+        `content` carried padding and nothing else, so every `<LogCard>` sat
+        flush against the next and the page read as one long seam — while
+        `<ReviewsBand>`, rendering the *same component* on Home, spaced them with
+        `gap: Spacing.x24`. Matching the band rather than inventing a third
+        number is the point: a card should look the same on the band and behind
+        its own "See all", and the two disagreeing is what made this screen look
+        broken rather than merely tight.
+
+        A separator rather than `gap` on the content container: `gap` there also
+        applies above the first row and below the last, which would double the
+        padding the container already sets.
+      */
+      ItemSeparatorComponent={CardGap}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       refreshing={reviews.isRefetching}
       onRefresh={() => reviews.refetch()}
       renderItem={({ item }) => <LogCard log={item} engagement={engagement.data?.[item.id]} />}
+      /*
+        Virtualisation, for a list with no upper bound on its length.
+
+        `<LogCard>` is the tallest row in the app — box art plus five lines of
+        serif — so a few dozen of them mounted at once is real memory and real
+        commit time. These are the FlatList half of the project's list spec:
+        render a screenful, keep a handful either side, and unmount the rest.
+        `removeClippedSubviews` is deliberately left at its default on Android,
+        where it has a history of blanking rows inside nested transforms, and
+        `<PressableScale>` puts one on every card here.
+      */
+      initialNumToRender={6}
+      maxToRenderPerBatch={6}
+      windowSize={7}
+      updateCellsBatchingPeriod={50}
       ListEmptyComponent={
         <EmptyState
           title="No reviews yet"
@@ -106,6 +137,12 @@ export function DiscoverReviews() {
       }
     />
   );
+}
+
+/** The interval between two review cards. Module scope, so FlatList's separator
+    prop is a stable reference rather than a new component type per render. */
+function CardGap() {
+  return <View style={styles.cardGap} />;
 }
 
 /** The first few reviews, for a host that is already scrolling. */
@@ -216,6 +253,8 @@ const styles = StyleSheet.create({
      nothing to fill — so the same component rendered directly was centred and
      rendered as a list's empty state was pinned to the top. */
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48, flexGrow: 1 },
+  /* The same interval `band` uses below, because it separates the same cards. */
+  cardGap: { height: Spacing.x24 },
   band: { paddingHorizontal: Spacing.x16, gap: Spacing.x24 },
   separator: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.x20 },
 });

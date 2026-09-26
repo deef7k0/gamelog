@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
 import { ReviewCard } from '@/components/review-card';
@@ -7,20 +6,31 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import type { TopReview } from '@/lib/api';
 
-/** The empty state's glyph well. Square, so the "no reviews" block has a shape. */
+/**
+ * The skeleton's score placeholder, matching `<ScoreTile>`'s edge.
+ *
+ * Only the loading state uses it now. The empty state used to draw the same
+ * square with a pencil glyph in it, which put a picture of the act of writing in
+ * a well built to hold a number — that is gone and the empty state is type alone.
+ */
 const TILE = 52;
 
 /**
- * How much of the review is printed on the card.
+ * How much of the review is printed, when the caller does not say.
  *
  * Three, not two. Two lines of an eight-line review is a fragment — usually the
  * reviewer clearing their throat — and on Surprise Me, where this is most of
  * what you have to go on, the third line is often the first one that says
  * anything. The cost is roughly 16dp of a screen that must not scroll, which
  * `revealLayout` already absorbs through its flex spacer.
+ *
+ * **The default is Surprise Me's number, and the game page overrides it to five.**
+ * That screen scrolls and this card is the only review on it; Surprise Me does
+ * not scroll and two more lines there come straight out of the artwork. One
+ * component, two rooms — which is exactly what a prop is for, and why this is
+ * not simply raised to five for everybody.
  */
 const BODY_LINES = 3;
 
@@ -66,6 +76,8 @@ export type TopReviewCardProps = {
    * like is a real action and the room for it exists.
    */
   compact?: boolean;
+  /** Lines of prose before the clamp. Defaults to `BODY_LINES` — see its note. */
+  lines?: number;
 };
 
 /**
@@ -108,9 +120,8 @@ export function TopReviewCard({
   bare = false,
   footer,
   compact = false,
+  lines = BODY_LINES,
 }: TopReviewCardProps) {
-  const theme = useTheme();
-
   if (loading) {
     return (
       <Shell bare={bare}>
@@ -129,10 +140,11 @@ export function TopReviewCard({
   /*
    * Nobody has written about this one yet.
    *
-   * Kept as a block rather than collapsed to nothing, and the reason is that the
-   * two states are the same size: the layout does not jump between a game that
-   * has a review and one that does not, which on a screen you are dealing
-   * through is the difference between a steady surface and a twitching one.
+   * Kept as a block rather than collapsed to nothing: on a screen you are dealing
+   * through, a card that vanishes on the games nobody has reviewed — which is most
+   * of a random pool — is a surface that twitches every deal. It is no longer the
+   * same *height* as the review state, since the 52dp glyph well that used to
+   * guarantee that is gone, but a two-line block is a block.
    *
    * It is also the better offer. A random pool is mostly games nobody here has
    * reviewed, so this is the app's most frequent chance to ask for writing —
@@ -142,17 +154,21 @@ export function TopReviewCard({
   if (!review) {
     return (
       <Shell bare={bare} onPress={compact ? onWriteReview : undefined} label="Write a review">
-        <View style={styles.row}>
-          <View style={[styles.tile, styles.emptyTile, { borderColor: theme.border }]}>
-            <Ionicons name="create-outline" size={24} color={theme.textMuted} />
-          </View>
+        {/*
+          Two lines of type, and nothing beside them.
 
-          <View style={styles.body}>
-            <Text variant="h4">No reviews yet</Text>
-            <Text variant="bodySmall" color="textMuted" numberOfLines={BODY_LINES}>
-              Nobody here has written about this one. Want to be the first?
-            </Text>
-          </View>
+          It led with a 52dp outlined square holding a pencil glyph, mirroring the
+          `<ScoreTile>` that occupies that slot when there *is* a review. The
+          mirror was the mistake: the tile is there to carry a number, and an empty
+          one carries a picture of the act of writing — an icon restating the
+          sentence next to it, in a box drawn to hold something it has not got.
+          What is left is the sentence, which was always the content.
+        */}
+        <View style={styles.body}>
+          <Text variant="h4">No reviews yet</Text>
+          <Text variant="bodySmall" color="textMuted" numberOfLines={BODY_LINES}>
+            Nobody here has written about this one. Want to be the first?
+          </Text>
         </View>
 
         {/* The card itself is the control in `compact`; a button under a
@@ -191,7 +207,7 @@ export function TopReviewCard({
       */}
       <ReviewCard
         log={log}
-        lines={BODY_LINES}
+        lines={lines}
         liked={liked}
         likeCount={likes}
         onToggleLike={onToggleLike}
@@ -231,7 +247,20 @@ function Shell({
   const inner = bare ? (
     <View style={styles.bare}>{children}</View>
   ) : (
-    <Card tinted elevated panel padded={false} style={styles.pad}>
+    /*
+      No `panel`, so this takes `Radius.card` (6) like every other card in the
+      app rather than `Radius.cardLarge` (18).
+
+      `cardLarge` is the game page's panel shape and it belongs there, on
+      containers big enough to carry an 18dp corner. Surprise Me stacks two small
+      cards under the artwork, where the same corner reads as a rounded tile
+      rather than a card — the corners were the loudest thing about two objects
+      that are supposed to sit quietly under a piece of box art.
+
+      Only this screen is affected: the game page passes `bare` and renders no
+      `<Card>` at all.
+    */
+    <Card tinted elevated padded={false} style={styles.pad}>
       {children}
     </Card>
   );
@@ -255,30 +284,11 @@ const styles = StyleSheet.create({
      internal rhythm survives. */
   bare: { gap: Spacing.x12 },
   row: { flexDirection: 'row', gap: Spacing.x12 },
-  /* Matches `<ScoreTile>` exactly, corner included — the empty state stands in
-     the same square the score would have filled. */
-  tile: {
-    width: TILE,
-    height: TILE,
-    borderRadius: Radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* Same square, no fill. There is no score to colour it with, and inventing one
-     — a grey chip, a zero — would be printing a number nobody gave. */
-  emptyTile: { borderWidth: StyleSheet.hairlineWidth },
-  /* Tight leading and no letter-spacing: at 26px in a 62dp square the default
-     line box would push the band label off the bottom. */
-  number: { lineHeight: 28, letterSpacing: -0.5 },
-  band: { fontSize: 8, letterSpacing: 0.4, opacity: 0.75 },
   body: { flex: 1, gap: Spacing.x4, justifyContent: 'center' },
-  who: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  /* Shrinks rather than pushing the avatar off the row on a long display name. */
-  name: { flex: 1 },
   /* `flex-end`, with the heart pushed back out to the left by its own auto
      margin. Not `space-between`: the empty state has no heart, and space-between
-     would leave its lone button stranded on the left while the review state's
-     sat on the right — the one control in this card moving corners depending on
+     would leave its lone button stranded on the left while the review state's sat
+     on the right — the one control in this card moving corners depending on
      whether anybody has written yet. */
   actions: {
     flexDirection: 'row',

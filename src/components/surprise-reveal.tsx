@@ -17,6 +17,9 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
+import { SurpriseBloom, BLOOM_BLEED } from '@/components/surprise-bloom';
+import { SurpriseDeck } from '@/components/surprise-deck';
+import { SurpriseSheen } from '@/components/surprise-sheen';
 import { Poster } from '@/components/ui/poster';
 import { PlatformMarks } from '@/components/ui/platform-chip';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -29,10 +32,16 @@ import { useAccent } from '@/hooks/use-accent';
 import { ARRIVAL_CONTROL, ARRIVAL_OBJECT, useArrival } from '@/hooks/use-arrival';
 import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
+import type { DealDirection } from '@/components/surprise-deal-gesture';
 import type { GameSearchResult } from '@/lib/games/types';
 
-/** Which way the deck moved. `1` = on to the next, `-1` = back to the last one. */
-export type DealDirection = 1 | -1;
+/*
+ * `DealDirection` is declared once, by the gesture that produces one, and
+ * re-exported here because every consumer imports it from the reveal. It was
+ * declared twice with identical text — the same shape of drift CLAUDE.md records
+ * for `TargetType`, where the copy silently kept a member out of the barrel.
+ */
+export type { DealDirection };
 
 /**
  * How far the card must travel before releasing it deals.
@@ -46,6 +55,28 @@ const COMMIT_FRACTION = 0.3;
 
 /** Rotation at full travel, in degrees. A dealt card turns as it leaves the hand. */
 const EXIT_ROTATION = 9;
+
+/**
+ * The card lifts off the deck as you pull it, and that costs three numbers.
+ *
+ * Borrowed from `<GameCaseFlip>`, which is the app's one existing object in
+ * depth: `perspective: 900` is its value, and using a second one would make two
+ * objects in the same app disagree about how far away the viewer is standing.
+ *
+ * `TILT_Y` is deliberately small — 7° against the case's 22° of rubber-band —
+ * because this is a lean, not a turn. DESIGN.md § 4.2 keeps the case superior on
+ * every material axis, and turn is one of them: only the case may be taken all
+ * the way over and read from the back.
+ *
+ * There is **no `rotateX`**. A pitch would be the fourth transform on a subtree
+ * containing `overflow: 'hidden'` artwork, and unlike `rotateY` — which
+ * `<GameCaseFlip>` already ships over exactly that — it has no precedent here to
+ * say how Android handles it. The lift does the same job with a translate, which
+ * every platform agrees about.
+ */
+const PERSPECTIVE = 900;
+const TILT_Y = 7;
+const LIFT = 6;
 
 /* The two beats behind the case. Controls follow the object; the object never
    waits for them. Capped far under the 500ms where an entrance starts to read as
@@ -100,6 +131,16 @@ export type RevealLayout = {
    * than as a record sleeve.
    */
   squareWidth: number;
+  /**
+   * Travel at which releasing deals, in dp.
+   *
+   * Derived here rather than exported as a fraction, because six call sites were
+   * each restating `artWidth * 0.3` — the screen's two gestures, its two edge
+   * lights, and the reveal's own. A fraction that travels is a fraction that gets
+   * out of step; the *number* lives in the one object every consumer already
+   * reads.
+   */
+  commitAt: number;
   /** How far a dealt card travels before it is let go. */
   exitDistance: number;
   /** Too short for the standing hint and the metadata row. */
@@ -161,6 +202,7 @@ export function revealLayout(width: number, height: number): RevealLayout {
   return {
     artWidth,
     squareWidth,
+    commitAt: Math.round(artWidth * COMMIT_FRACTION),
     exitDistance: Math.round(width * 1.15),
     /*
      * Short displays drop the standing swipe hint and the metadata row.
@@ -242,6 +284,14 @@ export type SurpriseRevealProps = {
    * animating. The screen resets it as part of `deal()`.
    */
   dealX: SharedValue<number>;
+  /**
+   * Springs to 1 while the swipe is past the point where releasing deals.
+   *
+   * Owned by the screen for the same reason `dealX` is — the edge lights read it
+   * too — and passed down so the room can swell on the same threshold the haptic
+   * ticks on. Three signals on one detent.
+   */
+  bloom: SharedValue<number>;
   onOpenGame: () => void;
   /**
    * Banish this game from every future roll. Double tap on the cover.
@@ -329,6 +379,7 @@ export function SurpriseReveal({
   canGoBack,
   onDeal,
   dealX,
+  bloom,
   onOpenGame,
   onHide,
   hidden,
@@ -341,6 +392,7 @@ export function SurpriseReveal({
 }: SurpriseRevealProps) {
   const accent = useAccent();
   const theme = useTheme();
+  const reduceMotion = useReducedMotion();
 
   /*
    * The square cover, and **nothing is drawn until it has an answer**.
@@ -354,7 +406,21 @@ export function SurpriseReveal({
    */
   const square = useSquareCover({ gameId: game.id, title: game.title });
 
-  const commitAt = layout.artWidth * COMMIT_FRACTION;
+  /*
+   * The card's footprint, resolved once and shared by the well, the deck and the
+   * sheen.
+   *
+   * Two shapes: a square cover, or the 2:3 portrait when SteamGridDB has no 1:1
+   * art. **The height is the same either way** — `revealLayout` derives
+   * `artWidth` from `squareWidth` for exactly that reason — so the well and
+   * everything below it are unaffected by which one a game gets. Only the width
+   * and the corner change, and the deck takes both so its cards never sit a
+   * different shape from the one on top of them.
+   */
+  const usingSquare = square.resolved && !!square.uri;
+  const cardWidth = usingSquare ? layout.squareWidth : layout.artWidth;
+  const cardHeight = layout.squareWidth;
+  const cardRadius = usingSquare ? SQUARE_RADIUS : Radius.image;
 
   const caseArrival = useArrival(0, ARRIVAL_OBJECT);
   const titleArrival = useArrival(TITLE_DELAY, ARRIVAL_CONTROL);
@@ -368,11 +434,36 @@ export function SurpriseReveal({
        the right and a card put back arrives from the left. */
     const entering = interpolate(arrived, [0, 1], [from * 44, 0]);
 
+    /* One switch kills every new term and leaves the translate, the scale and the
+       exit rotation exactly as they shipped. A lean under a perspective is the
+       pseudo-parallax motion sensitivity is actually about; a card following your
+       finger is not, which is why the drag itself survives Reduce Motion. */
+    const depth = reduceMotion ? 0 : 1;
+    const pull = interpolate(Math.abs(offset), [0, layout.commitAt], [0, 1], 'clamp');
+
     return {
       opacity:
         fade.get() * interpolate(Math.abs(offset), [0, layout.exitDistance], [1, 0.2], 'clamp'),
       transform: [
+        /* First in the list, and it has to be: every rotation after it is read
+           through this projection. */
+        { perspective: PERSPECTIVE },
         { translateX: offset + entering },
+        /* Rises off the stack as it is pulled — the translate that stands in for
+           a pitch. See `PERSPECTIVE`. */
+        { translateY: -pull * LIFT * depth },
+        /* Dragging left carries `offset` negative and should lift the card's
+           leading edge toward the viewer, which is a positive `rotateY`. */
+        {
+          rotateY: `${
+            interpolate(
+              offset,
+              [-layout.commitAt, 0, layout.commitAt],
+              [TILT_Y, 0, -TILT_Y],
+              'clamp'
+            ) * depth
+          }deg`,
+        },
         { scale: interpolate(arrived, [0, 1], [0.94, 1]) },
         {
           rotate: `${interpolate(
@@ -385,8 +476,8 @@ export function SurpriseReveal({
     };
   });
 
-  const titleStyle = useFollowStyle(dealX, fade, titleArrival, 14, commitAt * 2);
-  const supportStyle = useFollowStyle(dealX, fade, supportArrival, 10, commitAt * 2);
+  const titleStyle = useFollowStyle(dealX, fade, titleArrival, 14, layout.commitAt * 2);
+  const supportStyle = useFollowStyle(dealX, fade, supportArrival, 10, layout.commitAt * 2);
 
   const families = platformFamilies(game.platforms);
 
@@ -435,37 +526,75 @@ export function SurpriseReveal({
       <View style={styles.spacer} />
 
       {/*
+        The well: the light, the deck and the card, in one box.
+
+        Its height is `card + BLOOM_BLEED * 2` with `-BLOOM_BLEED` of vertical
+        margin, so the glow has room to fall off to nothing while the block's
+        *layout* footprint stays exactly the card's — nothing below it moves, on
+        either shape. `revealLayout` derives `artWidth` so a poster is the same
+        height as a square precisely so this is one number rather than two.
+
+        It also settles an Android question before it is asked: the glow lives
+        inside the well's bounds rather than hanging outside them, so no ancestor
+        has to be told not to clip its children.
+      */}
+      <View
+        style={[
+          styles.well,
+          { height: cardHeight + BLOOM_BLEED * 2, marginVertical: -BLOOM_BLEED },
+        ]}>
+        {/* The room, first, so everything else is lit by it rather than over it.
+            Outside the card's own transform on purpose: the light stays in the
+            room while the card moves through it. */}
+        <SurpriseBloom
+          cardEdge={cardHeight}
+          dealX={dealX}
+          bloom={bloom}
+          arrival={caseArrival}
+          exitDistance={layout.exitDistance}
+        />
+
+        {/* What the card comes off. Face down — see the component. */}
+        <SurpriseDeck
+          width={cardWidth}
+          height={cardHeight}
+          radius={cardRadius}
+          dealX={dealX}
+          commitAt={layout.commitAt}
+        />
+
+        {/*
         The card, and the only thing the gesture moves.
 
         `accessibilityActions` is what makes the swipe reachable without one:
         VoiceOver lists both directions in the rotor, so the deck can be walked
         forward and back by somebody who cannot perform a drag at all.
       */}
-      <Animated.View
-        style={[styles.card, caseStyle]}
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel={`${game.title}. Open game page.`}
-        accessibilityHint="Swipe left anywhere for another game, right to go back. Double tap the cover to hide this game from future rolls."
-        accessibilityActions={ACTIONS}
-        onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === 'activate') onOpenGame();
-          /* Straight to `onDeal`, not through the gesture's `commit`: the
+        <Animated.View
+          style={[styles.card, caseStyle]}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={`${game.title}. Open game page.`}
+          accessibilityHint="Swipe left anywhere for another game, right to go back. Double tap the cover to hide this game from future rolls."
+          accessibilityActions={ACTIONS}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'activate') onOpenGame();
+            /* Straight to `onDeal`, not through the gesture's `commit`: the
                rotor is not a drag, so there is no card in flight to animate out
                and no haptic to acknowledge a threshold nobody crossed. */
-          if (event.nativeEvent.actionName === 'next') onDeal(1);
-          if (event.nativeEvent.actionName === 'previous' && canGoBack) onDeal(-1);
-          /* A double tap is not performable by somebody driving the screen from
+            if (event.nativeEvent.actionName === 'next') onDeal(1);
+            if (event.nativeEvent.actionName === 'previous' && canGoBack) onDeal(-1);
+            /* A double tap is not performable by somebody driving the screen from
              the rotor, so hiding is in the rotor as an action of its own. A
              gesture is never the only way to reach something here. */
-          if (event.nativeEvent.actionName === 'hide') onHide();
-        }}>
-        {/* No accessibility props of its own: the wrapper above is `accessible`,
+            if (event.nativeEvent.actionName === 'hide') onHide();
+          }}>
+          {/* No accessibility props of its own: the wrapper above is `accessible`,
             so it is the single focusable element and this would be announced
             inside it as a second button with the same name. */}
-        <GestureDetector gesture={artTaps}>
-          <View importantForAccessibility="no">
-            {/*
+          <GestureDetector gesture={artTaps}>
+            <View importantForAccessibility="no">
+              {/*
               Square when the game has square art, portrait when it does not.
 
               Not a crop either way. A 2:3 cover forced into a square loses a
@@ -479,35 +608,48 @@ export function SurpriseReveal({
               spacer below it flexes, so the two shapes cost nothing to swap
               between.
             */}
-            {!square.resolved ? (
-              /* The answer is not in yet. A skeleton in the square's own shape,
+              {!square.resolved ? (
+                /* The answer is not in yet. A skeleton in the square's own shape,
                  never the IGDB cover — drawing that and then replacing it is the
                  exact flicker `resolved` exists to prevent. */
-              <Skeleton
-                width={layout.squareWidth}
-                height={layout.squareWidth}
-                radius={SQUARE_RADIUS}
+                <Skeleton
+                  width={layout.squareWidth}
+                  height={layout.squareWidth}
+                  radius={SQUARE_RADIUS}
+                />
+              ) : square.uri ? (
+                <SquareArt uri={square.uri} size={layout.squareWidth} title={game.title} />
+              ) : (
+                <Poster
+                  coverUrl={game.coverUrl}
+                  heroUrl={game.heroUrl}
+                  title={game.title}
+                  width={layout.artWidth}
+                  steamAppId={game.steamAppId}
+                  edition={game.edition}
+                  elevated
+                />
+              )}
+              {/* Over the art and *under* the notice: a highlight on a card you
+                have just banished is the wrong emotional note, and the notice's
+                own scrim is what kills it. */}
+              <SurpriseSheen
+                width={cardWidth}
+                height={cardHeight}
+                radius={cardRadius}
+                dealX={dealX}
+                commitAt={layout.commitAt}
+                arrival={caseArrival}
               />
-            ) : square.uri ? (
-              <SquareArt uri={square.uri} size={layout.squareWidth} title={game.title} />
-            ) : (
-              <Poster
-                coverUrl={game.coverUrl}
-                heroUrl={game.heroUrl}
-                title={game.title}
-                width={layout.artWidth}
-                steamAppId={game.steamAppId}
-                edition={game.edition}
-                elevated
+
+              <HiddenNotice
+                showing={hidden}
+                width={square.uri ? layout.squareWidth : layout.artWidth}
               />
-            )}
-            <HiddenNotice
-              showing={hidden}
-              width={square.uri ? layout.squareWidth : layout.artWidth}
-            />
-          </View>
-        </GestureDetector>
-      </Animated.View>
+            </View>
+          </GestureDetector>
+        </Animated.View>
+      </View>
 
       {/*
         Everything the card says about the game, and the two things you can do
@@ -965,6 +1107,10 @@ export function SurpriseRevealSkeleton({ layout }: { layout: RevealLayout }) {
     <View style={styles.root}>
       <View style={styles.spacer} />
 
+      {/* No deck and no bloom here, deliberately: a stack implies a next card
+          that has not been dealt, and a lit room implies a game that has not
+          arrived. The skeleton describes what is coming, not what is already
+          true. Same call as the `game &&` gate on the edge lights. */}
       <View style={[styles.card, { height: layout.squareWidth }]}>
         <Skeleton width={layout.squareWidth} height={layout.squareWidth} radius={SQUARE_RADIUS} />
       </View>
@@ -1004,6 +1150,10 @@ const styles = StyleSheet.create({
    * overflowed by a PC cover — which is the overlap this screen shipped with.
    * The flex spacer below absorbs whichever it turns out to be.
    */
+  /* Stretched, centred, and sized inline — see the well in the JSX. `overflow`
+     is deliberately *not* hidden: the glow's whole job is to reach past the card,
+     and the bleed is what gives it somewhere to reach into. */
+  well: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
   card: { alignItems: 'center' },
   /*
    * **Exactly as wide as the artwork**, set inline from `layout.squareWidth`.

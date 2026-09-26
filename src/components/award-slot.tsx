@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { IconButton } from '@/components/ui/icon-button';
@@ -20,6 +21,17 @@ import type { AwardSlot as AwardSlotData } from '@/lib/api';
  * turning the row into a card with a poster in it.
  */
 const ART_WIDTH = 84;
+
+/**
+ * Lines of the owner's reasons shown before the ellipsis.
+ *
+ * Four, which is about the poster's height in `bodySmall` beside the label,
+ * title and credit — so a clamped note ends near where the art does and every
+ * card in the ballot keeps roughly the same silhouette. Unclamped, one curator
+ * who wrote a paragraph about Game of the Year made that single card a screen
+ * tall, and the rest of the show was below it.
+ */
+const NOTE_LINES = 4;
 
 /**
  * Gold — the ballot's own colour, resolved once at module scope.
@@ -71,6 +83,12 @@ export type AwardSlotProps = {
  * already exists for "these are good in this order", and what it cannot say is
  * *why*. So the note sits with the award and the game rather than behind a
  * disclosure: on somebody else's show it is the thing you came to read.
+ *
+ * Its first four lines are, anyway. Past that it ends in an ellipsis and a tap
+ * opens the rest in place — see `AwardNote`. Which is also why tapping the note
+ * no longer *edits* it for the owner: one tap cannot mean both "let me read this"
+ * and "let me rewrite this", and reading is what every viewer, the owner
+ * included, is doing most of the time. Editing is the pencil in the tool row.
  *
  * Read-only viewers get none of the controls, and an empty category renders as
  * "Not awarded" rather than as an inviting `+` they cannot use.
@@ -201,18 +219,7 @@ export function AwardSlotRow({
               3.74:1 raw. `onSurface` is the variant that has already been
               lifted past AA, whatever hue arrives. */}
           {award.note ? (
-            <PressableScale
-              accessibilityRole={editable ? 'button' : 'text'}
-              onPress={editable ? onEditNote : undefined}
-              scaleTo={editable ? 0.99 : 1}
-              style={StyleSheet.flatten([
-                styles.note,
-                { borderLeftColor: lit ? accent.onSurface : theme.borderStrong },
-              ])}>
-              <Text variant="bodySmall" color="textSecondary">
-                {award.note}
-              </Text>
-            </PressableScale>
+            <AwardNote note={award.note} ruleColor={lit ? accent.onSurface : theme.borderStrong} />
           ) : (
             editable && (
               <PressableScale
@@ -261,6 +268,18 @@ export function AwardSlotRow({
               onPress={onPickGame}
             />
           )}
+          {/* Only once there is a note. Before that the card carries its own
+              "Why does it win?" line, and a pencil here as well would be the
+              same door twice. */}
+          {!!award.note && (
+            <IconButton
+              icon="create-outline"
+              accessibilityLabel={`Edit why ${game?.title ?? 'this game'} wins ${award.label}`}
+              size="small"
+              tone="plain"
+              onPress={onEditNote}
+            />
+          )}
           <IconButton
             icon="pricetag-outline"
             accessibilityLabel={`Rename ${award.label}`}
@@ -278,6 +297,71 @@ export function AwardSlotRow({
         </View>
       )}
     </View>
+  );
+}
+
+/**
+ * The owner's reasons: four lines and an ellipsis, and the rest on a tap.
+ *
+ * ## Why the clamp is measured rather than assumed
+ *
+ * `<CollectionHeader>` offers "More" under every description without checking,
+ * and argues that a "More" which opens nothing is a small cost. That argument
+ * rests on the word being there. Here there is no word — the ellipsis is the
+ * only sign there is more, and it only appears when the clamp actually bites —
+ * so the tap has to be tied to the same fact. A note that fits in four lines is
+ * not pressable at all; it gets no press feedback promising something that
+ * then does not happen.
+ *
+ * The measurement is a second copy of the text, unclamped, laid out invisibly
+ * at the same width. Nothing visible waits on it: the note renders clamped on
+ * the first frame either way, and the measurement only decides whether it
+ * listens for a tap. It is `pointerEvents="none"` because it hangs below the
+ * note when the text is long, and a box that caught touches there would steal
+ * them from whatever the card draws underneath; and it is hidden from screen
+ * readers, which read the visible copy's full string whatever the clamp —
+ * `numberOfLines` truncates the pixels, not the accessible text.
+ */
+function AwardNote({ note, ruleColor }: { note: string; ruleColor: string }) {
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  return (
+    <PressableScale
+      accessibilityRole={overflows ? 'button' : 'text'}
+      accessibilityState={overflows ? { expanded: open } : undefined}
+      accessibilityHint={
+        overflows ? (open ? 'Shows the first four lines' : 'Shows the whole reason') : undefined
+      }
+      onPress={overflows ? () => setOpen((value) => !value) : undefined}
+      scaleTo={overflows ? 0.99 : 1}
+      style={StyleSheet.flatten([styles.note, { borderLeftColor: ruleColor }])}>
+      {/* No padding on this wrapper, so the measuring copy's `left: 0, right: 0`
+          is exactly the visible text's width. Measured inside the note's own
+          padding box instead, it would be laid out wider than the text it
+          stands in for, and would report fewer lines than there are. */}
+      <View>
+        <Text
+          variant="bodySmall"
+          color="textSecondary"
+          numberOfLines={open ? undefined : NOTE_LINES}
+          ellipsizeMode="tail">
+          {note}
+        </Text>
+
+        <View
+          pointerEvents="none"
+          style={styles.measure}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants">
+          <Text
+            variant="bodySmall"
+            onTextLayout={(event) => setOverflows(event.nativeEvent.lines.length > NOTE_LINES)}>
+            {note}
+          </Text>
+        </View>
+      </View>
+    </PressableScale>
   );
 }
 
@@ -334,8 +418,17 @@ const styles = StyleSheet.create({
   container: { borderRadius: Radius.card, overflow: 'hidden' },
   body: { flexDirection: 'row', gap: Spacing.x16, padding: Spacing.x16 },
   /* Shrinks rather than pushing the row wide, so a long game title wraps
-     instead of shoving the art off the left edge. */
-  text: { flex: 1, gap: Spacing.x4, justifyContent: 'center' },
+     instead of shoving the art off the left edge.
+
+     **`flex-start`, not `center`.** The column is stretched to the poster's
+     126dp by the row, and centring it there meant the category, the title and
+     the credit floated to wherever the middle of that height happened to be —
+     halfway down the art on a card with no note, near the top on one with a
+     long note. The same three lines in a different place on every card is what
+     made the ballot look unaligned. Pinned to the top, they start level with
+     the top of the box art on every card, and a note, when there is one,
+     simply runs further down. */
+  text: { flex: 1, gap: Spacing.x4, justifyContent: 'flex-start' },
   /* `flex-start` so the pill hugs its label instead of stretching to the
      column: a full-width gold bar would read as a section header for
      everything under it, which is the opposite of what it marks. Pill is the
@@ -363,6 +456,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   note: { borderLeftWidth: 2, paddingLeft: Spacing.x12, marginTop: Spacing.x4 },
+  /* The note's invisible, unclamped twin. See `AwardNote`. */
+  measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
   addNote: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4, marginTop: Spacing.x4 },
   /* A rule above the controls rather than a second surface step: the tools are
      part of this card, and another fill would read as a nested block. */

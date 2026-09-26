@@ -45,7 +45,7 @@ export default function MyProfileScreen() {
     // Should be unreachable behind the auth guard, but avoids rendering a
     // profile for `undefined` if the session ever drops mid-render.
     return (
-      <Screen edges={[]}>
+      <Screen edges={['top']}>
         <EmptyState title="Not signed in" />
       </Screen>
     );
@@ -60,8 +60,21 @@ export default function MyProfileScreen() {
      * either: Edit profile and Sign out are buttons in the header below, where
      * the things they act on are. That left a bar whose entire remaining job was
      * to exist, over the top of somebody's banner art.
+     *
+     * **`edges={['top']}`, not `[]`, and the change is a repair.** Dropping every
+     * edge was right while a full-bleed banner ran to the top of the display —
+     * that art wanted the status bar behind it. The banner is gone (see
+     * `<ProfileView>`: "the avatar is the first thing on the page"), so the only
+     * thing `[]` was still doing was starting the avatar and the stat row at
+     * y = 0. In Expo Go that merely looked tight; on a real build, where SDK 57
+     * targets Android 15 and the window is edge-to-edge, it put them underneath
+     * the clock and the notification icons.
+     *
+     * The inset *is* the header here. This screen still has no bar — a root tab
+     * has nothing to go back to — it simply no longer begins under the system's
+     * own furniture.
      */
-    <Screen edges={[]}>
+    <Screen edges={['top']}>
       <ProfileView
         profileId={userId}
         headerAction={

@@ -10,7 +10,52 @@
  * If you edit the SQL, edit this too — nothing enforces that they agree.
  */
 
-export type LogStatus = 'playing' | 'played' | 'backlog' | 'dropped';
+/** `paused` since 0022 — stopped, meaning to come back. */
+export type LogStatus = 'playing' | 'played' | 'backlog' | 'dropped' | 'paused';
+
+/**
+ * How far a run got (0023): the credits, the main content, or everything.
+ * Independent of `LogStatus` — a game can be paused after the story.
+ */
+export type CompletionLevel = 'story' | 'main' | 'full';
+
+// --- 0024 physical releases -------------------------------------------------
+// Keys only; the words a reader sees live in `constants/physical.ts`. Both
+// lists must match the CHECK constraints in the migration.
+
+export type ReleaseRegion = 'ntsc_u' | 'pal' | 'ntsc_j' | 'asia' | 'region_free' | 'other';
+
+/** What came with the copy. Independent of `CopyCondition` on purpose. */
+export type CopyCompleteness =
+  'sealed' | 'cib_inserts' | 'cib' | 'game_manual' | 'game_box' | 'loose' | 'other';
+
+/** The one condition scale, best first. */
+export type CopyCondition =
+  'mint' | 'near_mint' | 'excellent' | 'very_good' | 'good' | 'fair' | 'poor';
+
+export type ReleasePhotoKind =
+  'front' | 'back' | 'barcode' | 'media' | 'manual' | 'markings' | 'other';
+
+export type ContributionStatus = 'pending' | 'approved' | 'rejected' | 'superseded';
+
+// --- 0025 community similarity ----------------------------------------------
+
+/** Why two games are alike. Must match the CHECK on `game_similarity_votes`. */
+export type SimilarityReason =
+  | 'combat'
+  | 'progression'
+  | 'atmosphere'
+  | 'story'
+  | 'characters'
+  | 'exploration'
+  | 'mechanics'
+  | 'multiplayer'
+  | 'difficulty'
+  | 'genre'
+  | 'structure'
+  | 'tone';
+
+export type SimilarityReportReason = 'spam' | 'inappropriate' | 'incorrect';
 
 export type Profile = {
   id: string;
@@ -76,8 +121,29 @@ export type GameLog = {
   review_metrics: ReviewMetrics | null;
   completion_percent: number | null;
   platinum: boolean;
+  /**
+   * The author flagged this review as giving something away (migration 0021).
+   *
+   * Every surface that prints the body replaces it with a notice while this is
+   * true; the notice is a link to the full review rather than a reveal, so the
+   * decision to read a spoiler is made on the screen that exists to be read.
+   *
+   * **Not an access control.** The text ships in the same row to every reader —
+   * this is a courtesy the client honours, not a boundary the server enforces.
+   */
+  spoilers: boolean;
   hours_played: number | null;
   played_on: string | null;
+  /**
+   * How far this person has got with the game, at best (0023). Raised — never
+   * lowered — by a playthrough that gets further; set directly by the progress
+   * sheet. Null is "not recorded".
+   */
+  completion: CompletionLevel | null;
+  /** Review context: played co-op. Null is "not said", which is not "solo". */
+  coop: boolean | null;
+  /** How many played together. Only with `coop`; the database enforces it. */
+  player_count: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -293,18 +359,15 @@ export type NotificationRow = {
   created_at: string;
 };
 
-// --- 0011_diary.sql ---------------------------------------------------------
-
-export type DiaryEntryRow = {
-  id: string;
-  user_id: string;
-  game_id: string;
-  body: string;
-  /** The day the entry is about, which may predate created_at. */
-  entry_date: string;
-  created_at: string;
-  updated_at: string;
-};
+/*
+ * 0011_diary.sql has no types here on purpose.
+ *
+ * Per-game diaries were removed from the app. `diary_entries` still exists in
+ * Postgres — nothing was dropped and no migration was written, exactly as with
+ * `posts` — but nothing in the client may read or write it, and a row type here
+ * is the first thing that would let something start. Same treatment `posts` and
+ * `post_media` got when that feature went.
+ */
 
 // --- 0012_starred_song.sql --------------------------------------------------
 
@@ -501,6 +564,221 @@ export type GamingProfileStatsRow = {
   avg_playtime_minutes: number;
 };
 
+// --- 0023_play_progress.sql -------------------------------------------------
+
+/**
+ * One run of a game. Belongs to a log through `(user_id, game_id)`, so it cannot
+ * exist without one and goes when the log does.
+ *
+ * Dates are partial ISO — '2021', '2021-05' or '2021-05-14' — exactly as precise
+ * as the player said, and they sort correctly as text.
+ */
+export type PlaythroughRow = {
+  id: string;
+  user_id: string;
+  game_id: string;
+  /** Short platform form, the same vocabulary as `logs.played_on`. */
+  platform: string | null;
+  started_on: string | null;
+  finished_on: string | null;
+  completion: CompletionLevel | null;
+  completion_percent: number | null;
+  hours: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+// --- 0024_physical_releases.sql ---------------------------------------------
+
+/** A specific commercial release of a game. Canonical; clients never write it. */
+export type GameReleaseRow = {
+  id: string;
+  game_id: string;
+  platform: string;
+  region: ReleaseRegion;
+  edition: string;
+  publisher: string | null;
+  release_date: string | null;
+  catalog_number: string | null;
+  created_at: string;
+};
+
+/** A canonical barcode. GTIN-14: the primary key is the duplicate detection. */
+export type ReleaseBarcodeRow = {
+  barcode: string;
+  release_id: string;
+  contribution_id: string | null;
+  created_at: string;
+};
+
+export type ReleaseImageRow = {
+  id: string;
+  release_id: string;
+  kind: ReleasePhotoKind;
+  /** Public URL in the `media` bucket — a reference, never the bytes. */
+  url: string;
+  contribution_id: string | null;
+  created_at: string;
+};
+
+/** A user's claim about a barcode. Not canonical until approved. */
+export type ReleaseContributionRow = {
+  id: string;
+  user_id: string;
+  barcode: string;
+  game_id: string;
+  platform: string;
+  region: ReleaseRegion;
+  edition: string;
+  publisher: string | null;
+  release_date: string | null;
+  catalog_number: string | null;
+  notes: string | null;
+  status: ContributionStatus;
+  release_id: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReleaseContributionPhotoRow = {
+  id: string;
+  contribution_id: string;
+  kind: ReleasePhotoKind;
+  url: string;
+  created_at: string;
+};
+
+/**
+ * One physical copy someone owns. `release_id` when the release is known; the
+ * copy's own platform/region/edition otherwise — and the database overwrites
+ * those from the release whenever one is attached. No price, ever.
+ */
+export type OwnedCopyRow = {
+  id: string;
+  user_id: string;
+  game_id: string;
+  release_id: string | null;
+  /** The pending claim this copy is waiting on, when its barcode was unknown. */
+  contribution_id: string | null;
+  ownership: 'physical' | 'digital';
+  platform: string | null;
+  region: ReleaseRegion | null;
+  edition: string | null;
+  completeness: CopyCompleteness | null;
+  condition: CopyCondition | null;
+  notes: string | null;
+  /** Partial ISO date, like a playthrough's. */
+  acquired_on: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One pair of games someone said are alike. Undirected: `game_a < game_b`. */
+export type GameSimilarityRow = {
+  id: string;
+  game_a: string;
+  game_b: string;
+  created_by: string | null;
+  status: 'active' | 'hidden';
+  created_at: string;
+};
+
+export type GameSimilarityVoteRow = {
+  similarity_id: string;
+  user_id: string;
+  value: -1 | 1;
+  reasons: SimilarityReason[];
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Private to its author; moderators read them through an RPC. */
+export type GameSimilarityReportRow = {
+  similarity_id: string;
+  user_id: string;
+  reason: SimilarityReportReason;
+  note: string | null;
+  status: 'open' | 'resolved';
+  created_at: string;
+};
+
+/** One row of `community_similar_games()` — a ranked pick, seen from one game. */
+export type CommunitySimilarGame = {
+  similarity_id: string;
+  /** The *other* game in the pair. */
+  game_id: string;
+  title: string;
+  cover_url: string | null;
+  hero_url: string | null;
+  release_year: number | null;
+  edition_kind: string | null;
+  /** Counted votes only — accounts with no logs are stored but not counted. */
+  up: number;
+  down: number;
+  /** Wilson lower bound; the order, never shown. */
+  score: number;
+  /** Reason → how many counted upvotes gave it, most given first. */
+  reasons: Partial<Record<SimilarityReason, number>>;
+  comment: string | null;
+  comment_author: string | null;
+  viewer_vote: -1 | 1 | null;
+};
+
+export type SimilarityReportQueueRow = {
+  similarity_id: string;
+  status: 'active' | 'hidden';
+  game_a: string;
+  game_a_title: string;
+  game_b: string;
+  game_b_title: string;
+  report_count: number;
+  reasons: SimilarityReportReason[];
+  latest_note: string | null;
+  first_reported: string;
+};
+
+/** How many rated logs, and the sum of their scores. Sums merge; averages do not. */
+export type ScoreTally = { count: number; sum: number };
+
+/**
+ * `game_review_stats()` (0026) — one game's ratings, tallied by how they were
+ * played. `lib/review-facets.ts` folds it into what the reviews sheet shows.
+ */
+export type GameReviewStats = {
+  /** Every rated log: the same population as the rating histogram. */
+  count: number;
+  sum: number;
+  groups: Record<'finished' | 'full' | 'playing' | 'dropped' | 'solo' | 'coop', ScoreTally>;
+  /** Rated logs per stored platform string, not yet folded into families. */
+  platforms: ({ platform: string } & ScoreTally)[];
+  /** Every stored platform string with a written review — the filter's choices. */
+  written_platforms: string[];
+};
+
+export type ModeratorRow = {
+  user_id: string;
+  created_at: string;
+};
+
+/**
+ * What the contribution RPCs answer.
+ *
+ * `exists` — the barcode is already canonical, and here is its release.
+ * `duplicate` — you already have a pending claim for it.
+ * `pending` — queued. `approved` — it agreed with someone else's claim and is
+ * canonical now.
+ */
+export type ContributionResult =
+  | { status: 'exists'; release_id: string }
+  | { status: 'duplicate'; contribution_id: string }
+  | { status: 'pending'; contribution_id: string; release_id: null }
+  | { status: 'approved'; contribution_id: string; release_id: string };
+
 type Insert<T, Optional extends keyof T> = Omit<T, Optional> & Partial<Pick<T, Optional>>;
 
 /**
@@ -562,8 +840,12 @@ export type Database = {
           | 'review_metrics'
           | 'completion_percent'
           | 'platinum'
+          | 'spoilers'
           | 'hours_played'
           | 'played_on'
+          | 'completion'
+          | 'coop'
+          | 'player_count'
         >;
         Update: Partial<GameLog>;
         Relationships: [
@@ -690,15 +972,6 @@ export type Database = {
           FK<'notifications_actor_id_fkey', 'actor_id', 'profiles', 'id'>,
         ];
       };
-      diary_entries: {
-        Row: DiaryEntryRow;
-        Insert: Insert<DiaryEntryRow, 'id' | 'created_at' | 'updated_at' | 'entry_date'>;
-        Update: Partial<DiaryEntryRow>;
-        Relationships: [
-          FK<'diary_entries_user_id_fkey', 'user_id', 'profiles', 'id'>,
-          FK<'diary_entries_game_id_fkey', 'game_id', 'games', 'id'>,
-        ];
-      };
       starred_songs: {
         Row: StarredSongRow;
         Insert: Insert<StarredSongRow, 'created_at' | 'updated_at'>;
@@ -718,6 +991,164 @@ export type Database = {
         Insert: Insert<GameSoundtrackRow, 'fetched_at' | 'tracks'>;
         Update: Partial<GameSoundtrackRow>;
         Relationships: [];
+      };
+      // --- 0023 playthroughs ---------------------------------------------------
+      // The foreign key is composite, to `logs (user_id, game_id)`, which the
+      // `FK` shorthand cannot express — and nothing embeds across it.
+      playthroughs: {
+        Row: PlaythroughRow;
+        Insert: Insert<
+          PlaythroughRow,
+          | 'id'
+          | 'created_at'
+          | 'updated_at'
+          | 'platform'
+          | 'started_on'
+          | 'finished_on'
+          | 'completion'
+          | 'completion_percent'
+          | 'hours'
+          | 'notes'
+        >;
+        Update: Partial<PlaythroughRow>;
+        Relationships: [];
+      };
+      // --- 0024 physical releases ----------------------------------------------
+      // The canonical three (`game_releases`, `release_barcodes`,
+      // `release_images`) have no client write policies: their Insert types exist
+      // only because supabase-js requires the shape. Writes go through the RPCs.
+      game_releases: {
+        Row: GameReleaseRow;
+        Insert: Insert<
+          GameReleaseRow,
+          'id' | 'created_at' | 'edition' | 'publisher' | 'release_date' | 'catalog_number'
+        >;
+        Update: Partial<GameReleaseRow>;
+        Relationships: [FK<'game_releases_game_id_fkey', 'game_id', 'games', 'id'>];
+      };
+      release_barcodes: {
+        Row: ReleaseBarcodeRow;
+        Insert: Insert<ReleaseBarcodeRow, 'created_at' | 'contribution_id'>;
+        Update: Partial<ReleaseBarcodeRow>;
+        Relationships: [
+          FK<'release_barcodes_release_id_fkey', 'release_id', 'game_releases', 'id'>,
+          FK<
+            'release_barcodes_contribution_id_fkey',
+            'contribution_id',
+            'release_contributions',
+            'id'
+          >,
+        ];
+      };
+      release_images: {
+        Row: ReleaseImageRow;
+        Insert: Insert<ReleaseImageRow, 'id' | 'created_at' | 'contribution_id'>;
+        Update: Partial<ReleaseImageRow>;
+        Relationships: [FK<'release_images_release_id_fkey', 'release_id', 'game_releases', 'id'>];
+      };
+      release_contributions: {
+        Row: ReleaseContributionRow;
+        Insert: Insert<
+          ReleaseContributionRow,
+          | 'id'
+          | 'created_at'
+          | 'updated_at'
+          | 'edition'
+          | 'publisher'
+          | 'release_date'
+          | 'catalog_number'
+          | 'notes'
+          | 'status'
+          | 'release_id'
+          | 'reviewed_by'
+          | 'reviewed_at'
+          | 'review_note'
+        >;
+        Update: Partial<ReleaseContributionRow>;
+        /* Two foreign keys to `profiles` (author and reviewer), so an embed of
+           either has to name its key: `profile:profiles!release_contributions_user_id_fkey(*)`. */
+        Relationships: [
+          FK<'release_contributions_user_id_fkey', 'user_id', 'profiles', 'id'>,
+          FK<'release_contributions_reviewed_by_fkey', 'reviewed_by', 'profiles', 'id'>,
+          FK<'release_contributions_game_id_fkey', 'game_id', 'games', 'id'>,
+          FK<'release_contributions_release_id_fkey', 'release_id', 'game_releases', 'id'>,
+        ];
+      };
+      release_contribution_photos: {
+        Row: ReleaseContributionPhotoRow;
+        Insert: Insert<ReleaseContributionPhotoRow, 'id' | 'created_at'>;
+        Update: Partial<ReleaseContributionPhotoRow>;
+        Relationships: [
+          FK<
+            'release_contribution_photos_contribution_id_fkey',
+            'contribution_id',
+            'release_contributions',
+            'id'
+          >,
+        ];
+      };
+      owned_copies: {
+        Row: OwnedCopyRow;
+        Insert: Insert<
+          OwnedCopyRow,
+          | 'id'
+          | 'created_at'
+          | 'updated_at'
+          | 'release_id'
+          | 'contribution_id'
+          | 'ownership'
+          | 'platform'
+          | 'region'
+          | 'edition'
+          | 'completeness'
+          | 'condition'
+          | 'notes'
+          | 'acquired_on'
+        >;
+        Update: Partial<OwnedCopyRow>;
+        Relationships: [
+          FK<'owned_copies_user_id_fkey', 'user_id', 'profiles', 'id'>,
+          FK<'owned_copies_game_id_fkey', 'game_id', 'games', 'id'>,
+          FK<'owned_copies_release_id_fkey', 'release_id', 'game_releases', 'id'>,
+          FK<'owned_copies_contribution_id_fkey', 'contribution_id', 'release_contributions', 'id'>,
+        ];
+      };
+      // --- 0025 community similarity -------------------------------------------
+      // Pairs are created only by `suggest_similar_game`; votes are the one
+      // community write that goes straight to a table.
+      game_similarities: {
+        Row: GameSimilarityRow;
+        Insert: Insert<GameSimilarityRow, 'id' | 'created_at' | 'created_by' | 'status'>;
+        Update: Partial<GameSimilarityRow>;
+        Relationships: [
+          FK<'game_similarities_game_a_fkey', 'game_a', 'games', 'id'>,
+          FK<'game_similarities_game_b_fkey', 'game_b', 'games', 'id'>,
+        ];
+      };
+      game_similarity_votes: {
+        Row: GameSimilarityVoteRow;
+        Insert: Insert<GameSimilarityVoteRow, 'created_at' | 'updated_at' | 'reasons' | 'comment'>;
+        Update: Partial<GameSimilarityVoteRow>;
+        Relationships: [
+          FK<
+            'game_similarity_votes_similarity_id_fkey',
+            'similarity_id',
+            'game_similarities',
+            'id'
+          >,
+        ];
+      };
+      game_similarity_reports: {
+        Row: GameSimilarityReportRow;
+        Insert: Insert<GameSimilarityReportRow, 'created_at' | 'note' | 'status'>;
+        Update: Partial<GameSimilarityReportRow>;
+        Relationships: [];
+      };
+      moderators: {
+        Row: ModeratorRow;
+        Insert: Insert<ModeratorRow, 'created_at'>;
+        Update: Partial<ModeratorRow>;
+        Relationships: [FK<'moderators_user_id_fkey', 'user_id', 'profiles', 'id'>];
       };
       // --- 0009 linked gaming accounts ---------------------------------------
       // No Insert/Update reaches these from the client: they have no INSERT or
@@ -822,6 +1253,75 @@ export type Database = {
       create_awards_list: {
         Args: { list_title: string; list_description?: string | null };
         Returns: string;
+      };
+      // --- 0024: every write to the release catalogue goes through these ------
+      is_moderator: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      submit_release_contribution: {
+        Args: {
+          p_barcode: string;
+          p_game_id: string;
+          p_platform: string;
+          p_region: ReleaseRegion;
+          p_edition?: string;
+          p_publisher?: string | null;
+          p_release_date?: string | null;
+          p_catalog_number?: string | null;
+          p_notes?: string | null;
+          p_photos?: { kind: ReleasePhotoKind; url: string }[];
+        };
+        Returns: ContributionResult;
+      };
+      update_release_contribution: {
+        Args: {
+          p_id: string;
+          p_game_id: string;
+          p_platform: string;
+          p_region: ReleaseRegion;
+          p_edition?: string;
+          p_publisher?: string | null;
+          p_release_date?: string | null;
+          p_catalog_number?: string | null;
+          p_notes?: string | null;
+        };
+        Returns: ContributionResult;
+      };
+      confirm_release_contribution: {
+        Args: { p_id: string };
+        Returns: ContributionResult;
+      };
+      moderate_release_contribution: {
+        Args: { p_id: string; p_decision: 'approve' | 'reject'; p_note?: string | null };
+        Returns: { status: 'approved'; release_id: string } | { status: 'rejected' };
+      };
+      // --- 0025 ---------------------------------------------------------------
+      suggest_similar_game: {
+        Args: {
+          p_game: string;
+          p_other: string;
+          p_reasons?: SimilarityReason[];
+          p_comment?: string | null;
+        };
+        Returns: string;
+      };
+      community_similar_games: {
+        Args: { p_game: string; p_limit?: number };
+        Returns: CommunitySimilarGame[];
+      };
+      similarity_reports_queue: {
+        Args: Record<string, never>;
+        Returns: SimilarityReportQueueRow[];
+      };
+      moderate_similarity: {
+        Args: { p_id: string; p_action: 'hide' | 'restore' };
+        Returns: undefined;
+      };
+      // --- 0026 ---------------------------------------------------------------
+      game_review_stats: {
+        Args: { p_game: string };
+        Returns: GameReviewStats;
       };
     };
     Enums: { log_status: LogStatus };

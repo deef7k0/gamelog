@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { ScrollView, Share, StyleSheet, View } from 'react-native';
 
@@ -16,10 +17,12 @@ import { Text } from '@/components/ui/text';
 import { EDITIONS, type EditionKind } from '@/constants/game-editions';
 import { parseReviewMetrics } from '@/constants/review-metrics';
 import { Spacing } from '@/constants/theme';
+import { SpoilerNotice } from '@/components/spoiler-notice';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
 import { displayNameFor } from '@/lib/format';
+import { reviewContext } from '@/lib/review-facets';
 import { useAuth } from '@/store/auth';
 
 /**
@@ -87,6 +90,13 @@ export default function ReviewScreen() {
      time anything reads this; the hook is a no-op until the query lands. */
   const { liked, likeCount, toggle } = useLikeToggle('log', id!, engagement.data?.[id!]);
 
+  /* Whether the reader has uncovered a spoiler-flagged review. Declared with the
+     other hooks, above every early return — the branches below bail out before
+     `log.data` exists and a hook after them would not run on the same path each
+     render. Per-visit rather than persisted: leaving and coming back re-covers
+     it, which is the safer default for a screen somebody may hand to a friend. */
+  const [revealed, setRevealed] = useState(false);
+
   /*
    * Every branch below carries a bar, which the previous version did not.
    *
@@ -141,6 +151,10 @@ export default function ReviewScreen() {
   const authorName = displayNameFor(author);
   const metrics = parseReviewMetrics(review.review_metrics);
   const hasProse = !!review.review?.trim();
+  const context = reviewContext(review);
+  /* "100%" in the context line already says a 100% complete. */
+  const percentSaid =
+    review.completion_percent === 100 && (review.completion === 'full' || review.platinum);
 
   /* `edition_kind` is a bare `string` on the cached row, and `editionLabel`
      indexes `EDITIONS` unguarded — an unrecognised value would throw rather
@@ -267,10 +281,14 @@ export default function ReviewScreen() {
             {/*
               The playthrough, as a compact block of lines.
 
-              Four facts, no icons, no gaps between them beyond the leading —
-              this reads as a standfirst rather than as four metadata rows, which
+              A few facts, no icons, no gaps between them beyond the leading —
+              this reads as a standfirst rather than as metadata rows, which
               is the difference between a magazine and a settings screen. They
-              are `reviewMeta`: semibold sans at 12, near-white, tight.
+              are `reviewMeta`: semibold sans at 13, near-white, tight. Raised
+              from 11, because these are the facts somebody checks before
+              deciding whether to read the piece and they were the quietest type
+              on the masthead — still under the title and the score, which is the
+              constraint.
 
               Every one of these was already on the log and the date is the one
               that used to vanish entirely — it was nested inside
@@ -284,11 +302,16 @@ export default function ReviewScreen() {
             <View style={styles.meta}>
               {!!review.played_on && <Text variant="reviewMeta">Played on {review.played_on}</Text>}
 
+              {/* How far and how — "Completed · 4-player co-op". The same
+                  words the review list filters by, so a review found under
+                  "Finished" says why it was there. */}
+              {context && <Text variant="reviewMeta">{context}</Text>}
+
               {review.hours_played != null && (
                 <Text variant="reviewMeta">{review.hours_played} hours logged</Text>
               )}
 
-              {review.completion_percent != null && (
+              {review.completion_percent != null && !percentSaid && (
                 <Text variant="reviewMeta">{review.completion_percent}% complete</Text>
               )}
 
@@ -318,7 +341,7 @@ export default function ReviewScreen() {
           The article — full measure, under both columns, and nothing else in it.
           No pull quote, no related rail, no sidebar.
 
-          `reviewProse` is the serif at 16/26 and `proseInk` is a cool muted grey
+          `reviewProse` is the serif at 14/23 and `proseInk` is a cool muted grey
           rather than a bright white. Both are the same decision: a thousand words
           set at interface brightness in an interface typeface is a wall, and this
           is the one block in the app somebody actually reads.
@@ -330,7 +353,27 @@ export default function ReviewScreen() {
             </Text>
           )}
 
-          {hasProse ? (
+          {/*
+            The one screen where the notice uncovers rather than navigates.
+
+            Everywhere else a flagged review is replaced by a box that sends the
+            reader here — the decision to read a spoiler belongs on the screen
+            that exists to be read, not on a card they are scrolling past. Here
+            they have arrived on purpose, and there is nowhere further to send
+            them, so this is the end of that path: one deliberate tap and the
+            prose appears.
+
+            Not `numberOfLines`, not a blur, not a partial reveal. Once somebody
+            has walked to the destination and pressed the cover, they have asked
+            twice and get the whole thing.
+          */}
+          {hasProse && review.spoilers && !revealed ? (
+            <SpoilerNotice
+              onPress={() => setRevealed(true)}
+              minHeight={140}
+              hint="Shows the review on this screen"
+            />
+          ) : hasProse ? (
             <Text variant="reviewProse" color="proseInk">
               {review.review}
             </Text>

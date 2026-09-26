@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Elevation, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -33,8 +34,25 @@ import { useTheme } from '@/hooks/use-theme';
  * articles, which the app no longer has. Nothing pushed to it even before that,
  * so the screen and its registration went together.
  */
+/** The bar's own height, before the system's navigation gesture area is added. */
+const BAR_HEIGHT = 58;
+
 export default function TabsLayout() {
   const theme = useTheme();
+  /*
+   * The navigation bar's inset, added to the tab bar rather than ignored.
+   *
+   * React Navigation adds this automatically — until you set `height`, which
+   * this file does, and an explicit height replaces the computed one wholesale.
+   * So on a real Android build, where SDK 57 targets Android 15 and edge-to-edge
+   * is mandatory, the gesture bar drew straight over the tabs: 58dp of bar with
+   * the bottom ~24-48 of it underneath the system's own control.
+   *
+   * `height` carries the inset and `paddingBottom` pushes the glyphs up out of
+   * it, so the bar grows rather than the icons moving. Zero on a device with no
+   * gesture area, which is why this is additive rather than a second constant.
+   */
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -58,9 +76,10 @@ export default function TabsLayout() {
           borderTopWidth: 0,
           // Down from 68 with the rest of the chrome. The glyph is still 24 and
           // the row still clears `TapTarget`; what went is the air around them.
-          height: 58,
+          // Plus the navigation-bar inset — see `insets` above.
+          height: BAR_HEIGHT + insets.bottom,
           paddingTop: Spacing.x8,
-          paddingBottom: Spacing.x8,
+          paddingBottom: Spacing.x8 + insets.bottom,
         },
       }}>
       <Tabs.Screen

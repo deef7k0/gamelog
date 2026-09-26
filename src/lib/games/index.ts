@@ -20,10 +20,12 @@ export {
   getGameEditions,
   getGenres,
   getPlatforms,
+  getSurprisePoolSize,
   searchGamesFiltered,
   EARLIEST_IGDB_YEAR,
   type GameFilters,
   type IgdbTag,
+  type SurprisePoolSize,
 } from './igdb';
 
 /**

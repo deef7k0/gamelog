@@ -6,7 +6,6 @@
  */
 export * from './awards';
 export * from './core';
-export * from './diary';
 export * from './discover';
 export * from './engagement';
 export * from './events';
@@ -15,6 +14,9 @@ export * from './gaming';
 export * from './wall';
 export * from './lists';
 export * from './notifications';
+export * from './physical';
+export * from './progress';
+export * from './similarity';
 export * from './songs';
 export * from './soundtracks';
 export * from './storage';

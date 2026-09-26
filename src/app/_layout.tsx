@@ -20,6 +20,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { primeSteamArtwork } from '@/hooks/use-steam-artwork';
 import { useAuth } from '@/store/auth';
@@ -126,11 +127,29 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider value={DarkTheme}>
-          <StatusBar style="light" />
+      {/*
+        `<SafeAreaProvider>`, declared here rather than inherited.
 
-          {/*
+        Every `<Screen edges>` and every `useSafeAreaInsets()` in this app reads
+        from this provider, and until now nothing in the tree rendered one — the
+        app was relying on whatever `expo-router` happens to mount internally.
+        That held in Expo Go and did not survive a real build: SDK 57 targets
+        Android 15, where **edge-to-edge is mandatory**, so the window draws
+        under both system bars and the only thing keeping content out from under
+        them is the inset the provider reports. With no provider of our own, the
+        top bar sat under the status bar and the tab bar sat under the
+        navigation bar — which is exactly the shape of the bug.
+
+        It costs nothing in Expo Go (a second provider would be redundant, not
+        wrong) and it is the documented requirement of the library. Insets are
+        not something to inherit by luck.
+      */}
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider value={DarkTheme}>
+            <StatusBar style="light" />
+
+            {/*
             No native header, anywhere.
 
             Every screen draws its own `<FrostedTopBar>` through `<Screen topBar>`
@@ -153,54 +172,73 @@ export default function RootLayout() {
             and a real gain in honesty: a dynamic title used to be declared in
             two places and only one of them was right.
           */}
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Protected guard={!!session}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="game/[id]" />
-              <Stack.Screen name="profile/[id]" />
-              <Stack.Screen name="achievements/[id]" />
-              <Stack.Screen name="library/[id]" />
-              <Stack.Screen name="diary/[user]/[game]" />
-              <Stack.Screen name="studio/[id]" />
-              <Stack.Screen name="top-games" />
-              <Stack.Screen name="releases" />
-              <Stack.Screen name="upcoming" />
-              <Stack.Screen name="surprise" />
-              <Stack.Screen name="gaming-achievements/[id]" />
-              <Stack.Screen name="gaming-inventory/[id]" />
-              <Stack.Screen name="list/[id]" />
-              {/* The "See all" behind Discover's Reviews and Collections bands.
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Protected guard={!!session}>
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="game/[id]" />
+                <Stack.Screen name="profile/[id]" />
+                <Stack.Screen name="achievements/[id]" />
+                <Stack.Screen name="library/[id]" />
+                <Stack.Screen name="game-stats/[user]/[game]" />
+                <Stack.Screen name="playthroughs/[game]" />
+                <Stack.Screen name="copies/[user]" />
+                <Stack.Screen name="submissions" />
+                <Stack.Screen name="moderation" />
+                <Stack.Screen name="studio/[id]" />
+                <Stack.Screen name="top-games" />
+                <Stack.Screen name="releases" />
+                <Stack.Screen name="upcoming" />
+                <Stack.Screen name="surprise" />
+                <Stack.Screen name="gaming-achievements/[id]" />
+                <Stack.Screen name="gaming-inventory/[id]" />
+                <Stack.Screen name="list/[id]" />
+                {/* The "See all" behind Discover's Reviews and Collections bands.
                   Both used to be tabs inside Search; a popularity chart is not
                   a search scope, so they are pages now. */}
-              <Stack.Screen name="reviews" />
-              <Stack.Screen name="collections" />
-              {/* Where Search's genre grid leads — one genre, ranked. */}
-              <Stack.Screen name="genre/[id]" />
-              <Stack.Screen name="review/[id]" />
-              <Stack.Screen name="soundtrack/[id]" />
-              <Stack.Screen name="notifications/index" />
-              <Stack.Screen name="settings" />
-              <Stack.Screen name="comments/[type]/[id]" />
-              <Stack.Screen name="log/[id]" options={{ presentation: 'modal' }} />
-              {/* Both are edits to one award category, so both are sheets: you
+                <Stack.Screen name="reviews" />
+                <Stack.Screen name="collections" />
+                {/* Where Search's genre grid leads — one genre, ranked. */}
+                <Stack.Screen name="genre/[id]" />
+                <Stack.Screen name="review/[id]" />
+                <Stack.Screen name="soundtrack/[id]" />
+                <Stack.Screen name="notifications/index" />
+                <Stack.Screen name="settings" />
+                <Stack.Screen name="comments/[type]/[id]" />
+                <Stack.Screen name="log/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="playthrough/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="add-copy" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="copy/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
+                <Stack.Screen name="add-release" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="suggest-similar/[id]" options={{ presentation: 'modal' }} />
+                {/* Both are edits to one award category, so both are sheets: you
                   are changing a thing and coming back, not going somewhere. */}
-              <Stack.Screen name="award-game/[id]" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="award-edit/[id]" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="new-list" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="edit-list/[id]" options={{ presentation: 'modal' }} />
-              {/* A picker, so it presents as a modal: you are choosing one thing
+                <Stack.Screen name="award-game/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="award-edit/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="new-list" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="edit-list/[id]" options={{ presentation: 'modal' }} />
+                {/* A picker, so it presents as a modal: you are choosing one thing
                   and returning, not navigating somewhere. */}
-              <Stack.Screen name="add-to-list/[id]" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
-            </Stack.Protected>
+                <Stack.Screen name="add-to-list/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
+              </Stack.Protected>
 
-            <Stack.Protected guard={!session}>
-              <Stack.Screen name="sign-in" />
-              <Stack.Screen name="sign-up" />
-            </Stack.Protected>
-          </Stack>
-        </ThemeProvider>
-      </QueryClientProvider>
+              <Stack.Protected guard={!session}>
+                {/* First in the group, so it is where an unsigned-in cold start
+                    lands. The app used to open on the password form, which asked
+                    for a credential before saying what it was for; `welcome`
+                    says what GameLog does and keeps one action at the bottom.
+                    `sign-in-options` is the fork it leads to, and the two
+                    existing forms sit behind that. */}
+                <Stack.Screen name="welcome" />
+                <Stack.Screen name="sign-in-options" />
+                <Stack.Screen name="sign-in" />
+                <Stack.Screen name="sign-up" />
+              </Stack.Protected>
+            </Stack>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

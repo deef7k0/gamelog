@@ -64,8 +64,11 @@ Three things carry the product. Future work must not trade any of them away:
 3. **The physical shelf feel.** Box art everywhere, and a rendered game case on a
    game's own page, so opening a game feels like picking something off a shelf.
 
-The diary (dated per-game notes) is a real feature but was explicitly *not*
-named as a differentiator — it may be reshaped where the three above may not.
+The diary (dated per-game notes) was a real feature and was explicitly *not*
+named as a differentiator. It has since been **removed from the app** — which is
+what that licence was for: the three above may not be reshaped, and this one
+could be, and in the end was cut rather than reshaped. Nothing in the client
+reads or writes it.
 
 ## Operating Context
 
@@ -86,7 +89,21 @@ case, synopsis, screenshots, franchise, studio and cast; logging with status,
 profiles with follows, friends and walls; feed; posts, articles, likes and
 threaded comments; collections, ranked lists, tier lists, favourites, wishlist;
 news, trailers, releases, an IGDB popularity chart, events and soundtracks;
-linked Steam accounts; per-game diary.
+linked Steam accounts.
+
+**Built, not yet confirmed on a device** (and dependent on migrations
+`0022`–`0026`): granular progress with multiple playthroughs; community-curated
+similar games with reasons, votes and reports; review filters by platform,
+progress and solo / co-op, with a completion-aware breakdown of Gamelog's own
+scores; barcode scanning; a community release database; physical copies with
+completeness and condition.
+
+**Rules for what the community adds.** Nothing a user submits about a release is
+canonical on arrival — a second person or a moderator makes it so. Nothing in
+the physical collection carries a price, an estimated value or a market figure,
+and nothing may: condition and completeness describe a copy, they do not value
+it. Every average the review sheet shows is Gamelog's own, from scores given on
+this app.
 
 **Hard technical constraints.**
 

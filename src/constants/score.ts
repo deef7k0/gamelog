@@ -21,8 +21,13 @@ export const SCORE_BANDS: readonly ScoreBand[] = [
   { min: 100, label: 'Masterpiece', tone: 'positive' },
   { min: 95, label: 'Outstanding', tone: 'positive' },
   { min: 90, label: 'Excellent', tone: 'positive' },
-  { min: 85, label: 'Great', tone: 'positive' },
-  { min: 80, label: 'Very Good', tone: 'positive' },
+  /* 85 was "Great" and 80 was "Very Good". Both moved up a name: "Very Good"
+     was the only two-word band in the ladder and read as a hedge rather than a
+     verdict, and shifting "Great" onto it left 85 free for a word with more in
+     it. Nothing about the thresholds changed — a 86 scores exactly what it
+     scored before, and is now called Amazing. */
+  { min: 85, label: 'Amazing', tone: 'positive' },
+  { min: 80, label: 'Great', tone: 'positive' },
   { min: 75, label: 'Good', tone: 'positive' },
   { min: 70, label: 'Solid', tone: 'positive' },
   { min: 65, label: 'Decent', tone: 'neutral' },

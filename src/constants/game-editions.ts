@@ -15,9 +15,16 @@
  *    expansion. Those have a `parent_game` and appear in search on their own.
  *  - **`version_parent`** marks a *repackage* of an existing entry — "Game of
  *    the Year Edition", "Complete Edition" — with the marketing name in
- *    `version_title`. Those are deliberately filtered out of search everywhere
- *    in this app (`where version_parent = null`), so the only place they surface
- *    is the parent game's own page, which is exactly where they belong.
+ *    `version_title`. Those are deliberately filtered out of every *search* path
+ *    in this app (`where version_parent = null`), because a repackage competing
+ *    with its own parent in a list of results is the same title twice.
+ *
+ *    Two screens surface them, both under a heading that says what they are: the
+ *    parent game's own page ("Editions & extras"), and a studio's catalogue,
+ *    where `getCompanyGames` deliberately does *not* filter them and the screen
+ *    partitions them into a rail of their own. Neither is a search result, which
+ *    is the distinction — the filter is about not diluting a list of games with
+ *    versions of one, not about hiding them.
  *
  * `null` is the common case and means "this is the game", which is why nothing
  * renders a badge by default.

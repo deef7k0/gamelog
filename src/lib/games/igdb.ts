@@ -452,10 +452,33 @@ export async function getGameEditions(
 }
 
 /**
- * A studio's catalogue.
+ * A studio's catalogue, repackages included.
  *
- * `version_parent = null` drops the "Game of the Year Edition" style duplicates
- * that would otherwise fill a prolific publisher's grid with the same titles.
+ * ## `version_parent = null` is gone from this one query
+ *
+ * It was here for a real reason: "Game of the Year Edition" rows are repackages
+ * of a game already in the list, and left in a flat grid they fill a prolific
+ * publisher's page with the same three covers in a row — which is precisely how
+ * a filter like that earns its place, and why it still guards every *search*
+ * path in this file.
+ *
+ * What changed is that the studio screen no longer renders one flat grid. It
+ * partitions this list — `edition` and `bundle` into a rail of their own, and
+ * everything else into the catalogue — so the duplicates the filter existed to
+ * suppress are now the contents of a section that says what they are. Filtering
+ * them at the query was the cheapest way to solve the grid problem and the only
+ * way to guarantee the rail could never exist.
+ *
+ * The caller must keep partitioning. Drop that and this returns straight to the
+ * shape the filter was written against.
+ *
+ * ## Why the limit doubled
+ *
+ * Repackages now compete for the same budget, and a publisher with two hundred
+ * catalogue entries has a good few dozen of them. At 100 the editions would have
+ * been taken out of the *originals*' allowance, so relaxing the filter without
+ * raising the cap would have quietly shortened the catalogue it was meant to
+ * enrich. IGDB's own ceiling is 500.
  */
 export async function getCompanyGames(
   companyId: number,
@@ -465,10 +488,9 @@ export async function getCompanyGames(
     'games',
     `${GAME_FIELDS}
      where involved_companies.company = ${companyId}
-       & version_parent = null
        & cover != null;
      sort first_release_date desc;
-     limit 100;`,
+     limit 200;`,
     signal
   );
   return (raw ?? []).map(toGame).map(toSearchResult);
@@ -774,11 +796,18 @@ function pickOne<T>(values: readonly T[]): T {
  * The one thing they do change is how deep the random offset may reach; see
  * `FILTERED_MAX_OFFSET`.
  */
-export async function getSurprisePool(
+/**
+ * The `where` and `sort` one pool resolves to, built once and read twice.
+ *
+ * Extracted so `getSurprisePoolSize` below asks IGDB about **the same set of
+ * games** the roll will draw from. A count built from a second, hand-copied
+ * clause is worse than no count at all: it would confidently report a number for
+ * a query nobody runs, and the two would drift the first time either changed.
+ */
+function surprisePoolQuery(
   pool: SurprisePool,
-  filters: SurprisePoolFilters = {},
-  signal?: AbortSignal
-): Promise<GameSearchResult[]> {
+  filters: SurprisePoolFilters
+): { clause: string; sort: string; filtered: boolean } {
   const where = ['cover != null', 'version_parent = null'];
   let sort: string;
 
@@ -823,7 +852,15 @@ export async function getSurprisePool(
   }
 
   const filtered = genreIds.length > 0 || perspectiveIds.length > 0 || !!filters.minRating;
-  const clause = `where ${where.join(' & ')};`;
+  return { clause: `where ${where.join(' & ')};`, sort, filtered };
+}
+
+export async function getSurprisePool(
+  pool: SurprisePool,
+  filters: SurprisePoolFilters = {},
+  signal?: AbortSignal
+): Promise<GameSearchResult[]> {
+  const { clause, sort, filtered } = surprisePoolQuery(pool, filters);
 
   async function fetchAt(offset: number): Promise<GameSearchResult[]> {
     const body = `${GAME_FIELDS} ${clause} sort ${sort}; limit ${SURPRISE_BATCH}; offset ${offset};`;
@@ -836,6 +873,56 @@ export async function getSurprisePool(
   if (games.length > 0 || offset === 0) return games;
 
   return fetchAt(0);
+}
+
+/** IGDB's hard ceiling on `limit`, and therefore the largest number we can count to. */
+const POOL_SIZE_LIMIT = 500;
+
+/** What `getSurprisePoolSize` reports: a count, and whether it hit the ceiling. */
+export type SurprisePoolSize = { count: number; atLeast: boolean };
+
+/**
+ * How many games the current settings actually match.
+ *
+ * ## Why this is a `games` query and not `games/count`
+ *
+ * IGDB publishes `/games/count`, which is the obviously right endpoint: one
+ * integer, exact, no ceiling. It is **not on the Edge Function's allowlist**, and
+ * `ALLOWED_ENDPOINTS` is matched on the whole path — `games` does not admit
+ * `games/count`. Adding it there does nothing until somebody runs
+ * `supabase functions deploy igdb`, so a client built on it would report nothing
+ * for every user on the currently deployed build, with no error and nothing to
+ * fix client-side. That is the trap `player-perspectives.ts` documents and the
+ * one the Top 10 is still sitting in.
+ *
+ * So this counts through `games`, which is already allowed and therefore works
+ * today: `fields id;` — the smallest row IGDB will return — at `limit 500`, and
+ * the answer is the length of the array. Five hundred ids is roughly 5 KB.
+ *
+ * ## Why a ceiling is honest here
+ *
+ * 500 is IGDB's maximum `limit`, so this cannot distinguish 500 from 40,000 and
+ * reports `atLeast: true` when it lands on the ceiling. That asymmetry matches
+ * the question: the reader is narrowing, and the whole value of a count is at the
+ * *low* end, where it separates "six games" from "nothing at all" before a roll
+ * is spent. At the top end "plenty" is the entire useful content of the number.
+ *
+ * **No offset and no sort.** Both are irrelevant to a count and a sort would make
+ * IGDB order 500 rows for nothing.
+ */
+export async function getSurprisePoolSize(
+  pool: SurprisePool,
+  filters: SurprisePoolFilters = {},
+  signal?: AbortSignal
+): Promise<SurprisePoolSize> {
+  const { clause } = surprisePoolQuery(pool, filters);
+  const raw = await igdbQuery<{ id: number }[]>(
+    'games',
+    `fields id; ${clause} limit ${POOL_SIZE_LIMIT};`,
+    signal
+  );
+  const count = (raw ?? []).length;
+  return { count, atLeast: count >= POOL_SIZE_LIMIT };
 }
 
 /**
@@ -910,10 +997,19 @@ type IgdbTimeToBeat = {
 };
 
 /**
- * IGDB's `game_time_to_beat` endpoint.
+ * IGDB's `game_time_to_beats` endpoint — **plural**.
  *
  * A separate endpoint keyed by `game_id`, not a field on `games` — it cannot be
  * folded into `GAME_FIELDS` and has to be its own request.
+ *
+ * The path was spelled `game_time_to_beat` for this feature's entire life, and
+ * IGDB answers that with a 404 — `Endpoint POST /game_time_to_beat not found`.
+ * Every IGDB path is the plural of its record (`games`, `events`,
+ * `popularity_primitives`); the singular here was the odd one out, and the
+ * widget's `retry: false` turned the 404 into a section that simply never
+ * appeared. Checked against IGDB's own schema (`api.igdb.com/v4/igdbapi.proto`,
+ * `GameTimeToBeatResult.gametimetobeats`) rather than guessed a second time; the
+ * field names below come from the same message and were right all along.
  *
  * **Seconds, not hours.** The API returns raw seconds and the widget divides;
  * treating them as minutes (the obvious guess) puts every game at sixty times
@@ -931,7 +1027,7 @@ export async function getTimeToBeat(
   if (!Number.isFinite(numeric)) return null;
 
   const raw = await igdbQuery<IgdbTimeToBeat[]>(
-    'game_time_to_beat',
+    'game_time_to_beats',
     `fields hastily, normally, completely, count;
      where game_id = ${numeric};
      limit 1;`,

@@ -1,5 +1,7 @@
 import type {
   AchievementWithUnlock,
+  CompletionLevel,
+  GameReviewStats,
   LogStatus,
   LogWithRelations,
   Profile,
@@ -7,6 +9,8 @@ import type {
   ReviewMetrics,
 } from '../database.types';
 import { fetchSteamUnlocks, getGameAchievements, parseGameId, type Game } from '../games';
+import { inList } from '../postgrest';
+import { reviewFilterClauses, type ReviewFilters } from '../review-facets';
 import { supabase } from '../supabase';
 import { getEngagement } from './engagement';
 
@@ -80,8 +84,23 @@ export type SaveLogInput = {
   review: string | null;
   completionPercent?: number | null;
   platinum?: boolean;
+  /** The author says this review gives something away. See `GameLog.spoilers`. */
+  spoilers?: boolean;
   hoursPlayed?: number | null;
   playedOn?: string | null;
+  /**
+   * How far they got (0023). Left out entirely when undefined, not written as
+   * null: this is an upsert, and the progress sheet and the playthrough trigger
+   * both write this column too — a caller with no opinion must not erase theirs.
+   */
+  completion?: CompletionLevel | null;
+  /**
+   * Co-op or solo (0023), null for "didn't say", and how many played when it was
+   * co-op. Left out when undefined, like `completion`. The database refuses a
+   * player count on anything but a co-op log, so pass null with solo.
+   */
+  coop?: boolean | null;
+  playerCount?: number | null;
 };
 
 /** Create or update the signed-in user's log for a game. */
@@ -105,8 +124,15 @@ export async function saveLog(userId: string, input: SaveLogInput): Promise<void
       review: input.review?.trim() ? input.review.trim() : null,
       completion_percent: input.completionPercent ?? null,
       platinum: input.platinum ?? false,
+      /* `?? false` rather than omitted: this is an upsert, so leaving the key
+         out on an edit would keep whatever the row already held — and clearing
+         the flag is exactly as much a decision as setting it. */
+      spoilers: input.spoilers ?? false,
       hours_played: input.hoursPlayed ?? null,
       played_on: input.playedOn ?? null,
+      ...(input.completion !== undefined ? { completion: input.completion } : {}),
+      ...(input.coop !== undefined ? { coop: input.coop } : {}),
+      ...(input.playerCount !== undefined ? { player_count: input.playerCount } : {}),
     },
     { onConflict: 'user_id,game_id' }
   );
@@ -768,19 +794,8 @@ export async function getTopGameReview(
  * The reviews sheet
  * ---------------------------------------------------------------------- */
 
-/** How the review list is ordered. Filters are separate; see `ReviewFilters`. */
+/** How the review list is ordered. Filters are separate; see `lib/review-facets`. */
 export type ReviewSort = 'popular' | 'newest' | 'week' | 'month';
-
-export type ReviewFilters = {
-  /** `played_on` exactly as the reviewer recorded it. Null means every platform. */
-  platform?: string | null;
-  /** Lowest score to include, inclusive. 60 shows 60-100. */
-  minScore?: number | null;
-  /** Highest score to include, inclusive. Only used by the "below 60" band. */
-  maxScore?: number | null;
-  /** Only reviews of a game the writer platinumed. */
-  platinumOnly?: boolean;
-};
 
 export type ReviewListItem = {
   log: LogWithRelations;
@@ -829,6 +844,12 @@ const WINDOW_DAYS: Partial<Record<ReviewSort, number>> = { week: 7, month: 30 };
  * themselves, which would rank a two-year-old review as this week's most popular
  * because it got three likes on Tuesday. What a reader wants from "this week" is
  * what is new and landing well.
+ *
+ * ## Filters
+ *
+ * Every filter is a clause on this one request (`reviewFilterClauses`), so they
+ * compose — PC + Finished + Co-op — and only matching rows come back. What each
+ * one *means* lives in `lib/review-facets.ts`; this only spells it in PostgREST.
  */
 export async function getGameReviewList(
   gameId: string,
@@ -848,10 +869,31 @@ export async function getGameReviewList(
     query = query.gte('created_at', since);
   }
 
-  if (filters.platform) query = query.eq('played_on', filters.platform);
-  if (filters.platinumOnly) query = query.eq('platinum', true);
-  if (filters.minScore != null) query = query.gte('rating', filters.minScore);
-  if (filters.maxScore != null) query = query.lte('rating', filters.maxScore);
+  for (const clause of reviewFilterClauses(filters)) {
+    switch (clause.kind) {
+      case 'platform':
+        // A family nobody has reviewed on has nothing to find.
+        if (clause.values.length === 0) return [];
+        // `inList`, not `.in()`: these are strings people typed. See `inList`.
+        query = query.filter('played_on', 'in', inList(clause.values));
+        break;
+      case 'status':
+        query = query.in('status', clause.values);
+        break;
+      case 'completion':
+        query = query.or(`completion.in.(${clause.levels.join(',')}),platinum.is.true`);
+        break;
+      case 'flag':
+        query = query.eq(clause.column, clause.value);
+        break;
+      case 'score':
+        query =
+          clause.bound === 'min'
+            ? query.gte('rating', clause.value)
+            : query.lte('rating', clause.value);
+        break;
+    }
+  }
 
   const { data, error } = await query.order('created_at', { ascending: false }).limit(REVIEW_PAGE);
 
@@ -883,27 +925,14 @@ export async function getGameReviewList(
 }
 
 /**
- * The platforms this game has actually been reviewed on.
+ * One game's ratings, tallied by how they were played — plus the platforms the
+ * review list can be filtered to (0026).
  *
- * Built from the reviews rather than from the game's platform list, because the
- * filter is only useful for values that will return something — offering "Xbox
- * Series X" on a game nobody reviewed there is a control that can only
- * disappoint. Null entries are dropped: plenty of logs record no platform.
+ * One aggregate on the server, so a game with thousands of ratings costs a few
+ * hundred bytes. It replaced a read of every review's `played_on` just to find
+ * the handful of distinct values the platform filter offers.
  */
-export async function getReviewPlatforms(gameId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('logs')
-    .select('played_on')
-    .eq('game_id', gameId)
-    .not('review', 'is', null)
-    .not('played_on', 'is', null);
-
-  if (error) throw new Error(error.message);
-
-  const seen = new Set<string>();
-  for (const row of data ?? []) {
-    const value = (row.played_on ?? '').trim();
-    if (value) seen.add(value);
-  }
-  return [...seen].sort((a, b) => a.localeCompare(b));
+export async function getReviewStats(gameId: string): Promise<GameReviewStats> {
+  const { data, error } = await supabase.rpc('game_review_stats', { p_game: gameId });
+  return unwrap(data, error);
 }

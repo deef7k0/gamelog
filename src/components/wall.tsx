@@ -27,7 +27,6 @@ const ACTIVITY_ICON: Record<ActivityKind, keyof typeof Ionicons.glyphMap> = {
   platinum: 'trophy',
   watching_event: 'tv',
   attending_event: 'location',
-  diary: 'book',
   commented: 'chatbubble',
 };
 
@@ -38,7 +37,7 @@ const ACTIVITY_ICON: Record<ActivityKind, keyof typeof Ionicons.glyphMap> = {
  * line is the point — the wall should make the things someone *wrote* look
  * different from the things they merely clicked.
  */
-const WRITTEN_KINDS: readonly ActivityKind[] = ['reviewed', 'commented', 'diary'];
+const WRITTEN_KINDS: readonly ActivityKind[] = ['reviewed', 'commented'];
 
 /** Poster width for a row with writing behind it, and for one without. */
 const WRITTEN_POSTER = 54;
@@ -145,12 +144,9 @@ export const WallPostRow = memo(function WallPostRow({ post }: { post: WallPost 
 export const ActivityRow = memo(function ActivityRow({
   entry,
   ownerName,
-  ownerId,
 }: {
   entry: ActivityEntry;
   ownerName: string;
-  /** Whose wall this is. Diary rows need it to open the right person's diary. */
-  ownerId?: string;
 }) {
   const theme = useTheme();
 
@@ -172,7 +168,6 @@ export const ActivityRow = memo(function ActivityRow({
     platinum: theme.platinum,
     watching_event: theme.identityMagenta,
     attending_event: theme.identityMagenta,
-    diary: theme.identityGold,
     commented: theme.textSecondary,
   }[entry.kind];
 
@@ -194,8 +189,6 @@ export const ActivityRow = memo(function ActivityRow({
         return `added ${entry.game?.title ?? 'a game'} to ${entry.listTitle ?? 'a list'}`;
       case 'friended':
         return `is now friends with ${displayNameFor(entry.person)}`;
-      case 'diary':
-        return `added a new entry to ${entry.game?.title ?? 'a game'}'s diary`;
       case 'watching_event':
         return `will be watching ${entry.eventName ?? 'an event'}`;
       case 'attending_event':
@@ -268,20 +261,11 @@ export const ActivityRow = memo(function ActivityRow({
   }
 
   if (entry.game) {
-    /*
-     * A diary row points at the author's diary for that game, not at the shared
-     * game page — the interesting thing is what *they* wrote, and the game page
-     * has no notion of whose diary to show.
-     */
+    /* A review opens the review; everything else opens the game it is about. */
     const href =
-      entry.kind === 'diary' && entry.refId && ownerId
-        ? ({
-            pathname: '/diary/[user]/[game]',
-            params: { user: ownerId, game: entry.refId, tab: 'diary' },
-          } as const)
-        : entry.kind === 'reviewed' && entry.refId
-          ? ({ pathname: '/review/[id]', params: { id: entry.refId } } as const)
-          : ({ pathname: '/game/[id]', params: { id: entry.game.id } } as const);
+      entry.kind === 'reviewed' && entry.refId
+        ? ({ pathname: '/review/[id]', params: { id: entry.refId } } as const)
+        : ({ pathname: '/game/[id]', params: { id: entry.game.id } } as const);
 
     return (
       <Link href={href} asChild>

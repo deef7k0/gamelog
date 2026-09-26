@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
 import { ReviewMarks, reviewMarkRow } from '@/components/review-marks';
+import { SpoilerNotice } from '@/components/spoiler-notice';
 import { Avatar } from '@/components/ui/avatar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScoreChip } from '@/components/ui/score-tile';
@@ -9,6 +10,7 @@ import { Text } from '@/components/ui/text';
 import { Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { LogWithRelations } from '@/lib/database.types';
+import { reviewContext } from '@/lib/review-facets';
 
 export type ReviewCardProps = {
   log: LogWithRelations;
@@ -36,35 +38,30 @@ export type ReviewCardProps = {
  * and Surprise Me, where the game is the 328dp cover directly above. Printing
  * the game's title there is printing the name of the screen you are on.
  *
- * So the headline slot carries the **review's own title** instead — the thing
- * the writer actually named their piece — and a review with no headline simply
- * leads with its prose. That is the one structural difference from `<LogCard>`
- * in the feed, where the game's name is load-bearing because the feed is a
- * mixture of games.
- *
  * ## The shape
  *
  * ```text
- *   (avatar) username
- *   ─────────────────────────────
- *   Review title, bold
- *   [91 EXCELLENT]  (ps)  (23h)
+ *   (avatar) username        [91 EXCELLENT] (ps) (23h)
+ *   ──────────────────────────────────────────────────
  *   … the review, clamped to `lines` …
  *   ♥ 12
  * ```
  *
- * Four bands, one left edge, a hairline between who is talking and what they
- * said. Identical to the feed card's column with the artwork and the game title
- * removed, which is deliberate: a review should look like a review wherever it
- * appears, and the two used to be visibly different objects.
+ * Three bands, one left edge, a hairline between who is talking and what they
+ * said. Everything *about* the review is on the top bar and everything *of* it is
+ * under the rule, which on a card whose only content is prose leaves the prose
+ * the whole of the space below.
+ *
+ * The same division governs the feed's `<LogCard>`, so a review looks like a
+ * review wherever it appears — that card keeps the game's title under its rule,
+ * because a feed is a mixture of games and here you are already on one.
  *
  * ## Why the score is a chip and not a tile
  *
- * It was an 62dp `<ScoreTile>` floated to the left of the prose, which made the
+ * It was a 62dp `<ScoreTile>` floated to the left of the prose, which made the
  * card a two-column layout for one piece of writing and set the row's height
- * from a number. `<ScoreChip>` puts the same verdict on the metadata line where
- * the platform and the playtime already are, and gives the prose the full
- * measure — which on a card whose entire content is prose is the whole game.
+ * from a number. `<ScoreChip>` is a rectangle that sits *in* a line, which is
+ * what let it move up beside the username.
  */
 export function ReviewCard({
   log,
@@ -80,14 +77,34 @@ export function ReviewCard({
   const name = log.profile?.display_name || log.profile?.username || 'Someone';
   const headline = log.review_title?.trim() || null;
   const prose = (log.review ?? '').trim();
+  const context = reviewContext(log);
 
   return (
     <View style={styles.card}>
+      {/*
+        The whole verdict, on the top bar, with the name.
+
+        Everything that is *about* the review rather than *of* it now lives above
+        the rule: who wrote it, what they scored it, and how they played it. What
+        that leaves below is one thing — the writing — which is the only reason
+        this card exists on a screen where the game is already the subject.
+
+        The name is the elastic member (`flex: 1, minWidth: 0`) and the verdict
+        block is fixed (`reviewMarkRow` carries `flexShrink: 0`), so a long
+        display name truncates and the score and the marks keep their width. A
+        score squeezed by a username would be the one failure worth avoiding
+        here, since it is the only number on the card.
+      */}
       <View style={styles.who}>
         <Avatar uri={log.profile?.avatar_url} name={name} size={22} />
         <Text variant="reviewByline" numberOfLines={1} style={styles.name}>
           {name}
         </Text>
+
+        <View style={reviewMarkRow}>
+          {log.rating !== null && <ScoreChip score={log.rating} />}
+          <ReviewMarks log={log} />
+        </View>
       </View>
 
       {/* The rule under the byline. A hairline, not a gap: it separates *who is
@@ -95,54 +112,79 @@ export function ReviewCard({
           say that with space alone. Same device as the feed card. */}
       <View style={[styles.rule, { backgroundColor: theme.border }]} />
 
-      <Body wholeCardLink={wholeCardLink} onOpen={onOpen} name={name}>
-        {/* The review's own headline, in the review typeface. Absent on most
-            logs, and the card is fine without it — the prose starts instead. */}
-        {headline && (
-          <Text variant="reviewTitleSmall" numberOfLines={2}>
-            {headline}
+      {/*
+        A flagged review replaces the body outright — it does not sit inside it.
+
+        `<Body>` is itself a pressable when the card is not a whole-card link,
+        and `<SpoilerNotice>` is one too, so nesting them would make the card two
+        overlapping targets for one destination and announce it twice — the exact
+        thing `<Body>`'s own docblock argues against. The notice already carries
+        the button role, the label and the hint, so it stands in for the wrapper
+        as well as for the prose.
+      */}
+      {!!prose && log.spoilers ? (
+        <SpoilerNotice onPress={onOpen} minHeight={SPOILER_HEIGHT} />
+      ) : (
+        <Body wholeCardLink={wholeCardLink} onOpen={onOpen} name={name} headline={headline}>
+          {/*
+            The prose, and nothing else.
+
+            The review's own headline used to lead this block. It has gone to the
+            review's own page with the platinum trophy: on a card clamped to a
+            few lines, a headline spends one of them saying what the next four
+            are about, and the writing says that better. `headline` is still read
+            below for the accessible label, so a screen reader is told the piece
+            has a name even though the card no longer prints it.
+          */}
+          {!!prose && (
+            <Text variant="reviewExcerpt" color="proseInk" numberOfLines={lines}>
+              {prose}
+            </Text>
+          )}
+        </Body>
+      )}
+
+      {/* The heart, on the last line. Liking is not reading, so it stays its own
+          control even when the card around it is a link — and it is the only
+          one, because sharing lives in the top bar and the conversation has its
+          own screen. */}
+      <View style={styles.foot}>
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityState={{ selected: liked }}
+          accessibilityLabel={liked ? `Unlike ${name}’s review` : `Like ${name}’s review`}
+          onPress={onToggleLike}
+          hitSlop={HEART_SLOP}
+          scaleTo={0.92}
+          style={StyleSheet.flatten(styles.heart)}>
+          <Ionicons
+            name={liked ? 'heart' : 'heart-outline'}
+            size={15}
+            /* `liked`, not `danger`: a like is an endorsement, and `danger` means
+               something is about to be destroyed. See the token. */
+            color={liked ? theme.liked : theme.textMuted}
+          />
+          {likeCount > 0 && (
+            <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
+              {likeCount}
+            </Text>
+          )}
+        </PressableScale>
+
+        {/*
+          How they played it — "Completed · 4-player co-op" — in the space the
+          heart leaves at the right of its own line, so the card gains the fact
+          and no height. Down here rather than with the platform mark in the top
+          bar, which has no room left: that bar is a fixed remainder beside a
+          name, and a phrase there would truncate the name to buy it. Only what
+          the reviewer said; see `reviewContext`.
+        */}
+        {context && (
+          <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.context}>
+            {context}
           </Text>
         )}
-
-        {(log.rating !== null || log.played_on || log.hours_played || log.platinum) && (
-          <View style={reviewMarkRow}>
-            {log.rating !== null && <ScoreChip score={log.rating} />}
-            <ReviewMarks log={log} />
-          </View>
-        )}
-
-        {!!prose && (
-          <Text variant="reviewExcerpt" color="proseInk" numberOfLines={lines}>
-            {prose}
-          </Text>
-        )}
-      </Body>
-
-      {/* The heart, alone on the last line. Liking is not reading, so it stays
-          its own control even when the card around it is a link — and it is the
-          only one, because sharing lives in the top bar and the conversation has
-          its own screen. */}
-      <PressableScale
-        accessibilityRole="button"
-        accessibilityState={{ selected: liked }}
-        accessibilityLabel={liked ? `Unlike ${name}’s review` : `Like ${name}’s review`}
-        onPress={onToggleLike}
-        hitSlop={HEART_SLOP}
-        scaleTo={0.92}
-        style={StyleSheet.flatten(styles.heart)}>
-        <Ionicons
-          name={liked ? 'heart' : 'heart-outline'}
-          size={15}
-          /* `liked`, not `danger`: a like is an endorsement, and `danger` means
-             something is about to be destroyed. See the token. */
-          color={liked ? theme.liked : theme.textMuted}
-        />
-        {likeCount > 0 && (
-          <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
-            {likeCount}
-          </Text>
-        )}
-      </PressableScale>
+      </View>
     </View>
   );
 }
@@ -157,6 +199,16 @@ export function ReviewCard({
 const HEART_SLOP = { top: 14, bottom: 14, left: 10, right: 14 };
 
 /**
+ * The notice's height on this card.
+ *
+ * Shorter than the feed's default, because this card carries no artwork setting
+ * a floor beside it — the box would be the tallest thing on the row rather than
+ * matching it. Roughly three lines of `reviewExcerpt`, which is the clamp the
+ * game page uses.
+ */
+const SPOILER_HEIGHT = 76;
+
+/**
  * The headline, the marks and the prose — a link, unless the card already is.
  *
  * Nesting a pressable inside a pressable works and makes the card two
@@ -167,11 +219,14 @@ function Body({
   wholeCardLink,
   onOpen,
   name,
+  headline,
   children,
 }: {
   wholeCardLink: boolean;
   onOpen: () => void;
   name: string;
+  /** Spoken, not printed — the card dropped the headline; see the body block. */
+  headline: string | null;
   children: React.ReactNode;
 }) {
   if (wholeCardLink) {
@@ -185,7 +240,11 @@ function Body({
   return (
     <PressableScale
       accessibilityRole="button"
-      accessibilityLabel={`${name}’s review. Read all of it.`}
+      accessibilityLabel={
+        headline
+          ? `${name}’s review, “${headline}”. Read all of it.`
+          : `${name}’s review. Read all of it.`
+      }
       onPress={onOpen}
       scaleTo={0.99}
       style={StyleSheet.flatten(styles.body)}>
@@ -204,7 +263,11 @@ const styles = StyleSheet.create({
      as a seam. */
   rule: { height: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
   body: { gap: Spacing.x8 },
-  /* `flex-start`, so the target is the width of the heart and its count rather
-     than of the card — a full-width row here would read as a button. */
-  heart: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: Spacing.x4 },
+  foot: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  /* Sized to the heart and its count rather than to the line — a full-width
+     target here would read as a button. */
+  heart: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  /* Takes the rest of the line and ends on the card's edge; a long phrase
+     truncates before it can push the heart. */
+  context: { flex: 1, textAlign: 'right' },
 });

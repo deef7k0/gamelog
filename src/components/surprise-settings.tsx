@@ -1,18 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
+import { sortGenresByReach } from '@/constants/game-genres';
 import { SELECTABLE_PERSPECTIVES } from '@/constants/player-perspectives';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { getGenres } from '@/lib/games';
+import { getGenres, getSurprisePoolSize, type SurprisePoolSize } from '@/lib/games';
 import type { TrackPickMode } from '@/lib/soundtracks';
 import {
   activeFilterCount,
+  poolFiltersFor,
   RATING_FLOORS,
   type RatingFloor,
   type SurpriseGameMode,
@@ -114,8 +117,80 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
     gcTime: Infinity,
   });
 
+  /*
+   * All twenty-three, ordered by what somebody actually reaches for.
+   *
+   * `getGenres()` sorts `name asc`, which put Adventure, Arcade and Card & Board
+   * Game in the first row and buried Shooter, Strategy and Role-playing in the
+   * middle of six. Nothing is removed — this is a discovery tool and the long
+   * tail is the point — but the tail belongs at the end, which is exactly the
+   * argument `getPlatforms()` already makes about consoles one file over.
+   *
+   * Sorted here rather than inside `getGenres()` on purpose: the query is shared
+   * with `<GenreGrid>` and `<GameFilterBar>` under the same key, and reordering
+   * it at the source would silently restyle two surfaces that were not reviewed.
+   * Memoised because the sort allocates and `genres.data` is otherwise stable
+   * for the life of the app (`staleTime: Infinity`).
+   */
+  const genreOptions = useMemo(
+    () =>
+      sortGenresByReach(genres.data ?? []).map((genre) => ({
+        id: genre.id,
+        label: genre.name,
+      })),
+    [genres.data]
+  );
+
   const filtersApply = prefs.gameMode !== 'foryou';
   const activeFilters = activeFilterCount(prefs);
+
+  /*
+   * How many games the settings currently match.
+   *
+   * The screen used to commit blind: you tightened four filters, pressed the
+   * button, and learned from `EMPTY_FILTERED` that the combination matched
+   * nothing — one IGDB round trip and one failed roll to find out. For a tool
+   * whose job is surfacing obscure games that is backwards, because the
+   * interesting configurations are the narrow ones and narrow is exactly where a
+   * pool silently hits zero.
+   *
+   * Only asked when something is actually narrowing. With no filters set there
+   * is nothing to be warned about, and "500+ games match" under an untouched
+   * form is noise pretending to be information.
+   *
+   * **No debounce, by design.** The key is the filter tuple, so TanStack aborts
+   * the in-flight request the moment another chip is tapped — `getSurprisePoolSize`
+   * takes the `signal` and `igdbQuery` forwards it — and a tuple already answered
+   * is served from cache forever. Ticking through six genres is therefore about
+   * one completed request, not six, without a timer or a second piece of state.
+   *
+   * `placeholderData` keeps the previous answer on screen while the next one
+   * lands, so the line updates rather than blinking out and back.
+   */
+  const poolSize = useQuery({
+    queryKey: [
+      'surprise-pool-size',
+      prefs.gameMode,
+      prefs.genreIds,
+      prefs.perspectiveIds,
+      prefs.minRating,
+    ],
+    queryFn: ({ signal }) =>
+      /* The cast is discharged by `enabled` directly below: `filtersApply` *is*
+         `gameMode !== 'foryou'`, and `foryou` is the only member of
+         `SurpriseGameMode` that is not a `SurprisePool`. The query cannot run in
+         the one mode the narrower type excludes. */
+      getSurprisePoolSize(
+        prefs.gameMode as Exclude<SurpriseGameMode, 'foryou'>,
+        poolFiltersFor(prefs),
+        signal
+      ),
+    enabled: filtersApply && activeFilters > 0,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    placeholderData: (previous) => previous,
+  });
 
   function toggleId(field: 'genreIds' | 'perspectiveIds', id: number) {
     const current = prefs[field];
@@ -126,7 +201,17 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
   return (
     <View style={styles.root}>
       <View style={styles.group}>
-        <Text variant="label" color="textMuted">
+        {/* `header`, so the three bands are navigable by heading rather than by
+            swiping through forty-odd controls to find where the next one starts.
+            The label is spelled out in sentence case for the same reason the
+            count below is: the visible string is uppercase in *source*, not by
+            `textTransform`, and VoiceOver's acronym heuristic reads a run of
+            capitals a letter at a time. */}
+        <Text
+          variant="label"
+          color="textMuted"
+          accessibilityRole="header"
+          accessibilityLabel="Game">
           GAME
         </Text>
         <SortBar
@@ -138,14 +223,27 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
       </View>
 
       {filtersApply ? (
-        <View style={styles.group}>
+        <View style={styles.filterGroup}>
           {/* The heading carries the count rather than a badge: this group can
               be several screens' worth of chips once it is open, and "3" beside
               the word is the only way to know something is still set without
               reading all of them. Neutral and inline, per the `<TabBar>` rule —
               a set filter is not an alert. */}
           <View style={styles.groupHead}>
-            <Text variant="label" color="textMuted">
+            {/* The count is a *visual* device and degrades to nonsense spoken:
+                the two spaces collapse to one, so the string announces as
+                "narrow it down 3" — an unlabelled integer glued to an
+                imperative, with no unit and nothing saying it counts filters.
+                The label carries the sentence; the child keeps the glyphs. */}
+            <Text
+              variant="label"
+              color="textMuted"
+              accessibilityRole="header"
+              accessibilityLabel={
+                activeFilters > 0
+                  ? `Narrow it down. ${activeFilters} ${activeFilters === 1 ? 'filter' : 'filters'} set.`
+                  : 'Narrow it down'
+              }>
               {activeFilters > 0 ? `NARROW IT DOWN  ${activeFilters}` : 'NARROW IT DOWN'}
             </Text>
             {activeFilters > 0 && (
@@ -157,29 +255,107 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
                 onPress={() =>
                   onChange({ ...prefs, genreIds: [], perspectiveIds: [], minRating: 0 })
                 }>
-                <Text variant="caption" style={{ color: accent.onSurface }}>
+                {/* `bodySmall`, matching the "Retry" beside the genre error —
+                    they are the same object (an inline text action in blue with
+                    the same hitSlop) and shipped at two different sizes until
+                    this pass. It also answers the note that this control, the
+                    only destructive one on the screen, was set like metadata. */}
+                <Text variant="bodySmall" style={{ color: accent.onSurface }}>
                   Clear
                 </Text>
               </PressableScale>
             )}
           </View>
 
+          {/*
+            What the narrowing currently yields, in one line.
+
+            Absent rather than wrong when the count cannot be had: a failed or
+            still-pending first lookup renders nothing at all, the way a game ITAD
+            does not track shows no "Where to buy" section. A number this screen
+            cannot stand behind is worse than none, because the entire point of it
+            is that somebody trusts it enough not to spend a roll finding out.
+
+            **`isError` has to be checked even though `data` is truthy**, and that
+            pairing is the whole reason this guard is two conditions. The query
+            carries `placeholderData: (previous) => previous` so the line updates
+            instead of blinking out between filter changes — but a placeholder is
+            the *previous tuple's* answer, and TanStack keeps serving it when the
+            new tuple errors, since `data` for the failed key is undefined. On
+            `data` alone a failed lookup would leave the count for the filters you
+            had a moment ago sitting under the filters you have now, reading as
+            current. That is the one failure mode worse than no number.
+          */}
+          {poolSize.data && !poolSize.isError && <PoolSizeLine size={poolSize.data} />}
+
           <View style={styles.subgroup}>
-            <Text variant="caption" color="textMuted">
+            {/* `header`, and it is the fix for the chip group's missing context.
+                A `<View>` carrying only an `accessibilityLabel` is not an
+                accessibility element on iOS, so the row's label was never spoken
+                and all 23 chips announced as unscoped checkboxes. Making the
+                container `accessible` is the wrong repair — it would collapse
+                the 23 into one element. A heading immediately before them is
+                what RN actually supports, and it puts the operator sentence in
+                the rotor where somebody can find it before ticking anything. */}
+            {/*
+              One line, split into the two jobs it was doing.
+
+              It read "Genres — a game matching any of these": a heading and a
+              sentence of help welded together, which made it the only subgroup
+              name on the screen that was not a bare noun — "Perspective" and
+              "Minimum rating" are — and made the `header` role announce a whole
+              sentence where a screen reader expects a name. Split, the three
+              headings are parallel and scannable, and the operator note joins
+              the other two explanations as prose. Not a word has changed.
+            */}
+            <View style={styles.captioned}>
+              <Text variant="h6" color="textMuted" accessibilityRole="header">
+                Genres
+              </Text>
               {/* States the operator, because the alternative reading is the one
                   that returns nothing. See `SurprisePoolFilters.genreIds`. */}
-              Genres — a game matching any of these
-            </Text>
+              <Text variant="bodySmall" color="textSecondary">
+                A game matching any of these.
+              </Text>
+            </View>
             {genres.isPending ? (
-              <Text variant="caption" color="textMuted">
+              /* Same step as the error that replaces it in this slot — two
+                 states of one message should not be two sizes. */
+              <Text variant="bodySmall" color="textMuted">
                 Loading genres…
               </Text>
+            ) : genres.isError ? (
+              /*
+                An IGDB failure used to render as nothing at all — `FilterChips`
+                returns null on an empty list, so the heading and its sentence sat
+                over blank space with no message, no retry, and no way to tell
+                "IGDB is down" from "this app has no genres". On a discovery tool
+                the genre list is the primary instrument, so its absence is the
+                one that most needs explaining.
+
+                The second sentence is the load-bearing one: perspective and
+                rating are unaffected, so this is a degraded screen rather than a
+                broken one, and saying so is what keeps somebody from backing out
+                of a form that still does most of its job.
+              */
+              <View style={styles.inlineError}>
+                <Text variant="bodySmall" color="textSecondary" style={styles.noteText}>
+                  Genres didn’t load. The other filters still work.
+                </Text>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading genres"
+                  hitSlop={CLEAR_SLOP}
+                  scaleTo={0.94}
+                  onPress={() => genres.refetch()}>
+                  <Text variant="bodySmall" style={{ color: accent.onSurface }}>
+                    Retry
+                  </Text>
+                </PressableScale>
+              </View>
             ) : (
               <FilterChips
-                options={(genres.data ?? []).map((genre) => ({
-                  id: genre.id,
-                  label: genre.name,
-                }))}
+                options={genreOptions}
                 selected={prefs.genreIds}
                 onToggle={(id) => toggleId('genreIds', id)}
                 accessibilityLabel="Genres"
@@ -188,7 +364,7 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
           </View>
 
           <View style={styles.subgroup}>
-            <Text variant="caption" color="textMuted">
+            <Text variant="h6" color="textMuted" accessibilityRole="header">
               Perspective
             </Text>
             <FilterChips
@@ -203,7 +379,7 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
           </View>
 
           <View style={styles.subgroup}>
-            <Text variant="caption" color="textMuted">
+            <Text variant="h6" color="textMuted" accessibilityRole="header">
               Minimum rating
             </Text>
             <SortBar
@@ -214,7 +390,7 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
             />
             {/* Whose number it is. The app's own scores cover the few hundred
                 games somebody here has logged; a roll draws from all of IGDB. */}
-            <Text variant="caption" color="textMuted">
+            <Text variant="bodySmall" color="textSecondary">
               IGDB’s community score, out of 100. Unrated games are kept on “Any” and dropped by
               every other step.
             </Text>
@@ -223,7 +399,7 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
       ) : (
         <View style={[styles.note, { borderColor: theme.border }]}>
           <Ionicons name="information-circle-outline" size={17} color={theme.textMuted} />
-          <Text variant="caption" color="textMuted" style={styles.noteText}>
+          <Text variant="bodySmall" color="textSecondary" style={styles.noteText}>
             Genre, perspective and rating filters apply to the catalogue. “Based on my games” reads
             your own library instead, so it uses neither.
           </Text>
@@ -231,7 +407,11 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
       )}
 
       <View style={styles.group}>
-        <Text variant="label" color="textMuted">
+        <Text
+          variant="label"
+          color="textMuted"
+          accessibilityRole="header"
+          accessibilityLabel="Soundtrack">
           SOUNDTRACK
         </Text>
         <SortBar
@@ -269,12 +449,78 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
           <Text variant="body" color={prefs.excludePlayed ? 'text' : 'textSecondary'}>
             Exclude games I’ve played
           </Text>
-          <Text variant="caption" color="textMuted">
+          {/*
+            The ink moves with the row, and that is a contrast fix rather than a
+            flourish. `textMuted` measures **4.43:1** on `surfaceSelected` — under
+            AA by 0.07 — and this caption on a ticked row was the one place in the
+            app that pairing was actually reachable. Stepping it to
+            `textSecondary` when the row lights up puts it at ~6:1 and keeps the
+            pair's own hierarchy intact in both states, since the label above it
+            moves `textSecondary` → `text` at the same moment.
+          */}
+          <Text variant="bodySmall" color={prefs.excludePlayed ? 'textSecondary' : 'textMuted'}>
             Skips anything you logged as played or dropped. Backlog stays in.
           </Text>
         </View>
       </PressableScale>
     </View>
+  );
+}
+
+/**
+ * Below this, the count stops being reassurance and becomes a warning.
+ *
+ * Twenty-five is roughly half a batch (`SURPRISE_BATCH` is 50), which is the
+ * point at which a roll starts returning games you have already seen this
+ * session rather than failing outright — the quiet failure, and the one worth
+ * naming before somebody spends three rolls discovering it.
+ */
+const NARROW_POOL = 25;
+
+/**
+ * One line saying what the filters currently match.
+ *
+ * Four bands rather than a bare number, because the number means different
+ * things along its range. Zero is a dead end and says so with the recovery
+ * attached; a handful is usable but worth flagging; the ceiling is IGDB's
+ * `limit`, not a measurement, so it is reported as "500+" rather than as 500.
+ *
+ * The count is never the only carrier — each band states its consequence in
+ * words, so nothing here depends on reading the digits.
+ */
+function PoolSizeLine({ size }: { size: SurprisePoolSize }) {
+  const { count, atLeast } = size;
+
+  const message = atLeast
+    ? `${count}+ games match. Plenty to draw from.`
+    : count === 0
+      ? 'Nothing matches these filters. Loosen one and this updates.'
+      : count === 1
+        ? 'Exactly one game matches — every roll will be that game.'
+        : count <= NARROW_POOL
+          ? `Only ${count} games match, so rolls will repeat.`
+          : `About ${count} games match.`;
+
+  return (
+    /*
+     * `polite`, not `assertive`: this changes on every chip tap, and an assertive
+     * region would interrupt the announcement of the chip that caused it.
+     *
+     * **`accessibilityLiveRegion` is Android-only in React Native**, so TalkBack
+     * hears the count update and VoiceOver does not — an iOS reader has to
+     * navigate to the line to read it. The alternative is an
+     * `announceForAccessibility` per change, and on a control somebody taps six
+     * times in a row that is a worse experience than a line you can go and read:
+     * it would talk over the chip's own "selected" every time. Left as the
+     * platform provides, deliberately, rather than evened down to neither.
+     */
+    <Text
+      variant="bodySmall"
+      color="textSecondary"
+      accessibilityLiveRegion="polite"
+      accessibilityRole="text">
+      {message}
+    </Text>
   );
 }
 
@@ -295,6 +541,20 @@ type FilterChipsProps = {
  * be on at once would be the fact that several currently are.
  *
  * `accessibilityRole="checkbox"` for the same reason, on the other channel.
+ *
+ * ## What names the group, and what does not
+ *
+ * `accessibilityLabel` on this row is **not** what announces "Genres" — a
+ * `<View>` with a label and no `accessible` flag is not an accessibility element
+ * on iOS at all, so for a long time these chips announced as twenty-three
+ * unscoped checkboxes with no indication of which question they answered. It is
+ * kept because TalkBack does read it off the view group, so it is the Android
+ * half of the answer and costs nothing.
+ *
+ * The iOS half — and the better half on both — is the `accessibilityRole="header"`
+ * on the caption immediately above each row. Setting `accessible` here instead
+ * would have collapsed all twenty-three chips into one element and made the
+ * control unusable, which is the repair that looks right and is not.
  */
 function FilterChips({ options, selected, onToggle, accessibilityLabel }: FilterChipsProps) {
   const theme = useTheme();
@@ -331,25 +591,76 @@ function FilterChips({ options, selected, onToggle, accessibilityLabel }: Filter
   );
 }
 
-/** Lifts a one-word inline control to the tap floor without moving the word. */
-const CLEAR_SLOP = { top: 12, bottom: 12, left: 12, right: 12 };
+/**
+ * Lifts a one-word inline control to the tap floor without moving the word.
+ *
+ * The numbers have to clear `TapTarget` on **both** platforms, and the previous
+ * 12 did not: `Type.caption`'s line box is 13dp, so 13 + 12 + 12 = 37 — under
+ * the iOS 44 by seven and under Android's 48 by eleven, while the comment above
+ * claimed the opposite. 18 top and bottom gives 49, which clears both.
+ *
+ * Not read from `TapTarget` directly, because hitSlop is the *margin* around a
+ * box and the constant is the box: deriving it would mean subtracting the line
+ * height here and re-deriving it every time the type scale moves.
+ */
+const CLEAR_SLOP = { top: 18, bottom: 18, left: 16, right: 16 };
 
 const styles = StyleSheet.create({
   root: { gap: Spacing.x20 },
   group: { gap: Spacing.x8 },
+  /*
+   * The filter block needs a third interval, and without it the cadence was flat.
+   *
+   * `group` (6) is right for a band that is one label over one control — GAME and
+   * SOUNDTRACK. This band holds three labelled subgroups, and `subgroup` is also
+   * 6, so every gap inside the block measured the same: the space *between*
+   * Genres and Perspective was identical to the space between "Perspective" and
+   * its own chips, and three groups read as one undifferentiated run.
+   *
+   * 10 between them, 6 inside them, against the root's 13 between bands. Four
+   * intervals now — 13 / 10 / 6 / 2 — each one naming a different relationship.
+   */
+  filterGroup: { gap: Spacing.x16 },
   /* The filter block holds three of its own labelled groups, so its members sit
      closer to each other than the top-level groups do — otherwise "Perspective"
      reads as a peer of "SOUNDTRACK" rather than as part of the set above it. */
   subgroup: { gap: Spacing.x8 },
+  /* A heading and the sentence explaining it are one object, so they sit closer
+     to each other than the pair sits to the control below — `subgroup`'s 6
+     separates the pair from the chips, and this 2 holds the pair together. Same
+     interval `toggleText` uses for the same relationship. */
+  captioned: { gap: 2 },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
+  /* `x12` (8), not `x8` (6). This row wraps to six lines of genres, so the gap
+     is the separation between two *different* filters in both axes, and Material
+     puts the floor for that at 8dp. `<SortBar>` carries the same note. */
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x12 },
   chip: {
     ...Elevation.control,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x4,
+    /*
+     * The tap floor, from the token. See the longer note in `<SortBar>`, which
+     * had the identical defect: content-sized at 25.67dp against a 44/48
+     * requirement.
+     *
+     * A wrapping grid is the one shape where `hitSlop` is the wrong fix. Slop
+     * expands the touch rectangle without moving the box, so at a 6dp gap the
+     * expanded rectangles of two chips in adjacent *rows* overlap, and React
+     * Native resolves an overlap by view order rather than by proximity — a tap
+     * between two rows would land on whichever chip mounted later. Real height
+     * plus a real gap is the only version that does not trade a small target
+     * for an ambiguous one.
+     */
+    minHeight: TapTarget,
     paddingVertical: Spacing.x8,
-    paddingHorizontal: Spacing.x12,
+    /* `x16` (10), up from `x12` (8), and it is the tap floor's doing. At 25dp
+       tall these were wider than they were high whatever the padding; at 44 the
+       four short labels — Sport, Music, Indie, MOBA — came out square, which
+       reads as a button someone forgot to put an icon in. Ten each side is the
+       smallest step that keeps them reading as words. */
+    paddingHorizontal: Spacing.x16,
     /* `control`, not `pill`, and for the reason `<SortBar>` records: these are
        buttons, and every button in the app is the same rounded rectangle. The
        pill belongs to metadata chips, which these are not. */
@@ -365,6 +676,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   noteText: { flex: 1 },
+  /* The message takes the row and the retry sits at its end, so a long sentence
+     wraps rather than squeezing the one control that recovers from it. */
+  inlineError: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.x12,
+  },
   toggle: {
     ...Elevation.control,
     flexDirection: 'row',

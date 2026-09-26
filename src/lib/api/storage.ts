@@ -3,6 +3,16 @@ import { supabase } from '../supabase';
 const BUCKET = 'media';
 
 /**
+ * Where under `<userId>/` an upload lands.
+ *
+ * `releases` holds evidence photos for barcode submissions (0024). The folder is
+ * load-bearing there, not tidiness: `submit_release_contribution` only accepts
+ * photo URLs inside the caller's own `releases` folder, so a submission cannot
+ * attach an image it did not upload.
+ */
+export type UploadFolder = 'posts' | 'avatars' | 'banners' | 'releases';
+
+/**
  * Upload a local image (an expo-image-picker URI) and return its public URL.
  *
  * Files are namespaced `<userId>/<name>` because the storage RLS policy in
@@ -16,7 +26,7 @@ const BUCKET = 'media';
 export async function uploadImage(
   userId: string,
   localUri: string,
-  folder: 'posts' | 'avatars' | 'banners' = 'posts'
+  folder: UploadFolder = 'posts'
 ): Promise<string> {
   const response = await fetch(localUri);
   if (!response.ok) throw new Error('Could not read the selected image.');
@@ -43,7 +53,7 @@ export async function uploadImage(
 export async function uploadImages(
   userId: string,
   localUris: string[],
-  folder: 'posts' | 'avatars' | 'banners' = 'posts'
+  folder: UploadFolder = 'posts'
 ): Promise<string[]> {
   // Sequential on purpose: parallel uploads of several full-size photos on a
   // phone connection tend to time out rather than finish faster.

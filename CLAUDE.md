@@ -39,8 +39,16 @@ npm run web        # browser — see the Steam/CORS caveat below
 npx tsc --noEmit   # typecheck
 npx eslint src     # lint
 npx prettier --write "src/**/*.{ts,tsx}"
-npm test           # node:test — the Material 3 scheme generator
+npm test           # node:test — pure modules only: the M3 scheme generator, the
+                   # genre reach order, barcodes, progress choices, review filters
 ```
+
+`npm test` runs the `*.test.ts` files under plain Node, so a module under test
+may only import neighbours by **relative** path (`scripts/esm-extensionless.mjs`
+resolves an extensionless `./x` to `x.ts`, as Metro does; nothing resolves `@/`),
+and nothing it imports may reach React Native or `constants/platform-cases.ts`,
+which `require()`s the case artwork. That is why `lib/review-facets.ts` takes the
+platform-family resolver as an argument instead of importing it.
 
 Node is a portable install at `~/.local/node-v24.18.0-linux-x64/bin`, already on
 PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
@@ -57,8 +65,16 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    and collections cannot be liked, without `0015`+`0016` an Award show
    cannot be created at all, and without `0018` posting a comment on a
    collection fails the CHECK on `comments.target_type`.
-   `0006`, `0015` and `0019` each add an enum value and must run **alone** —
-   see the notes in those files.
+   `0022`–`0026` are progress, physical copies, community similarity and review
+   stats. The log form writes `completion` and `coop`, so **without `0023` no log
+   can be saved at all**; without `0024` scanning and copies fail, without `0025`
+   the Similar tab's community section errors, and without `0026` the reviews
+   sheet loses its breakdown and its platform filter.
+   `0006`, `0015`, `0019` and `0022` each add an enum value and must run
+   **alone** — see the notes in those files.
+   Moderators are rows in `public.moderators`, which no client can write; make
+   one in the SQL editor with
+   `insert into public.moderators (user_id) select id from public.profiles where username = '…';`
 3. Env vars are **inlined at build time**. After editing `.env`, restart with
    `npx expo start --clear` — a hot reload will not pick up the change.
 4. Deploy the IGDB Edge Function — it is now the app's **only** game source, so
@@ -93,11 +109,24 @@ src/
     award-game/[id]    pick the winner of one award (modal)
     award-edit/[id]    name an award, or say why it won (modal)
     comments/[type]/[id]  comment thread for a post or log
+    game-stats/[user]/[game]  one person's record of one game — their log plus
+                     Steam's measured playtime. Opened from a library cover or a
+                     profile's Steam rail, never from the game page
+    playthroughs/[game]  your runs of one game; playthrough/[id] edits one (modal)
+    copies/[user]    a physical collection; copy/[id] one copy (modal),
+                     add-copy the copy form (modal)
+    scan             barcode camera (full-screen modal), with typed entry as the
+                     fallback for a denied or missing camera
+    add-release      submit or edit a barcode's release claim (modal)
+    submissions      your release claims and what became of them
+    moderation       moderators only: release claims and similarity reports
+    suggest-similar/[id]  recommend a game like this one, with reasons (modal)
     profile/[id]     someone else's profile
     new-list, edit-list/[id], edit-profile (modals)
-    settings         one real section: the games hidden from Surprise Me. It was
-                     deliberately empty for a long time and the argument in its
-                     docblock still stands — nothing goes here until it works
+    settings         the games hidden from Surprise Me, plus a link to the
+                     moderation queue for moderators. It was deliberately empty
+                     for a long time and the argument in its docblock still
+                     stands — nothing goes here until it works
     surprise         Surprise Me: one dealt game, one song from it
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
@@ -114,10 +143,23 @@ src/
                      ui/scroll-ambience scroll-driven page gradient (+ .web.tsx)
                      collection-mosaic  a collection's first four covers, 2x2,
                                         each square (SteamGridDB, IGDB crop below)
+                     surprise-deck / -bloom / -sheen / -page-wash
+                                        the dealt card's deck, its light, its
+                                        gloss and the page's colour transition.
+                                        DESIGN.md § 4.2; that screen only
+                     progress-sheet     the seven progress choices + details
+                     community-similar  the community's picks on the Similar tab
+                     review-breakdown   the reviews sheet's split averages
+                     physical-shelf-row a profile's physical copies
+                     choice-chips       one (or several) of a short vocabulary
+                     game-picker        search-and-tap, for forms that need a game
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
-                     game-editions.ts (remake/remaster/DLC labels) and
-                     stores.ts (storefront brand marks)
+                     game-editions.ts (remake/remaster/DLC labels),
+                     stores.ts (storefront brand marks), progress.ts (the seven
+                     progress choices), physical.ts (region / completeness /
+                     condition words), platform-media.ts (disc, cartridge…),
+                     similarity.ts (the twelve reasons)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -144,11 +186,19 @@ src/
                      itad.ts for storefront prices,
                      steamgriddb.ts for square (1:1) and per-platform cover
                      art — artwork only, never a catalogue; see the note below
+    barcode.ts       GTIN check digits, UPC-E expansion, normalising to GTIN-14
+    review-facets.ts what the review list filters and tallies by. Pure
+    postgrest.ts     `inList()`, the safe `in` filter for strings people typed
+    platform-options.ts  a game's platforms as picker options
     api/             everything that talks to Supabase, split by domain
-      core.ts        games cache, logs, profiles, follows, achievements
+      core.ts        games cache, logs, profiles, follows, achievements,
+                     the reviews sheet
       engagement.ts  likes and comments (was posts.ts)
       lists.ts       lists, tier lists, favourites, wishlist
       awards.ts      award shows: the ballot and its slots
+      progress.ts    progress writes and playthroughs
+      physical.ts    releases, barcode lookup, claims, moderation, copies
+      similarity.ts  community similar games: pairs, votes, reports
       notifications.ts
       songs.ts       the one starred track per profile
       storage.ts     image upload
@@ -163,9 +213,13 @@ supabase/
                      0014 chosen collection cover, 0015 awards list kind,
                      0016 award categories, 0017 game editions,
                      0018 comments on collections,
-                     0019 captioned list kind
-                     (0006, 0015 and 0019 each add an enum value and must run
-                      alone — see those files)
+                     0019 captioned list kind, 0020 soundtrack cache,
+                     0021 review spoilers, 0022 paused status,
+                     0023 completion + co-op + playthroughs,
+                     0024 releases, barcodes, claims, copies, moderators,
+                     0025 community similarity, 0026 review stats
+                     (0006, 0015, 0019 and 0022 each add an enum value and must
+                      run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
   functions/opencritic/  per-outlet critic scores; IGDB has none
   functions/itad/    Edge Function proxying IsThereAnyDeal (prices)
@@ -286,7 +340,12 @@ into one call and persists the result for 7 days.
   Do not duplicate server data into zustand.
 - **Query keys** are used for invalidation across screens — grep before renaming
   one. `['feed']`, `['my-log', userId, gameId]`, `['game-reviews', gameId]`,
-  `['user-logs', userId]`, `['profile-stats', profileId]`.
+  `['user-logs', userId]`, `['profile-stats', profileId]`,
+  `['playthroughs', userId, gameId]`, `['copies', userId, gameId | 'all']`,
+  `['community-similar', gameId]`, and the reviews sheet's three:
+  `['game-review-list', gameId, …]`, `['rating-breakdown', gameId]`,
+  `['review-stats', gameId]` — anything that writes a log's status, completion,
+  score or co-op invalidates all three.
 - **Colours**: always `useTheme()`. Never hardcode a hex in a component; add the
   token to `Colors.dark` in `constants/theme.ts` — that object is the entire
   palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`
@@ -366,9 +425,9 @@ into one call and persists the result for 7 days.
   follow it; a new one should too. Two sets of exceptions, both on screens that
   already run on a game's own colour: `<TabBar>` and the bottom nav, which answer
   "where am I" rather than "what is set"; and the game page's action row
-  (Favourite / Wishlist / Playing / Played / Share), which is **solid accent in
+  (Favourite / Wishlist / Progress / Collect), which is **solid accent in
   both states**, matching the primary button below it — a grey strip above a
-  coloured button read as disabled. With no fill left to change, those five carry
+  coloured button read as disabled. With no fill left to change, those four carry
   on/off on the **glyph** (outline vs solid) and the **label** (`textSecondary` →
   `text`). Two carriers, neither of them hue.
 - **Metadata chips stay grey.** Platform and genre chips are deliberately
@@ -377,6 +436,14 @@ into one call and persists the result for 7 days.
   where the colour *is* the datum — a rarity band, a status — and tints the label
   only, never the fill. A run of filled colour capsules reads as a row of buttons
   demanding to be pressed, and chips are not buttons.
+- **The dealt card is the app's second depicted object, and the deck behind it is
+  face down.** Surprise Me shows a stack: the card you are holding, and two
+  behind it in the app's own material with no artwork and no glyph. `games[cursor
+  + 1]` is already in memory, so drawing the next cover would be free and would
+  spoil the surprise — which is the feature. Blank *is* the meaning of a
+  face-down card. The card may lean (±7°) and catch light (0.16 peak), and the
+  game case stays the ceiling on cast, gloss and turn; DESIGN.md § 4.2 states by
+  how much. The deck belongs to that one screen — feeds and rails stay flat.
 - **The ambient effect belongs on a game's own page and the review, nowhere
   else.** Not on rails, grids, feeds or any screen showing several games side by
   side: one glow per screen is atmosphere, eight is a lava lamp. `<Poster>`
@@ -625,7 +692,7 @@ into one call and persists the result for 7 days.
   unaffected.
 - **The game page's Overview tab is cards, and `<InfoCard>` is the one
   implementation.** Every section on it — About, Studios, Reviews, the insight
-  widgets, Where to buy, Editions, Franchise, Achievements, the diary — is
+  widgets, Where to buy, Editions, Franchise, Achievements — is
   an `<InfoCard>` (read) or an `<InfoCardButton>` (a door), each stating its own
   subject in an `h6` title. **Screenshots is the deliberate exception**: the art
   is the content and a frame around a frame is a box in a box. `Radius.cardLarge`
@@ -703,6 +770,52 @@ a conditional — the UI renders from `provider.capabilities`.
 - **No inventory pricing API, anywhere.** Inventory carries `market_hash_name` — the join
   key every price service uses — and nothing else. Adding valuation later must
   not require re-syncing or a schema change.
+
+## Progress, physical copies, similarity and review filters (0022–0026)
+
+Six systems that extend what was there rather than sitting beside it. The rules
+that are easy to break:
+
+- **A log is still the user↔game relationship; progress is two columns on it.**
+  `status` (with `paused`, 0022) says where you are and `completion`
+  (`story` / `main` / `full`, 0023) says the furthest you ever got. The seven
+  choices in `constants/progress.ts` are named pairs of the two, and both the
+  progress sheet and the log form write through them. **Completion only rises**:
+  status-only choices leave it alone (`progressPatch`), and a playthrough that
+  got further raises it by trigger. Never write it down from a playthrough.
+- **Playthroughs are children of the log** (composite FK to `logs (user_id,
+  game_id)`, cascading). One game, many runs, one log — a second log per run
+  would split the review, the score and every count that assumes one row.
+- **Game ≠ release ≠ copy.** `game_releases` is one platform/region/edition of a
+  game, `release_barcodes` maps GTIN-14 codes onto it, and `owned_copies` is one
+  person's box, with its own completeness and condition. "Copies", never
+  "collection" — a collection is a curated list here. **No column anywhere holds
+  a price, and none may be added**: condition describes wear, not worth.
+- **Clients cannot write the canonical release tables.** Every write goes through
+  the 0024 RPCs. A submission is a *claim*; it becomes canonical when a second,
+  independent account files a matching one (`release_consensus_threshold()`, 2)
+  or a moderator approves it. Two colluding accounts can therefore canonise a
+  wrong release — moderation exists to reverse that, and a moderator is a row in
+  `public.moderators`, written only from the SQL editor.
+- **Barcodes are GTIN-14 on both sides.** `lib/barcode.ts` and
+  `normalize_gtin()` agree; UPC-E is expanded using the scanner's own type
+  (`scannerType`), since an eight-digit code alone is ambiguous with EAN-8.
+- **Community similarity is its own section, never merged with IGDB's.** Pairs
+  are stored once (`game_a < game_b`); suggesting a pair *is* voting for it.
+  Votes from accounts with no logs are kept but not counted, ranking is the
+  Wilson lower bound, and three open reports hide a pair until a moderator
+  restores it.
+- **Review filters are clauses on the request, never a sift on the phone.**
+  `lib/review-facets.ts` says what "Finished" or "PlayStation" means and
+  `getGameReviewList` spells it in PostgREST. A platform filter is a *family*:
+  the client resolves the stored `played_on` strings (from `game_review_stats`)
+  into families and sends the matching strings through `inList()` — never
+  `.in()`, which does not escape a `"` in text somebody typed. A platinum counts
+  as finished and 100% in both the filters and the stats.
+- **Stored platforms are short forms; read them back with `familyForStored` /
+  `platformKeyForStored`.** Everything the pickers write is `PLATFORMS[key].short`
+  ("PS5", "SWITCH 2"). `platformFamilies()` matches *provider* names ("Nintendo
+  Switch") and misses most short forms — it is for IGDB's lists, not for ours.
 
 ## This is React Native, not a web app
 
@@ -800,9 +913,9 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   cover, and `externalCategory`/`storeLabel` are `null` unless the id has been
   verified against the live API, because a wrong one sends people to the wrong
   storefront.
-- **Three IGDB endpoints beyond `games`.** `game_time_to_beat` is keyed on
-  `game_id` and returns **seconds** (not minutes — that guess puts every game at
-  60× its length); `events` is filtered on its own `games` array, since IGDB
+- **Three IGDB endpoints beyond `games`.** `game_time_to_beats` — **plural**,
+  like every IGDB path; the singular 404s — is keyed on `game_id` and returns
+  **seconds** (not minutes — that guess puts every game at 60× its length); `events` is filtered on its own `games` array, since IGDB
   exposes that join in one direction only and there is no `game.events` field to
   add to `GAME_FIELDS`. `age_ratings` and `language_supports` moved from integer
   enums to referenced rows — expand `rating_category.rating`,
@@ -817,10 +930,33 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   shows zero achievements. Only legacy `steam:` rows and games matched out of a
   linked Steam account still resolve definitions — the game page treats an empty
   list as "no achievements tracked", not as an error.
-- **The Top 10 needs `popularity_primitives` allowlisted and the function
-  redeployed.** Until then `getPopularGames()` catches the rejection and falls
-  back to the most-rated releases of the past year — a *different* ranking, which
-  is why it returns a `basis` the screen footnotes rather than one fixed claim.
+- **Allowlisting an IGDB endpoint in source does nothing until the function is
+  redeployed, and the failure is a feature that is silently missing.** This has
+  now bitten twice. `ALLOWED_ENDPOINTS` in `functions/igdb/index.ts` is checked in
+  the *deployed* Deno function, so a new entry is inert until
+  `supabase functions deploy igdb`; until then the endpoint returns
+  400 `Endpoint "…" is not allowed`, `igdbQuery` throws, and any query with
+  `retry: false` resolves to `undefined` — indistinguishable from "IGDB has no
+  data for this game".
+  - **The Top 10** (`popularity_primitives`) catches the rejection and falls back
+    to the most-rated releases of the past year — a *different* ranking, which is
+    why it returns a `basis` the screen footnotes rather than one fixed claim.
+  - **Time to beat** had no such fallback and simply never appeared:
+    `<TimeToBeatWidget>` renders `null` on no data, so a failed request looked
+    exactly like a catalogue with no submitted times. **And redeploying did not
+    fix it**, because the allowlist was not the only fault: the path was spelled
+    `game_time_to_beat`, which IGDB answers with a 404. Once redeployed, the
+    request got past the allowlist and failed one hop later, at IGDB, looking
+    identical on screen. The path is `game_time_to_beats`.
+    **Verify a new endpoint by calling the deployed function, not by reading the
+    allowlist** — `curl` it with the anon key as the bearer (the function checks
+    the JWT, not the user); a 400 means the allowlist, a 502 wrapping an IGDB 404
+    means the path. IGDB's schema is published at
+    `https://api.igdb.com/v4/igdbapi.proto`, and every `…Result` message there
+    names its endpoint's plural. `api-docs.igdb.com` refuses automated fetches.
+    `<GameStatsStrip>` separates the two cases on screen — an "unavailable" label
+    for a failed request, a "not found" one for a real absence — which is the only
+    visible sign of which one you are looking at.
 - **Steam's undocumented store endpoints are no longer called for search.**
   `lib/games/steam.ts` stays for id lookups only, keeping its CORS limitation
   (`npm run web`) and its ~200 req / 5 min rate limit off the hot path.
@@ -869,6 +1005,20 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   images are each a liability here. Italic is a **family** (`FontFamily.italic`),
   never `fontStyle: 'italic'`: a custom font has no oblique for Android to
   synthesise, so the property is the same silent no-op `fontWeight` is.
+- **The per-game diary was removed from the app.** Dated notes per game
+  (`diary_entries`, migration 0011) had a route, a composer, a card on the game
+  page's Overview tab, a `diary` kind on the wall's derived activity and its own
+  `lib/api/diary.ts`. All of it is gone; PRODUCT.md explicitly declined to name it
+  a differentiator, which is the licence that was spent here.
+  **The `diary_entries` table still exists** — nothing was dropped and no
+  migration was written, exactly as with `posts` below — and `database.types.ts`
+  carries a note where its row type was, because a row type is the first thing
+  that would let something start reading it again.
+  **What survived is `game-stats/[user]/[game]`**, which was the diary route's
+  *second* tab and is a different feature: one person's log plus Steam's measured
+  figures for one game. It has two live entry points (a library cover, a profile's
+  Steam rail) and was renamed off the `/diary/` path because a route spelled that
+  way would be the last mention of a feature that no longer exists.
 - **User posts and articles were removed from the app.** The composer, the
   article reader, `PostCard`/`ArticleCard`, `MediaCarousel`, the post+log union
   feed and the whole post API are gone; `posts.ts` became `engagement.ts`

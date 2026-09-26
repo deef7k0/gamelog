@@ -51,6 +51,7 @@ colors:
   statusPlayed: "#2E93E8"
   statusBacklog: "#C9A6FF"
   statusDropped: "#CE7B62"
+  statusPaused: "#F3C24B" # = identityGold; 0022
   # Achievement rarity bands.
   rarityCommon: "#9AA3AE"
   rarityUncommon: "#43D98C"
@@ -203,9 +204,9 @@ typography:
     lineHeight: "20px"
   reviewProse:
     fontFamily: "SourceSerif4_400Regular"
-    fontSize: "15px"
+    fontSize: "14px"
     fontWeight: 400
-    lineHeight: "24px"
+    lineHeight: "23px"
   reviewExcerpt:
     fontFamily: "SourceSerif4_400Regular"
     fontSize: "13px"
@@ -223,9 +224,9 @@ typography:
     lineHeight: "17px"
   reviewMeta:
     fontFamily: "Inter_600SemiBold"
-    fontSize: "11px"
+    fontSize: "13px"
     fontWeight: 600
-    lineHeight: "16px"
+    lineHeight: "18px"
 spacing:
   # STEP NAMES, NOT DP VALUES. The ladder has been compressed twice to scale the
   # chrome down and the names were deliberately left alone: `x16` is 10, `x24`
@@ -487,9 +488,15 @@ defined in the frontmatter, which is normative where this prose disagrees:
 - Small radii, generally **3–6px** rather than highly rounded cards. The artwork
   should be the roundest thing on screen, not the chrome around it.
 
-The one deliberate exception to all this restraint is the **physical game case**
-(§ 4.1) — the single depicted physical object in the system, and the only
-element allowed to cast, gloss and turn.
+The deliberate exceptions to all this restraint are the system's two **depicted
+physical objects** — the things that are drawn as objects rather than as
+interface, and the only elements allowed to cast, gloss and turn:
+
+- the **physical game case** (§ 4.1), the app's signature object, and
+- the **dealt card** on Surprise Me (§ 4.2), which is a card off a deck.
+
+They are not equals. The case is the ceiling on every material axis and § 4.2
+exists mostly to say by how much.
 
 ---
 
@@ -1015,6 +1022,72 @@ annulus. The centre hole is punched out by the template inside `hubRadius`.
 * **Don't** stretch cover art. 2:3, always, cropped rather than distorted.
 * **Don't** hardcode `coverArea`, `spineWidth` or the template size in a component.
 * **Don't** raise the gloss opacity. It is subtle by specification.
+
+---
+
+# 4.2 The dealt card
+
+Surprise Me deals one game at a time and you swipe it away. That card is the
+system's **second depicted physical object**, and this section exists because
+§ 0 used to say there was only one.
+
+## 4.2.1 Why it is an object at all
+
+Because the feature already insisted it was, everywhere except on screen. The
+code calls it `deal()` and `dealX`; its docblocks say "the card is dealt"; the
+Home entry point draws a three-card fan of a hand being cut. What shipped was a
+flat rectangle that slid sideways on a flat field — a picture of a card rather
+than a card.
+
+Giving it a deck to come off, a lean as it is pulled, and a highlight that moves
+across it is not decoration added to an interface element. It is the element
+finally behaving like the thing every other part of the feature calls it.
+
+## 4.2.2 The ceiling — the case wins on every axis
+
+| | game case (§ 4.1) | dealt card |
+| --- | --- | --- |
+| **cast** | 0.45 / r18 / (6, 12) / elev 12 | `Elevation.raised` — 0.30 / r12 / (0, 5) / elev 6 |
+| **gloss** | 0.20 peak | 0.16 peak |
+| **turn** | full 180°, draggable, readable from the back | ±7°, drag-linked only |
+
+The gap is load-bearing, exactly as § 6.2 says of the shadow: the case is the one
+thing you could pick up and inspect, and it stays special only while nothing else
+comes close. **A card may lean and catch light. Only the case may be turned over.**
+
+`perspective: 900` is shared, and deliberately: two objects in one app disagreeing
+about how far away the viewer is standing is worse than either value being wrong.
+
+## 4.2.3 The deck
+
+Two cards behind the dealt one, **face down** — one surface step, one hairline,
+no artwork and no glyph.
+
+Face down is not a stylistic choice. The next game is already in memory, and
+drawing its cover would spoil the surprise, which is the whole feature. The card
+behind is blank because there is nothing to read yet; that is what a face-down
+card *means*.
+
+The three depths cast in descending order — `raised`, `control`, `card` — which
+is physically right (a card lower in a stack is closer to the table) and keeps the
+whole object a clear tier under the case.
+
+Surfaces come from `accentRoles`, never the grey ladder: the page is filled with
+the game's own tone-10 neutral, and a fixed `surfaceElevated` card on it would be
+the one object in the room lit by a different lamp.
+
+## 4.2.4 The sheen, and the line it must not cross
+
+§ 25 bans gradients as decoration. **At rest the sheen is at opacity 0.** It
+exists only while the card is tilting: no tilt, no sheen. That is the entire
+difference between a texture painted on a card and a reflection coming off one,
+and it is the test any future change to it has to pass.
+
+## 4.2.5 Where the card may appear
+
+On the Surprise Me reveal, and nowhere else. The deck is not a pattern for feeds,
+rails or lists — those use `<Poster>` and stay flat and fast, for the same reason
+§ 4.1.2 keeps the case off them.
 
 ---
 

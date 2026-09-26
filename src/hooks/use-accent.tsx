@@ -17,7 +17,7 @@ import { DynamicThemeValueProvider } from '@/theme/dynamic-theme-provider';
  *
  * **The default is the house blue**, so nothing changes anywhere until a screen
  * opts in. `<AccentProvider>` wraps a game's page — and only a game's page, plus
- * the screens that are about one game (log, review, achievements, diary). The
+ * the screens that are about one game (log, review, achievements). The
  * feed, search, news and profile stay on `primary` deliberately: twenty games in
  * a list is twenty hues, and a scrolling fruit salad is not identity, it is
  * noise. Colour identifies a game when you are looking at *that game*.

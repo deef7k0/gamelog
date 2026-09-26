@@ -39,9 +39,9 @@ export type GameTileProps = {
   /** Hide the caption where the row is too short for it (profile widgets). */
   showStats?: boolean;
   /**
-   * Whose library this is. When set, tapping opens that person's stats and
-   * diary for the game rather than the shared game page — which is the point of
-   * a library: it is *their* record of the game, not the game itself.
+   * Whose library this is. When set, tapping opens that person's stats for the
+   * game rather than the shared game page — which is the point of a library: it
+   * is *their* record of the game, not the game itself.
    */
   ownerId?: string;
 };
@@ -102,8 +102,8 @@ export function GameTile({ game, width, showStats = true, ownerId }: GameTilePro
 
   const href = ownerId
     ? ({
-        pathname: '/diary/[user]/[game]',
-        params: { user: ownerId, game: game.gameId, tab: 'stats' },
+        pathname: '/game-stats/[user]/[game]',
+        params: { user: ownerId, game: game.gameId },
       } as const)
     : ({ pathname: '/game/[id]', params: { id: game.gameId } } as const);
 

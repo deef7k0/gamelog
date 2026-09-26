@@ -2,9 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { useCallback, useMemo, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
+import Animated, { runOnJS } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
@@ -15,7 +17,11 @@ import { GameDetailsSheet } from '@/components/game-details-sheet';
 import { GameEventsWidget, TimeToBeatWidget } from '@/components/game-insights';
 import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
+import { GameListsSheet } from '@/components/game-lists-sheet';
 import { GamePosterRail } from '@/components/game-rail';
+import { CommunitySimilar } from '@/components/community-similar';
+import { GameStatsStrip } from '@/components/game-stats-strip';
+import { ProgressSheet } from '@/components/progress-sheet';
 import { SoundtrackAlbums } from '@/components/soundtrack-section';
 import { StorePrices } from '@/components/store-prices';
 import { TopReviewCard } from '@/components/top-review-card';
@@ -28,22 +34,17 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { InfoCard, InfoCardButton } from '@/components/ui/info-card';
-import { ScoreBadge, SectionHeader } from '@/components/ui/surface';
+import { ScoreBadge } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { editionLabel } from '@/constants/game-editions';
+import { copyStateLine, releaseLine } from '@/constants/physical';
 import { scoreColor } from '@/constants/score';
 import { platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import {
-  getAchievementsForGame,
-  getDiaryCount,
-  getMyLog,
-  getTopGameReview,
-  setLiked,
-} from '@/lib/api';
+import { getAchievementsForGame, getCopies, getMyLog, getTopGameReview, setLiked } from '@/lib/api';
 import { getGameById, getSimilarTo, parseGameId } from '@/lib/games';
 import { getCollectionGames, getFranchiseGames, getGameExtras } from '@/lib/games/igdb';
 import { useAuth } from '@/store/auth';
@@ -148,6 +149,21 @@ export default function GameDetailScreen() {
   const [tab, setTab] = useState<GameTab>('overview');
   /** The reviews sheet, which rises over this page rather than replacing it. */
   const [reviewsOpen, setReviewsOpen] = useState(false);
+  /** The platform picker, raised by holding the case. See the gesture below. */
+  const [platformsOpen, setPlatformsOpen] = useState(false);
+  /** Which collections hold this game. Raised by the stats strip. */
+  const [listsOpen, setListsOpen] = useState(false);
+  /** Where you are with this game. Raised by the progress key. */
+  const [progressOpen, setProgressOpen] = useState(false);
+
+  /** Raised by the hold on the case. Separate so the worklet has a plain
+      function to `runOnJS` rather than a closure rebuilt every render. */
+  const openPlatforms = useCallback(() => {
+    setPlatformsOpen(true);
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    }
+  }, []);
   const queryClient = useQueryClient();
 
   /*
@@ -165,8 +181,8 @@ export default function GameDetailScreen() {
    *
    * IGDB summaries run 500–2000 characters; at 13/19 in a 366dp column that is
    * roughly 27 lines — about 513dp of unbroken body text, which now sits at the
-   * *top* of the tab and would push the diary, the storefronts, the reviews,
-   * Studios, Franchise, Screenshots and Achievements below a second screenful.
+   * *top* of the tab and would push the storefronts, the reviews, Studios,
+   * Franchise, Screenshots and Achievements below a second screenful.
    * Six lines is enough to know whether you want the rest.
    */
   const [synopsisOpen, setSynopsisOpen] = useState(false);
@@ -229,6 +245,19 @@ export default function GameDetailScreen() {
 
   const similarGames = similar.data ?? [];
 
+  /*
+   * The copies you own of this game (0024).
+   *
+   * Fetched with the page rather than on the Overview tab alone, because the
+   * answer decides whether a card exists at all — and it is one indexed query
+   * returning, for nearly everybody, nothing.
+   */
+  const myCopies = useQuery({
+    queryKey: ['copies', userId, id],
+    queryFn: () => getCopies(userId!, id!),
+    enabled: !!userId && !!id,
+  });
+
   const achievements = useQuery({
     queryKey: ['game-achievements', id, userId],
     queryFn: () => getAchievementsForGame(id!, userId ?? null),
@@ -267,12 +296,6 @@ export default function GameDetailScreen() {
     staleTime: 30 * 60_000,
   });
 
-  const diaryCount = useQuery({
-    queryKey: ['diary-count', userId, id],
-    queryFn: () => getDiaryCount(userId!, id!),
-    enabled: !!userId && !!id,
-  });
-
   /*
    * The game's own hue, for the parts of this screen the screen itself draws.
    *
@@ -308,6 +331,32 @@ export default function GameDetailScreen() {
   const availablePlatforms = platformKeysFor(game.data?.platforms);
   const activePlatform =
     platform && availablePlatforms.includes(platform) ? platform : availablePlatforms[0];
+
+  /*
+   * Hold the case to open the platform picker.
+   *
+   * `enabled` on the count rather than skipping the detector: a `<GestureDetector>`
+   * whose gesture is disabled is inert and still lets every touch through, so the
+   * flip and the tap behave identically on a single-platform game. Mounting it
+   * conditionally would instead swap the view tree under the case and cost it its
+   * arrival animation on any game that gains a platform mid-session.
+   *
+   * The haptic fires from the worklet thread via `runOnJS` — `Gesture` callbacks
+   * are worklets, and calling into Expo's native module directly from one is the
+   * crash this indirection exists to prevent. Fire-and-forget, because a missing
+   * Taptic engine must never take the gesture down with it.
+   */
+  const caseHold = useMemo(
+    () =>
+      Gesture.LongPress()
+        .enabled(availablePlatforms.length > 1)
+        .minDuration(400)
+        .onStart(() => {
+          'worklet';
+          runOnJS(openPlatforms)();
+        }),
+    [availablePlatforms.length, openPlatforms]
+  );
 
   if (game.isLoading) {
     return (
@@ -398,15 +447,38 @@ export default function GameDetailScreen() {
             is still exactly this component, drawn by the same protected
             `<GameCase>`; the wrapper contributes only the rotation the `tilt`
             prop was written to receive. */}
-        <GameCaseFlip
-          coverUrl={data.coverUrl}
-          heroUrl={data.heroUrl}
-          title={data.title}
-          edition={data.edition ? editionLabel(data.edition) : null}
-          platform={activePlatform}
-          width={caseWidth}
-          log={logged ?? null}
-        />
+        {/*
+          Hold the case to change which edition it is.
+
+          The picker used to be a row of up to seven buttons under the masthead,
+          which spent two lines of the page's most valuable space on a control
+          most readers set once or never. It is a sheet now, and the case itself
+          is the affordance — you press the object you want to re-draw.
+
+          ## Why the gesture is here and not inside `<GameCaseFlip>`
+
+          That component owns the drag-to-turn, and it wraps the protected
+          `<GameCase>`. Composing a long press *around* it keeps both untouched
+          and lets RNGH arbitrate naturally: a hold that does not move raises the
+          sheet, and any real horizontal travel is a flip, because movement
+          cancels a long press before it fires. The two never both win.
+
+          Guarded on there being a choice to make — one platform means the hold
+          does nothing, which is better than a sheet with a single row in it.
+        */}
+        <GestureDetector gesture={caseHold}>
+          <View accessible={false}>
+            <GameCaseFlip
+              coverUrl={data.coverUrl}
+              heroUrl={data.heroUrl}
+              title={data.title}
+              edition={data.edition ? editionLabel(data.edition) : null}
+              platform={activePlatform}
+              width={caseWidth}
+              log={logged ?? null}
+            />
+          </View>
+        </GestureDetector>
 
         {/*
           One step up the scale, all the way down this column.
@@ -487,158 +559,147 @@ export default function GameDetailScreen() {
         </View>
       </View>
 
-      {/* Group 2 — which edition you are looking at. One control, re-drawing
-          the case, the price and the store link together. */}
-      <View style={styles.availability}>
-        <PlatformPicker
-          available={availablePlatforms}
-          selected={activePlatform}
-          onSelect={setPlatform}
-        />
-      </View>
+      {/*
+        Group 3 — the numbers, between the identity block and the actions.
 
-      {/* Group 3 — your record. What you already logged and how to change it
-          are the same subject, so they sit in one tight group. The actions run
-          the full width below both columns rather than being squeezed into the
-          right one: they act on the game, not on its metadata. */}
-      <View style={styles.record}>
-        {/*
-          Your own log, on a surface carrying this game's hue.
+        Above the actions rather than below the whole masthead, which is where
+        this sat when it replaced the platform buttons. The order is the order
+        the questions get asked: *what is this* (the case and the billing),
+        *should I bother* (four numbers), *then* the row of things to do about
+        it. With the strip underneath, every reader met the primary button
+        before the one piece of evidence that would tell them whether to press
+        it.
 
-          It sat bare for a while, and the argument was good: a filled
-          `tone="selected"` block made the one thing on this page that is
-          *yours* look like a notice the app was showing you. That argument was
-          made against a flat `#121212` page, and the ambient gradient invalidated
-          it — the block now sits on the brightest part of a lit gradient, where
-          `statusPlayed` measures **2.02:1**, `statusDropped` 2.07:1 and a low
-          `ScoreBadge` 1.95:1.
+        It is also what the Play Store does, for the same reason — rating,
+        downloads and content rating sit directly above Install.
+      */}
+      <GameStatsStrip
+        gameId={data.id}
+        onOpenReviews={() => setReviewsOpen(true)}
+        onOpenLists={() => setListsOpen(true)}
+      />
 
-          These are the one kind of colour that cannot be lifted to suit a
-          backdrop: they are *data*, tuned as a ramp, and forcing `statusPlayed`
-          to AA on the gradient moves it 165 RGB units to a pale #C0DFF8 that no
-          longer belongs to the set. So the surface comes back — but tinted
-          rather than grey. `accent.surface` mixes the game's own hue into
-          `surface` and restores the original luminance, so every one of these
-          tokens measures what it was chosen for (worst case 5.07:1) while the
-          block reads as belonging to this game rather than to the app.
-        */}
-        {/*
-          Rendered only when there is something in it to read.
+      {/* The actions, at the header's full width rather than squeezed into the
+          right-hand column: they act on the game, not on its metadata.
 
-          It used to be `logged &&` alone, which was safe while the status word
-          was the fallback — every log has a status, so the block always had a
-          line. With the word gone a log that is *only* a status (tap Played, do
-          nothing else — by far the most common log there is) would leave an
-          empty tinted rectangle above the actions.
-        */}
-        {logged && (logged.review?.trim() || logged.rating !== null || logged.platinum) && (
-          <View style={[styles.myLog, { backgroundColor: accent.surface }]}>
-            {logged.review?.trim() ? (
-              /*
-               * You wrote about this — so the block says so in a sentence and
-               * then gets out of the way.
-               *
-               * It used to restate the log as three stacked facts: the status
-               * word, a large score pill, and the review's headline. All three
-               * are already on this page — the status and score are printed on
-               * the back of the case a few hundred pixels above, and the
-               * headline is the first thing on the review itself. Repeating
-               * them here made the block a summary of a summary, and the one
-               * thing it never did was offer a way to *read the thing*.
-               *
-               * The date is the fact that is genuinely only here: nothing else
-               * on this page says when you wrote it.
-               */
-              <>
-                <Text variant="body" color="textSecondary">
-                  {`You reviewed this game on ${formatReleaseDate(logged.created_at)}`}
-                  {logged.rating !== null ? ' and gave it a ' : '.'}
-                  {logged.rating !== null && (
-                    <Text variant="h4" style={{ color: scoreColor(logged.rating, theme) }}>
-                      {`${Math.round(logged.rating)}.`}
-                    </Text>
-                  )}
-                </Text>
+          No wrapper any more. This and the log block below used to share a tight
+          `record` group on the argument that "what you logged and how to change
+          it are the same subject" — true, and no longer the arrangement: the
+          strip is between them and the log has moved past the actions, so a
+          two-child group with one child left in it was a `<View>` holding
+          nothing but a gap it no longer spanned. */}
+      <GameActions game={data} log={logged ?? null} onOpenProgress={() => setProgressOpen(true)} />
 
-                <Link href={{ pathname: '/review/[id]', params: { id: logged.id } }} asChild>
-                  <PressableScale
-                    accessibilityRole="link"
-                    accessibilityLabel="See your full review"
-                    hitSlop={REVIEW_LINK_SLOP}
-                    style={styles.reviewLink}
-                    scaleTo={0.98}>
-                    <Ionicons name="eye-outline" size={16} color={theme.primaryText} />
-                    <Text variant="bodySmall" style={{ color: theme.primaryText }}>
-                      See your full review
-                    </Text>
-                  </PressableScale>
-                </Link>
-              </>
-            ) : (
-              /*
-               * No writing — so there is no review to link to, and the block
-               * falls back to stating the record it does have.
-               *
-               * **Which no longer includes the status word.** "Played" with its
-               * tick used to head this block, and it was the third place on one
-               * screen saying the same thing: the action row's Played key is lit
-               * and solid, and the back of the case prints the status too. A
-               * label restating the state of a control 200dp above it is not a
-               * fact the block contributes — the score and the platinum are.
-               */
-              <>
-                {logged.platinum && (
-                  <View style={styles.myLogHead}>
-                    <Ionicons name="trophy" size={16} color={theme.platinum} />
-                  </View>
-                )}
+      {/*
+        Group 4 — your own record, last in the masthead.
+
+        It sat directly above the actions, where it was the third thing on the
+        page claiming the same fact: the action row's Played key is lit, the back
+        of the case prints the status and the score, and this said it again in a
+        sentence. Below the actions it reads as what it actually is — the
+        *consequence* of having used them, and the way back into what you wrote.
+
+        Last also means it is the block that disappears cleanly. Nobody who has
+        not logged this game sees anything here, and the tabs simply move up by
+        its height rather than a gap opening mid-masthead.
+      */}
+      {/*
+        Your own log, on a surface carrying this game's hue.
+
+        It sat bare for a while, and the argument was good: a filled
+        `tone="selected"` block made the one thing on this page that is
+        *yours* look like a notice the app was showing you. That argument was
+        made against a flat `#121212` page, and the ambient gradient invalidated
+        it — the block now sits on the brightest part of a lit gradient, where
+        `statusPlayed` measures **2.02:1**, `statusDropped` 2.07:1 and a low
+        `ScoreBadge` 1.95:1.
+
+        These are the one kind of colour that cannot be lifted to suit a
+        backdrop: they are *data*, tuned as a ramp, and forcing `statusPlayed`
+        to AA on the gradient moves it 165 RGB units to a pale #C0DFF8 that no
+        longer belongs to the set. So the surface comes back — but tinted
+        rather than grey. `accent.surface` mixes the game's own hue into
+        `surface` and restores the original luminance, so every one of these
+        tokens measures what it was chosen for (worst case 5.07:1) while the
+        block reads as belonging to this game rather than to the app.
+      */}
+      {/*
+        Rendered only when there is something in it to read.
+
+        It used to be `logged &&` alone, which was safe while the status word
+        was the fallback — every log has a status, so the block always had a
+        line. With the word gone a log that is *only* a status (tap Played, do
+        nothing else — by far the most common log there is) would leave an
+        empty tinted rectangle above the actions.
+      */}
+      {logged && (logged.review?.trim() || logged.rating !== null || logged.platinum) && (
+        <View style={[styles.myLog, { backgroundColor: accent.surface }]}>
+          {logged.review?.trim() ? (
+            /*
+             * You wrote about this — so the block says so in a sentence and
+             * then gets out of the way.
+             *
+             * It used to restate the log as three stacked facts: the status
+             * word, a large score pill, and the review's headline. All three
+             * are already on this page — the status and score are printed on
+             * the back of the case a few hundred pixels above, and the
+             * headline is the first thing on the review itself. Repeating
+             * them here made the block a summary of a summary, and the one
+             * thing it never did was offer a way to *read the thing*.
+             *
+             * The date is the fact that is genuinely only here: nothing else
+             * on this page says when you wrote it.
+             */
+            <>
+              <Text variant="body" color="textSecondary">
+                {`You reviewed this game on ${formatReleaseDate(logged.created_at)}`}
+                {logged.rating !== null ? ' and gave it a ' : '.'}
                 {logged.rating !== null && (
-                  <ScorePill score={logged.rating} size="large" showLabel />
+                  <Text variant="h4" style={{ color: scoreColor(logged.rating, theme) }}>
+                    {`${Math.round(logged.rating)}.`}
+                  </Text>
                 )}
-              </>
-            )}
-          </View>
-        )}
+              </Text>
 
-        <GameActions game={data} log={logged ?? null} />
-      </View>
+              <Link href={{ pathname: '/review/[id]', params: { id: logged.id } }} asChild>
+                <PressableScale
+                  accessibilityRole="link"
+                  accessibilityLabel="See your full review"
+                  hitSlop={REVIEW_LINK_SLOP}
+                  style={styles.reviewLink}
+                  scaleTo={0.98}>
+                  <Ionicons name="eye-outline" size={16} color={theme.primaryText} />
+                  <Text variant="bodySmall" style={{ color: theme.primaryText }}>
+                    See your full review
+                  </Text>
+                </PressableScale>
+              </Link>
+            </>
+          ) : (
+            /*
+             * No writing — so there is no review to link to, and the block
+             * falls back to stating the record it does have.
+             *
+             * **Which no longer includes the status word.** "Played" with its
+             * tick used to head this block, and it was the third place on one
+             * screen saying the same thing: the action row's Played key is lit
+             * and solid, and the back of the case prints the status too. A
+             * label restating the state of a control 200dp above it is not a
+             * fact the block contributes — the score and the platinum are.
+             */
+            <>
+              {logged.platinum && (
+                <View style={styles.myLogHead}>
+                  <Ionicons name="trophy" size={16} color={theme.platinum} />
+                </View>
+              )}
+              {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
+            </>
+          )}
+        </View>
+      )}
     </View>
   );
-
-  /*
-   * The diary moved out of the masthead and into Overview.
-   *
-   * It was 85dp of chrome sitting between the primary action and the tab bar —
-   * directly in the path to the reviews this screen exists to lead to — for a
-   * feature PRODUCT.md explicitly does not rank among the differentiators. In
-   * Overview it sits with the other per-game sections, which is where it
-   * belonged: it is a record *about* this game, not an action on it.
-   */
-  const diaryRow = userId ? (
-    <InfoCardButton
-      title="Diary"
-      accessibilityLabel="Open your diary for this game"
-      onPress={() =>
-        router.push({
-          pathname: '/diary/[user]/[game]',
-          params: { user: userId, game: data.id, tab: 'diary' },
-        })
-      }
-      action={<Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}>
-      <Text variant="body" color="textSecondary">
-        {diaryCount.data ? (
-          <>
-            <Text variant="h4">
-              {diaryCount.data} {diaryCount.data === 1 ? 'entry' : 'entries'}
-            </Text>
-            {' about your playthrough.'}
-          </>
-        ) : (
-          'Write about your playthrough, session by session.'
-        )}
-      </Text>
-    </InfoCardButton>
-  ) : null;
 
   function renderTab() {
     switch (tab) {
@@ -650,38 +711,56 @@ export default function GameDetailScreen() {
         );
 
       case 'similar':
-        if (similar.isLoading) return <LoadingState />;
-        /* `getSimilarTo` used to swallow every failure into an empty array, so
-           this branch was unreachable and a dropped connection rendered as a
-           statement about IGDB's catalogue. It throws now; this is the half of
-           the fix that tells the two apart. */
-        if (similar.isError)
-          return (
-            <ErrorState
-              error={similar.error}
-              action={
-                <Button title="Retry" variant="secondary" onPress={() => similar.refetch()} />
-              }
-            />
-          );
+        /*
+          Two lists, and the community's leads.
+
+          IGDB's similar games are an algorithm's answer, with no reasons and no
+          way to disagree; the community's are players naming a game and saying
+          *why* (0025). Different claims, so each has its own heading and its own
+          loading, error and empty states — a failed IGDB request used to blank
+          the whole tab, which would now also hide what players said. The
+          community's comes first because it is the answer only this app has.
+        */
         return (
           <View style={styles.tabBody}>
-            {(similar.data ?? []).length === 0 ? (
-              <EmptyState
-                title="No recommendations"
-                message={
-                  data.source === 'igdb'
+            <CommunitySimilar gameId={data.id} gameTitle={data.title} />
+
+            <View style={styles.similarSection}>
+              <View style={styles.similarHead}>
+                <Text variant="h3" accessibilityRole="header">
+                  Similar, according to IGDB
+                </Text>
+                <Text variant="caption" color="textMuted">
+                  The catalogue’s own list. No reasons given.
+                </Text>
+              </View>
+
+              {similar.isLoading ? (
+                <LoadingState />
+              ) : similar.isError ? (
+                /* `getSimilarTo` used to swallow every failure into an empty
+                   array, so a dropped connection rendered as a statement about
+                   IGDB's catalogue. It throws now; this tells the two apart. */
+                <ErrorState
+                  error={similar.error}
+                  action={
+                    <Button title="Retry" variant="secondary" onPress={() => similar.refetch()} />
+                  }
+                />
+              ) : (similar.data ?? []).length === 0 ? (
+                <Text variant="body" color="textSecondary">
+                  {data.source === 'igdb'
                     ? 'IGDB has no similar games listed for this title.'
-                    : 'Similar games are only available for IGDB titles. Try opening this game from a search result instead.'
-                }
-              />
-            ) : (
-              similarGames.map((entry) => (
-                <View key={entry.id} style={styles.reviewRow}>
-                  <GameListItem game={entry} />
-                </View>
-              ))
-            )}
+                    : 'IGDB’s list is only available for IGDB titles. Try opening this game from a search result instead.'}
+                </Text>
+              ) : (
+                similarGames.map((entry) => (
+                  <View key={entry.id} style={styles.reviewRow}>
+                    <GameListItem game={entry} />
+                  </View>
+                ))
+              )}
+            </View>
           </View>
         );
 
@@ -689,10 +768,51 @@ export default function GameDetailScreen() {
         return (
           <View style={styles.tabBody}>
             {/*
+              Screenshots, first, and with no heading at all.
+
+              They were the seventh thing on this tab, below About, Studios,
+              Reviews, the insight widgets and the franchise rail — which put the
+              only *moving pictures of the game* below five blocks of type about
+              it. Somebody arriving on a page they have not played is asking what
+              it looks like before they ask what anybody thought, and a
+              horizontally scrolling strip answers that in one glance without
+              costing the tab a screenful.
+
+              The double exception to the `<InfoCard>` rule (CLAUDE.md): the art
+              is the content, so there is no frame around it — and now no title
+              above it either. A row of screenshots of a game, on that game's own
+              page, under its own key art, does not need a word telling you what
+              it is; every other section on this tab states its subject because
+              its subject is not visible from its contents. This one's is.
+            */}
+            {data.screenshots.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.shots}>
+                {data.screenshots.slice(0, 10).map((url, index) => (
+                  <Image
+                    key={url}
+                    source={{ uri: url }}
+                    style={[styles.shot, { backgroundColor: theme.surfaceElevated }]}
+                    contentFit="cover"
+                    transition={200}
+                    /* Announced as "Screenshot 3 of 8" rather than as eight
+                       unlabelled images in a row. */
+                    accessible
+                    accessibilityRole="image"
+                    accessibilityLabel={`Screenshot ${index + 1} of ${Math.min(data.screenshots.length, 10)} from ${data.title}`}
+                    accessibilityIgnoresInvertColors
+                  />
+                ))}
+              </ScrollView>
+            )}
+
+            {/*
               About leads the tab.
 
-              It used to sit seventh, under the diary, the storefronts, the
-              reviews and two insight widgets — so the first thing a reader met
+              It used to sit seventh, under the storefronts, the reviews and
+              two insight widgets — so the first thing a reader met
               on a page about a game was a row of prices, and the sentence saying
               what the game *is* was below the fold on every phone. What a thing
               is comes before what anyone thought of it and before what it costs;
@@ -748,8 +868,6 @@ export default function GameDetailScreen() {
               <GameDetailsSheet gameId={data.id} />
             )}
 
-            {diaryRow}
-
             {/*
               The platform and genre chip rows are gone.
               
@@ -762,8 +880,8 @@ export default function GameDetailScreen() {
               four appear together.
 
               What the two rows cost was the top of the Overview tab: two
-              wrapping rows of grey capsules between the diary and the first real
-              section, on the screen's most valuable strip.
+              wrapping rows of grey capsules above the first real section, on
+              the screen's most valuable strip.
             */}
 
             {/* Below About, not above it. This sat first for a while on the
@@ -772,6 +890,52 @@ export default function GameDetailScreen() {
                 synopsis is how anyone else decides. A page about a game opens on
                 what the game is; the price is the next question, not the first. */}
             <StorePrices gameId={data.id} title={data.title} steamAppId={data.steamAppId} />
+
+            {/*
+              Your copy, directly under where to buy one — the two answers to
+              "how do I get this" and "I already have it".
+
+              Only when you own one. For anybody who does not collect boxes a
+              card inviting them to add a copy would be a permanent fixture asking
+              for something they never do; the way in is "I own a copy" on the
+              Collect key, where the intent to *have* a game already lives. The
+              card is the quick view only — the release and the copy's state, one
+              line each — and the detail is behind it.
+            */}
+            {(myCopies.data?.length ?? 0) > 0 && userId && (
+              <InfoCardButton
+                title={myCopies.data!.length === 1 ? 'Your copy' : 'Your copies'}
+                accessibilityLabel={
+                  myCopies.data!.length === 1
+                    ? `Your copy: ${releaseLine(myCopies.data![0]) || 'release not recorded'}. Open it.`
+                    : `You own ${myCopies.data!.length} copies. Open them.`
+                }
+                onPress={() =>
+                  myCopies.data!.length === 1
+                    ? router.push({ pathname: '/copy/[id]', params: { id: myCopies.data![0].id } })
+                    : router.push({
+                        pathname: '/copies/[user]',
+                        params: { user: userId, game: data.id },
+                      })
+                }
+                action={<Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}>
+                <View style={styles.copyLines}>
+                  <Text variant="h4">
+                    {releaseLine(myCopies.data![0]) || 'Release not recorded'}
+                  </Text>
+                  {copyStateLine(myCopies.data![0]) && (
+                    <Text variant="body" color="textSecondary">
+                      {copyStateLine(myCopies.data![0])}
+                    </Text>
+                  )}
+                  {myCopies.data!.length > 1 && (
+                    <Text variant="caption" color="textMuted">
+                      {`and ${myCopies.data!.length - 1} more`}
+                    </Text>
+                  )}
+                </View>
+              </InfoCardButton>
+            )}
 
             {/*
               Three widgets, in the order the questions get asked.
@@ -804,6 +968,11 @@ export default function GameDetailScreen() {
               <TopReviewCard
                 /* `bare`: the card is already here. */
                 bare
+                /* Five, against the default three. This tab scrolls and this is
+                   the only review on it, so the clamp can afford to be a real
+                   sample rather than a taste — the three exists for Surprise Me,
+                   where the same card sits on a screen that must not scroll. */
+                lines={5}
                 review={topReview.data ?? null}
                 loading={topReview.isPending}
                 liked={topReview.data?.likedByViewer ?? false}
@@ -930,32 +1099,6 @@ export default function GameDetailScreen() {
               </InfoCard>
             )}
 
-            {data.screenshots.length > 0 && (
-              <View style={styles.section}>
-                <SectionHeader title="Screenshots" />
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.shots}>
-                  {data.screenshots.slice(0, 10).map((url, index) => (
-                    <Image
-                      key={url}
-                      source={{ uri: url }}
-                      style={[styles.shot, { backgroundColor: theme.surfaceElevated }]}
-                      contentFit="cover"
-                      transition={200}
-                      /* Announced as "Screenshot 3 of 8" rather than as eight
-                         unlabelled images in a row. */
-                      accessible
-                      accessibilityRole="image"
-                      accessibilityLabel={`Screenshot ${index + 1} of ${Math.min(data.screenshots.length, 10)} from ${data.title}`}
-                      accessibilityIgnoresInvertColors
-                    />
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
             {/* A failed fetch used to leave `achievementTotal` at 0 and take the
                 whole section with it — silently, and identically to a game that
                 genuinely tracks none. The count is the section's own claim, so
@@ -1070,6 +1213,78 @@ export default function GameDetailScreen() {
           title={data.title}>
           <GameReviewsSheet gameId={data.id} gameTitle={data.title} criticScore={data.score} />
         </SlideUpSheet>
+
+        {/*
+          The platform picker, raised by holding the case.
+
+          Half the display and no more (`maxHeightRatio`), because this is a
+          picker rather than a screen: four to seven buttons do not need the
+          whole page, and covering the page would hide the case the buttons
+          re-draw — which on a control whose entire result is *the artwork
+          changing* would leave nothing to look at while choosing.
+
+          Selecting closes it. The choice is immediately visible behind the
+          sheet's own fall, so leaving it open to admire the result would just
+          make every reader dismiss it by hand.
+        */}
+        {/*
+          Which collections hold this game, from the strip's second cell.
+
+          Full height, not the picker's half: there is nothing behind this sheet
+          to watch while it is open, and a collection row is a 96dp mosaic plus
+          four lines of text — at half the display that is two of them, for a list
+          whose entire point is how many there are.
+        */}
+        <SlideUpSheet
+          visible={listsOpen}
+          onClose={() => setListsOpen(false)}
+          title="In collections">
+          <GameListsSheet gameId={data.id} gameTitle={data.title} />
+        </SlideUpSheet>
+
+        {/*
+          Your progress, from the action row's progress key.
+
+          Most of the display but not all of it: seven choices and, once there
+          is a log, the detail under them, which is more than half a screen —
+          and the page behind is worth keeping in sight, because the key you
+          pressed and the case's printed back both change when you choose.
+        */}
+        <SlideUpSheet
+          visible={progressOpen}
+          onClose={() => setProgressOpen(false)}
+          title="Your progress"
+          maxHeightRatio={0.85}>
+          <ProgressSheet
+            game={data}
+            log={logged ?? null}
+            onClose={() => setProgressOpen(false)}
+            onOpenPlaythroughs={() => {
+              setProgressOpen(false);
+              router.push({ pathname: '/playthroughs/[game]', params: { game: data.id } });
+            }}
+          />
+        </SlideUpSheet>
+
+        <SlideUpSheet
+          visible={platformsOpen}
+          onClose={() => setPlatformsOpen(false)}
+          title="Platform"
+          maxHeightRatio={0.5}>
+          <View style={styles.platformSheet}>
+            <Text variant="bodySmall" color="textMuted">
+              Re-draws the case, the price and the store link.
+            </Text>
+            <PlatformPicker
+              available={availablePlatforms}
+              selected={activePlatform}
+              onSelect={(next) => {
+                setPlatform(next);
+                setPlatformsOpen(false);
+              }}
+            />
+          </View>
+        </SlideUpSheet>
       </>
     </AccentProvider>
   );
@@ -1077,6 +1292,9 @@ export default function GameDetailScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
+  /* The sheet's own inset. `<SlideUpSheet>` pads nothing — it owns the corner
+     and the grabber and leaves the body to whatever fills it. */
+  platformSheet: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x8, gap: Spacing.x16 },
   /* A list inside one card, so the interval is a list's rather than a card's. */
   studios: { gap: Spacing.x4 },
   studioRow: { paddingVertical: Spacing.x4 },
@@ -1092,8 +1310,8 @@ const styles = StyleSheet.create({
    * `five` between groups, not `four` between every child.
    *
    * The masthead used one 16dp gap for all seven siblings, which is the failure
-   * where a single repeated interval gives hero, identity, status, actions and
-   * diary exactly equal weight. Three groups separated generously, tight
+   * where a single repeated interval gives hero, identity, status and actions
+   * exactly equal weight. Three groups separated generously, tight
    * inside — the rhythm now says what belongs with what.
    */
   header: { gap: Spacing.x24, paddingHorizontal: Spacing.x16, marginBottom: Spacing.x24 },
@@ -1122,10 +1340,6 @@ const styles = StyleSheet.create({
      lower half of the case, where it reads as ordinary margin. */
   identity: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x16 },
   identityText: { flex: 1, gap: Spacing.x8 },
-  /* Its own group at the page's full width, one step of the header's rhythm
-     away from the identity row above and the record below. */
-  availability: { gap: Spacing.x12 },
-  record: { gap: Spacing.x12 },
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
   myLog: {
@@ -1146,6 +1360,11 @@ const styles = StyleSheet.create({
     gap: Spacing.x8,
   },
   tabBody: { padding: Spacing.x16, gap: Spacing.x16 },
+  copyLines: { gap: 2 },
+  /* A step more than the tab's own rhythm between the community's list and
+     IGDB's, so they read as two sections rather than one list with a break. */
+  similarSection: { gap: Spacing.x12, marginTop: Spacing.x24 },
+  similarHead: { gap: 2 },
   reviewRow: { marginBottom: Spacing.x12 },
   seeAll: {
     flexDirection: 'row',
@@ -1156,7 +1375,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.control,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  section: { gap: Spacing.x12 },
   shots: { gap: Spacing.x12, paddingRight: Spacing.x16 },
   shot: { width: 260, aspectRatio: HeroAspectRatio, borderRadius: Radius.image },
 });

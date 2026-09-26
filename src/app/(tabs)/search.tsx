@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, keepPreviousData, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -89,6 +90,7 @@ const SCOPES = [
  */
 export default function SearchScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id);
 
@@ -281,6 +283,20 @@ export default function SearchScreen() {
                 onPress={() => setInput('')}
                 scaleTo={0.85}>
                 <Ionicons name="close-circle" size={20} color={theme.textMuted} />
+              </PressableScale>
+            ) : scope === 'games' && input.length === 0 ? (
+              /* The third job for this slot, and only while it is otherwise
+                 empty: search by the box in your hand. A barcode resolves to a
+                 specific release rather than a title, so it is its own screen
+                 (`/scan`) rather than a mode of this one — and a field with a
+                 query in it has no use for the button. */
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Scan a game's barcode"
+                onPress={() => router.push('/scan')}
+                hitSlop={Spacing.x8}
+                scaleTo={0.85}>
+                <Ionicons name="barcode-outline" size={22} color={theme.textSecondary} />
               </PressableScale>
             ) : undefined
           }

@@ -20,6 +20,12 @@ deployed, and no Steam Web API key has been obtained.
 | `0001` – `0011` | **Applied** |
 | `0012_starred_song` | **Outstanding** — one pinned track per profile |
 | `0013_discovery` | **Outstanding** — likes on collections + the five ranking functions behind the search tabs |
+| `0014` – `0021` | **Outstanding** — list covers, award shows, editions, collection comments, captioned boards, soundtrack cache, spoilers |
+| `0022_paused_status` | **Outstanding** — adds an enum value; run it **on its own** |
+| `0023_play_progress` | **Outstanding** — completion level, co-op, playthroughs. The log form cannot save without it |
+| `0024_physical_releases` | **Outstanding** — releases, barcodes, community claims, moderators, physical copies |
+| `0025_community_similarity` | **Outstanding** — community similar games, votes, reports |
+| `0026_review_stats` | **Outstanding** — the reviews sheet's breakdown and platform filter |
 
 Historical note worth keeping: `0006` had to be a **separate execution** from
 `0007`. Postgres refuses to let a new enum value be *used* in the transaction
@@ -46,10 +52,13 @@ supabase functions deploy steam-auth  --project-ref uhlbjqbgmcvyhimatatj --use-a
 ```
 
 - **`igdb` redeploy** unlocks the News *Events* tab (`events`), the game Overview
-  *Cast* section (`characters`) and the real Top 10 ranking
-  (`popularity_primitives`). The first two are silently empty until then; the
-  Top 10 falls back to the most-rated releases of the past year and says so in
-  its footnote.
+  *Cast* section (`characters`), the real Top 10 ranking
+  (`popularity_primitives`) and **time to beat** (`game_time_to_beats` — the
+  plural; the singular path it used to call 404s at IGDB, which is why an
+  earlier redeploy did not bring it back). The first two are silently empty
+  until then; the Top 10 falls back to the most-rated releases of the past year
+  and says so in its footnote; the stats strip labels time to beat
+  "unavailable".
 - **`steam-auth` needs `--no-verify-jwt`** — Steam's OpenID return is a browser
   redirect with no Authorization header, so the gateway would reject it. Each leg
   authenticates itself instead (Bearer token to start, single-use nonce to
@@ -118,12 +127,38 @@ question rather than a news one.
 **Linked accounts** — Steam via OpenID, as one implementation of a generic
 provider (see below). Library, achievements, inventory, badges, friends.
 
-**Diary** — per-game dated notes, surfaced on the wall and reachable from a game
-page, a library cover, or a wall row.
+**Per-game stats** — one person's record of one game: their log, plus Steam's
+measured playtime and achievements. Reached from a library cover or the Steam
+rail on a profile. This is what is left of the **diary**, which was per-game
+dated notes and has been removed — see PRODUCT.md. The stats screen was the
+diary route's second tab and outlived it; `diary_entries` still exists in
+Postgres and nothing reads it.
 
 **Starred song** — one track from a game soundtrack, pinned to a profile and
 playable there. The limit of one is enforced by the primary key on `user_id`,
 not by the client.
+
+**Built, awaiting migrations `0022`–`0026` and a pass on a device** — typed,
+linted and tested against Postgres (PGlite, every migration applied in order),
+but not yet run on a phone:
+
+- **Progress** — seven choices (want to play, playing, paused, completed,
+  100%, played, dropped) with story / main + extras under "completed", a
+  progress sheet on the game page, and **multiple playthroughs** per game, each
+  with its own platform, dates, completion and hours.
+- **Community similar games** — recommend a game as like another, with up to four
+  of twelve reasons and a line of text; vote, report, and a moderation queue.
+  Shown beside IGDB's similar games, never mixed into them.
+- **Filterable reviews** — platform family, progress, solo / co-op and score,
+  composed on the server, plus a breakdown of Gamelog's own average by each.
+  Reviews carry their context ("Completed · 4-player co-op").
+- **Barcode scanning** — the camera reads EAN-13, EAN-8, UPC-A and UPC-E, with
+  typed entry when the camera is denied or missing.
+- **A community release database** — an unknown barcode can be submitted with
+  photos; it becomes canonical when a second person confirms it or a moderator
+  approves it.
+- **Physical copies** — a copy of a specific release, with completeness and
+  condition recorded separately. No prices, anywhere.
 
 ---
 
@@ -136,8 +171,8 @@ npm start                 # scan the QR with Expo Go
 ```
 
 `0001`–`0011` are already applied to the project database. A fresh Supabase
-project needs them run in order, and `0006` must run alone — see the table above.
-`0012_starred_song` and `0013_discovery` are still outstanding everywhere.
+project needs them run in order, and `0006`, `0015`, `0019` and `0022` must each
+run alone — see the table above. `0012` onwards are still outstanding everywhere.
 
 Test on a **phone or emulator**, not the browser — see the Steam/CORS note below.
 
@@ -237,7 +272,16 @@ into Postgres — so a 50-item feed is one query, not 50 calls to IGDB.
 profiles              username, display_name, avatar_url, banner_url, bio, steam_id
 games                 id ('igdb:1029'), source, title, cover_url, hero_url, …
 logs                  status, rating (0-100), review, review_metrics (jsonb),
-                      completion_percent, platinum, hours_played, played_on
+                      completion_percent, platinum, hours_played, played_on,
+                      completion (story|main|full), coop, player_count
+playthroughs          one run of a game; child of its log (user_id, game_id)
+game_releases         a game on one platform / region / edition
+release_barcodes      GTIN-14 → release; the primary key is the duplicate check
+release_contributions community claims about a barcode, and their photos
+owned_copies          one person's copy: release, completeness, condition
+moderators            who may approve claims and restore reported pairs
+game_similarities     community "like this" pairs (game_a < game_b), with
+                      votes (reasons, comment) and private reports
 follows               follower_id, following_id
 friendships           ordered pair (user_a < user_b), status, requested_by
 wall_posts            wall_owner_id, author_id, body
@@ -249,7 +293,7 @@ notifications         trigger-written only; no client INSERT policy
 events / event_attendance
 game_achievements / user_achievements
 gaming_*              linked accounts — see below
-diary_entries         user_id, game_id, body, entry_date
+diary_entries         removed from the app; table left in place, like `posts`
 starred_songs         user_id PK (one per profile), track_id, title, artist,
                       artwork_url, preview_url, game_title
 likes                 polymorphic over (target_type, target_id):
@@ -299,6 +343,12 @@ owner. **Any new table needs its policies written in the same migration.**
 Secrets that cannot ship in a bundle live as Supabase Edge Function secrets:
 `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` (IGDB) and `STEAM_API_KEY`.
 
+Community data is never canonical on submission. The release tables have no
+client write policies at all; claims go through SECURITY DEFINER functions that
+check the caller, rate-limit, and require a second person or a moderator.
+Moderators are rows in `public.moderators`, added from the SQL editor:
+`insert into public.moderators (user_id) select id from public.profiles where username = '…';`
+
 ---
 
 ## Roadmap
@@ -331,6 +381,12 @@ Secrets that cannot ship in a bundle live as Supabase Edge Function secrets:
   by construction, but the cost grows with each activity source.
 - Achievement scans process 15 games per run and resume across sessions, so a
   900-game library takes several passes to fill in.
+- **Release consensus is two accounts.** Two people agreeing is what makes a
+  claim canonical without a moderator, so two colluding accounts can canonise a
+  wrong release; moderation is the remedy, not a prevention.
+- **Claim photos upload before the claim is filed.** If the database then
+  refuses the claim (a rate limit, a duplicate), the photos stay in storage under
+  the submitter's own folder with nothing pointing at them.
 - No offline support.
 - `database.types.ts` is hand-written and must be kept in sync with the SQL by
   hand — including `Relationships`, which supabase-js needs to type embedded

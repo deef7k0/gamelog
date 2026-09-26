@@ -113,7 +113,16 @@ export default function ListDetailScreen() {
 
   const remove = useMutation({
     mutationFn: (gameId: string) => removeFromList(id!, gameId),
-    onSuccess: invalidate,
+    onSuccess: (_result, gameId) => {
+      invalidate();
+      /* The removed game's own page counts the collections it is in and lists
+         them. Keyed by game, so `['lists']` above does not reach them — and this
+         is the only screen that can take a game *off* a shelf. Not folded into
+         `invalidate()`: the other two callers (reorder, cover, caption) change
+         nothing about which lists hold what. */
+      queryClient.invalidateQueries({ queryKey: ['game-list-count', gameId] });
+      queryClient.invalidateQueries({ queryKey: ['game-lists', gameId] });
+    },
   });
 
   /**

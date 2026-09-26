@@ -4,13 +4,16 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
+import { ReviewBreakdown } from '@/components/review-breakdown';
 import { ReviewCard } from '@/components/review-card';
+import { Button } from '@/components/ui/button';
 import { ScoreTile } from '@/components/ui/score-tile';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
 import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { PLATFORM_FAMILIES, familyForStored } from '@/constants/platform-family';
 import { ratingVerdict } from '@/constants/score';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -18,24 +21,36 @@ import { useLikeToggle } from '@/hooks/use-like-toggle';
 import {
   getGameReviewList,
   getRatingBreakdown,
-  getReviewPlatforms,
-  type ReviewFilters,
+  getReviewStats,
   type ReviewListItem,
   type ReviewSort,
 } from '@/lib/api';
+import {
+  PLAY_FILTERS,
+  PROGRESS_FILTERS,
+  platformFacets,
+  reviewBreakdown,
+  type ReviewFilters,
+  type ReviewPlayFilter,
+  type ReviewProgressFilter,
+} from '@/lib/review-facets';
 import { useAuth } from '@/store/auth';
 
 /**
  * How much of a review the list prints.
  *
- * Eight, against the three `<TopReviewCard>` shows on Overview, and the
- * difference is deliberate: that card is a sample offered to somebody reading
- * about a game, this is the screen they opened *because* they want the reviews.
- * Eight lines is most of a short review and enough of a long one to tell whether
- * the writer has a point — and it is a clamp rather than a target, so the row
- * stays a fixed, scannable height.
+ * Ten, against the five `<TopReviewCard>` shows on Overview and the five in the
+ * feed, and the difference is deliberate: those are samples offered to somebody
+ * reading about a game or scrolling past one, and this is the screen they opened
+ * *because* they want the reviews. Ten lines is most of a short review and enough
+ * of a long one to tell whether the writer has a point — and it is a clamp rather
+ * than a target, so the row stays a fixed, scannable height.
+ *
+ * None of the three expand in place. A clamp that can be opened makes a row in a
+ * scrolling list change height under the thumb; the review's own page is the
+ * screen with no clamp at all.
  */
-const REVIEW_LINES = 8;
+const REVIEW_LINES = 10;
 
 const SORTS: readonly SortOption<ReviewSort>[] = [
   { key: 'popular', label: 'Most liked' },
@@ -60,6 +75,18 @@ const SCORES: readonly { key: string; label: string; min: number | null; max: nu
   { key: '60', label: '60+', min: 60, max: null },
   { key: 'low', label: 'Below 60', min: null, max: 59 },
 ];
+
+const ANY = { key: 'any', label: 'Any' } as const;
+
+const PROGRESS_OPTIONS: readonly SortOption<ReviewProgressFilter | 'any'>[] = [
+  ANY,
+  ...PROGRESS_FILTERS,
+];
+
+const PLAY_OPTIONS: readonly SortOption<ReviewPlayFilter | 'any'>[] = [ANY, ...PLAY_FILTERS];
+
+/** A stored platform → its family's key: the resolver `review-facets` folds by. */
+const familyKeyOf = (stored: string) => familyForStored(stored)?.key ?? null;
 
 /** The bar's three segments, in the order they are drawn. */
 const SEGMENTS = [
@@ -91,17 +118,55 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
 
   const [sort, setSort] = useState<ReviewSort>('popular');
   const [score, setScore] = useState('any');
-  const [platform, setPlatform] = useState<string | null>(null);
-  const [platinumOnly, setPlatinumOnly] = useState(false);
+  /** A platform family's key — "playstation" — or "other". */
+  const [family, setFamily] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ReviewProgressFilter | null>(null);
+  const [play, setPlay] = useState<ReviewPlayFilter | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  /* Gamelog's own numbers for this game (0026), and the platforms the list can
+     be narrowed to. Independent of the filters, like the histogram below: the
+     breakdown is what the game scored, and re-drawing it for "Co-op" would
+     print one row and call it the verdict. */
+  const stats = useQuery({
+    queryKey: ['review-stats', gameId],
+    queryFn: () => getReviewStats(gameId),
+    staleTime: 60_000,
+  });
+
+  const facets = useMemo(
+    () => platformFacets(stats.data?.written_platforms ?? [], PLATFORM_FAMILIES, familyKeyOf),
+    [stats.data]
+  );
+  const sections = useMemo(
+    () => (stats.data ? reviewBreakdown(stats.data, PLATFORM_FAMILIES, familyKeyOf) : []),
+    [stats.data]
+  );
 
   const band = SCORES.find((entry) => entry.key === score) ?? SCORES[0];
   const filters: ReviewFilters = useMemo(
-    () => ({ platform, minScore: band.min, maxScore: band.max, platinumOnly }),
-    [platform, band.min, band.max, platinumOnly]
+    () => ({
+      /* Every spelling the family was recorded under. A family that has since
+         lost its last review sends an empty list, which finds nothing — rather
+         than quietly widening to every platform under a pill that says one. */
+      platforms: family ? (facets.find((facet) => facet.key === family)?.values ?? []) : null,
+      minScore: band.min,
+      maxScore: band.max,
+      progress,
+      play,
+    }),
+    [family, facets, band.min, band.max, progress, play]
   );
 
-  const activeFilters = (platform ? 1 : 0) + (score !== 'any' ? 1 : 0) + (platinumOnly ? 1 : 0);
+  const activeFilters =
+    (family ? 1 : 0) + (score !== 'any' ? 1 : 0) + (progress ? 1 : 0) + (play ? 1 : 0);
+
+  function clearFilters() {
+    setFamily(null);
+    setScore('any');
+    setProgress(null);
+    setPlay(null);
+  }
 
   const reviews = useQuery({
     queryKey: ['game-review-list', gameId, sort, filters, viewerId],
@@ -119,12 +184,6 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
     staleTime: 60_000,
   });
 
-  const platforms = useQuery({
-    queryKey: ['review-platforms', gameId],
-    queryFn: () => getReviewPlatforms(gameId),
-    staleTime: 5 * 60_000,
-  });
-
   const header = (
     <View style={styles.header}>
       <Text variant="h1" numberOfLines={2}>
@@ -135,6 +194,12 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
       </Text>
 
       <ScoreSummary breakdown={breakdown.data ?? null} loading={breakdown.isPending} />
+
+      <ReviewBreakdown
+        sections={sections}
+        failed={stats.isError}
+        onRetry={() => void stats.refetch()}
+      />
 
       {criticScore !== null && (
         <View style={[styles.critics, { borderTopColor: theme.border }]}>
@@ -192,59 +257,56 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
         </PressableScale>
       </View>
 
+      {/* Four questions, each one choice, and they compose: PC + Finished +
+          Co-op is three clauses on one request (`lib/review-facets.ts`). The
+          platforms offered are only the families somebody has reviewed this
+          game on; the other three are fixed vocabularies, and one that finds
+          nothing says so in the list below. */}
       {filtersOpen && (
         <View style={styles.filters}>
-          <View style={styles.filterGroup}>
-            <Text variant="label" color="textMuted">
-              SCORE
-            </Text>
+          <FilterGroup label="SCORE">
             <SortBar
               options={SCORES.map(({ key, label }) => ({ key, label }))}
               value={score}
               onChange={setScore}
               accessibilityLabel="Filter by score"
             />
-          </View>
+          </FilterGroup>
 
-          {(platforms.data ?? []).length > 0 && (
-            <View style={styles.filterGroup}>
-              <Text variant="label" color="textMuted">
-                PLATFORM
-              </Text>
+          {facets.length > 0 && (
+            <FilterGroup label="PLATFORM">
               <SortBar
-                options={[
-                  { key: 'any', label: 'Any' },
-                  ...(platforms.data ?? []).map((name) => ({ key: name, label: name })),
-                ]}
-                value={platform ?? 'any'}
-                onChange={(key) => setPlatform(key === 'any' ? null : key)}
+                options={[ANY, ...facets.map(({ key, label }) => ({ key, label }))]}
+                value={family ?? 'any'}
+                onChange={(key) => setFamily(key === 'any' ? null : key)}
                 accessibilityLabel="Filter by platform"
               />
-            </View>
+            </FilterGroup>
           )}
 
-          <PressableScale
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: platinumOnly }}
-            accessibilityLabel="Platinum runs only"
-            onPress={() => setPlatinumOnly((value) => !value)}
-            scaleTo={0.98}
-            style={StyleSheet.flatten([
-              styles.toggle,
-              {
-                backgroundColor: platinumOnly ? theme.surfaceSelected : theme.surfaceElevated,
-                borderColor: platinumOnly ? theme.borderStrong : theme.border,
-              },
-            ])}>
-            <Ionicons
-              name={platinumOnly ? 'checkbox' : 'square-outline'}
-              size={19}
-              color={platinumOnly ? theme.platinum : theme.textMuted}
+          <FilterGroup label="PROGRESS">
+            <SortBar
+              options={PROGRESS_OPTIONS}
+              value={progress ?? 'any'}
+              onChange={(key) => setProgress(key === 'any' ? null : key)}
+              accessibilityLabel="Filter by how far the reviewer got"
             />
-            <Text variant="body" color={platinumOnly ? 'text' : 'textSecondary'}>
-              Platinum runs only
-            </Text>
-          </PressableScale>
+          </FilterGroup>
+
+          <FilterGroup label="SOLO OR CO-OP">
+            <SortBar
+              options={PLAY_OPTIONS}
+              value={play ?? 'any'}
+              onChange={(key) => setPlay(key === 'any' ? null : key)}
+              accessibilityLabel="Filter by solo or co-op"
+            />
+          </FilterGroup>
+
+          {activeFilters > 0 && (
+            <View style={styles.clear}>
+              <Button title="Clear filters" variant="ghost" size="small" onPress={clearFilters} />
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -276,10 +338,27 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
                 ? 'Loosen one of them, or clear them to see everything written about this game.'
                 : 'Nobody here has written about this one.'
             }
+            action={
+              activeFilters > 0 ? (
+                <Button title="Clear filters" variant="secondary" onPress={clearFilters} />
+              ) : undefined
+            }
           />
         )
       }
     />
+  );
+}
+
+/** One labelled filter question. */
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.filterGroup}>
+      <Text variant="label" color="textMuted" accessibilityRole="header">
+        {label}
+      </Text>
+      {children}
+    </View>
   );
 }
 
@@ -383,12 +462,7 @@ function ScoreSummary({
  * these. The column is the honest trade: the tile and the prose still share a
  * top edge and still sit under the name, which is what the sketch was after.
  *
- * ## Why the body is six lines
- *
- * Because this is the list you open *to read reviews*, as opposed to the single
- * card on Overview where two lines are a taste. Six is roughly a paragraph —
- * enough to tell whether the writer has a point — and the row stays a fixed,
- * scannable height because it is a clamp rather than a target.
+ * How much of the review it prints is `REVIEW_LINES`, which says why.
  */
 function ReviewRow({ item, onPress }: { item: ReviewListItem; onPress: () => void }) {
   const { log } = item;
@@ -478,35 +552,7 @@ const styles = StyleSheet.create({
   },
   filters: { gap: Spacing.x16, marginTop: Spacing.x8 },
   filterGroup: { gap: Spacing.x8 },
-  toggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
+  clear: { alignItems: 'flex-start' },
   rowWrap: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12 },
   rowCard: { padding: Spacing.x12, gap: Spacing.x8 },
-  whoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  /* `flex: 1`, not `flexShrink` — it has to *take* the free space so the
-     timestamp is pushed to the right edge rather than sitting next to the name
-     on a short one. Truncation on a long name still works, because a flex child
-     may shrink below its content width. */
-  name: { flex: 1 },
-  /* `alignItems: 'flex-start'`, so a short review leaves the tile at the top
-     rather than floating it in the middle of the row. */
-  body: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x12 },
-  prose: { flex: 1 },
-  engagement: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16 },
-  /* Slop, not padding: an 18dp glyph would be a 22dp target, and the row's
-     height is set by the card. `TapTarget - Spacing.x16` is the same figure
-     `<TopReviewCard>` uses for the identical pair of controls. */
-  engageButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x4,
-    minHeight: TapTarget - Spacing.x16,
-    paddingRight: Spacing.x8,
-  },
 });

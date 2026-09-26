@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 
+import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
 import { GameCaseDisplay } from '@/components/game-case-display';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -29,20 +30,42 @@ import { ScoreInput } from '@/components/ui/score-input';
 import { SelectField, type SelectOption } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { PLATFORMS, platformKeysFor } from '@/constants/platform-cases';
-import { LOG_STATUSES, STATUS_ICON, STATUS_LABEL, statusColor } from '@/constants/status';
+import {
+  COMPLETION_LABEL,
+  PROGRESS_CHOICES,
+  PROGRESS_META,
+  progressChoiceFor,
+  type ProgressChoice,
+} from '@/constants/progress';
+import { statusColor } from '@/constants/status';
 import { averageMetrics, countMetrics, parseReviewMetrics } from '@/constants/review-metrics';
 import { Radius, Spacing, TapTarget, Type, readableInk, withAlpha } from '@/constants/theme';
 import { AccentProvider } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteLog, getMyLog, saveLog } from '@/lib/api';
-import type { GameLog, LogStatus } from '@/lib/database.types';
+import type { CompletionLevel, GameLog } from '@/lib/database.types';
 import { getGameById, type Game } from '@/lib/games';
 import { clearDraft, loadDraft, saveDraft, type LogDraft } from '@/lib/log-draft';
+import { platformOptionsFor } from '@/lib/platform-options';
+import { PLAY_FILTERS, type ReviewPlayFilter } from '@/lib/review-facets';
 import { useAuth } from '@/store/auth';
 
 /** How long the form waits after the last keystroke before writing a draft. */
 const DRAFT_DEBOUNCE_MS = 800;
+
+/** Solo or co-op, in the words the review list filters by. */
+const PLAY_CHOICES = PLAY_FILTERS.map(({ key, label }) => ({ value: key, label }));
+
+/** 2 to 16 — the range 0023's CHECK allows. */
+const PLAYER_OPTIONS: SelectOption[] = Array.from({ length: 15 }, (_, index) => ({
+  value: String(index + 2),
+  label: `${index + 2} players`,
+}));
+
+/** The saved play type as the form holds it: '' is "didn't say". */
+function playFrom(coop: boolean | null | undefined): ReviewPlayFilter | '' {
+  return coop === true ? 'coop' : coop === false ? 'solo' : '';
+}
 
 export default function LogGameScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -130,17 +153,49 @@ type LogFormProps = {
 
 /** Everything the dirty check and the draft both care about, as one comparable value. */
 type FormValues = {
-  status: LogStatus;
+  progress: ProgressChoice;
+  /** For `completed` only: how far past the credits. */
+  level: 'story' | 'main';
   rating: number | null;
   advanced: boolean;
   metricDraft: ReviewMetricsDraft;
   reviewTitle: string;
   review: string;
   platinum: boolean;
-  completed: boolean;
+  /** The author says this review gives something away. */
+  spoilers: boolean;
   hours: string;
   playedOn: string;
+  /** Solo or co-op, or '' for "didn't say". */
+  play: ReviewPlayFilter | '';
+  /** How many played, for co-op only: '' or '2'…'16'. */
+  players: string;
 };
+
+/**
+ * A draft's progress, whichever shape it was saved in.
+ *
+ * Drafts written before the progress sheet hold a four-value `status` and a
+ * `completed` flag for the old "Completed 100%" toggle. Read into the seven
+ * choices so a review someone left half-written last month comes back with the
+ * progress they had picked, rather than silently reset to "Played".
+ */
+function progressFromDraft(draft: LogDraft): ProgressChoice | null {
+  const known = PROGRESS_CHOICES.find((choice) => choice.key === draft.progress);
+  if (known) return known.key;
+  if (draft.completed) return 'full';
+  switch (draft.status) {
+    case 'playing':
+    case 'backlog':
+    case 'dropped':
+    case 'paused':
+      return draft.status;
+    case 'played':
+      return 'played';
+    default:
+      return null;
+  }
+}
 
 /*
  * A stable string for a set of form values.
@@ -156,16 +211,19 @@ function signature(values: FormValues): string {
     .join(',');
 
   return [
-    values.status,
+    values.progress,
+    values.level,
     values.rating ?? '',
     values.advanced,
     metrics,
     values.reviewTitle.trim(),
     values.review.trim(),
     values.platinum,
-    values.completed,
+    values.spoilers,
     values.hours.trim(),
     values.playedOn.trim(),
+    values.play,
+    values.players,
   ].join('|');
 }
 
@@ -185,8 +243,11 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
 
   /* The draft wins on mount when there is one — it is by definition newer than
      the saved log, and it is the work the user has not been given back yet. */
-  const [status, setStatus] = useState<LogStatus>(
-    (draft?.status as LogStatus | undefined) ?? existing?.status ?? 'played'
+  const [progress, setProgress] = useState<ProgressChoice>(
+    () => (draft && progressFromDraft(draft)) ?? progressChoiceFor(existing) ?? 'played'
+  );
+  const [level, setLevel] = useState<'story' | 'main'>(() =>
+    (draft?.level ?? existing?.completion) === 'main' ? 'main' : 'story'
   );
   const [rating, setRating] = useState<number | null>(draft?.rating ?? existing?.rating ?? null);
   const [advanced, setAdvanced] = useState(draft?.advanced ?? savedMetrics !== null);
@@ -198,47 +259,27 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
   );
   const [review, setReview] = useState(draft?.review ?? existing?.review ?? '');
   const [platinum, setPlatinum] = useState(draft?.platinum ?? existing?.platinum ?? false);
-  const [completed, setCompleted] = useState(
-    draft?.completed ?? existing?.completion_percent === 100
-  );
+  const [spoilers, setSpoilers] = useState(draft?.spoilers ?? existing?.spoilers ?? false);
   const [hours, setHours] = useState(
     draft?.hours ?? (existing?.hours_played != null ? String(existing.hours_played) : '')
   );
   const [playedOn, setPlayedOn] = useState(draft?.playedOn ?? existing?.played_on ?? '');
+  /* Drafts from before 0023 have neither key, and fall through to the log. */
+  const [play, setPlay] = useState<ReviewPlayFilter | ''>(() =>
+    draft?.play === 'solo' || draft?.play === 'coop' || draft?.play === ''
+      ? draft.play
+      : playFrom(existing?.coop)
+  );
+  const [players, setPlayers] = useState(
+    draft?.players ?? (existing?.player_count != null ? String(existing.player_count) : '')
+  );
 
-  /*
-   * What this game can honestly have been played on.
-   *
-   * Sourced from the game's own platform list, so the choices are the release's
-   * and not a global menu. The stored value is the short form ("PS5") — it is
-   * what the case's printed back and a feed row have room for — while the sheet
-   * shows the full name, which is what a person picking one needs to read.
-   *
-   * A value saved before this field was constrained is kept and offered as-is.
-   * Dropping it would rewrite someone's own record to make the new control look
-   * tidy, which is the one outcome worse than the typo it was built to prevent.
-   */
-  const platformOptions = useMemo<SelectOption[]>(() => {
-    const options: SelectOption[] = platformKeysFor(game.platforms).map((key) => ({
-      value: PLATFORMS[key].short,
-      label: PLATFORMS[key].label,
-      icon: PLATFORMS[key].icon,
-      tint: PLATFORMS[key].accent,
-    }));
-
-    const saved = existing?.played_on?.trim();
-    if (saved && !options.some((option) => option.value === saved)) {
-      options.push({
-        value: saved,
-        label: saved,
-        icon: 'game-controller',
-        tint: theme.textSecondary,
-        foreign: true,
-      });
-    }
-
-    return options;
-  }, [game.platforms, existing?.played_on, theme.textSecondary]);
+  /* What this game can honestly have been played on. See `platformOptionsFor`
+     for why the stored value is the short form and a legacy value is kept. */
+  const platformOptions = useMemo<SelectOption[]>(
+    () => platformOptionsFor(game.platforms, existing?.played_on, theme.textSecondary),
+    [game.platforms, existing?.played_on, theme.textSecondary]
+  );
 
   /*
    * The score is derived during render, never synced into state by an effect
@@ -255,32 +296,38 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
   const writingReview = !!reviewTitle.trim() || !!review.trim();
 
   const values: FormValues = {
-    status,
+    progress,
+    level,
     rating,
     advanced,
     metricDraft,
     reviewTitle,
     review,
     platinum,
-    completed,
+    spoilers,
     hours,
     playedOn,
+    play,
+    players,
   };
 
   /* Measured against the *saved log*, not against the draft: the question the
      discard prompt and the draft writer both ask is "is there work here that
      Postgres does not have", and a restored draft is exactly that. */
   const baseline: FormValues = {
-    status: existing?.status ?? 'played',
+    progress: progressChoiceFor(existing) ?? 'played',
+    level: existing?.completion === 'main' ? 'main' : 'story',
     rating: existing?.rating ?? null,
     advanced: savedMetrics !== null,
     metricDraft: draftFromMetrics(savedMetrics),
     reviewTitle: existing?.review_title ?? '',
     review: existing?.review ?? '',
     platinum: existing?.platinum ?? false,
-    completed: existing?.completion_percent === 100,
+    spoilers: existing?.spoilers ?? false,
     hours: existing?.hours_played != null ? String(existing.hours_played) : '',
     playedOn: existing?.played_on ?? '',
+    play: playFrom(existing?.coop),
+    players: existing?.player_count != null ? String(existing.player_count) : '',
   };
 
   const dirty = signature(values) !== signature(baseline);
@@ -324,6 +371,10 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     queryClient.invalidateQueries({ queryKey: ['profile-stats', userId] });
     queryClient.invalidateQueries({ queryKey: ['achievement-stats', userId] });
     queryClient.invalidateQueries({ queryKey: ['completions', userId] });
+    // The reviews sheet: its list, its histogram and its breakdown all read this log.
+    queryClient.invalidateQueries({ queryKey: ['game-review-list', game.id] });
+    queryClient.invalidateQueries({ queryKey: ['rating-breakdown', game.id] });
+    queryClient.invalidateQueries({ queryKey: ['review-stats', game.id] });
   }
 
   const save = useMutation({
@@ -343,18 +394,49 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
         throw new Error('Score a metric, or untick advanced metrics to keep your score.');
       }
 
+      /*
+       * The progress choice becomes a status and a completion level, the same
+       * pair the progress sheet writes (`progressPatch`) — with one addition:
+       * a platinum is everything, so it is always `full`, as the 0023 backfill
+       * read it.
+       *
+       * The percentage is not this form's to clear. It used to be written as
+       * `100` or `null` from a single toggle, which was harmless while that
+       * toggle was the only thing that set it — and now erases the "73%" the
+       * progress sheet recorded the moment a review is saved. So it is 100 when
+       * the game is 100%, cleared only when it *was* 100 and no longer is, and
+       * otherwise left as it stood.
+       */
+      const completion: CompletionLevel | null = platinum
+        ? 'full'
+        : progress === 'full'
+          ? 'full'
+          : progress === 'completed'
+            ? level
+            : progress === 'played'
+              ? null
+              : (existing?.completion ?? null);
+
       await saveLog(userId, {
         game,
-        status,
+        status: PROGRESS_META[progress].status,
         rating: effectiveRating,
         reviewMetrics: advanced ? metrics : null,
         reviewTitle,
         review,
         platinum,
-        // A platinum implies a full clear, so record 100% either way.
-        completionPercent: completed || platinum ? 100 : null,
+        spoilers,
+        completion,
+        completionPercent:
+          completion === 'full'
+            ? 100
+            : existing?.completion_percent === 100
+              ? null
+              : (existing?.completion_percent ?? null),
         hoursPlayed: parsedHours,
         playedOn: playedOn.trim() || null,
+        coop: play === '' ? null : play === 'coop',
+        playerCount: play === 'coop' && players ? Number(players) : null,
       });
 
       if (userId) await clearDraft(userId, game.id);
@@ -552,20 +634,28 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
             </View>
           )}
 
+          {/*
+            Progress — the same seven choices as the game page's progress sheet
+            (`constants/progress.ts`), so the two places a log is written speak
+            one vocabulary. It was four statuses here and a "Completed 100%"
+            toggle further down, which could not say "I finished the story" at
+            all, and could say "dropped, 100% complete" without complaint.
+          */}
           <View style={styles.section}>
             <Text variant="label" color="textMuted" accessibilityRole="header">
-              Status
+              Progress
             </Text>
             <View style={styles.statuses}>
-              {LOG_STATUSES.map((option) => {
-                const selected = status === option;
-                const tint = statusColor(option, theme);
+              {PROGRESS_CHOICES.map((option) => {
+                const selected = progress === option.key;
+                const tint = statusColor(option.status, theme);
                 return (
                   <Pressable
-                    key={option}
-                    onPress={() => setStatus(option)}
+                    key={option.key}
+                    onPress={() => setProgress(option.key)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
+                    accessibilityHint={option.hint}
                     style={[
                       styles.status,
                       {
@@ -573,23 +663,52 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
                         borderColor: selected ? tint : theme.border,
                       },
                     ]}>
-                    {/* Glyph as well as fill: four states told apart by colour
-                        alone is exactly the case where a red/green confusion
-                        costs someone the answer. */}
+                    {/* Glyph as well as fill: the three "played" choices share
+                        a hue, and states told apart by colour alone are exactly
+                        where a red/green confusion costs someone the answer. */}
                     <Ionicons
-                      name={STATUS_ICON[option]}
+                      name={option.icon}
                       size={13}
                       color={selected ? readableInk(tint) : tint}
                     />
                     <Text
                       variant="bodySmall"
                       style={{ color: selected ? readableInk(tint) : theme.textSecondary }}>
-                      {STATUS_LABEL[option]}
+                      {option.label}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
+
+            {/* "Finished it" has a second question under it, asked only once
+                it applies: how far past the credits. 100% is its own choice
+                above, so this is only ever the story or the story and the rest. */}
+            {progress === 'completed' && (
+              <View style={styles.levels} accessibilityRole="radiogroup">
+                {(['story', 'main'] as const).map((option) => {
+                  const selected = level === option;
+                  return (
+                    <Pressable
+                      key={option}
+                      onPress={() => setLevel(option)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      style={[
+                        styles.level,
+                        {
+                          backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
+                          borderColor: selected ? theme.borderStrong : theme.border,
+                        },
+                      ]}>
+                      <Text variant="bodySmall" color={selected ? 'text' : 'textSecondary'}>
+                        {COMPLETION_LABEL[option]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -627,21 +746,15 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
             )}
           </View>
 
-          {/* Completion. `platinum` is self-reported for every platform — no
-              console publishes a trophy API — but Steam sync can set the 100%. */}
+          {/* Trophies. `platinum` is self-reported for every platform — no
+              console publishes a trophy API. "Completed 100%" used to sit
+              beside it as a toggle; 100% is a progress choice now, above, and a
+              platinum still implies it. */}
           <View style={styles.section}>
             <Text variant="label" color="textMuted" accessibilityRole="header">
-              Completion
+              Trophies
             </Text>
             <View style={styles.toggles}>
-              <Toggle
-                icon="checkmark-circle"
-                label="Completed 100%"
-                tint={theme.success}
-                value={completed || platinum}
-                onPress={() => setCompleted((current) => !current)}
-                disabled={platinum}
-              />
               <Toggle
                 icon="trophy"
                 label="Platinum"
@@ -678,6 +791,34 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
                 placeholder="Not set"
               />
             </View>
+          </View>
+
+          {/* Solo or co-op, and with how many. Optional, and nothing is assumed
+              when it is left alone: a review says "Co-op" only because its
+              writer did (the brief's "do not fabricate play context"). Tapping
+              the chosen one clears it. It is what the reviews sheet's Solo /
+              Co-op filter and breakdown read. */}
+          <View style={styles.section}>
+            <ChoiceChips
+              label="Solo or co-op"
+              choices={PLAY_CHOICES}
+              value={play || null}
+              onChange={(next) => {
+                setPlay(next ?? '');
+                // A player count means nothing without co-op; the database agrees.
+                if (next !== 'coop') setPlayers('');
+              }}
+            />
+            {play === 'coop' && (
+              <SelectField
+                label="Players"
+                sheetTitle="How many played"
+                value={players}
+                options={PLAYER_OPTIONS}
+                onChange={setPlayers}
+                placeholder="Not set"
+              />
+            )}
           </View>
 
           {/* Long-form review — all or nothing.
@@ -730,6 +871,42 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
               }
               error={writingReview && !review.trim() ? 'Your review needs a body.' : null}
             />
+
+            {/*
+              The spoiler flag, under the body it describes and always visible.
+              Both of those are corrections.
+
+              It was first placed up with Completion and gated on
+              `writingReview`, so it only appeared once you had typed — and it
+              appeared roughly a screen *above* the field you were typing in.
+              The gate had an argument behind it (a log with no prose has
+              nothing to give away, and a control that cannot do its job should
+              not be offered) and the argument lost to the obvious fact that
+              nobody could find the control. A toggle that materialises
+              off-screen after an unrelated action is not progressive
+              disclosure; it is a missing feature.
+
+              Always rendered now, and inside the Review section, which is what
+              scopes it: sitting under the body makes plain which text the flag
+              is about without a word of explanation. A log saved with no review
+              simply stores `false`, which is what it always did.
+
+              `danger` for the tint, not a new hue — it aliases onto a token that
+              already means "read this before you act". The label says the word
+              too, so colour never carries it alone.
+            */}
+            <View style={styles.toggles}>
+              <Toggle
+                icon="eye-off"
+                label="Contains spoilers"
+                tint={theme.danger}
+                value={spoilers}
+                onPress={() => setSpoilers((current) => !current)}
+              />
+            </View>
+            <Text variant="bodySmall" color="textMuted">
+              Readers see a notice instead of your review until they open it.
+            </Text>
           </View>
 
           {existing && (
@@ -908,6 +1085,15 @@ const styles = StyleSheet.create({
   // rather than one control with a stray checkbox attached.
   metrics: { marginTop: Spacing.x8 },
   statuses: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
+  levels: { flexDirection: 'row', gap: Spacing.x8 },
+  level: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: TapTarget,
+    borderRadius: Radius.control,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   status: {
     flexDirection: 'row',
     alignItems: 'center',

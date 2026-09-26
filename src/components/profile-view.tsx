@@ -12,6 +12,7 @@ import { SteamSection } from '@/components/gaming/steam-section';
 import { ListTile } from '@/components/list-tile';
 import { ReviewListRow } from '@/components/review-list-row';
 import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
+import { PhysicalShelfRow } from '@/components/physical-shelf-row';
 import { FavoritesWidget } from '@/components/profile-widgets';
 import { StarredSongWidget } from '@/components/starred-song-widget';
 import { Avatar } from '@/components/ui/avatar';
@@ -106,7 +107,8 @@ const EMPTY_FAVORITES: never[] = [];
  * image in the header, so it has to carry the weight the plate behind it used
  * to. 80 is also close to Instagram's own, which is the layout this row follows.
  *
- * It sets the row's height, and the four counts sit on its midline.
+ * It sets the row's height, and the column beside it is pinned to both of its
+ * edges: the name level with its top, the four counts level with its bottom.
  */
 const AVATAR_SIZE = 80;
 
@@ -126,8 +128,8 @@ export type ProfileViewProps = {
 /**
  * Profile, laid out the way Instagram does it.
  *
- * Order is: avatar + counts on one row → name → bio → meta → full-width actions
- * → widgets → icon tab bar → tab content. The tab bar is the last thing in
+ * Order is: avatar beside name-over-counts → bio → meta → full-width actions →
+ * widgets → icon tab bar → tab content. The tab bar is the last thing in
  * `ListHeaderComponent`, so it sits directly above the list it controls rather
  * than being buried under full-width favourite and achievement sections.
  *
@@ -393,7 +395,7 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
             ) : item.item.type === 'post' ? (
               <WallPostRow post={item.item.post} />
             ) : (
-              <ActivityRow entry={item.item.activity} ownerName={ownerName} ownerId={profileId} />
+              <ActivityRow entry={item.item.activity} ownerName={ownerName} />
             )}
           </View>
         )
@@ -470,47 +472,64 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
         <View>
           <View style={styles.headerBody}>
             {/*
-              Face on the left, reach on the right — Instagram's opening row.
+              Face on the left; name over reach on the right.
 
-              The avatar is the page's anchor now that there is no banner behind
-              it, which is why it is 80dp rather than the 56 it was: at 56 with
-              nothing above it the page opened on a thumbnail. The counts take
-              the rest of the row and divide it evenly, so four of them line up
-              on their numbers rather than drifting with label length.
+              The name used to sit under this row, after the counts — so the page
+              said how many followers somebody had before it said who they were,
+              and the one line identifying the person was the fourth thing read.
+              It is the first thing in the column beside the face now, and the
+              column is exactly the avatar's height with its two lines pinned to
+              the avatar's two edges (see `styles.identityColumn`). Name and face
+              are read together, which is what Instagram's current profile does
+              with the same two things.
             */}
             <View style={styles.identity}>
               <Avatar uri={person.avatar_url} name={displayNameFor(person)} size={AVATAR_SIZE} />
 
-              <View style={styles.counts}>
-                <Count value={stats.data?.logged} label="Logged" />
-                <Count
-                  value={stats.data?.followers}
-                  label="Followers"
-                  href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'followers' } }}
-                />
-                <Count
-                  value={stats.data?.following}
-                  label="Following"
-                  href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'following' } }}
-                />
-                <Count
-                  value={friendCount.data}
-                  label="Friends"
-                  href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'friends' } }}
-                />
-              </View>
-            </View>
+              <View style={styles.identityColumn}>
+                {/*
+                  One line, always — the handle rides on it rather than taking a
+                  second.
 
-            {/* Name and handle under the row, not inside it — the row is for the
-                face and the numbers, and a name squeezed between them is what
-                made four counts impossible to fit before. */}
-            <View style={styles.nameBlock}>
-              <Text variant="h4" numberOfLines={1}>
-                {displayNameFor(person)}
-              </Text>
-              <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
-                @{person.username}
-              </Text>
+                  Two lines of name and handle would reach 33dp down an 80dp face,
+                  close to its middle, and the column's whole shape depends on the
+                  name being a band along the top edge with the counts a band
+                  along the bottom. A long name truncates, and the handle goes
+                  first because it is last on the line: the name is who somebody
+                  is, the handle is how to find them.
+
+                  The handle is omitted when there is no display name, because
+                  `displayNameFor` has already fallen back to it — printing it
+                  twice would be "nomico @nomico".
+                */}
+                <Text variant="h4" numberOfLines={1} style={styles.name}>
+                  {displayNameFor(person)}
+                  {!!person.display_name?.trim() && !!person.username && (
+                    <Text variant="bodySmall" color="textMuted">
+                      {`  @${person.username}`}
+                    </Text>
+                  )}
+                </Text>
+
+                <View style={styles.counts}>
+                  <Count value={stats.data?.logged} label="Logged" />
+                  <Count
+                    value={stats.data?.followers}
+                    label="Followers"
+                    href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'followers' } }}
+                  />
+                  <Count
+                    value={stats.data?.following}
+                    label="Following"
+                    href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'following' } }}
+                  />
+                  <Count
+                    value={friendCount.data}
+                    label="Friends"
+                    href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'friends' } }}
+                  />
+                </View>
+              </View>
             </View>
 
             {/*
@@ -647,6 +666,10 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
                 }
               />
             </View>
+
+            {/* The physical shelf, under the played one. Renders nothing until
+                there is a copy on it — see `<PhysicalShelfRow>`. */}
+            <PhysicalShelfRow profileId={profileId} isSelf={isSelf} />
 
             {/* Renders nothing until someone pins a track, so it costs no
                 vertical space on a profile that has not used the feature. */}
@@ -882,10 +905,13 @@ function Meta({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: st
 function Count({ value, label, href }: { value?: number; label: string; href?: Href }) {
   const shown = value == null ? '—' : value.toLocaleString();
 
-  /* Number over label, both centred. It was number-then-label on a baseline,
-     which reads well in a sentence and badly in a four-column row: the labels
-     are different lengths, so the numbers landed at four different offsets and
-     the one thing the eye compares was the one thing not aligned. */
+  /* Number over label, both flush left in an equal-width cell. It was
+     number-then-label on a baseline, which reads well in a sentence and badly in
+     a four-column row: the labels are different lengths, so the numbers landed
+     at four different offsets and the one thing the eye compares was the one
+     thing not aligned. Equal cells fix that whichever way the text is aligned
+     inside them; flush left is what makes the first number start directly under
+     the name above it. */
   const body = (
     <>
       <Text variant="h4">{shown}</Text>
@@ -913,7 +939,7 @@ function Count({ value, label, href }: { value?: number; label: string; href?: H
         /* 8, not `Spacing.x8` (6). Stacked, the count is a 19dp number over a
            13dp label — 33dp — and 6 of slop each side left it at 45, a point
            under Android's floor. The number cannot grow without out-shouting the
-           name below it, so the touch area does. */
+           name above it, so the touch area does. */
         hitSlop={8}
         style={StyleSheet.flatten([styles.count])}>
         {body}
@@ -926,27 +952,6 @@ const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
   rowWrap: { paddingHorizontal: Spacing.x16 },
   /*
-   * Multiplied, not divided — and 1.5 rather than 2.
-   *
-   * `aspectRatio` in Yoga is **width ÷ height**, so dividing the ratio doubles
-   * the height. `HeroAspectRatio / 2` resolved to 0.889, which is *portrait*:
-   * 442dp on a Pixel, 63% of the screen on a 320dp phone, 900dp at
-   * `MaxContentWidth`. It pushed the name, the counts, the favourites and the
-   * shelf below the fold on first paint, and for the majority of people — who
-   * set no banner at all — that was half a screen of flat grey before the app
-   * said anything. This was the only place in the app that divided the token;
-   * the four other uses pass it undivided for landscape.
-   *
-   * **The multiplier is set by the avatar, not by the artwork.** `styles.identity`
-   * pulls the ring up 30dp into this plate, and the top bar is a floating layer
-   * over `edges={[]}` content rather than something the page is inset below. So
-   * the ring's top must clear `inset + TopBarHeight` or it renders behind the
-   * blur. At `* 2` (111dp) it does not: clearance is −16dp on an SE, −23dp on a
-   * 14, −24dp on a 15 Pro Max, and +1dp on a Pixel. At `* 1.5` every device
-   * clears, worst case +13dp, and the plate is still only 146dp — a third of
-   * what it was.
-   */
-  /*
    * `x24` between blocks, up from `x12`.
    *
    * The header was ten stacked things at 10dp apart — name, bio, meta, three
@@ -955,12 +960,30 @@ const styles = StyleSheet.create({
    * where the favourites, the shelf and the song each read as their own thing.
    */
   headerBody: { paddingHorizontal: Spacing.x16, gap: Spacing.x24, paddingTop: Spacing.x16 },
-  /* One row: face and the four counts. `center` so the numbers sit on the
-     avatar's midline rather than at its top edge. */
-  identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16 },
-  /* `minWidth: 0` so a long display name truncates rather than widening the
-     column past the screen. */
-  nameBlock: { minWidth: 0, gap: 1 },
+  /* One row: the face, and the column beside it. `flex-start` so the column's
+     top edge is the avatar's top edge — `center` would only line the two up
+     while the column happened to be exactly 80dp tall. */
+  identity: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x16 },
+  /*
+   * The avatar's height, with the name at the top and the counts at the bottom.
+   *
+   * `space-between` is what pins each line to an edge of the face rather than
+   * stacking them from the top: the name's line box starts where the avatar
+   * does, the counts' last line ends where it does, and the ~30dp between them
+   * is slack that belongs to neither.
+   *
+   * `minHeight`, not `height`, so the OS text-size setting can grow the column
+   * instead of clipping the counts; the avatar stays pinned at the top either
+   * way. `minWidth: 0` so a long name truncates rather than widening the column
+   * past the screen.
+   */
+  identityColumn: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: AVATAR_SIZE,
+    justifyContent: 'space-between',
+  },
+  name: { flexShrink: 1 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x16 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4, flexShrink: 1 },
   metaLabel: { flexShrink: 1 },
@@ -977,9 +1000,10 @@ const styles = StyleSheet.create({
    * different offsets, and the numbers are what the eye is comparing.
    */
   counts: { flex: 1, flexDirection: 'row' },
-  /* Stacked and centred — Instagram's shape, and the one that lets four fit in
-     the ~260dp the avatar leaves on a 390dp phone. */
-  count: { flex: 1, alignItems: 'center', gap: 1 },
+  /* Stacked and flush left in equal cells — see `Count`. Four fit in the
+     ~280dp the avatar leaves on a 390dp phone: "Following" at the caption size
+     is about 51dp against a 70dp cell. */
+  count: { flex: 1, alignItems: 'flex-start', gap: 1 },
   widgets: { flexDirection: 'row', gap: Spacing.x12 },
   steamStack: { gap: Spacing.x16 },
   groupHeader: {

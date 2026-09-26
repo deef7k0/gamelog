@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useSharedValue } from 'react-native-reanimated';
+import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { SurprisePageWash } from '@/components/surprise-page-wash';
 import { useDealGesture } from '@/components/surprise-deal-gesture';
 import { SurpriseSettings } from '@/components/surprise-settings';
 import {
@@ -20,11 +22,12 @@ import { Button } from '@/components/ui/button';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
+import { Motion, Palette, Spacing } from '@/constants/theme';
 import { useHeaderHeight, useTopBarInset } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
-import { getTopGameReview, getUserLogs, saveLog, setLiked } from '@/lib/api';
+import { extractSeedColor } from '@/hooks/use-album-art-color';
+import { getTopGameReview, getUserLogs, setLiked, setProgress } from '@/lib/api';
 import { getGameById } from '@/lib/games';
 import {
   canUseForYou,
@@ -41,6 +44,7 @@ import {
   saveSurprisePrefs,
   type SurprisePrefs,
 } from '@/lib/surprise-prefs';
+import type { GameSearchResult } from '@/lib/games/types';
 import { useAuth } from '@/store/auth';
 
 /**
@@ -90,6 +94,25 @@ const EMPTY_FILTERED =
 const NOTICE_MS = 10_000;
 
 /**
+ * Stable empty array for a pending batch.
+ *
+ * A bare `?? []` mints a fresh reference on every render, which would re-run the
+ * neighbour prefetch each time — on a screen that re-renders as each of its five
+ * queries lands. Same reason `exclusionLogs` is memoised.
+ */
+const EMPTY_BATCH: readonly GameSearchResult[] = [];
+
+/**
+ * How long a settings change waits before it reaches the disk.
+ *
+ * Long enough that ticking a run of genres is one write rather than one per
+ * chip, short enough that it has landed before anybody could kill the app —
+ * and `flushPrefs` runs on unmount anyway, so the only way to lose a change is
+ * to force-quit inside this window.
+ */
+const PREFS_WRITE_MS = 600;
+
+/**
  * Surprise Me — one dealt game, and one song from it.
  *
  * ## What this screen costs
@@ -130,6 +153,17 @@ export default function SurpriseScreen() {
   const dealX = useSharedValue(0);
   const bloom = useSharedValue(0);
 
+  /*
+   * The page's colour, mid-change.
+   *
+   * Shared values rather than React state, because the whole transition runs on
+   * the UI thread and never re-renders the screen — see `<SurprisePageWash>` for
+   * why `accent.page` is the only role that needs this at all.
+   */
+  const washFrom = useSharedValue<string>(Palette.background);
+  const washTo = useSharedValue<string>(Palette.background);
+  const wash = useSharedValue(1);
+
   const userId = useAuth((state) => state.session?.user.id);
   const queryClient = useQueryClient();
 
@@ -147,12 +181,35 @@ export default function SurpriseScreen() {
   });
   const prefs = prefsQuery.data ?? DEFAULT_SURPRISE_PREFS;
 
-  const savePrefs = useMutation({
-    mutationFn: (next: SurprisePrefs) => saveSurprisePrefs(userId!, next),
-    onMutate: (next) => {
-      queryClient.setQueryData(['surprise-prefs', userId], next);
-    },
-  });
+  /*
+   * The pending disk write, and why the cache update is not part of it.
+   *
+   * This was a mutation whose `onMutate` filled the cache and whose `mutationFn`
+   * wrote AsyncStorage — so every chip tap was a full JSON serialise and a disk
+   * write, and ticking six genres was six of them. The two halves want different
+   * timing: the cache has to update on the same frame as the press or the chip
+   * does not appear to toggle, and the disk only has to be right by the time the
+   * screen goes away.
+   *
+   * So the cache write stays synchronous in `updatePrefs` and only the disk write
+   * is held. Refs rather than state, deliberately — nothing here renders, and the
+   * React Compiler rules forbid the effect that syncing it into state would need.
+   */
+  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPrefs = useRef<SurprisePrefs | null>(null);
+
+  const flushPrefs = useCallback(() => {
+    if (writeTimer.current) clearTimeout(writeTimer.current);
+    writeTimer.current = null;
+    const next = pendingPrefs.current;
+    pendingPrefs.current = null;
+    if (next && userId) void saveSurprisePrefs(userId, next);
+  }, [userId]);
+
+  /* Flush on unmount, which is the case a plain debounce loses: change a filter
+     and leave inside the window and the write never happens, so the screen comes
+     back on the previous settings. Cleanup only — no state is synced here. */
+  useEffect(() => flushPrefs, [flushPrefs]);
 
   /*
    * The viewer's logs, for the exclusion and for whether "Based on my games" is
@@ -203,14 +260,6 @@ export default function SurpriseScreen() {
   const [from, setFrom] = useState<DealDirection>(1);
   /** False until the first deal, which is what separates the form from the reveal. */
   const [dealt, setDealt] = useState(false);
-  /**
-   * Where the soundtrack-and-buttons block begins, measured.
-   *
-   * The swipe zones sit above the content, so they need a floor or they cover
-   * the outer ends of the controls down there. Null until first layout, which is
-   * one frame in which the zones run full height — harmless, since there is
-   * nothing to press yet either.
-   */
   /**
    * Whether the "you have hidden this game" panel is over the artwork.
    *
@@ -278,8 +327,14 @@ export default function SurpriseScreen() {
    * and moving on stays a thing you choose to do. `excludeHidden` still runs
    * inside the fetch, so the promise is kept where it is actually made — on the
    * *next* batch, and every one after it.
+   *
+   * Memoised on the query's own data rather than written as a bare `?? []`, for
+   * the reason `exclusionLogs` above records: the fallback mints a fresh array on
+   * every render while the query is pending, which would make the neighbour
+   * prefetch below re-run on every render of a screen that re-renders as each of
+   * its queries lands.
    */
-  const games = batch.data ?? [];
+  const games = useMemo(() => batch.data ?? EMPTY_BATCH, [batch.data]);
   const game = games[cursor] ?? null;
 
   /*
@@ -306,6 +361,70 @@ export default function SurpriseScreen() {
      is the hook for exactly that position. Resolves to the house blue until the
      cover's hue is extracted. */
   const accent = useGameAccent(game?.coverUrl ?? game?.heroUrl, game?.genres);
+
+  /*
+   * The room changes colour instead of being replaced.
+   *
+   * One effect, no branches, and it covers both cases that used to cut:
+   *
+   *  - **The deal.** A new game changes `accent.page`, and the page settles into
+   *    it over `Motion.slow` — between the card's 200ms flight and its ~450ms
+   *    landing spring, so the room relights while the new card is still settling.
+   *  - **The late hue.** `useAlbumArtColor` hands back the genre fallback first
+   *    and the real extraction a beat later, for the *same* game. `use-accent`
+   *    already claims that change "lands as a settle rather than a flash"; this is
+   *    what makes the sentence true.
+   *
+   * Writing a shared value in an effect is not the pattern CLAUDE.md forbids —
+   * that rule is about `setState`, and `useCrossfade`, `<HiddenNotice>` and
+   * `<MarqueeText>` all already do exactly this. Nothing here re-renders.
+   *
+   * **This runs under Reduce Motion**, for the reason `useCrossfade` records: with
+   * every spring flattened, a cut is not a transition. A 300ms colour settle is
+   * the crossfade both platform references prescribe in precisely this case.
+   */
+  useEffect(() => {
+    /* Two games in a batch frequently share a genre fallback, so most deals do
+       not change this at all. Without the guard each one would schedule a no-op
+       timing. */
+    if (washTo.get() === accent.page) return;
+
+    washFrom.set(washTo.get());
+    washTo.set(accent.page);
+    wash.set(0);
+    wash.set(withTiming(1, { duration: Motion.slow, easing: Easing.inOut(Easing.quad) }));
+  }, [accent.page, wash, washFrom, washTo]);
+
+  /*
+   * Warm the next card's colour — and its cover — while you are looking at this one.
+   *
+   * `useAlbumArtColor` is a query keyed on the artwork URL with an infinite
+   * stale time, so a hue resolved here is simply *already there* when the deal
+   * lands, and the page washes straight to the real colour instead of settling
+   * twice (once to the genre fallback, once to the extraction).
+   *
+   * **Plus and minus one only.** The batch is fifty deep and prefetching all of
+   * it would be fifty extractions for a session that averages a handful of
+   * deals; the two neighbours cover both swipe directions and bound the cost at
+   * two. On a dev build the extractor is native and spends no network at all; in
+   * Expo Go it is a 3 KB `t_thumb`.
+   *
+   * It runs when a card *settles* rather than at gesture start, which is far too
+   * late for a first-sight round trip.
+   */
+  useEffect(() => {
+    for (const neighbour of [games[cursor + 1], games[cursor - 1]]) {
+      const uri = neighbour?.coverUrl ?? neighbour?.heroUrl;
+      if (!uri) continue;
+
+      void queryClient.prefetchQuery({
+        queryKey: ['album-art-color', uri],
+        queryFn: () => extractSeedColor(uri),
+        staleTime: Infinity,
+      });
+      void Image.prefetch(uri);
+    }
+  }, [games, cursor, queryClient]);
 
   /*
    * The review worth showing for this card.
@@ -354,7 +473,7 @@ export default function SurpriseScreen() {
    *
    * ## Why it fetches the game first
    *
-   * `saveLog` takes a full `Game` and calls `cacheGame` on it, and a dealt card
+   * `setProgress` takes a full `Game` and calls `cacheGame` on it, and a dealt card
    * only carries a `GameSearchResult` — no description, publisher, screenshots or
    * store URL. Filling those with null to satisfy the type would upsert a
    * *poorer* row over whatever the shared `games` cache already held for that
@@ -365,7 +484,11 @@ export default function SurpriseScreen() {
     mutationFn: async () => {
       const full = await getGameById(game!.id);
       if (!full) throw new Error('Could not load that game.');
-      await saveLog(userId!, { game: full, status: 'backlog', rating: null, review: '' });
+      /* `setProgress`, not `saveLog`. The latter restates the whole row, so on a
+         game you had already reviewed this wrote `rating: null, review: ''` and
+         deleted the review to add it to the backlog. `setProgress` writes the
+         status and nothing else; a score, a review or a playthrough survive. */
+      await setProgress(userId!, full, { status: 'backlog' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-logs', userId] });
@@ -383,7 +506,12 @@ export default function SurpriseScreen() {
   });
 
   function updatePrefs(next: SurprisePrefs) {
-    savePrefs.mutate(next);
+    /* Cache now, disk shortly. See `writeTimer`. */
+    queryClient.setQueryData(['surprise-prefs', userId], next);
+    pendingPrefs.current = next;
+    if (writeTimer.current) clearTimeout(writeTimer.current);
+    writeTimer.current = setTimeout(flushPrefs, PREFS_WRITE_MS);
+
     /* A different pool — or a different narrowing of one — is a different
        question, so the current batch no longer answers it. Start a fresh one
        rather than carrying the cursor across.
@@ -407,14 +535,18 @@ export default function SurpriseScreen() {
   /**
    * "Never show me this one again."
    *
-   * Written to the device and pushed straight into the cache, which is what
-   * removes the card from `games` — the deck shortens under the cursor and the
-   * next game takes this one's place with no reroll and no request. The write is
-   * a read-modify-write of one AsyncStorage value, so the returned list is
+   * Written to the device and pushed straight into the cache. The write is a
+   * read-modify-write of one AsyncStorage value, so the returned list is
    * authoritative and there is nothing to invalidate.
    *
-   * Announced, because the gesture has no visual result of its own beyond the
-   * card being replaced — which on its own is indistinguishable from a swipe.
+   * **It does not remove the card in front of you**, and this docblock used to
+   * claim the opposite — see the note on `games`, which is where that behaviour
+   * was deliberately taken out. Hiding says "not in future", not "next please":
+   * the card stays, fully usable, and moving on stays something you choose. The
+   * promise is kept on the *next* batch, inside the fetch.
+   *
+   * Announced, because the gesture now has no visual result at all beyond the
+   * panel that says so — which is exactly the point of the panel.
    */
   const hide = useMutation({
     mutationFn: (target: { id: string; title: string; coverUrl: string | null }) =>
@@ -494,7 +626,7 @@ export default function SurpriseScreen() {
     direction: 1,
     dealX,
     bloom,
-    commitAt: layout.artWidth * 0.3,
+    commitAt: layout.commitAt,
     exitDistance: layout.exitDistance,
     canGoBack: cursor > 0,
     onDeal: deal,
@@ -503,7 +635,7 @@ export default function SurpriseScreen() {
     direction: -1,
     dealX,
     bloom,
-    commitAt: layout.artWidth * 0.3,
+    commitAt: layout.commitAt,
     exitDistance: layout.exitDistance,
     canGoBack: cursor > 0,
     onDeal: deal,
@@ -544,6 +676,9 @@ export default function SurpriseScreen() {
   /* One recogniser for the whole screen. See the note at `<GestureDetector>`. */
   const swipe = useMemo(() => Gesture.Race(dealNext, dealPrevious), [dealNext, dealPrevious]);
 
+  /* A deck already dealt under exactly these settings. See the CTA below. */
+  const resumable = games.length > 0 && cursor > 0;
+
   const settings = (
     <SurpriseSettings
       prefs={prefs}
@@ -556,7 +691,14 @@ export default function SurpriseScreen() {
   if (!dealt) {
     return (
       <Screen edges={['bottom']} insetHeader padded topBar={<FrostedTopBar back />}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.form}>
+        {/* `flex: 1` is load-bearing now that this has a sibling. Yoga defaults
+            `flexShrink` to 0 — unlike the web — so a `ScrollView` with no flex
+            style sizes to its content and pushes anything after it off the
+            display rather than scrolling. The scroll indicator comes back for
+            the same reason it was turned off: with the button pinned below,
+            the bar is now reporting the *settings*, which genuinely continue
+            past the fold and have no other cue that they do. */}
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.form}>
           {/* There is no header anywhere in this app, so a screen opening on a
               form states what it is in its own content. */}
           <View style={styles.intro}>
@@ -569,18 +711,60 @@ export default function SurpriseScreen() {
           </View>
 
           {settings}
+        </ScrollView>
 
+        {/*
+          The deal, pinned out of the scroll.
+
+          It was the last child of the `ScrollView` above, which put its top edge
+          at y≈673 of a 707dp viewport on a 390×844 display — 34 of its 60dp on
+          screen — and entirely below the fold on a 375×667 one. The thing
+          clipping at the fold was a *wrapping chip row*, which is the least
+          legible object to cut there: half a row of chips reads as "the row
+          wrapped", never as "there is a button underneath".
+
+          Raising the chips and pills to the tap floor added roughly 120dp above
+          it, so leaving it in the scroll would have taken the last 34dp too.
+          Pinning is not a workaround for that — it is what the control wanted
+          anyway. A commit action on a form whose whole body is optional
+          refinement should not be reachable only by exhausting the refinement,
+          and this screen's own docblock already records the same bug being found
+          and fixed on the dealt screen.
+
+          A flex sibling rather than an absolute overlay, so it *takes* its space
+          instead of covering the last row of chips, and nothing needs a blur or
+          a scrim to stay legible over moving content.
+        */}
+        <View style={styles.footer}>
+          {/*
+            Two labels, because this button does two things.
+
+            It used to call `setCursor(0)` unconditionally, which meant checking a
+            setting cost you your place: twelve swipes deep, tap the gear, change
+            nothing, come back — and the deck restarted at the first card, with
+            the *same* cached batch behind it. Nothing warned, and the label was
+            identical either way, so there was no way to tell "start" from
+            "throw away twelve cards and start".
+
+            The reset is gone from here entirely. `updatePrefs` already does it,
+            and only when something actually changed — which is the correct and
+            only condition for it. A settings visit that changes nothing is now
+            free.
+
+            `resumable` reads the cache rather than a flag: the batch key holds
+            every pref, so data under the *current* key means the deck you left is
+            still the deck these settings describe. Change anything and the key
+            moves, `batch.data` is undefined, and the button says "Surprise me"
+            again — exactly when it should.
+          */}
           <Button
-            title="Surprise me"
+            title={resumable ? 'Back to my card' : 'Surprise me'}
             size="large"
             fullWidth
-            icon="shuffle"
-            onPress={() => {
-              setDealt(true);
-              setCursor(0);
-            }}
+            icon={resumable ? 'arrow-back' : 'shuffle'}
+            onPress={() => setDealt(true)}
           />
-        </ScrollView>
+        </View>
       </Screen>
     );
   }
@@ -664,6 +848,15 @@ export default function SurpriseScreen() {
            "scroll-driven" gradient was pinned at rest anyway: all it ever did
            was put the game's brightest colour behind the one card on screen. */
         background={accent.page}
+        /*
+          The animated page, over the flat one.
+          
+          `background` stays as the floor — it is what the first frame paints and
+          what Android's blur target falls back to — and this rides above it,
+          inside the same view, so the frosted discs sample the colour the page is
+          actually showing rather than the one it was on when the deal started.
+        */
+        backdrop={<SurprisePageWash from={washFrom} to={washTo} progress={wash} />}
         topBar={<FrostedTopBar back right={gear} />}>
         {/*
           One detector around the whole screen, replacing two overlay strips.
@@ -746,6 +939,7 @@ export default function SurpriseScreen() {
                   hidden={notice}
                   alreadyPlayed={alreadyPlayed}
                   dealX={dealX}
+                  bloom={bloom}
                   onBacklog={() => backlog.mutate()}
                   backlog={{
                     done: backlog.isSuccess,
@@ -809,7 +1003,7 @@ export default function SurpriseScreen() {
                   side="left"
                   dealX={dealX}
                   bloom={bloom}
-                  commitAt={layout.artWidth * 0.3}
+                  commitAt={layout.commitAt}
                   screenWidth={width}
                   screenHeight={height}
                   color={accent.color}
@@ -819,7 +1013,7 @@ export default function SurpriseScreen() {
                   side="right"
                   dealX={dealX}
                   bloom={bloom}
-                  commitAt={layout.artWidth * 0.3}
+                  commitAt={layout.commitAt}
                   blocked={cursor === 0}
                   screenWidth={width}
                   screenHeight={height}
@@ -836,8 +1030,17 @@ export default function SurpriseScreen() {
 }
 
 const styles = StyleSheet.create({
-  form: { gap: Spacing.x32, paddingTop: Spacing.x24, paddingBottom: Spacing.x48 },
+  scroll: { flex: 1 },
+  /* `paddingBottom` is `x24`, not the `x48` a scroll container normally ends on:
+     the 48 existed to keep the last control off the bottom bezel, and the footer
+     below is now what does that. Keeping both would read as a gap someone
+     forgot to fill. */
+  form: { gap: Spacing.x32, paddingTop: Spacing.x24, paddingBottom: Spacing.x24 },
   intro: { gap: Spacing.x8 },
+  /* Enough to separate the button from the last row of chips without drawing a
+     rule to do it — the page's own fill is the divider, per DESIGN.md's
+     preference for a tonal step over an edge. */
+  footer: { paddingTop: Spacing.x16, paddingBottom: Spacing.x8 },
   stage: { flex: 1 },
   masthead: { alignItems: 'center', justifyContent: 'center' },
   /*
@@ -847,12 +1050,10 @@ const styles = StyleSheet.create({
    * under it on the other.
    */
   body: { flex: 1, zIndex: 1 },
-  actions: { flexDirection: 'row', gap: Spacing.x8 },
   emptyActions: {
     flexDirection: 'row',
     gap: Spacing.x8,
     flexWrap: 'wrap',
     justifyContent: 'center',
   },
-  grow: { flex: 1 },
 });

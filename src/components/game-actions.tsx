@@ -4,26 +4,32 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import { AddToCollection } from '@/components/add-to-collection';
-import { Alert, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { parseReviewMetrics } from '@/constants/review-metrics';
+import { PROGRESS_META, progressChoiceFor } from '@/constants/progress';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { ARRIVAL_CONTROL, useArrival } from '@/hooks/use-arrival';
 import { useTheme } from '@/hooks/use-theme';
-import { deleteLog, getListMembership, saveLog, toggleSingletonMembership } from '@/lib/api';
+import { getListMembership, toggleSingletonMembership } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import type { Game } from '@/lib/games';
 import { useAuth } from '@/store/auth';
 
 export type GameActionsProps = {
   game: Game;
-  /** The viewer's existing log, if any — drives the Playing/Played toggles. */
+  /** The viewer's existing log, if any — drives the progress key. */
   log: GameLog | null;
+  /**
+   * Open the progress sheet. The page owns it: it is a `<SlideUpSheet>`, and a
+   * sheet has to be a sibling of `<Screen>` or the page's own back disc floats
+   * over it.
+   */
+  onOpenProgress: () => void;
 };
 
 /**
@@ -52,14 +58,14 @@ export function formatReleaseDate(iso: string): string {
 }
 
 /**
- * The quick-action row on a game page: review, favourite, wishlist, mark
- * playing/completed, share.
+ * The quick-action row on a game page: review, favourite, wishlist, progress,
+ * collect.
  *
- * Status toggles write straight through `saveLog` so a user can mark something
- * without opening the full log form; the form is still there for ratings and
- * reviews.
+ * Progress opens a sheet (`<ProgressSheet>`) that saves on one tap, so marking a
+ * game completed is two taps without ever opening the review form; the form is
+ * still there for scores and writing.
  */
-export function GameActions({ game, log }: GameActionsProps) {
+export function GameActions({ game, log, onOpenProgress }: GameActionsProps) {
   const theme = useTheme();
   /** The collection picker, opened by the fifth action. */
   const [picking, setPicking] = useState(false);
@@ -95,77 +101,11 @@ export function GameActions({ game, log }: GameActionsProps) {
     onSuccess: invalidate,
   });
 
-  /*
-   * Does the log hold anything a delete would destroy?
-   *
-   * `logs.status` is a NOT NULL enum of four values (migration 0001), so there
-   * is no "logged, but no status" row to fall back to — clearing a status means
-   * removing the log. That is fine when the log *is* the status and nothing
-   * else, and it is data loss when the person wrote a review. The row below is
-   * what decides which of those two a tap is about.
-   */
-  const logHasContent = Boolean(
-    log &&
-    (log.rating !== null ||
-      log.review ||
-      log.review_title ||
-      log.hours_played !== null ||
-      log.completion_percent !== null ||
-      log.platinum)
-  );
-
-  const setStatus = useMutation({
-    mutationFn: async (status: 'playing' | 'played' | null) => {
-      if (!userId) throw new Error('You must be signed in.');
-      if (status === null) {
-        await deleteLog(userId, game.id);
-        return;
-      }
-      /*
-       * Preserve whatever the user already recorded; only the status changes.
-       *
-       * **Every column has to be restated, including the ones this button has
-       * no opinion about.** `saveLog` upserts the whole row, so a field left
-       * out is not "unchanged" — it is written as null. Omitting these two used
-       * to mean that marking a game you had reviewed as Played silently deleted
-       * the review's headline and its per-category scores, leaving an untitled
-       * body and a rating with nothing behind it.
-       */
-      await saveLog(userId, {
-        game,
-        status,
-        rating: log?.rating ?? null,
-        reviewMetrics: parseReviewMetrics(log?.review_metrics ?? null),
-        reviewTitle: log?.review_title ?? null,
-        review: log?.review ?? null,
-        completionPercent: log?.completion_percent ?? null,
-        platinum: log?.platinum ?? false,
-        hoursPlayed: log?.hours_played ?? null,
-        playedOn: log?.played_on ?? null,
-      });
-    },
-    onSuccess: invalidate,
-  });
-
-  /** Toggle the active status off. Confirms first when that would lose writing. */
-  function clearStatus() {
-    if (!logHasContent) {
-      setStatus.mutate(null);
-      return;
-    }
-    Alert.alert(
-      'Remove your log?',
-      `Your score and review for ${game.title} are deleted along with it. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => setStatus.mutate(null) },
-      ]
-    );
-  }
-
   const favorited = membership.data?.favorited ?? false;
   const wishlisted = membership.data?.wishlisted ?? false;
-  const error = toggleList.error ?? setStatus.error;
+  const error = toggleList.error;
+  const progress = progressChoiceFor(log);
+  const progressMeta = progress ? PROGRESS_META[progress] : null;
 
   /*
    * An unreleased game drops everything that asserts you have played it.
@@ -195,38 +135,31 @@ export function GameActions({ game, log }: GameActionsProps) {
       onPress: () => toggleList.mutate({ kind: 'wishlist', next: !wishlisted }),
     },
     /*
-      Playing and Played are two values of one four-value enum, not two
-      independent switches — setting either replaces the other, and there is no
-      null to toggle back to. They were nevertheless rendered exactly like
-      Favourite and Wishlist, which *are* independent booleans, and pressing a
-      lit one wrote the same status a second time. So the row taught the toggle
-      rule with its first two buttons and broke it on the next two, on the two
-      that publish to your followers' feeds.
+      One progress key where Playing and Played used to be two.
 
-      They toggle for real now. Pressing the lit one clears the log — with a
-      confirm when there is a score or a review to lose, and silently when the
-      log is nothing but the status itself, because there a confirm is ceremony
-      over nothing.
+      Those two were values of one enum drawn as two switches, and the enum has
+      five values now (0022) and a completion level beside it (0023) — seven
+      answers in all, which is no longer a row of toggles. So the key shows the
+      answer and opens the question: its glyph is whichever of the seven you
+      picked, lit, and tapping it raises `<ProgressSheet>`, where one more tap
+      saves and closes. Two taps to "Completed", which is what the old Played
+      key cost as well.
+
+      Unlit with a plus when there is no log, because then it is an invitation
+      rather than a state — and because every other glyph here means a specific
+      answer, and showing one of them before you have given it would be a claim.
     */
     ...(unreleased
       ? []
       : ([
           {
-            icon: 'game-controller',
-            outline: 'game-controller-outline',
-            active: log?.status === 'playing',
-            busy: setStatus.isPending,
-            label: 'Playing',
-            onPress: () =>
-              log?.status === 'playing' ? clearStatus() : setStatus.mutate('playing'),
-          },
-          {
-            icon: 'checkmark-circle',
-            outline: 'checkmark-circle-outline',
-            active: log?.status === 'played',
-            busy: setStatus.isPending,
-            label: 'Played',
-            onPress: () => (log?.status === 'played' ? clearStatus() : setStatus.mutate('played')),
+            icon: progressMeta?.icon ?? 'add-circle',
+            outline: progressMeta?.outline ?? 'add-circle-outline',
+            active: log !== null,
+            label: progressMeta
+              ? `Your progress: ${progressMeta.label}. Change it.`
+              : 'Set your progress',
+            onPress: onOpenProgress,
           },
         ] satisfies ActionSpec[])),
     /*

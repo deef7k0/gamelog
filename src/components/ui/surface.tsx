@@ -40,6 +40,13 @@ export type CardProps = {
    * keeps the list shape.
    */
   panel?: boolean;
+  /**
+   * Lands on the **outer** view — the fill and the shadow — whose only child is
+   * the inner view that clips and holds `children`. Padding and margins work
+   * here; layout does not. `flexDirection`, `gap` and `alignItems` arrange that
+   * one inner view and nothing you passed, so a row set here renders as a
+   * column. Put a `<View>` carrying the layout inside the card instead.
+   */
   style?: ViewStyle | ViewStyle[];
 };
 

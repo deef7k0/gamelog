@@ -23,12 +23,14 @@ import { LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { releaseLine } from '@/constants/physical';
+import { PLATFORMS, platformKeyFor } from '@/constants/platform-cases';
 import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   confirmReleaseContribution,
   lookupBarcode,
   type BarcodeLookup,
+  type CatalogueMatch,
   type ContributionWithRelations,
 } from '@/lib/api';
 import {
@@ -38,6 +40,7 @@ import {
   scannerType,
 } from '@/lib/barcode';
 import { displayNameFor } from '@/lib/format';
+import { getGameById } from '@/lib/games';
 import { useAuth } from '@/store/auth';
 
 /** How long the "didn't read cleanly" hint stays up after a misread. */
@@ -49,14 +52,18 @@ const MISREAD_MS = 1800;
  * ## The flow
  *
  *   camera permission → scanner → a valid barcode → Gamelog's own database
- *     found    the release, and "Add to my copies"
- *     pending  someone described this box already: "That's my copy too"
- *     unknown  "We don't recognize this release yet" → add it
+ *     found       the release, and "Add to my copies"
+ *     pending     someone described this box already: "That's my copy too"
+ *   → then, only if Gamelog knows nothing, ScanDex's catalogue
+ *     identified  ScanDex knows the game and platform; region and edition are
+ *                 for the person holding the box to add
+ *     unknown     "We don't recognize this release yet" → add it
  *
- * Nothing but Gamelog's database is asked. There is no free, documented,
- * licensable UPC service for games, and a scanner that depended on one would
- * stop working the day it changed its terms — the community catalogue in 0024
- * is the lookup, and an unknown barcode is how it grows.
+ * Gamelog's own catalogue comes first and is the only thing a copy can be
+ * attached to as a *release*. ScanDex (behind the `scandex` Edge Function, which
+ * holds the token) identifies boxes the community has not described yet, and
+ * the scanner never depends on it: if it is down or not configured, a scan ends
+ * at "unknown" exactly as it did before it was added.
  *
  * ## Noise is not a result
  *
@@ -545,6 +552,12 @@ function ResultBody({
     );
   }
 
+  if (result.kind === 'identified') {
+    return (
+      <IdentifiedResult barcode={result.barcode} match={result.match} onScanAgain={onScanAgain} />
+    );
+  }
+
   return (
     <View style={styles.result} accessibilityLiveRegion="polite">
       <Text variant="h3">We don’t recognize this release yet.</Text>
@@ -683,6 +696,85 @@ function PendingResult({
         <Button title="Scan another" variant="ghost" fullWidth onPress={onScanAgain} />
       </View>
     </ScrollView>
+  );
+}
+
+/**
+ * ScanDex knows this box: which game, on which platform.
+ *
+ * That is enough to add a copy and to open the game, so both are one tap. It is
+ * not a release — ScanDex says nothing about region or edition — so the copy is
+ * added with the platform filled in and the rest left to the form, and the third
+ * button is how the box gets into Gamelog's own database, with the game and
+ * platform already chosen. Once someone does that and a second person agrees,
+ * this barcode answers "found" and ScanDex is not asked again.
+ *
+ * The source is named on the card. It is a third party's answer, and a reader
+ * deciding whether to trust it should know whose.
+ */
+function IdentifiedResult({
+  barcode,
+  match,
+  onScanAgain,
+}: {
+  barcode: string;
+  match: CatalogueMatch;
+  onScanAgain: () => void;
+}) {
+  const router = useRouter();
+
+  /* The cover and IGDB's own title. The card is useful without them — ScanDex's
+     title is shown until they arrive, and kept if they never do. */
+  const game = useQuery({
+    queryKey: ['game', match.gameId],
+    queryFn: ({ signal }) => getGameById(match.gameId, signal),
+    staleTime: 30 * 60_000,
+  });
+
+  /* ScanDex speaks IGDB's platform names ("Nintendo Switch"); the forms store
+     the short form ("SWITCH"). An unrecognised name prefills nothing. */
+  const key = match.platformName ? platformKeyFor(match.platformName) : null;
+  const platform = key && key !== 'other' ? PLATFORMS[key] : null;
+  const prefill = {
+    game: match.gameId,
+    ...(platform ? { platform: platform.short } : {}),
+  };
+
+  return (
+    <View style={styles.result} accessibilityLiveRegion="polite">
+      <ReleaseCard
+        title={game.data?.title ?? match.title}
+        coverUrl={game.data?.coverUrl ?? null}
+        heroUrl={game.data?.heroUrl ?? null}
+        line={platform?.label ?? match.platformName ?? ''}
+        sub="Identified by ScanDex"
+      />
+      <Text variant="bodySmall" color="textSecondary">
+        We know the game, not the region or edition of this box. Add those and it goes into
+        Gamelog’s database for the next person who scans it.
+      </Text>
+      <View style={styles.stack}>
+        <Button
+          title="Add to my copies"
+          icon="add"
+          fullWidth
+          onPress={() => router.push({ pathname: '/add-copy', params: prefill })}
+        />
+        <Button
+          title="Open the game"
+          variant="secondary"
+          fullWidth
+          onPress={() => router.push({ pathname: '/game/[id]', params: { id: match.gameId } })}
+        />
+        <Button
+          title="Add region and edition"
+          variant="secondary"
+          fullWidth
+          onPress={() => router.push({ pathname: '/add-release', params: { ...prefill, barcode } })}
+        />
+        <Button title="Scan another" variant="ghost" fullWidth onPress={onScanAgain} />
+      </View>
+    </View>
   );
 }
 

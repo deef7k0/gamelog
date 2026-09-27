@@ -375,6 +375,8 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     queryClient.invalidateQueries({ queryKey: ['game-review-list', game.id] });
     queryClient.invalidateQueries({ queryKey: ['rating-breakdown', game.id] });
     queryClient.invalidateQueries({ queryKey: ['review-stats', game.id] });
+    // The library's head: logged, reviewed, averages, best and worst.
+    queryClient.invalidateQueries({ queryKey: ['user-game-stats', userId] });
   }
 
   const save = useMutation({

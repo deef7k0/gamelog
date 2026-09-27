@@ -2,11 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
-import Animated, { runOnJS } from 'react-native-reanimated';
+import { runOnJS } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
@@ -19,7 +19,7 @@ import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
 import { GameListsSheet } from '@/components/game-lists-sheet';
 import { GamePosterRail } from '@/components/game-rail';
-import { CommunitySimilar } from '@/components/community-similar';
+import { CommunitySimilarCard, CommunitySimilarSheet } from '@/components/community-similar';
 import { GameStatsStrip } from '@/components/game-stats-strip';
 import { ProgressSheet } from '@/components/progress-sheet';
 import { SoundtrackAlbums } from '@/components/soundtrack-section';
@@ -45,7 +45,8 @@ import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getTopGameReview, setLiked } from '@/lib/api';
-import { getGameById, getSimilarTo, parseGameId } from '@/lib/games';
+import type { GameLog } from '@/lib/database.types';
+import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
 import { getCollectionGames, getFranchiseGames, getGameExtras } from '@/lib/games/igdb';
 import { useAuth } from '@/store/auth';
 
@@ -124,13 +125,45 @@ const REVIEW_LINK_SLOP = { top: 15, bottom: 15, left: 8, right: 8 };
 const STUDIO_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
 
 /**
- * A FlatList that reports scroll offset on the UI thread.
+ * The case, memoised from the outside.
  *
- * Created once at module scope. `Animated.createAnimatedComponent` inside a
- * component body builds a new component type on every render, which unmounts and
- * remounts the whole list — losing scroll position and refetching every row.
+ * `<GameCaseFlip>` is protected and is not edited; wrapping it here is the
+ * page's business. Its props are the game's own fields, the chosen platform and
+ * the log — all stable references between renders — so a page update that
+ * changes none of them (a query landing for another section, the synopsis
+ * opening) no longer re-renders the case and its animated transform.
  */
-const AnimatedFlatList = Animated.FlatList;
+const CaseFlip = memo(GameCaseFlip);
+
+/** The five sheets this page raises. */
+type SheetName = 'reviews' | 'similar' | 'lists' | 'progress' | 'platforms';
+
+/**
+ * Which sheet is open, held outside React state so that opening one re-renders
+ * the sheets and not the page they rise over. `<GameSheets>` subscribes; the page
+ * only ever calls `set`.
+ */
+type SheetStore = {
+  get: () => SheetName | null;
+  set: (sheet: SheetName | null) => void;
+  subscribe: (listener: () => void) => () => void;
+};
+
+function createSheetStore(): SheetStore {
+  let open: SheetName | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => open,
+    set: (sheet) => {
+      open = sheet;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
 
 /**
  * A game's dedicated page.
@@ -147,23 +180,30 @@ export default function GameDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [tab, setTab] = useState<GameTab>('overview');
-  /** The reviews sheet, which rises over this page rather than replacing it. */
-  const [reviewsOpen, setReviewsOpen] = useState(false);
-  /** The platform picker, raised by holding the case. See the gesture below. */
-  const [platformsOpen, setPlatformsOpen] = useState(false);
-  /** Which collections hold this game. Raised by the stats strip. */
-  const [listsOpen, setListsOpen] = useState(false);
-  /** Where you are with this game. Raised by the progress key. */
-  const [progressOpen, setProgressOpen] = useState(false);
+  /*
+   * The sheets keep their own open / closed state, in `<GameSheets>`.
+   *
+   * It used to be five `useState`s on this component, so raising the reviews
+   * sheet — or the progress sheet, or the platform picker — re-rendered this
+   * entire page, masthead and tab included, just to flip one flag; and it did it
+   * again on the way down. Held in a small store the sheets subscribe to,
+   * opening one renders the sheet and nothing else. The openers below are
+   * stable, so the memoised children they are handed stay memoised.
+   */
+  const [sheets] = useState(createSheetStore);
+  const openReviews = useCallback(() => sheets.set('reviews'), [sheets]);
+  const openSimilar = useCallback(() => sheets.set('similar'), [sheets]);
+  const openLists = useCallback(() => sheets.set('lists'), [sheets]);
+  const openProgress = useCallback(() => sheets.set('progress'), [sheets]);
 
   /** Raised by the hold on the case. Separate so the worklet has a plain
       function to `runOnJS` rather than a closure rebuilt every render. */
   const openPlatforms = useCallback(() => {
-    setPlatformsOpen(true);
+    sheets.set('platforms');
     if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     }
-  }, []);
+  }, [sheets]);
   const queryClient = useQueryClient();
 
   /*
@@ -468,7 +508,7 @@ export default function GameDetailScreen() {
         */}
         <GestureDetector gesture={caseHold}>
           <View accessible={false}>
-            <GameCaseFlip
+            <CaseFlip
               coverUrl={data.coverUrl}
               heroUrl={data.heroUrl}
               title={data.title}
@@ -573,11 +613,7 @@ export default function GameDetailScreen() {
         It is also what the Play Store does, for the same reason — rating,
         downloads and content rating sit directly above Install.
       */}
-      <GameStatsStrip
-        gameId={data.id}
-        onOpenReviews={() => setReviewsOpen(true)}
-        onOpenLists={() => setListsOpen(true)}
-      />
+      <GameStatsStrip gameId={data.id} onOpenReviews={openReviews} onOpenLists={openLists} />
 
       {/* The actions, at the header's full width rather than squeezed into the
           right-hand column: they act on the game, not on its metadata.
@@ -588,7 +624,7 @@ export default function GameDetailScreen() {
           strip is between them and the log has moved past the actions, so a
           two-child group with one child left in it was a `<View>` holding
           nothing but a gap it no longer spanned. */}
-      <GameActions game={data} log={logged ?? null} onOpenProgress={() => setProgressOpen(true)} />
+      <GameActions game={data} log={logged ?? null} onOpenProgress={openProgress} />
 
       {/*
         Group 4 — your own record, last in the masthead.
@@ -723,7 +759,7 @@ export default function GameDetailScreen() {
         */
         return (
           <View style={styles.tabBody}>
-            <CommunitySimilar gameId={data.id} gameTitle={data.title} />
+            <CommunitySimilarCard gameId={data.id} gameTitle={data.title} onOpen={openSimilar} />
 
             <View style={styles.similarSection}>
               <View style={styles.similarHead}>
@@ -1002,7 +1038,7 @@ export default function GameDetailScreen() {
                   <PressableScale
                     accessibilityRole="button"
                     accessibilityLabel={`See all reviews of ${data.title}`}
-                    onPress={() => setReviewsOpen(true)}
+                    onPress={openReviews}
                     scaleTo={0.98}
                     style={StyleSheet.flatten([
                       styles.seeAll,
@@ -1175,118 +1211,132 @@ export default function GameDetailScreen() {
            down the page — the masthead below it already says which game this is
            in art three hundred points tall. */
           topBar={<FrostedTopBar back />}>
-          {/* One FlatList with a single item: the tab bar has to scroll away with
-            the masthead, and nesting a ScrollView inside a ScrollView would
-            break that. The tab content itself is short enough not to need
-            windowing. */}
-          <AnimatedFlatList
-            data={[null]}
-            keyExtractor={() => 'body'}
-            showsVerticalScrollIndicator={false}
-            /* No `onScroll`, no content measurement. Both existed to drive the
-               ambient gradient's progress; the page is a flat fill now, and a
-               scroll handler plus two layout callbacks writing shared values
-               nothing reads is a per-frame worklet doing nothing. */
-            contentContainerStyle={styles.content}
-            ListHeaderComponent={
-              <>
-                {header}
-                {/* `center`: three pills do not reach the edges of a phone, and
-                    left-aligned under a full-width masthead they read as a row
-                    that lost a tab — which is exactly what happened when Reviews
-                    became a sheet. See `TabBarProps.align`. */}
-                <TabBar tabs={TABS} value={tab} onChange={setTab} align="center" />
-              </>
-            }
-            renderItem={() => renderTab()}
-          />
+          {/*
+            A ScrollView, not a one-item FlatList.
+
+            The page was a FlatList whose single cell was the whole active tab,
+            so that the tab bar could scroll away with the masthead. It bought
+            nothing a ScrollView does not — one cell is never windowed — and it
+            cost: `renderItem` was a fresh function on every render, so the list
+            re-rendered its page-sized cell every time anything on the page
+            changed, and reported it ("a large list that is slow to update").
+            Nothing inside the tabs is a vertical list; the rails are horizontal,
+            which nests inside a ScrollView without complaint.
+          */}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+            {header}
+            {/* `center`: three pills do not reach the edges of a phone, and
+                left-aligned under a full-width masthead they read as a row
+                that lost a tab — which is exactly what happened when Reviews
+                became a sheet. See `TabBarProps.align`. */}
+            <TabBar tabs={TABS} value={tab} onChange={setTab} align="center" />
+            {renderTab()}
+          </ScrollView>
         </Screen>
 
-        {/*
-        A sibling of `<Screen>`, not a child: the floating back disc is rendered
-        by the screen *after* its content, so a sheet mounted inside would have
-        the page's own back arrow floating over the top of it.
-      */}
-        <SlideUpSheet
-          visible={reviewsOpen}
-          onClose={() => setReviewsOpen(false)}
-          title={data.title}>
-          <GameReviewsSheet gameId={data.id} gameTitle={data.title} criticScore={data.score} />
-        </SlideUpSheet>
-
-        {/*
-          The platform picker, raised by holding the case.
-
-          Half the display and no more (`maxHeightRatio`), because this is a
-          picker rather than a screen: four to seven buttons do not need the
-          whole page, and covering the page would hide the case the buttons
-          re-draw — which on a control whose entire result is *the artwork
-          changing* would leave nothing to look at while choosing.
-
-          Selecting closes it. The choice is immediately visible behind the
-          sheet's own fall, so leaving it open to admire the result would just
-          make every reader dismiss it by hand.
-        */}
-        {/*
-          Which collections hold this game, from the strip's second cell.
-
-          Full height, not the picker's half: there is nothing behind this sheet
-          to watch while it is open, and a collection row is a 96dp mosaic plus
-          four lines of text — at half the display that is two of them, for a list
-          whose entire point is how many there are.
-        */}
-        <SlideUpSheet
-          visible={listsOpen}
-          onClose={() => setListsOpen(false)}
-          title="In collections">
-          <GameListsSheet gameId={data.id} gameTitle={data.title} />
-        </SlideUpSheet>
-
-        {/*
-          Your progress, from the action row's progress key.
-
-          Most of the display but not all of it: seven choices and, once there
-          is a log, the detail under them, which is more than half a screen —
-          and the page behind is worth keeping in sight, because the key you
-          pressed and the case's printed back both change when you choose.
-        */}
-        <SlideUpSheet
-          visible={progressOpen}
-          onClose={() => setProgressOpen(false)}
-          title="Your progress"
-          maxHeightRatio={0.85}>
-          <ProgressSheet
-            game={data}
-            log={logged ?? null}
-            onClose={() => setProgressOpen(false)}
-            onOpenPlaythroughs={() => {
-              setProgressOpen(false);
-              router.push({ pathname: '/playthroughs/[game]', params: { game: data.id } });
-            }}
-          />
-        </SlideUpSheet>
-
-        <SlideUpSheet
-          visible={platformsOpen}
-          onClose={() => setPlatformsOpen(false)}
-          title="Platform"
-          maxHeightRatio={0.5}>
-          <View style={styles.platformSheet}>
-            <Text variant="bodySmall" color="textMuted">
-              Re-draws the case, the price and the store link.
-            </Text>
-            <PlatformPicker
-              available={availablePlatforms}
-              selected={activePlatform}
-              onSelect={(next) => {
-                setPlatform(next);
-                setPlatformsOpen(false);
-              }}
-            />
-          </View>
-        </SlideUpSheet>
+        {/* A sibling of `<Screen>`, not a child: the floating back disc is
+            rendered by the screen *after* its content, so a sheet mounted inside
+            would have the page's own back arrow floating over the top of it. */}
+        <GameSheets
+          store={sheets}
+          game={data}
+          log={logged ?? null}
+          availablePlatforms={availablePlatforms}
+          activePlatform={activePlatform}
+          onSelectPlatform={setPlatform}
+        />
       </>
     </AccentProvider>
+  );
+}
+
+/**
+ * The sheets this page raises, and whether each is open.
+ *
+ * Subscribed to the page's sheet store, so that opening one re-renders this and
+ * not the page under it. See the note where the page creates the store.
+ */
+function GameSheets({
+  store,
+  game,
+  log,
+  availablePlatforms,
+  activePlatform,
+  onSelectPlatform,
+}: {
+  store: SheetStore;
+  game: Game;
+  log: GameLog | null;
+  availablePlatforms: PlatformKey[];
+  activePlatform: PlatformKey;
+  onSelectPlatform: (platform: PlatformKey) => void;
+}) {
+  const router = useRouter();
+  const open = useSyncExternalStore(store.subscribe, store.get);
+  const close = useCallback(() => store.set(null), [store]);
+
+  return (
+    <>
+      <SlideUpSheet visible={open === 'reviews'} onClose={close} title={game.title}>
+        <GameReviewsSheet gameId={game.id} gameTitle={game.title} criticScore={game.score} />
+      </SlideUpSheet>
+
+      {/* The community's similar games, from the Similar tab's card — the same
+          sheet the reviews open in, full height, sortable. A pick opens its own
+          screen on top and coming back lands here again. */}
+      <SlideUpSheet visible={open === 'similar'} onClose={close} title={game.title}>
+        <CommunitySimilarSheet gameId={game.id} gameTitle={game.title} />
+      </SlideUpSheet>
+
+      {/* Which collections hold this game, from the strip's second cell. Full
+          height: there is nothing behind it to watch while it is open, and a
+          collection row is a 96dp mosaic plus four lines of text. */}
+      <SlideUpSheet visible={open === 'lists'} onClose={close} title="In collections">
+        <GameListsSheet gameId={game.id} gameTitle={game.title} />
+      </SlideUpSheet>
+
+      {/* Your progress, from the action row's progress key. Most of the display
+          but not all of it — the key you pressed and the case's printed back
+          both change when you choose, and are worth keeping in sight. */}
+      <SlideUpSheet
+        visible={open === 'progress'}
+        onClose={close}
+        title="Your progress"
+        maxHeightRatio={0.85}>
+        <ProgressSheet
+          game={game}
+          log={log}
+          onClose={close}
+          onOpenPlaythroughs={() => {
+            close();
+            router.push({ pathname: '/playthroughs/[game]', params: { game: game.id } });
+          }}
+        />
+      </SlideUpSheet>
+
+      {/* The platform picker, raised by holding the case. Half the display: it
+          is a picker, and covering the page would hide the case it re-draws.
+          Selecting closes it; the choice is visible behind the sheet's fall. */}
+      <SlideUpSheet
+        visible={open === 'platforms'}
+        onClose={close}
+        title="Platform"
+        maxHeightRatio={0.5}>
+        <View style={styles.platformSheet}>
+          <Text variant="bodySmall" color="textMuted">
+            Re-draws the case, the price and the store link.
+          </Text>
+          <PlatformPicker
+            available={availablePlatforms}
+            selected={activePlatform}
+            onSelect={(next) => {
+              onSelectPlatform(next);
+              close();
+            }}
+          />
+        </View>
+      </SlideUpSheet>
+    </>
   );
 }
 

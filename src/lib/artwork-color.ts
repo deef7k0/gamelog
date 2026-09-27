@@ -108,16 +108,39 @@ export type ArtworkColor = {
 };
 
 /**
- * Rewrite an IGDB URL to its thumbnail.
+ * The small variant of a cover, for reading its colour — or null when there is
+ * no small variant to read.
  *
- * IGDB encodes the size in the path (`.../t_cover_big/co1wyy.jpg`), so the small
- * variant is a string replace rather than a second API call. Any URL that is not
- * IGDB's — a legacy Steam header, an itch.io cover — is returned as-is and
- * simply costs more to fetch.
+ * IGDB encodes the size in the path (`.../t_cover_big/co1wyy.jpg`), so its
+ * 90×90 thumbnail is a string replace. Steam's CDN keeps every asset of an app
+ * in one folder, so a legacy Steam cover (`library_600x900.jpg`) swaps its file
+ * for `capsule_sm_120.jpg` — 120×45, about 4 KB, the same key art.
+ *
+ * **Anything else is not decoded at all.** This used to return an unrecognised
+ * URL as-is, "at more cost to fetch" — and the cost was never the fetch. A
+ * 600×900 Steam cover is 540,000 pixels through a JPEG decoder written in
+ * JavaScript, on the JS thread: seconds of a frozen app, every time a legacy
+ * game's page opened, with the genre hue as the only visible result either way.
  */
-export function swatchUrl(uri: string): string {
-  return uri.replace(/\/t_[a-z0-9_]+\//i, '/t_thumb/');
+export function swatchUrl(uri: string): string | null {
+  if (/\/t_[a-z0-9_]+\//i.test(uri)) return uri.replace(/\/t_[a-z0-9_]+\//i, '/t_thumb/');
+  const steam =
+    /^(https:\/\/[^/]*steamstatic\.com\/(?:store_item_assets\/)?steam\/apps\/\d+\/)/.exec(uri);
+  if (steam) return `${steam[1]}capsule_sm_120.jpg`;
+  return null;
 }
+
+/**
+ * The most this will ever decode, in megapixels, and the most it will download.
+ *
+ * Both far above a 90×90 thumbnail (0.008 MP, ~3 KB) and far below anything that
+ * would be felt. The decoder checks the size in the JPEG header before touching
+ * a single scanline, so an oversized image fails in microseconds rather than
+ * after the seconds it would have cost — the backstop for a host that ignores
+ * the size in its URL.
+ */
+const MAX_SWATCH_MP = 0.1;
+const MAX_SWATCH_BYTES = 120_000;
 
 /**
  * The dominant colour of an image, or null if it cannot be read.
@@ -130,15 +153,23 @@ export async function extractArtworkColor(uri: string): Promise<ArtworkColor | n
   const cached = await readCache(uri);
   if (cached) return cached;
 
+  const swatch = swatchUrl(uri);
+  if (!swatch) return null;
+
   try {
-    const response = await fetch(swatchUrl(uri));
+    const response = await fetch(swatch);
     if (!response.ok) return null;
 
     const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > MAX_SWATCH_BYTES) return null;
     /* `useTArray` returns a Uint8Array rather than a Node Buffer, which does not
        exist in React Native. Without it `jpeg-js` reaches for `Buffer` and
        throws before decoding a single scanline. */
-    const image = decode(bytes, { useTArray: true, maxMemoryUsageInMB: 16 });
+    const image = decode(bytes, {
+      useTArray: true,
+      maxMemoryUsageInMB: 16,
+      maxResolutionInMP: MAX_SWATCH_MP,
+    });
 
     const raw = dominantOf(image.data);
     if (!raw) return null;

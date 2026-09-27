@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useState, type ReactNode } from 'react';
+import { Alert, FlatList, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
@@ -11,18 +12,28 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { PHOTO_KIND_LABEL, releaseLine } from '@/constants/physical';
-import { REPORT_REASON_LABEL } from '@/constants/similarity';
+import { CONTENT_REPORT_REASON_LABEL } from '@/constants/reports';
+import { REPORT_REASON_LABEL, SIMILARITY_REASON_LABEL } from '@/constants/similarity';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getPendingContributions,
+  getReviewReports,
   getSimilarityReports,
+  getSuggestionReports,
   isModerator,
   moderateContribution,
+  moderateReview,
   moderateSimilarity,
+  moderateSuggestion,
   type ContributionWithRelations,
 } from '@/lib/api';
-import type { SimilarityReportQueueRow } from '@/lib/database.types';
+import type {
+  ContentReportReason,
+  ReviewReportQueueRow,
+  SimilarityReportQueueRow,
+  SuggestionReportQueueRow,
+} from '@/lib/database.types';
 import { displayBarcode } from '@/lib/barcode';
 import { displayNameFor, timeAgo } from '@/lib/format';
 import { useAuth } from '@/store/auth';
@@ -49,16 +60,23 @@ const REJECT_REASONS = [
 
 type RejectReason = (typeof REJECT_REASONS)[number]['value'];
 
+/*
+ * One tab per queue. The three report queues are apart rather than merged
+ * because each is settled differently: a pick is hidden or put back, while a
+ * suggestion or a review has its words removed or its reports dismissed.
+ */
 const TABS = [
   { key: 'releases' as const, label: 'Releases' },
-  { key: 'reports' as const, label: 'Reports' },
+  { key: 'picks' as const, label: 'Picks' },
+  { key: 'suggestions' as const, label: 'Suggestions' },
+  { key: 'reviews' as const, label: 'Reviews' },
 ];
 
 type ModerationTab = (typeof TABS)[number]['key'];
 
 /**
- * The review queues for community data — barcode submissions and reported
- * recommendations. Moderators only.
+ * The review queues for community data — barcode submissions, reported
+ * recommendations, and reported suggestions and reviews (0031). Moderators only.
  *
  * ## What a moderator is deciding
  *
@@ -90,12 +108,24 @@ export default function ModerationScreen() {
     enabled: moderator.data === true,
   });
 
-  /* Only fetched once the tab is opened: most visits here are for the release
-     queue, and reports are an RPC that aggregates across the whole table. */
+  /* Each fetched once its tab is opened: most visits here are for the release
+     queue, and every report queue is an RPC that aggregates across its table. */
   const reports = useQuery({
     queryKey: ['similarity-reports'],
     queryFn: getSimilarityReports,
-    enabled: moderator.data === true && tab === 'reports',
+    enabled: moderator.data === true && tab === 'picks',
+  });
+
+  const suggestionReports = useQuery({
+    queryKey: ['suggestion-reports'],
+    queryFn: getSuggestionReports,
+    enabled: moderator.data === true && tab === 'suggestions',
+  });
+
+  const reviewReports = useQuery({
+    queryKey: ['review-reports'],
+    queryFn: getReviewReports,
+    enabled: moderator.data === true && tab === 'reviews',
   });
 
   if (moderator.isLoading) {
@@ -131,19 +161,34 @@ export default function ModerationScreen() {
             : `${queue.data.length} WAITING · OLDEST FIRST`}
         </Text>
       )}
-      {tab === 'reports' && reports.data && (
+      {tab === 'picks' && reports.data && (
         <Text variant="label" color="textMuted">
           {reports.data.length === 0
             ? 'NO OPEN REPORTS'
             : `${reports.data.length} REPORTED · HIDDEN ONES FIRST`}
         </Text>
       )}
+      {tab === 'suggestions' && suggestionReports.data && (
+        <Text variant="label" color="textMuted">
+          {suggestionReports.data.length === 0
+            ? 'NO OPEN REPORTS'
+            : `${suggestionReports.data.length} REPORTED · OLDEST FIRST`}
+        </Text>
+      )}
+      {tab === 'reviews' && reviewReports.data && (
+        <Text variant="label" color="textMuted">
+          {reviewReports.data.length === 0
+            ? 'NO OPEN REPORTS'
+            : `${reviewReports.data.length} REPORTED · OLDEST FIRST`}
+        </Text>
+      )}
     </View>
   );
 
-  return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      {tab === 'releases' ? (
+  let list: ReactNode;
+  switch (tab) {
+    case 'releases':
+      list = (
         <FlatList
           data={queue.data ?? []}
           keyExtractor={(entry) => entry.id}
@@ -153,7 +198,7 @@ export default function ModerationScreen() {
           renderItem={({ item }) => (
             <ClaimCard entry={item} siblings={(perBarcode.get(item.barcode) ?? 1) - 1} />
           )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={Separator}
           ListEmptyComponent={
             queue.isLoading ? (
               <LoadingState />
@@ -167,7 +212,10 @@ export default function ModerationScreen() {
             )
           }
         />
-      ) : (
+      );
+      break;
+    case 'picks':
+      list = (
         <FlatList
           data={reports.data ?? []}
           keyExtractor={(entry) => entry.similarity_id}
@@ -175,7 +223,7 @@ export default function ModerationScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={header}
           renderItem={({ item }) => <ReportCard entry={item} />}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ItemSeparatorComponent={Separator}
           ListEmptyComponent={
             reports.isLoading ? (
               <LoadingState />
@@ -189,9 +237,74 @@ export default function ModerationScreen() {
             )
           }
         />
-      )}
+      );
+      break;
+    case 'suggestions':
+      list = (
+        <FlatList
+          data={suggestionReports.data ?? []}
+          keyExtractor={(entry) => `${entry.similarity_id}:${entry.author_id}`}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={header}
+          renderItem={({ item }) => <SuggestionReportCard entry={item} />}
+          ItemSeparatorComponent={Separator}
+          ListEmptyComponent={
+            suggestionReports.isLoading ? (
+              <LoadingState />
+            ) : suggestionReports.isError ? (
+              <ErrorState
+                error={suggestionReports.error}
+                onRetry={() => void suggestionReports.refetch()}
+              />
+            ) : (
+              <EmptyState
+                title="No open reports"
+                message="Nobody has reported what someone wrote about a pick."
+              />
+            )
+          }
+        />
+      );
+      break;
+    case 'reviews':
+      list = (
+        <FlatList
+          data={reviewReports.data ?? []}
+          keyExtractor={(entry) => entry.log_id}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={header}
+          renderItem={({ item }) => <ReviewReportCard entry={item} />}
+          ItemSeparatorComponent={Separator}
+          ListEmptyComponent={
+            reviewReports.isLoading ? (
+              <LoadingState />
+            ) : reviewReports.isError ? (
+              <ErrorState
+                error={reviewReports.error}
+                onRetry={() => void reviewReports.refetch()}
+              />
+            ) : (
+              <EmptyState title="No open reports" message="Nobody has reported a review." />
+            )
+          }
+        />
+      );
+      break;
+  }
+
+  return (
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      {list}
     </Screen>
   );
+}
+
+/* Module scope: an inline `() => …` is a new component type every render, which
+   remounts every separator on screen. */
+function Separator() {
+  return <View style={styles.separator} />;
 }
 
 /**
@@ -267,6 +380,290 @@ function ReportCard({ entry }: { entry: SimilarityReportQueueRow }) {
             onPress={() => decide.mutate('restore')}
           />
         </View>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * A reported suggestion: which pick it is on, whose it is, what it says, and
+ * what the reporters said is wrong with it.
+ *
+ * Nothing here hid itself — somebody's writing waits for a moderator (0031) — so
+ * the choice is to take the words down or leave them up. Removing keeps the
+ * author's vote, since they still agree the games are alike, and drops the
+ * upvotes the words earned. It cannot be undone, so it asks first.
+ */
+function SuggestionReportCard({ entry }: { entry: SuggestionReportQueueRow }) {
+  const theme = useTheme();
+  const queryClient = useQueryClient();
+
+  const decide = useMutation({
+    mutationFn: (action: 'remove' | 'dismiss') =>
+      moderateSuggestion(entry.similarity_id, entry.author_id, action),
+    onSuccess: (_result, action) => {
+      queryClient.invalidateQueries({ queryKey: ['suggestion-reports'] });
+      if (action !== 'remove') return;
+      queryClient.invalidateQueries({ queryKey: ['similar-suggestions', entry.similarity_id] });
+      queryClient.invalidateQueries({ queryKey: ['similar-pair', entry.similarity_id] });
+      queryClient.invalidateQueries({ queryKey: ['community-similar'] });
+    },
+  });
+
+  function askRemove() {
+    Alert.alert(
+      'Remove this suggestion?',
+      `${entry.author_name}’s reasons and text come down, with the upvotes they earned. They still count as agreeing with the pick. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => decide.mutate('remove') },
+      ]
+    );
+  }
+
+  const comment = entry.comment?.trim() || null;
+  const reasons = entry.reasons.map((reason) => SIMILARITY_REASON_LABEL[reason]).join(' · ');
+
+  return (
+    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <View style={styles.cardHead}>
+        <Text variant="label" color="textMuted" numberOfLines={1} style={styles.shrink}>
+          {`SUGGESTION BY ${entry.author_name.toUpperCase()}`}
+        </Text>
+        <Text variant="label" color="textMuted">
+          {`${entry.report_count} ${entry.report_count === 1 ? 'REPORT' : 'REPORTS'}`}
+        </Text>
+      </View>
+      <Text variant="h4">
+        {entry.game_a_title} ↔ {entry.game_b_title}
+      </Text>
+
+      {comment && <Quoted text={`“${comment}”`} />}
+      {reasons.length > 0 && (
+        <Text variant="caption" color="textMuted">
+          {reasons}
+        </Text>
+      )}
+
+      <ReportFacts
+        reasons={entry.report_reasons}
+        note={entry.latest_note}
+        since={entry.first_reported}
+      />
+
+      {decide.isError && (
+        <Text variant="bodySmall" color="danger">
+          {decide.error instanceof Error ? decide.error.message : 'Could not record that.'}
+        </Text>
+      )}
+
+      <RemoveOrDismiss
+        removeTitle="Remove"
+        pending={decide.isPending ? decide.variables : null}
+        onRemove={askRemove}
+        onDismiss={() => decide.mutate('dismiss')}
+      />
+    </View>
+  );
+}
+
+/** How much of a reported review the card prints; the review page has the rest. */
+const REVIEW_LINES = 12;
+
+/**
+ * A reported review: whose, of what, the writing itself, and why it was
+ * reported.
+ *
+ * Removing takes down the headline and the prose and nothing else — the log,
+ * its score and its hours stay, because those are a record of play rather than
+ * something somebody said. It cannot be undone, so it asks first.
+ */
+function ReviewReportCard({ entry }: { entry: ReviewReportQueueRow }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const decide = useMutation({
+    mutationFn: (action: 'remove' | 'dismiss') => moderateReview(entry.log_id, action),
+    onSuccess: (_result, action) => {
+      queryClient.invalidateQueries({ queryKey: ['review-reports'] });
+      if (action !== 'remove') return;
+      /* Everywhere a review is printed, so the removed words go from this
+         device at once rather than when each screen next goes stale. */
+      queryClient.invalidateQueries({ queryKey: ['log', entry.log_id] });
+      queryClient.invalidateQueries({ queryKey: ['top-review', entry.game_id] });
+      queryClient.invalidateQueries({ queryKey: ['game-reviews', entry.game_id] });
+      queryClient.invalidateQueries({ queryKey: ['game-review-list', entry.game_id] });
+      queryClient.invalidateQueries({ queryKey: ['review-stats', entry.game_id] });
+      queryClient.invalidateQueries({ queryKey: ['user-logs', entry.author_id] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['home-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['discover', 'reviews'] });
+    },
+  });
+
+  function askRemove() {
+    Alert.alert(
+      'Remove this review?',
+      `The headline and the writing come down. ${entry.author_name}’s log of ${entry.game_title} — the score and the hours — stays. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => decide.mutate('remove') },
+      ]
+    );
+  }
+
+  const headline = entry.review_title?.trim() || null;
+  const prose = entry.review?.trim() || null;
+
+  return (
+    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      <View style={styles.cardHead}>
+        <Text variant="label" color="textMuted" numberOfLines={1} style={styles.shrink}>
+          {`REVIEW BY ${entry.author_name.toUpperCase()}`}
+        </Text>
+        <Text variant="label" color="textMuted">
+          {`${entry.report_count} ${entry.report_count === 1 ? 'REPORT' : 'REPORTS'}`}
+        </Text>
+      </View>
+      <Text variant="h4">{entry.game_title}</Text>
+
+      {/* Uncovered, even when it is flagged: judging a spoiler report means
+          reading the spoiler. The flag is said in words above it instead. */}
+      {entry.spoilers && (
+        <Text variant="caption" color="textMuted">
+          MARKED AS CONTAINING SPOILERS
+        </Text>
+      )}
+      {headline && <Quoted text={headline} strong />}
+      {prose && <Quoted text={prose} lines={REVIEW_LINES} />}
+      {!headline && !prose && (
+        <Text variant="bodySmall" color="textMuted">
+          The writing is already gone — its author took it down.
+        </Text>
+      )}
+      {prose && (
+        <View style={styles.readAll}>
+          <Button
+            title="Read it in full"
+            variant="ghost"
+            size="small"
+            onPress={() => router.push({ pathname: '/review/[id]', params: { id: entry.log_id } })}
+          />
+        </View>
+      )}
+
+      <ReportFacts
+        reasons={entry.report_reasons}
+        note={entry.latest_note}
+        since={entry.first_reported}
+      />
+
+      {decide.isError && (
+        <Text variant="bodySmall" color="danger">
+          {decide.error instanceof Error ? decide.error.message : 'Could not record that.'}
+        </Text>
+      )}
+
+      <RemoveOrDismiss
+        removeTitle="Remove text"
+        pending={decide.isPending ? decide.variables : null}
+        onRemove={askRemove}
+        onDismiss={() => decide.mutate('dismiss')}
+      />
+    </View>
+  );
+}
+
+/** Somebody's words, set off by a rule down the left — what is being judged. */
+function Quoted({
+  text,
+  lines,
+  strong = false,
+}: {
+  text: string;
+  lines?: number;
+  strong?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.quote, { borderLeftColor: theme.borderStrong }]}>
+      <Text
+        variant={strong ? 'h5' : 'bodySmall'}
+        color={strong ? 'text' : 'textSecondary'}
+        numberOfLines={lines}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+/**
+ * What the reporters said, under a rule: the line between the thing being
+ * judged and the case against it.
+ */
+function ReportFacts({
+  reasons,
+  note,
+  since,
+}: {
+  reasons: ContentReportReason[];
+  note: string | null;
+  since: string;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.facts, { borderTopColor: theme.border }]}>
+      <Text variant="bodySmall" color="textSecondary">
+        {`Reported as ${reasons.map((reason) => CONTENT_REPORT_REASON_LABEL[reason]).join(' · ')}`}
+      </Text>
+      {note && (
+        <Text variant="bodySmall" color="textSecondary">
+          “{note}”
+        </Text>
+      )}
+      <Text variant="caption" color="textMuted">
+        First reported {timeAgo(since)}
+      </Text>
+    </View>
+  );
+}
+
+/** The two verdicts on somebody's writing, in the pick card's arrangement. */
+function RemoveOrDismiss({
+  removeTitle,
+  pending,
+  onRemove,
+  onDismiss,
+}: {
+  removeTitle: string;
+  /** Which verdict is being sent, if one is. */
+  pending: 'remove' | 'dismiss' | null | undefined;
+  onRemove: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <View style={styles.actions}>
+      <View style={styles.flex}>
+        <Button
+          title={removeTitle}
+          variant="secondary"
+          size="small"
+          fullWidth
+          loading={pending === 'remove'}
+          disabled={!!pending}
+          onPress={onRemove}
+        />
+      </View>
+      <View style={styles.flex}>
+        <Button
+          title="Dismiss reports"
+          size="small"
+          fullWidth
+          loading={pending === 'dismiss'}
+          disabled={!!pending}
+          onPress={onDismiss}
+        />
       </View>
     </View>
   );
@@ -448,4 +845,9 @@ const styles = StyleSheet.create({
   thumb: { width: 72, height: 72, borderRadius: Radius.image },
   reject: { gap: Spacing.x12 },
   actions: { flexDirection: 'row', gap: Spacing.x8 },
+  /* The label truncates before the report count does. */
+  shrink: { flexShrink: 1 },
+  quote: { borderLeftWidth: 2, paddingLeft: Spacing.x12 },
+  readAll: { alignItems: 'flex-start' },
+  facts: { gap: Spacing.x4, paddingTop: Spacing.x12, borderTopWidth: StyleSheet.hairlineWidth },
 });

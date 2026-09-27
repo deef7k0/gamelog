@@ -1091,6 +1091,34 @@ rails or lists — those use `<Poster>` and stay flat and fast, for the same rea
 
 ---
 
+# 4.3 The binder and the CD
+
+A person's physical games are kept the way discs are kept: in a zip binder.
+Two more depicted objects, under the same Object Rule (§ 4.1.1) and under the
+case's ceiling on every axis.
+
+- **The CD** (`<CdDisc>`) is the game's box art printed on `game_cd.png`. The
+  PNG follows the case contract — opaque rim and clear hub, the label punched
+  out — so the art is drawn beneath it, cropped to a circle, never stretched.
+  The hub shows what the disc lies on. Gloss peaks at 0.16, under the case's
+  0.20; its cast (0.35 / r8 / (2, 5)) is well under the case's.
+- **The binder** (`<CdBinder>`) arrives shut: the surface ladder as padding,
+  a dashed stitch, a zip and its pull, the count debossed. Tap and the cover
+  swings about the spine and *becomes* the left page. Two sleeves a page, two
+  pages a spread; a turned page carries the next spread on its back. Sleeves
+  are film — a faint wash, a hairline, a heavier lip over the disc's lower
+  third — and discs in sleeves do not cast; the binder does.
+- **The showcase** (`copy/[id]`) is a collection screen in § 4.1.2's sense: the
+  copy's case for its platform, its disc sliding out ~58% from under it on a
+  tap, and a drag turning the case to a back that prints the copy (release, what
+  is in the box, condition, when it was got, the masked barcode).
+
+**Where they may appear:** the library's Physical tab and the copy showcase.
+Nowhere else — a profile shows the digital / physical *count*, not the binder.
+No colour of their own: everything is the surface ladder and the artwork.
+
+---
+
 # 5. Shapes & Radius
 
 The UI is deliberately **not highly rounded**. Small radii keep the artwork the

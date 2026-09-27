@@ -96,6 +96,8 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
     // How far a reviewer got is what the reviews sheet filters and tallies by.
     queryClient.invalidateQueries({ queryKey: ['game-review-list', game.id] });
     queryClient.invalidateQueries({ queryKey: ['review-stats', game.id] });
+    // The library's head: logged, reviewed, averages, best and worst.
+    queryClient.invalidateQueries({ queryKey: ['user-game-stats', userId] });
   }
 
   const choose = useMutation({

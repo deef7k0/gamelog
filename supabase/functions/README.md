@@ -16,7 +16,7 @@ can set it.
 
 ## Deploying
 
-All four need a Supabase access token (`sbp_…`) in the environment or passed
+All of them need a Supabase access token (`sbp_…`) in the environment or passed
 with `--token`.
 
 ```bash
@@ -24,10 +24,12 @@ with `--token`.
 supabase secrets set TWITCH_CLIENT_ID=xxx TWITCH_CLIENT_SECRET=yyy
 supabase secrets set STEAM_API_KEY=zzz
 supabase secrets set ITAD_API_KEY=aaa
+supabase secrets set SCANDEX_API_TOKEN=bbb
 
 # Functions
 supabase functions deploy igdb        --project-ref <ref> --use-api
 supabase functions deploy itad        --project-ref <ref> --use-api
+supabase functions deploy scandex     --project-ref <ref> --use-api
 supabase functions deploy steam-sync  --project-ref <ref> --use-api
 supabase functions deploy steam-auth  --project-ref <ref> --use-api --no-verify-jwt
 ```
@@ -52,6 +54,22 @@ Without `ITAD_API_KEY` the function returns a 500 that says exactly that, rather
 than letting ITAD answer 401 and sending you looking at the wrong layer. The
 game page degrades to no "Where to buy" section, which is the same thing it does
 for a game ITAD does not track.
+
+### Where the ScanDex token comes from
+
+[ScanDex](https://scandex.gamery.app/documentation/api/) maps game-box
+barcodes to IGDB games and platforms. Its access token is on your ScanDex
+developer account; it goes in `SCANDEX_API_TOKEN` exactly as issued — ScanDex
+expects it as the bare `Authorization` header, with no `Bearer ` in front.
+
+`scandex` also needs migration **0027**, which creates the answer cache it
+writes with the service role. It only serves signed-in users: the anon key is a
+valid JWT and ships in the bundle, so without that check anyone could spend the
+token's quota. The scanner asks it only when Gamelog's own releases and pending
+claims know nothing about a barcode, and falls back to "unknown" when it fails —
+so an undeployed function or a missing token costs identification, never the
+scan. Verify a deploy by scanning (or typing) `0711719577966`, which ScanDex's
+docs give as Super Mario Odyssey on Switch.
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
 by the platform — do **not** set them as secrets.

@@ -27,14 +27,26 @@ export type ScoreNumberProps = {
   size?: ScoreSize;
 };
 
+/** The `body` line box every size up to this one fits inside. */
+const LINE_FLOOR = ScoreSizes.medium;
+
 /** Just the number, in its verdict colour. */
 export function ScoreNumber({ score, size = 'inline' }: ScoreNumberProps) {
   const theme = useTheme();
+  const fontSize = SIZES[size];
 
   return (
     <Text
       accessibilityLabel={`Scored ${Math.round(score)} out of 100 — ${labelFor(score)}`}
-      style={[styles.number, { fontSize: SIZES[size], color: scoreColor(score, theme) }]}>
+      style={[
+        styles.number,
+        { fontSize, color: scoreColor(score, theme) },
+        /* Its own line box once it outgrows body copy's. `<Text>` defaults to the
+           `body` variant, whose 18px line is fine for the inline and medium
+           sizes and clips anything larger: Android cuts a glyph to its line, so
+           a 25px number showed only its middle band. */
+        fontSize > LINE_FLOOR && { lineHeight: Math.round(fontSize * 1.2) },
+      ]}>
       {Math.round(score)}
     </Text>
   );

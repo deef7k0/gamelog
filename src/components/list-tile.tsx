@@ -111,6 +111,8 @@ export const ListTile = memo(function ListTile({ list, engagement }: ListTilePro
         <View style={[styles.artwork, Elevation.card, { backgroundColor: theme.surface }]}>
           <CollectionMosaic
             covers={list.mosaic}
+            display={list.cover_style ?? 'mosaic'}
+            preview={list.preview}
             size={MOSAIC}
             title={list.title}
             award={list.kind === 'awards'}

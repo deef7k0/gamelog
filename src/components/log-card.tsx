@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { Avatar } from '@/components/ui/avatar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { ReportFlag, useCanReport } from '@/components/report-flag';
 import { ReviewMarks, reviewMarkRow } from '@/components/review-marks';
 import { SpoilerNotice } from '@/components/spoiler-notice';
 import { ScoreChip } from '@/components/ui/score-tile';
@@ -42,6 +43,14 @@ const BOX_ART_WIDTH = 72;
  * Weighted right, where there is nothing but the card's own margin.
  */
 const HEART_SLOP = { top: 12, bottom: 12, left: 8, right: 20 };
+
+/**
+ * The heart's reach when the report flag shares its row. The flag sits at the
+ * column's far edge with 8dp of slop reaching back, so the heart's own reach to
+ * the right shrinks to keep the two touch areas apart — up to a four-digit
+ * count, a tap on the heart's side of the row is never a report.
+ */
+const HEART_SLOP_BESIDE_FLAG = { top: 12, bottom: 12, left: 8, right: 4 };
 
 /**
  * Lines of review printed on the card. There is no more.
@@ -149,6 +158,9 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
    * it keeps its headline as a one-line verdict and points at the game.
    */
   const hasArticle = review !== null;
+
+  /* Only a review with writing on it can be reported, and never your own. */
+  const canReport = useCanReport(log.user_id) && hasArticle;
 
   const gameHref = { pathname: '/game/[id]' as const, params: { id: log.game_id } };
   const reviewHref = { pathname: '/review/[id]' as const, params: { id: log.id } };
@@ -298,28 +310,50 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
               </PressableScale>
             </Link>
 
-            {engagement && (
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityState={{ selected: liked }}
-                accessibilityLabel={liked ? 'Unlike this review' : 'Like this review'}
-                onPress={toggleLike}
-                hitSlop={HEART_SLOP}
-                scaleTo={0.92}
-                style={StyleSheet.flatten(styles.heart)}>
-                <Ionicons
-                  name={liked ? 'heart' : 'heart-outline'}
-                  size={15}
-                  /* `liked`, not `danger`: a like is an endorsement, and `danger`
-                   means something is about to be destroyed. See the token. */
-                  color={liked ? theme.liked : theme.textMuted}
-                />
-                {likeCount > 0 && (
-                  <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
-                    {likeCount}
-                  </Text>
+            {/* The heart, and the report flag at the far edge of the same
+                row — the two things you can do *to* a review, on the one line
+                under the cover that was dead space. */}
+            {(engagement || canReport) && (
+              <View style={styles.controls}>
+                {engagement && (
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: liked }}
+                    accessibilityLabel={liked ? 'Unlike this review' : 'Like this review'}
+                    onPress={toggleLike}
+                    hitSlop={canReport ? HEART_SLOP_BESIDE_FLAG : HEART_SLOP}
+                    scaleTo={0.92}
+                    style={StyleSheet.flatten(styles.heart)}>
+                    <Ionicons
+                      name={liked ? 'heart' : 'heart-outline'}
+                      size={15}
+                      /* `liked`, not `danger`: a like is an endorsement, and
+                       `danger` means something is about to be destroyed. See
+                       the token. */
+                      color={liked ? theme.liked : theme.textMuted}
+                    />
+                    {likeCount > 0 && (
+                      <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
+                        {likeCount}
+                      </Text>
+                    )}
+                  </PressableScale>
                 )}
-              </PressableScale>
+
+                {canReport && (
+                  <View style={styles.report}>
+                    <ReportFlag
+                      target={{ kind: 'review', logId: log.id }}
+                      authorId={log.user_id}
+                      label={
+                        profile
+                          ? `Report ${displayNameFor(profile)}’s review`
+                          : 'Report this review'
+                      }
+                    />
+                  </View>
+                )}
+              </View>
             )}
           </View>
 
@@ -407,7 +441,11 @@ const styles = StyleSheet.create({
      card safe at 200% system text. */
   artColumn: { width: BOX_ART_WIDTH, alignItems: 'flex-start', gap: Spacing.x8 },
   art: { width: BOX_ART_WIDTH },
+  /* The cover's width exactly — `stretch` against the column's `flex-start` —
+     so the flag's `auto` margin can carry it to the cover's right edge. */
+  controls: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center' },
   heart: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
+  report: { marginLeft: 'auto' },
   /*
    * Everything that is not the cover, in one column with one left edge.
    *

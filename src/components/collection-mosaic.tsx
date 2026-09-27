@@ -4,9 +4,9 @@ import { StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native'
 
 import { Text } from '@/components/ui/text';
 import { Radius, withAlpha } from '@/constants/theme';
-import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import type { ListCover } from '@/lib/api';
+import type { ListCoverStyle } from '@/lib/database.types';
 
 /**
  * How much of the artwork the award scrim takes.
@@ -24,6 +24,13 @@ const AWARD_GLYPH = 0.34;
 export type CollectionMosaicProps = {
   /** The first four covers, in list order. Fewer is fine; empty is fine. */
   covers: readonly ListCover[];
+  /**
+   * Four covers or one — the owner's choice (0033). `single` draws `preview`,
+   * or the first cover when there is none.
+   */
+  display?: ListCoverStyle;
+  /** The owner's chosen cover, for `display="single"`. */
+  preview?: ListCover | null;
   /** Outer edge length in dp. The mosaic is always square. */
   size: number;
   /** Fallback letter when the collection has no artwork at all. */
@@ -54,7 +61,8 @@ export type CollectionMosaicProps = {
 };
 
 /**
- * A collection's artwork: its first four covers in a 2×2 square.
+ * A collection's artwork: its first four covers in a 2×2 square, or — when the
+ * owner has chosen it (`display="single"`) — one cover filling the square.
  *
  * Replaces the single cover the tile used to show. The argument for one cover
  * was that four thumbnails are four things you cannot read — true when the tile
@@ -70,26 +78,21 @@ export type CollectionMosaicProps = {
  * square where art should be reads as a failed image load, and a collection with
  * three games is not broken.
  *
- * ## Square art, per tile
+ * ## IGDB covers, cropped
  *
- * Every quarter of this shape is itself a square, so this is the one place in
- * the app where the crop was structural rather than incidental — four 2:3
- * covers centre-cropped to 1:1, four logos cut in half, in a block whose whole
- * job is to be readable as four games. Each tile now asks SteamGridDB for a true
- * 1:1 grid (`useSquareCover`) and falls back to the cropped IGDB cover when
- * there is none, so a mixed collection draws some composed squares and some
- * crops rather than waiting on the slowest lookup or refusing the feature to
- * every game SteamGridDB has never heard of.
- *
- * **Only the mosaic.** The rows inside a collection are a list of games and keep
- * portrait box art; square art here is a property of this shape, not of
- * collections.
+ * Every tile is the game's IGDB box art, centre-cropped to its slot. It asked
+ * SteamGridDB for square art for a while; that was taken out at the owner's
+ * request — a community grid is somebody's redesign of the box, and a
+ * collection is a shelf of the boxes themselves. The crop costs the top and
+ * bottom sixth of each cover and keeps the one everybody recognises.
  */
 export function CollectionMosaic({
   covers,
   size,
   title,
   rounded = 'image',
+  display = 'mosaic',
+  preview = null,
   award = false,
   blurRadius = 0,
   style,
@@ -97,7 +100,12 @@ export function CollectionMosaic({
   const theme = useTheme();
   const radius = Radius[rounded];
 
-  const art = covers.slice(0, 4).filter((cover) => cover.cover_url ?? cover.hero_url);
+  const hasArt = (cover: ListCover | null | undefined): cover is ListCover =>
+    !!(cover?.cover_url ?? cover?.hero_url);
+  const art =
+    display === 'single'
+      ? [hasArt(preview) ? preview : covers.find(hasArt)].filter(hasArt)
+      : covers.slice(0, 4).filter(hasArt);
 
   if (art.length === 0) {
     return (
@@ -193,15 +201,7 @@ function Tile({
   style: ImageStyle;
   blurRadius?: number;
 }) {
-  /* Per tile rather than per mosaic: four independent lookups that each resolve
-     when they resolve. Batching them would mean the block could not draw until
-     the slowest one answered, for a result that is allowed to be mixed anyway.
-
-     `resolved` gates the draw — a tile that painted the IGDB crop and then
-     replaced it with a square would put that swap four times over in one 164dp
-     block. Until then the mosaic's own `surfaceElevated` fill shows through. */
-  const square = useSquareCover({ gameId: cover.id, title: cover.title });
-  const uri = square.resolved ? (square.uri ?? cover.cover_url ?? cover.hero_url ?? '') : '';
+  const uri = cover.cover_url ?? cover.hero_url ?? '';
 
   return (
     <Image

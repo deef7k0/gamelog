@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { CopyShowcase } from '@/components/copy-showcase';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
-import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -19,21 +19,28 @@ import {
   mediumFor,
   releaseLine,
 } from '@/constants/physical';
+import { hasCase } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
 import { formatPartialDate } from '@/constants/progress';
 import { Radius, Spacing } from '@/constants/theme';
+import { AccentProvider, useAccent, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteCopy, getCopy, type CopyWithRelations } from '@/lib/api';
 import { maskBarcode } from '@/lib/barcode';
 import { useAuth } from '@/store/auth';
 
 /**
- * One physical copy, in full.
+ * One physical copy, showcased.
  *
- * The quick view (a row in someone's collection) is one line — "PS1 · PAL / CIB
- * · Very good". This is everything behind it: the release, what came with the
- * copy, how it has worn, the barcode it was matched by, and the owner's notes.
- * No price, anywhere: condition describes a copy, it does not value it.
+ * The binder holds the disc; this is the box it came out of. The case for its
+ * platform leads (`<CopyShowcase>`): tap for the disc, drag to turn it over and
+ * read what this copy is. Under it, the same facts as a list — the case's back is
+ * the object's, set in type sized to a box, and this is the version to read. No
+ * price, anywhere: condition describes a copy, it does not value it.
+ *
+ * A full screen on the game's own colour, like the game page — it is a screen
+ * about one game, and the one where the case appears as a shelf object
+ * (DESIGN.md § 4.1.2, "collection / shelf screens").
  */
 export default function CopyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,29 +51,48 @@ export default function CopyScreen() {
     enabled: !!id,
   });
 
+  const accent = useGameAccent(
+    copy.data?.game?.cover_url ?? copy.data?.game?.hero_url,
+    copy.data?.game?.genres
+  );
+
   let body: React.ReactNode;
   if (copy.isLoading) body = <LoadingState />;
   else if (copy.isError)
     body = <ErrorState error={copy.error} onRetry={() => void copy.refetch()} />;
   else if (!copy.data)
     body = <EmptyState title="That copy is gone" message="It may have been deleted." />;
-  else body = <CopyDetail copy={copy.data} />;
+  else
+    body = (
+      <AccentProvider
+        artwork={copy.data.game?.cover_url ?? copy.data.game?.hero_url}
+        genres={copy.data.game?.genres}>
+        <CopyDetail copy={copy.data} pageColor={accent.page} />
+      </AccentProvider>
+    );
 
   return (
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      background={copy.data ? accent.page : undefined}
+      topBar={<FrostedTopBar back />}>
       {body}
     </Screen>
   );
 }
 
-function CopyDetail({ copy }: { copy: CopyWithRelations }) {
+function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: string }) {
   const theme = useTheme();
+  const accent = useAccent();
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const queryClient = useQueryClient();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isOwner = viewerId === copy.user_id;
 
-  const medium = mediumFor(platformKeyForStored(copy.platform));
+  const platform = platformKeyForStored(copy.platform);
+  const medium = mediumFor(platform);
   const barcode = copy.release?.barcodes[0]?.barcode ?? copy.contribution?.barcode ?? null;
   const waiting = !copy.release_id && copy.contribution?.status === 'pending';
 
@@ -74,7 +100,7 @@ function CopyDetail({ copy }: { copy: CopyWithRelations }) {
     mutationFn: () => deleteCopy(copy.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['copies', copy.user_id] });
-      queryClient.invalidateQueries({ queryKey: ['copy-count', copy.user_id] });
+      queryClient.invalidateQueries({ queryKey: ['user-game-stats', copy.user_id] });
       queryClient.removeQueries({ queryKey: ['copy', copy.id] });
       router.back();
     },
@@ -94,30 +120,34 @@ function CopyDetail({ copy }: { copy: CopyWithRelations }) {
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.head}>
-        {copy.game && (
+        {copy.game ? (
           <Link href={{ pathname: '/game/[id]', params: { id: copy.game.id } }} asChild>
             <PressableScale
               accessibilityRole="link"
-              accessibilityLabel={`Open ${copy.game.title}`}
-              scaleTo={0.96}>
-              <Poster
-                coverUrl={copy.game.cover_url}
-                heroUrl={copy.game.hero_url}
-                title={copy.game.title}
-                width={96}
-                rounded="image"
-              />
+              accessibilityLabel={`${copy.game.title}. Open the game page.`}
+              scaleTo={0.98}
+              style={StyleSheet.flatten(styles.titleRow)}>
+              <Text variant="h1" numberOfLines={3} style={styles.flex}>
+                {copy.game.title}
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={accent.quietInk} />
             </PressableScale>
           </Link>
+        ) : (
+          <Text variant="h1">A copy</Text>
         )}
-        <View style={styles.headText}>
-          <Text variant="h1" numberOfLines={3}>
-            {copy.game?.title ?? 'A copy'}
-          </Text>
-          <Text variant="body" color="textSecondary">
-            {releaseLine(copy) || 'Release not recorded'}
-          </Text>
-        </View>
+        <Text variant="body" style={{ color: accent.quietInk }}>
+          {releaseLine(copy) || 'Release not recorded'}
+        </Text>
+      </View>
+
+      <View style={styles.showcase}>
+        <CopyShowcase copy={copy} width={width - Spacing.x16 * 2} pageColor={pageColor} />
+        <Text variant="caption" style={[styles.hint, { color: accent.quietInk }]}>
+          {platform && hasCase(platform)
+            ? 'Tap the case for the disc. Drag it sideways to turn it over.'
+            : 'Tap the art for the disc.'}
+        </Text>
       </View>
 
       {waiting && copy.contribution && (
@@ -130,7 +160,7 @@ function CopyDetail({ copy }: { copy: CopyWithRelations }) {
         </View>
       )}
 
-      <View style={[styles.facts, { backgroundColor: theme.surface }]}>
+      <View style={[styles.facts, { backgroundColor: accent.card }]}>
         {/* In full here, "Standard" included — the quick view drops it as
             noise, but this is where someone checks exactly which box it is. */}
         <Fact
@@ -231,8 +261,11 @@ function Fact({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: Spacing.x16, gap: Spacing.x24, paddingBottom: Spacing.x48 },
-  head: { flexDirection: 'row', gap: Spacing.x16, alignItems: 'flex-start' },
-  headText: { flex: 1, gap: Spacing.x4 },
+  head: { gap: Spacing.x4 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  /* Room above for the case's landing and below for the disc's cast. */
+  showcase: { gap: Spacing.x16, paddingVertical: Spacing.x12 },
+  hint: { textAlign: 'center' },
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',

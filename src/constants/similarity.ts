@@ -1,4 +1,8 @@
-import type { SimilarityReason, SimilarityReportReason } from '@/lib/database.types';
+import type {
+  CommunitySimilarGame,
+  SimilarityReason,
+  SimilarityReportReason,
+} from '@/lib/database.types';
 
 /**
  * Why two games are alike — the words for the keys 0025 stores.
@@ -62,4 +66,37 @@ export function topReasons(
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([reason]) => reason);
+}
+
+/**
+ * Who stands behind a pick, in one sentence: "3 users suggested this game, with
+ * 12 users agreeing." Suggesting (saying why) and agreeing (tapping Agree) are
+ * counted apart and never overlap (0030).
+ *
+ * **Null when the counts are unknown** — the database predates 0030 — so the
+ * caller falls back to a line it can stand behind (`agreementLine`) rather than
+ * printing a number it does not have. Reading them as numbers regardless is what
+ * crashed the community sheet on a database one migration behind.
+ */
+export function supportLine(
+  pick: Pick<CommunitySimilarGame, 'suggesters' | 'agreers'>
+): string | null {
+  const { suggesters, agreers } = pick;
+  if (typeof suggesters !== 'number' || typeof agreers !== 'number') return null;
+  const people = (n: number) => `${n.toLocaleString()} ${n === 1 ? 'user' : 'users'}`;
+  const agreeing = agreers > 0 ? `${people(agreers)} agreeing` : 'no one else agreeing yet';
+  return `${people(suggesters)} suggested this game, with ${agreeing}.`;
+}
+
+/**
+ * How much of the community agrees with a pick, in words: "12 of 15 agree".
+ *
+ * Downvotes were once left off the list entirely, on the argument that a visible
+ * "−3" invites a pile-on. A list you can sort from worst rated up has to say what
+ * "worst" means, so the disagreement is shown — as a share of the people who
+ * weighed in, never as a negative number.
+ */
+export function agreementLine(pick: Pick<CommunitySimilarGame, 'up' | 'votes'>): string {
+  if (pick.votes <= 1) return 'Only its suggester so far';
+  return `${pick.up} of ${pick.votes} agree`;
 }

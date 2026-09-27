@@ -1,3 +1,4 @@
+import type { ListCoverStyle } from '../database.types';
 import type { Game } from '../games';
 import { supabase } from '../supabase';
 import { cacheGame } from './core';
@@ -207,6 +208,15 @@ export async function getGameLists(gameId: string, limit = 50): Promise<ListSumm
  * raises instead of silently storing a dangling reference. Pass null to go back
  * to the default (the first item).
  */
+/**
+ * Four covers or one (0033). The one is `cover_game_id` — `setListCover` —
+ * falling back to the first item when the owner has not picked.
+ */
+export async function setListCoverStyle(listId: string, style: ListCoverStyle): Promise<void> {
+  const { error } = await supabase.from('lists').update({ cover_style: style }).eq('id', listId);
+  if (error) throw new Error(error.message);
+}
+
 export async function setListCover(listId: string, gameId: string | null): Promise<void> {
   const { error } = await supabase.from('lists').update({ cover_game_id: gameId }).eq('id', listId);
 

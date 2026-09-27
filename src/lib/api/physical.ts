@@ -12,7 +12,7 @@ import type {
   ReleasePhotoKind,
   ReleaseRegion,
 } from '../database.types';
-import type { Game } from '../games';
+import { makeGameId, type Game } from '../games';
 import { supabase } from '../supabase';
 import { cacheGame } from './core';
 import { uploadImage } from './storage';
@@ -65,9 +65,22 @@ export type CopyWithRelations = OwnedCopyRow & {
  * rather than asking the next person to type the same thing again — which is
  * exactly the agreement that makes it canonical.
  */
+/**
+ * What ScanDex says a barcode is: a game and a platform, never a release — it
+ * knows nothing of region or edition. See the `scandex` Edge Function.
+ */
+export type CatalogueMatch = {
+  /** The app-wide id, `igdb:…` — ScanDex speaks IGDB's ids, as this app does. */
+  gameId: string;
+  title: string;
+  /** IGDB's platform name as ScanDex gave it ("Nintendo Switch"), if any. */
+  platformName: string | null;
+};
+
 export type BarcodeLookup =
   | { kind: 'found'; barcode: string; release: ReleaseDetail }
   | { kind: 'pending'; barcode: string; claims: ContributionWithRelations[] }
+  | { kind: 'identified'; barcode: string; match: CatalogueMatch }
   | { kind: 'unknown'; barcode: string };
 
 /*
@@ -158,7 +171,49 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeLookup> {
   }
 
   const claims = (pending.data ?? []) as ContributionWithRelations[];
-  return claims.length > 0 ? { kind: 'pending', barcode, claims } : { kind: 'unknown', barcode };
+  if (claims.length > 0) return { kind: 'pending', barcode, claims };
+
+  /* Nothing of our own: ask ScanDex's catalogue. Last, because a release here
+     says more (region, edition) and a pending claim is somebody's work waiting
+     for a second pair of eyes — and because it is the only step that spends a
+     third party's quota. */
+  const match = await identifyBarcode(barcode);
+  return match ? { kind: 'identified', barcode, match } : { kind: 'unknown', barcode };
+}
+
+/**
+ * Ask ScanDex, through the `scandex` Edge Function, which game a barcode is.
+ *
+ * **Never throws.** ScanDex is a convenience on top of the scanner, so when it
+ * is unreachable — the function not deployed, no token set, a timeout — the
+ * scan still ends where it did before ScanDex existed, at "we don't recognize
+ * this", with the way to add it.
+ */
+async function identifyBarcode(barcode: string): Promise<CatalogueMatch | null> {
+  const { data, error } = await supabase.functions.invoke('scandex', { body: { barcode } });
+  if (error) {
+    console.warn('[releases] ScanDex lookup unavailable:', error.message);
+    return null;
+  }
+
+  const answer = data as {
+    status?: string;
+    game?: { igdbId?: unknown; name?: unknown };
+    platform?: { name?: unknown };
+  } | null;
+  if (
+    answer?.status !== 'matched' ||
+    typeof answer.game?.igdbId !== 'number' ||
+    typeof answer.game.name !== 'string'
+  ) {
+    return null;
+  }
+
+  return {
+    gameId: makeGameId('igdb', answer.game.igdbId),
+    title: answer.game.name,
+    platformName: typeof answer.platform?.name === 'string' ? answer.platform.name : null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -370,18 +425,6 @@ export async function getCopy(copyId: string): Promise<CopyWithRelations | null>
 
   if (error) throw new Error(error.message);
   return data as CopyWithRelations | null;
-}
-
-/** How many physical copies a user has — the profile's one-line summary. */
-export async function getCopyCount(userId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('owned_copies')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('ownership', 'physical');
-
-  if (error) throw new Error(error.message);
-  return count ?? 0;
 }
 
 export type CopyInput = {

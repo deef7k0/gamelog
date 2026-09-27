@@ -21,6 +21,7 @@ import {
   type ReviewMetrics,
 } from '@/constants/review-metrics';
 import { FontFamily, Radius, Spacing, TapTarget, Type, withAlpha } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -265,14 +266,18 @@ function MetricRow({
  *
  * Bars are proportional to the score so the shape of an opinion is legible at a
  * glance — where a reviewer was generous and where they were not.
+ *
+ * On the accent's surfaces, like the score bar directly above it: the review
+ * page runs on the game's colour, where the fixed grey ladder is not used.
  */
 export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) {
   const theme = useTheme();
+  const accent = useAccent();
   const rows = orderedMetrics(metrics);
   if (rows.length === 0) return null;
 
   return (
-    <View style={[styles.breakdown, { borderTopColor: theme.border }]}>
+    <View style={[styles.breakdown, { borderTopColor: accent.m3.outlineVariant }]}>
       {/* `label`, not `caption` + hand-typed capitals: the token already carries
           the uppercase transform and its tracking was chosen for it. */}
       <Text variant="label" color="textMuted">
@@ -288,7 +293,7 @@ export function ReviewMetricsBreakdown({ metrics }: { metrics: ReviewMetrics }) 
                 {metric.label}
               </Text>
 
-              <View style={[styles.breakdownTrack, { backgroundColor: theme.surfaceElevated }]}>
+              <View style={[styles.breakdownTrack, { backgroundColor: accent.elevated }]}>
                 <View
                   style={[styles.breakdownFill, { width: `${score}%`, backgroundColor: tint }]}
                 />

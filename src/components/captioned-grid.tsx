@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,16 @@ export type CaptionedGridProps = {
  * tile's primary tap stolen for editing, because a board is read far more often
  * than it is written.
  */
-export function CaptionedGrid({ listId, items, isOwner, width }: CaptionedGridProps) {
+/* Memoised: it is the single cell of the board's list, whose `renderItem` is
+   rebuilt on every render of that screen. Its props — the list id, the sorted
+   items (memoised upstream), ownership and width — are stable, so a scroll-driven
+   or comment-driven render of the page no longer re-renders the whole grid. */
+export const CaptionedGrid = memo(function CaptionedGrid({
+  listId,
+  items,
+  isOwner,
+  width,
+}: CaptionedGridProps) {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<ListItem | null>(null);
@@ -112,7 +121,7 @@ export function CaptionedGrid({ listId, items, isOwner, width }: CaptionedGridPr
       )}
     </View>
   );
-}
+});
 
 function CaptionedTile({
   item,

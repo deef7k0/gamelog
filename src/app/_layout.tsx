@@ -207,10 +207,14 @@ export default function RootLayout() {
                 <Stack.Screen name="log/[id]" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="playthrough/[id]" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="add-copy" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="copy/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="copy/[id]" />
                 <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
                 <Stack.Screen name="add-release" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="suggest-similar/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="similar/[id]" />
+                {/* Every flag in the app — a pick, a suggestion, a review —
+                  opens this one form, over whatever it was on. */}
+                <Stack.Screen name="report/[kind]/[id]" options={{ presentation: 'modal' }} />
                 {/* Both are edits to one award category, so both are sheets: you
                   are changing a thing and coming back, not going somewhere. */}
                 <Stack.Screen name="award-game/[id]" options={{ presentation: 'modal' }} />

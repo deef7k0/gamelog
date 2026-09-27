@@ -26,6 +26,10 @@ deployed, and no Steam Web API key has been obtained.
 | `0024_physical_releases` | **Outstanding** — releases, barcodes, community claims, moderators, physical copies |
 | `0025_community_similarity` | **Outstanding** — community similar games, votes, reports |
 | `0026_review_stats` | **Outstanding** — the reviews sheet's breakdown and platform filter |
+| `0027_scandex_cache` | **Outstanding** — the answer cache the `scandex` function writes |
+| `0028_user_game_stats` | **Outstanding** — the library's stats header and the profile's digital / physical line |
+| `0029_similarity_suggestions` | **Outstanding** — sorting the community's similar games, and upvotes on each suggestion |
+| `0030_similarity_top_suggestion` | **Outstanding** — each pick's most upvoted suggestion, and who suggested vs agreed |
 
 Historical note worth keeping: `0006` had to be a **separate execution** from
 `0007`. Postgres refuses to let a new enum value be *used* in the transaction
@@ -46,7 +50,9 @@ Discover works regardless — it reads IGDB, not Postgres.
 
 ```bash
 supabase secrets set STEAM_API_KEY=…          # you do not have a key yet
+supabase secrets set SCANDEX_API_TOKEN=…      # from your ScanDex developer account
 supabase functions deploy igdb        --project-ref uhlbjqbgmcvyhimatatj --use-api
+supabase functions deploy scandex     --project-ref uhlbjqbgmcvyhimatatj --use-api
 supabase functions deploy steam-sync  --project-ref uhlbjqbgmcvyhimatatj --use-api
 supabase functions deploy steam-auth  --project-ref uhlbjqbgmcvyhimatatj --use-api --no-verify-jwt
 ```
@@ -153,7 +159,9 @@ but not yet run on a phone:
   composed on the server, plus a breakdown of Gamelog's own average by each.
   Reviews carry their context ("Completed · 4-player co-op").
 - **Barcode scanning** — the camera reads EAN-13, EAN-8, UPC-A and UPC-E, with
-  typed entry when the camera is denied or missing.
+  typed entry when the camera is denied or missing. A box Gamelog has no record
+  of is identified through [ScanDex](https://scandex.gamery.app) (about 100,000
+  barcodes mapped to IGDB games) when the `scandex` function is deployed.
 - **A community release database** — an unknown barcode can be submitted with
   photos; it becomes canonical when a second person confirms it or a moderator
   approves it.
@@ -341,7 +349,8 @@ ships in the bundle and is powerless without it. Everything is world-readable
 owner. **Any new table needs its policies written in the same migration.**
 
 Secrets that cannot ship in a bundle live as Supabase Edge Function secrets:
-`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` (IGDB) and `STEAM_API_KEY`.
+`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` (IGDB), `STEAM_API_KEY`,
+`ITAD_API_KEY` and `SCANDEX_API_TOKEN`.
 
 Community data is never canonical on submission. The release tables have no
 client write policies at all; claims go through SECURITY DEFINER functions that

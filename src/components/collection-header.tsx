@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { useState } from 'react';
@@ -14,28 +15,46 @@ import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
 import { displayNameFor } from '@/lib/format';
 import type { Engagement, ListCover, ListItem, ListWithItems } from '@/lib/api';
-import type { Profile } from '@/lib/database.types';
+import type { ListCoverStyle, Profile } from '@/lib/database.types';
 
 /**
  * How much of the display the artwork block occupies.
  *
- * **Half, exactly.** The reference sets it there and the reason holds here: a
- * collection opens on a square of four covers, and half a phone is the point
- * where that square reads as the subject of the page rather than as a header
- * image above the real content. Below about 0.45 it becomes a banner; above 0.55
- * the title is pushed off the first screenful.
+ * About two fifths: the music-app playlist hero this follows keeps its artwork
+ * to the upper ~40% of the screen, full width, so it reads as a cinematic banner
+ * with the name and controls on the first screenful rather than as a poster the
+ * page starts under. It was half, which pushed the description below the fold.
  */
-const COVER_RATIO = 0.5;
+const COVER_RATIO = 0.44;
 
 /**
- * Where the black starts, as a fraction of the cover block's height.
+ * Where the fade starts, as a fraction of the cover block's height.
  *
- * The title sits *inside* the artwork, a little above the point the fade has
- * finished — which is what makes the name read as printed on the cover rather
- * than captioned under it. So the ramp has to be well underway by the time it
- * reaches the text, and fully closed before the buttons.
+ * Early, and long. The artwork does not stop and then darken: it starts
+ * dissolving while it is still clearly visible, so by the time the eye reaches
+ * the bottom there is no edge left to find — the image has melted into the page.
+ * The title sits over the last third, on ground the ramp has already darkened.
  */
-const FADE_START = 0.42;
+const FADE_START = 0.3;
+
+/**
+ * The whole image's tint, toward the page colour.
+ *
+ * A raw box cover is the brightest thing in the app, and the reference darkens
+ * its hero before the fade begins. Tinting toward the page — not toward black —
+ * is the half of the transition that is colour rather than opacity: the art is
+ * already partway to the page's colour when the ramp takes it the rest of the way.
+ */
+const TINT = 0.22;
+
+/**
+ * Where a single cover is anchored in the banner, top to bottom.
+ *
+ * A 2:3 cover in a banner this shape loses most of its height to the crop, and a
+ * centred crop keeps the box's middle — usually a torso, or nothing. A cover's
+ * subject and its logo sit high, so the crop is weighted a fifth of the way down.
+ */
+const SINGLE_ANCHOR = '22%';
 
 /** The one filled action. */
 const PILL_HEIGHT = 52;
@@ -64,6 +83,8 @@ export type CollectionHeaderProps = {
   onShare?: () => void;
   /** Enter the "tap a game to use its cover" mode. Owner-only. */
   onPickCover?: () => void;
+  /** Switch between four covers and one. Owner-only. */
+  onSetDisplay?: (display: ListCoverStyle) => void;
 };
 
 /**
@@ -71,9 +92,11 @@ export type CollectionHeaderProps = {
  *
  * ## The shape, and what changed
  *
- * Half a screen of artwork fading to black; the name and the byline set *over*
- * the bottom of it; one row of actions on the dark below; then the description,
- * tight under the actions. Everything is centred on the artwork's axis.
+ * Two fifths of a screen of artwork — four covers, or the one the owner chose —
+ * tinted toward the page and dissolving into it through a long fade; the name
+ * and the byline set *over* the bottom of it; one row of actions on the dark
+ * below; then the description, tight under the actions. Everything is centred on
+ * the artwork's axis.
  *
  * Two things were wrong before and both were structural rather than cosmetic.
  *
@@ -105,6 +128,7 @@ export function CollectionHeader({
   onDelete,
   onShare,
   onPickCover,
+  onSetDisplay,
 }: CollectionHeaderProps) {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
@@ -113,6 +137,8 @@ export function CollectionHeader({
 
   const items = collection.items ?? [];
   const covers = coversFrom(items);
+  const display = collection.cover_style ?? 'mosaic';
+  const single = display === 'single' ? singleCover(items, collection.cover_game_id) : null;
   const isAwards = collection.kind === 'awards';
   const description = collection.description?.trim();
 
@@ -128,39 +154,67 @@ export function CollectionHeader({
   const offsetX = Math.round((width - mosaicSize) / 2);
   const offsetY = Math.round((coverHeight - mosaicSize) / 2);
 
-  const ownerActions = isOwner && (onEditDetails || onEdit || onPickCover || onDelete);
+  const ownerActions =
+    isOwner && (onEditDetails || onEdit || onPickCover || onSetDisplay || onDelete);
 
   return (
     <View>
       <View style={[styles.cover, { height: coverHeight }]}>
-        <View style={[styles.coverArt, { left: offsetX, top: offsetY }]}>
-          <CollectionMosaic
-            covers={covers}
-            size={mosaicSize}
-            title={collection.title}
-            rounded="none"
-            award={isAwards}
+        {/*
+          The artwork, full width and cropped to the banner.
+
+          One cover when the owner chose one: drawn straight into the banner
+          with `cover` fit rather than as a square mosaic of one, so the crop is
+          the banner's shape and can be anchored high (`SINGLE_ANCHOR`). Four
+          otherwise: the square mosaic, sized to the block's longer axis and
+          centred — a centre crop rather than a stretch.
+        */}
+        {single ? (
+          <Image
+            source={{ uri: (single.cover_url ?? single.hero_url)! }}
+            style={styles.single}
+            contentFit="cover"
+            contentPosition={{ top: SINGLE_ANCHOR, left: '50%' }}
+            transition={220}
+            accessibilityIgnoresInvertColors
           />
-        </View>
+        ) : (
+          <View style={[styles.coverArt, { left: offsetX, top: offsetY }]}>
+            <CollectionMosaic
+              covers={covers}
+              size={mosaicSize}
+              title={collection.title}
+              rounded="none"
+              award={isAwards}
+            />
+          </View>
+        )}
+
+        {/* The tint: the whole image, a step toward the page. See `TINT`. */}
+        <View
+          style={[styles.tint, { backgroundColor: withAlpha(theme.background, TINT) }]}
+          pointerEvents="none"
+        />
 
         {/*
-          One black ramp, and no blur anywhere in it.
+          The fade: long, early and weighted, into the page colour.
 
-          Weighted rather than linear: a straight fade spends its first half
-          barely tinting anything and then closes the whole distance at once,
-          which on artwork reads as the image dropping off a shelf. Every stop
-          ends on a colour at an explicit alpha and never the keyword
-          `transparent` — expo-linear-gradient premultiplies on Android and
-          would fade the keyword through black, leaving a grey bruise mid-ramp.
+          Five stops, and the first half of the ramp is barely there — the image
+          is still clearly visible where it begins, which is what stops the eye
+          finding a line. Every stop ends on a colour at an explicit alpha and
+          never the keyword `transparent` — expo-linear-gradient premultiplies
+          on Android and would fade the keyword through black, leaving a grey
+          bruise mid-ramp.
         */}
         <LinearGradient
           colors={[
             withAlpha(theme.background, 0),
-            withAlpha(theme.background, 0.55),
-            withAlpha(theme.background, 0.92),
+            withAlpha(theme.background, 0.15),
+            withAlpha(theme.background, 0.5),
+            withAlpha(theme.background, 0.85),
             theme.background,
           ]}
-          locations={[0, 0.45, 0.8, 1]}
+          locations={[0, 0.25, 0.55, 0.82, 1]}
           style={[styles.fade, { top: `${FADE_START * 100}%` }]}
           pointerEvents="none"
         />
@@ -299,10 +353,12 @@ export function CollectionHeader({
         <OwnerMenu
           open={menuOpen}
           onClose={() => setMenuOpen(false)}
-          canPickCover={!!onPickCover && items.length > 1}
+          display={display}
+          canPickCover={!!onPickCover && display === 'single' && items.length > 1}
           onEditDetails={onEditDetails}
           onEdit={onEdit}
           onPickCover={onPickCover}
+          onSetDisplay={items.length > 0 ? onSetDisplay : undefined}
           onDelete={onDelete}
         />
       )}
@@ -371,18 +427,22 @@ function CircleAction({
 function OwnerMenu({
   open,
   onClose,
+  display,
   canPickCover,
   onEditDetails,
   onEdit,
   onPickCover,
+  onSetDisplay,
   onDelete,
 }: {
   open: boolean;
   onClose: () => void;
+  display: ListCoverStyle;
   canPickCover: boolean;
   onEditDetails?: () => void;
   onEdit?: () => void;
   onPickCover?: () => void;
+  onSetDisplay?: (display: ListCoverStyle) => void;
   onDelete?: () => void;
 }) {
   const theme = useTheme();
@@ -414,10 +474,25 @@ function OwnerMenu({
             />
           )}
           {onEdit && <MenuRow icon="add" label="Add games" onPress={() => run(onEdit)} />}
+          {/* The artwork: four covers or one, and — with one — which. */}
+          {onSetDisplay &&
+            (display === 'single' ? (
+              <MenuRow
+                icon="grid-outline"
+                label="Show the first four covers"
+                onPress={() => run(() => onSetDisplay('mosaic'))}
+              />
+            ) : (
+              <MenuRow
+                icon="image-outline"
+                label="Show one cover"
+                onPress={() => run(() => onSetDisplay('single'))}
+              />
+            ))}
           {canPickCover && onPickCover && (
             <MenuRow
-              icon="image-outline"
-              label="Change preview cover"
+              icon="images-outline"
+              label="Choose the cover"
               onPress={() => run(onPickCover)}
             />
           )}
@@ -488,9 +563,28 @@ function coversFrom(items: ListItem[]): ListCover[] {
     .slice(0, 4);
 }
 
+/**
+ * The one cover a single-cover collection shows: the owner's pick while it is
+ * still in the list, otherwise the first item with art — `resolvePreview` in
+ * `api/lists.ts`, over the full items the page has rather than the summary's.
+ */
+function singleCover(items: ListItem[], chosenId: string | null): ListCover | null {
+  const games = items
+    .slice()
+    .sort((a, b) => a.position - b.position)
+    .map((item) => item.game)
+    .filter((game): game is NonNullable<typeof game> => !!(game?.cover_url ?? game?.hero_url));
+  const game = games.find((entry) => entry.id === chosenId) ?? games[0];
+  return game
+    ? { id: game.id, title: game.title, cover_url: game.cover_url, hero_url: game.hero_url }
+    : null;
+}
+
 const styles = StyleSheet.create({
   cover: { position: 'relative', width: '100%', overflow: 'hidden' },
   coverArt: { position: 'absolute' },
+  single: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  tint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   /* `top` is supplied inline — the ramp begins partway down the artwork. */
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   scrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '22%' },

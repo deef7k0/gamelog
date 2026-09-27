@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter, type Href } from 'expo-router';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
@@ -12,7 +12,6 @@ import { SteamSection } from '@/components/gaming/steam-section';
 import { ListTile } from '@/components/list-tile';
 import { ReviewListRow } from '@/components/review-list-row';
 import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
-import { PhysicalShelfRow } from '@/components/physical-shelf-row';
 import { FavoritesWidget } from '@/components/profile-widgets';
 import { StarredSongWidget } from '@/components/starred-song-widget';
 import { Avatar } from '@/components/ui/avatar';
@@ -37,6 +36,7 @@ import {
   getOwnedGames,
   getProfile,
   getProfileStats,
+  getUserGameStats,
   getUserLogs,
   getWall,
   removeFriendship,
@@ -99,6 +99,37 @@ const TABS: { key: ProfileTab; label: string; icon: keyof typeof Ionicons.glyphM
  * the window where re-renders are most frequent.
  */
 const EMPTY_FAVORITES: never[] = [];
+
+/** One row of the profile's list, whichever tab is showing. */
+type ProfileRow =
+  | { kind: 'header'; id: string; label: string }
+  | { kind: 'log'; id: string; log: Awaited<ReturnType<typeof getUserLogs>>[number] }
+  | { kind: 'list'; id: string; list: Awaited<ReturnType<typeof getLists>>[number] }
+  | { kind: 'wall'; id: string; item: Awaited<ReturnType<typeof getWall>>[number] };
+
+const rowKey = (row: ProfileRow) => `${row.kind}:${row.id}`;
+
+/**
+ * The gap between two rows, at module scope.
+ *
+ * It was an inline arrow passed as `ItemSeparatorComponent`, which React reads
+ * as a *new component type* on every render — so every separator on screen was
+ * unmounted and mounted again each time the profile rendered, which is once per
+ * query that lands. As a module-level component its identity never changes.
+ *
+ * It needs no tab prop: the row it follows says which list this is. Wall rows
+ * are split by a hairline, which makes a dense timeline scannable, except
+ * directly above a date heading, where a rule would read as underlining the
+ * previous group; every other tab is spaced with air.
+ */
+function RowSeparator({ leadingItem }: { leadingItem?: ProfileRow }) {
+  const theme = useTheme();
+  if (leadingItem?.kind === 'header') return <View style={{ height: Spacing.x4 }} />;
+  if (leadingItem?.kind === 'wall') {
+    return <View style={[styles.wallDivider, { backgroundColor: theme.border }]} />;
+  }
+  return <View style={{ height: Spacing.x12 }} />;
+}
 
 /**
  * The identity row's face — 80, up from 56.
@@ -172,6 +203,12 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
   const favorites = useQuery({
     queryKey: ['favorites', profileId],
     queryFn: () => getFavorites(profileId),
+  });
+  /* The physical / digital split under the games shelf (0028). A count, not a
+     list, so it is one small aggregate rather than the copies themselves. */
+  const collection = useQuery({
+    queryKey: ['user-game-stats', profileId],
+    queryFn: () => getUserGameStats(profileId),
   });
   const logs = useQuery({
     queryKey: ['user-logs', profileId],
@@ -289,17 +326,50 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
   /** Stable empty array, so a pending favourites query does not break `memo`. */
   const favoriteItems = favorites.data?.items ?? EMPTY_FAVORITES;
 
+  const ownerName = profile.data ? displayNameFor(profile.data) : '';
+
+  /*
+   * One row renderer for the life of the screen, not one per render.
+   *
+   * It was an inline arrow, and this screen renders once per query that lands —
+   * eleven of them on a cold open — so the list was handed a new `renderItem`
+   * each time and re-rendered every visible row to find nothing had changed.
+   * Declared above the early returns because it is a hook.
+   */
+  const renderRow = useCallback(
+    ({ item }: { item: ProfileRow }) =>
+      item.kind === 'header' ? (
+        <DateGroupHeader label={item.label} />
+      ) : /*
+           Reviews are an index here, not a feed.
+
+           `<ReviewListRow>` carries its own gutter and hairline, so it is *not*
+           wrapped in `styles.rowWrap` — the rule has to reach both edges of the
+           display to read as a list rather than as a stack of inset cards.
+         */
+      item.kind === 'log' ? (
+        <ReviewListRow log={item.log} />
+      ) : (
+        <View style={styles.rowWrap}>
+          {item.kind === 'list' ? (
+            <ListTile list={item.list} engagement={listEngagement?.[item.list.id]} />
+          ) : item.item.type === 'post' ? (
+            <WallPostRow post={item.item.post} />
+          ) : (
+            <ActivityRow entry={item.item.activity} ownerName={ownerName} />
+          )}
+        </View>
+      ),
+    [listEngagement, ownerName]
+  );
+
   if (profile.isLoading) return <LoadingState />;
   if (profile.isError) return <ErrorState error={profile.error} />;
   if (!profile.data) return <EmptyState title="Profile not found" />;
 
   const person = profile.data;
 
-  type Row =
-    | { kind: 'header'; id: string; label: string }
-    | { kind: 'log'; id: string; log: (typeof reviews)[number] }
-    | { kind: 'list'; id: string; list: NonNullable<typeof lists.data>[number] }
-    | { kind: 'wall'; id: string; item: NonNullable<typeof wall.data>[number] };
+  type Row = ProfileRow;
 
   let rows: Row[] = [];
   let loading = false;
@@ -349,8 +419,6 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
       emptyLabel = isSelf ? 'Your wall is empty' : 'Nothing on this wall yet';
   }
 
-  const ownerName = displayNameFor(person);
-
   /**
    * Whichever query the visible tab is showing.
    *
@@ -375,48 +443,9 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
       data={rows}
       onScroll={onScroll}
       scrollEventThrottle={16}
-      keyExtractor={(row) => `${row.kind}:${row.id}`}
-      renderItem={({ item }) =>
-        item.kind === 'header' ? (
-          <DateGroupHeader label={item.label} />
-        ) : /*
-             Reviews are an index here, not a feed.
-        
-             `<ReviewListRow>` carries its own gutter and hairline, so it is *not*
-             wrapped in `styles.rowWrap` — the rule has to reach both edges of the
-             display to read as a list rather than as a stack of inset cards.
-           */
-        item.kind === 'log' ? (
-          <ReviewListRow log={item.log} />
-        ) : (
-          <View style={styles.rowWrap}>
-            {item.kind === 'list' ? (
-              <ListTile list={item.list} engagement={listEngagement?.[item.list.id]} />
-            ) : item.item.type === 'post' ? (
-              <WallPostRow post={item.item.post} />
-            ) : (
-              <ActivityRow entry={item.item.activity} ownerName={ownerName} />
-            )}
-          </View>
-        )
-      }
-      /*
-       * The wall separates rows with a hairline rather than whitespace, which is
-       * what makes a dense timeline scannable. `leadingItem` is used to suppress
-       * the rule directly above a group heading, where it would read as
-       * underlining the previous group instead of dividing two entries.
-       */
-      ItemSeparatorComponent={({ leadingItem }: { leadingItem?: Row }) =>
-        tab === 'wall' ? (
-          leadingItem?.kind === 'header' ? (
-            <View style={{ height: Spacing.x4 }} />
-          ) : (
-            <View style={[styles.wallDivider, { backgroundColor: theme.border }]} />
-          )
-        ) : (
-          <View style={{ height: Spacing.x12 }} />
-        )
-      }
+      keyExtractor={rowKey}
+      renderItem={renderRow}
+      ItemSeparatorComponent={RowSeparator}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       /*
@@ -664,12 +693,10 @@ export function ProfileView({ profileId, headerAction, onScroll }: ProfileViewPr
                     ? Math.round(achievementStats.data.hours_played * 60)
                     : null)
                 }
+                digitalCount={collection.data?.digital ?? null}
+                physicalCount={collection.data?.physical ?? null}
               />
             </View>
-
-            {/* The physical shelf, under the played one. Renders nothing until
-                there is a copy on it — see `<PhysicalShelfRow>`. */}
-            <PhysicalShelfRow profileId={profileId} isSelf={isSelf} />
 
             {/* Renders nothing until someone pins a track, so it costs no
                 vertical space on a profile that has not used the feature. */}

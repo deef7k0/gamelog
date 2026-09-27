@@ -78,7 +78,13 @@ const PHOTO_QUALITY = 0.6;
  * holding a box they bought second-hand is a form nobody finishes.
  */
 export default function AddReleaseScreen() {
-  const params = useLocalSearchParams<{ barcode?: string; game?: string; contribution?: string }>();
+  const params = useLocalSearchParams<{
+    barcode?: string;
+    game?: string;
+    contribution?: string;
+    /** A platform's short form to start from — a ScanDex match knows it. */
+    platform?: string;
+  }>();
   const userId = useAuth((state) => state.session?.user.id) ?? null;
   const [pickedGameId, setPickedGameId] = useState<string | null>(null);
   const [changingGame, setChangingGame] = useState(false);
@@ -160,6 +166,7 @@ export default function AddReleaseScreen() {
         code={code}
         game={game.data}
         existing={existing.data ?? null}
+        suggestedPlatform={params.platform ?? null}
         onChangeGame={() => setChangingGame(true)}
       />
     );
@@ -177,19 +184,21 @@ function ReleaseForm({
   code,
   game,
   existing,
+  suggestedPlatform,
   onChangeGame,
 }: {
   userId: string;
   code: string;
   game: Game;
   existing: ContributionWithRelations | null;
+  suggestedPlatform: string | null;
   onChangeGame: () => void;
 }) {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [platform, setPlatform] = useState(existing?.platform ?? '');
+  const [platform, setPlatform] = useState(existing?.platform ?? suggestedPlatform ?? '');
   const [region, setRegion] = useState<ReleaseRegion | null>(existing?.region ?? null);
   const [edition, setEdition] = useState(existing?.edition ?? 'Standard');
   const [more, setMore] = useState(

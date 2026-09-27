@@ -1,76 +1,81 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { ScrollView, Share, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CommentSection } from '@/components/comment-section';
 import { formatReleaseDate } from '@/components/game-actions';
+import { ReportFlag, useCanReport } from '@/components/report-flag';
 import { ReviewMetricsBreakdown } from '@/components/review-metrics';
+import { SpoilerNotice } from '@/components/spoiler-notice';
 import { Avatar } from '@/components/ui/avatar';
-import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { MarqueeText } from '@/components/ui/marquee-text';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { ScoreLine } from '@/components/ui/score';
+import { RoundAction } from '@/components/ui/round-action';
+import { ScoreMeter } from '@/components/ui/score-meter';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { SQUARE_RADIUS, SQUARE_RATIO, SquareArt } from '@/components/ui/square-art';
+import { StatsStrip, type StatsCell } from '@/components/ui/stats-strip';
+import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { EDITIONS, type EditionKind } from '@/constants/game-editions';
+import { PLATFORMS } from '@/constants/platform-cases';
+import { familyForStored, platformKeyForStored } from '@/constants/platform-family';
+import { PROGRESS_META, progressChoiceFor, type ProgressChoice } from '@/constants/progress';
 import { parseReviewMetrics } from '@/constants/review-metrics';
-import { Spacing } from '@/constants/theme';
-import { SpoilerNotice } from '@/components/spoiler-notice';
+import { statusColor } from '@/constants/status';
+import { PosterAspectRatio, Spacing, type ThemePalette } from '@/constants/theme';
+import { AccentProvider, useAccent } from '@/hooks/use-accent';
+import { useHeaderHeight, useTopBarInset } from '@/hooks/use-header-height';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
+import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
+import type { CachedGame, LogWithRelations } from '@/lib/database.types';
 import { displayNameFor } from '@/lib/format';
-import { reviewContext } from '@/lib/review-facets';
 import { useAuth } from '@/store/auth';
 
 /**
- * One person's review of one game, presented as a document.
+ * One person's review of one game.
  *
- * ## Why this is not a "Now Playing" screen
+ * ## It is built like Surprise Me, on purpose
  *
- * It was one. The masthead was a centred 320dp cover with the game's name under
- * it in `h1`, the reviewer's name at 12px in a bar reading "NOW VIEWING REVIEW",
- * and the article's own headline one step *below* the game's — on the one screen
- * in the app whose entire subject is a person's argument. A music player is a
- * terminal view: the artwork is the content and nothing lives under it. A review
- * is a document: the masthead is the doorway and the prose is the content. With
- * the player's shape borrowed, the body copy began 782dp down a 844dp phone.
+ * Top to bottom, the page is the dealt card's composition with a review under
+ * it: who wrote it, centred in the band the back disc occupies; the game's
+ * square art; the title and its credit line beside two round actions (like,
+ * share); the score, centred on the art's axis over a bar; the playthrough as the
+ * game page's stats strip; then the headline, the prose and the conversation.
  *
- * So the order is inverted to match what the page is actually for:
+ * Every piece is the shared one rather than a copy — `<SquareArt>`,
+ * `<RoundAction>` and `<MarqueeText>` are the objects Surprise Me draws, and
+ * `<StatsStrip>` is the game page's — so the three screens cannot drift apart.
+ * Everything is laid out in the artwork's column, exactly as the dealt card is:
+ * the cover is the widest object here, so its edges are the page's margins.
  *
- * 1. **The lockup** — the cover, and beside it every fact about the review in
- *    one column: who wrote it, what it is about, what they gave it, and how they
- *    played it.
- * 2. **The headline**, at `display` and full measure, immediately above
- * 3. **the prose**, which is the point.
+ * What it does **not** take from Surprise Me is the deck, the bloom and the
+ * sheen. Those are the dealt card's own material (DESIGN.md § 4.2) and answer
+ * a gesture this page does not have; a review is not dealt.
  *
- * DESIGN.md § 2.1 assigns `display` to "a review's own title" and § 16 states
- * the rule directly: the top line is the review's headline, never the game's
- * name. Both are now true here.
+ * ## It runs on the game's colour
  *
- * ## The page is a dark room, and stays one
+ * `<AccentProvider>`, and the page fills flat with `accent.page`, as the game
+ * page and Surprise Me do. It used to be the one screen about a single game that
+ * stayed a neutral dark room, on the argument that a reading surface should not
+ * sit on a coloured field. The field is M3's `background` — the darkest tone of
+ * the game's hue, not a lit gradient — so the prose keeps its contrast, and the
+ * page now reads as part of the same object as the game it is about.
  *
- * **No `<ScrollAmbience>` and no `<AccentProvider>`.** This is the one screen
- * about a single game that does not take that game's colour, and it is a
- * deliberate exception to the rule in CLAUDE.md rather than an oversight. A
- * review is a reading surface: the thing that should be loud on it is the
- * writing, and a lit backdrop puts a coloured field behind two thousand words of
- * body copy for no gain to the reader.
+ * ## What the reader can do, and where
  *
- * Dropping it also gives every token back the page it was measured against.
- * `textSecondary`, `textMuted`, the score ramp and `platinum` are all tuned to
- * the near-black page; on a lit gradient the greys have no headroom (2.75:1) and the data
- * colours cannot be lifted without leaving the ramp they belong to, which is why
- * the previous version had to put them on a tinted surface to stay legible.
- * There is nothing to work around here — the background is `theme.background`,
- * which `<Screen>` already paints, so this screen passes no `backdrop` at all.
+ * Like and share are the round actions beside the title, where Surprise Me
+ * keeps its two. The like count and the date close the article, with the report
+ * flag at the far end of that line — the one response that is not about whether
+ * you enjoyed it, kept quiet and away from the other two.
  */
 export default function ReviewScreen() {
-  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const viewerId = useAuth((state) => state.session?.user.id) ?? null;
 
   const log = useQuery({
     queryKey: ['log', id],
@@ -78,27 +83,8 @@ export default function ReviewScreen() {
     enabled: !!id,
   });
 
-  const engagement = useQuery({
-    queryKey: ['engagement', 'log', id, viewerId],
-    queryFn: () => getEngagement('log', [id!], viewerId),
-    enabled: !!id,
-  });
-
-  /* The optimistic toggle lives in the hook, shared with the feed card and the
-     collection masthead — this screen draws its own footer row but must not grow
-     its own copy of the like state. `id` is a route param and defined by the
-     time anything reads this; the hook is a no-op until the query lands. */
-  const { liked, likeCount, toggle } = useLikeToggle('log', id!, engagement.data?.[id!]);
-
-  /* Whether the reader has uncovered a spoiler-flagged review. Declared with the
-     other hooks, above every early return — the branches below bail out before
-     `log.data` exists and a hook after them would not run on the same path each
-     render. Per-visit rather than persisted: leaving and coming back re-covers
-     it, which is the safer default for a screen somebody may hand to a friend. */
-  const [revealed, setRevealed] = useState(false);
-
   /*
-   * Every branch below carries a bar, which the previous version did not.
+   * Every branch below carries a bar.
    *
    * `headerShown` is false app-wide, so a screen that renders no bar of its own
    * renders no way out of itself: the loading, error and not-found states were
@@ -116,20 +102,7 @@ export default function ReviewScreen() {
   if (log.isError) {
     return (
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-        <ErrorState
-          error={log.error}
-          action={
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Try loading this review again"
-              onPress={() => log.refetch()}
-              hitSlop={Spacing.x8}>
-              <Text variant="h5" color="primaryText">
-                Try again
-              </Text>
-            </PressableScale>
-          }
-        />
+        <ErrorState error={log.error} onRetry={() => void log.refetch()} />
       </Screen>
     );
   }
@@ -145,289 +118,256 @@ export default function ReviewScreen() {
     );
   }
 
-  const review = log.data;
+  const game = log.data.game;
+
+  /* The provider is rendered here and read below: a component is not inside its
+     own context, so the page itself is the child. */
+  return (
+    <AccentProvider artwork={game?.cover_url ?? game?.hero_url} genres={game?.genres}>
+      <ReviewPage review={log.data} />
+    </AccentProvider>
+  );
+}
+
+/**
+ * The widest the column gets. On a phone it is `SQUARE_RATIO` of the display, as
+ * on Surprise Me; on a tablet or the web this is what stops the art from being
+ * the whole screen and the prose from running to a 90-character measure.
+ */
+const MAX_COLUMN = 520;
+
+/**
+ * How far in from each edge the byline must stay: the back disc's inset, its
+ * 44dp, and a gap. Both sides, so the name centres on the display rather than on
+ * what is left of it.
+ */
+const DISC_CLEARANCE = Spacing.x16 + 44 + Spacing.x8;
+
+/**
+ * Lifts the byline to the platform floor **without reserving any height**. A
+ * 24dp avatar beside one line of type is about 26dp; slop grows only the touch
+ * area, so the band keeps the height the discs are centred in.
+ */
+const BYLINE_SLOP = { top: 11, bottom: 11, left: 8, right: 8 };
+
+function ReviewPage({ review }: { review: LogWithRelations }) {
+  const theme = useTheme();
+  const accent = useAccent();
+  const { width } = useWindowDimensions();
+  const viewerId = useAuth((state) => state.session?.user.id) ?? null;
+
+  /* The band the floating disc occupies, reserved in content — the same row
+     Surprise Me states its own name in. */
+  const headerHeight = useHeaderHeight();
+  const barInset = useTopBarInset();
+
+  const engagement = useQuery({
+    queryKey: ['engagement', 'log', review.id, viewerId],
+    queryFn: () => getEngagement('log', [review.id], viewerId),
+  });
+
+  /* The optimistic toggle lives in the hook, shared with the feed card and the
+     collection masthead — this page must not grow its own copy of the like
+     state. */
+  const { liked, likeCount, toggle } = useLikeToggle(
+    'log',
+    review.id,
+    engagement.data?.[review.id]
+  );
+
+  /* Whether the reader has uncovered a spoiler-flagged review. Per-visit rather
+     than persisted: leaving and coming back re-covers it, which is the safer
+     default for a screen somebody may hand to a friend. */
+  const [revealed, setRevealed] = useState(false);
+
+  const canReport = useCanReport(review.user_id);
+
   const game = review.game;
   const author = review.profile;
   const authorName = displayNameFor(author);
   const metrics = parseReviewMetrics(review.review_metrics);
   const hasProse = !!review.review?.trim();
-  const context = reviewContext(review);
-  /* "100%" in the context line already says a 100% complete. */
-  const percentSaid =
-    review.completion_percent === 100 && (review.completion === 'full' || review.platinum);
+  const cells = reviewCells(review, theme);
 
-  /* `edition_kind` is a bare `string` on the cached row, and `editionLabel`
-     indexes `EDITIONS` unguarded — an unrecognised value would throw rather
-     than degrade. Narrow it here instead of casting. */
-  const edition =
-    game?.edition_kind && game.edition_kind in EDITIONS ? (game.edition_kind as EditionKind) : null;
-
-  /* Steam's own capsule where the game has a listing, IGDB otherwise. The row
-     stores `source` / `source_id` rather than an appid; see CLAUDE.md's ladder,
-     Steam → IGDB → lettered placeholder. */
-  const steamAppId = game?.source === 'steam' ? game.source_id : null;
+  const column = Math.round(Math.min(width * SQUARE_RATIO, MAX_COLUMN));
+  const credit = [game?.release_year, game?.developer].filter(Boolean).join(' · ');
 
   async function handleShare() {
     try {
-      const shareText = review.review_title
-        ? `${review.review_title} — ${game?.title ?? ''} review by ${authorName} on GameLog`
-        : `${game?.title ?? 'Game'}: ${review.rating ?? ''}/100 review by ${authorName} on GameLog`;
-      await Share.share({ message: shareText });
+      const title = game?.title ?? 'a game';
+      await Share.share({
+        message: review.review_title
+          ? `${review.review_title} — ${title} review by ${authorName} on GameLog`
+          : `${title}: ${review.rating ?? ''}/100 review by ${authorName} on GameLog`,
+      });
     } catch {
       // Dismissed
     }
   }
 
   return (
-    <Screen
-      edges={['bottom']}
-      insetHeader
-      /*
-       * Two discs of glass over the page, and nothing else. The bar that used to
-       * name the writer is gone app-wide; the byline in the lockup below is
-       * where that fact lives now, and it is 26dp of avatar rather than 12px of
-       * type in a strip.
-       */
-      topBar={
-        <FrostedTopBar
-          back
-          right={<TopBarDisc icon="share-outline" label="Share review" onPress={handleShare} />}
-        />
-      }>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator>
+    <Screen edges={['bottom']} background={accent.page} topBar={<FrostedTopBar back />}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/*
-          The lockup: the cover, and beside it everything there is to say about
-          the review before you start reading it.
+          Who wrote it, centred in the disc's band — where Surprise Me says its
+          own name.
 
-          A two-column header, not a stack — the poster is a *plate* beside the
-          standfirst, which is how a magazine sets an opening. Everything in the
-          right column is ranged left off one edge: byline, then the title with
-          its year, then the score, then the playthrough as a tight block of
-          lines. The prose starts below both columns at the page's full measure.
+          The byline is the page's first line because a review is somebody's
+          opinion before it is anything else, and the band is where it fits
+          without costing the art any height: the row is exactly as tall as the
+          floating disc beside it, so the two read as one line of chrome.
         */}
-        <View style={styles.lockup}>
-          <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
-            <PressableScale
-              accessibilityRole="link"
-              accessibilityLabel={`Open ${game?.title ?? 'this game'}`}
-              scaleTo={0.97}>
-              <Poster
-                coverUrl={game?.cover_url}
-                heroUrl={game?.hero_url}
-                title={game?.title}
-                width={MASTHEAD_POSTER}
-                steamAppId={steamAppId}
-                edition={edition}
-                elevated
-              />
-            </PressableScale>
-          </Link>
-
-          <View style={styles.lockupColumn}>
-            {/* "Review by <name>" — the words are the label, the name is the
-                emphasis. Sans, because it is a fact *about* the piece rather
-                than part of it. */}
-            {author && (
-              <Link href={{ pathname: '/profile/[id]', params: { id: author.id } }} asChild>
-                <PressableScale
-                  accessibilityRole="link"
-                  accessibilityLabel={`${authorName}'s profile`}
-                  scaleTo={0.97}
-                  hitSlop={BYLINE_SLOP}
-                  style={StyleSheet.flatten(styles.byline)}>
-                  <Avatar uri={author.avatar_url} name={authorName} size={18} />
-                  <Text
-                    variant="bodySmall"
-                    color="textMuted"
-                    numberOfLines={1}
-                    style={styles.bylineName}>
-                    {'Review by '}
-                    <Text variant="reviewByline">{authorName}</Text>
-                  </Text>
-                </PressableScale>
-              </Link>
-            )}
-
-            {/*
-              The title and the year as **one text**, not two views.
-
-              The year has to sit on the title's last line rather than under it —
-              it is a qualifier on the name, the way a magazine sets a film's
-              year, and a separate block would put it on a line of its own and
-              make it a second fact. One `<Text>` with a nested span is the only
-              construction that gets a sans-serif year to flow after a serif
-              title whose wrap point is not knowable in advance.
-            */}
-            <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
+        <View
+          style={[
+            styles.masthead,
+            { height: headerHeight, paddingTop: barInset, paddingHorizontal: DISC_CLEARANCE },
+          ]}>
+          {author && (
+            <Link href={{ pathname: '/profile/[id]', params: { id: author.id } }} asChild>
               <PressableScale
                 accessibilityRole="link"
-                accessibilityLabel={`Open ${game?.title ?? 'this game'}`}
-                scaleTo={0.98}>
-                <Text variant="reviewTitle" numberOfLines={3}>
-                  {game?.title ?? 'Unknown game'}
-                  {!!game?.release_year && (
-                    <Text variant="reviewYear" color="textMuted">{`  ${game.release_year}`}</Text>
-                  )}
+                accessibilityLabel={`Review by ${authorName}. Opens their profile.`}
+                hitSlop={BYLINE_SLOP}
+                scaleTo={0.97}
+                style={StyleSheet.flatten(styles.byline)}>
+                <Avatar uri={author.avatar_url} name={authorName} size={24} />
+                <Text variant="h4" numberOfLines={1} style={styles.bylineName}>
+                  {authorName}
                 </Text>
               </PressableScale>
             </Link>
-
-            {/* A bare coloured numeral and its verdict word — "78 GOOD". Never a
-                capsule here: DESIGN.md § 15, and `<ScoreLine>` is where that
-                lives. It also carries the composed label a screen reader needs,
-                which three sibling `<Text>` nodes did not. */}
-            {review.rating !== null && <ScoreLine score={review.rating} />}
-
-            {/*
-              The playthrough, as a compact block of lines.
-
-              A few facts, no icons, no gaps between them beyond the leading —
-              this reads as a standfirst rather than as metadata rows, which
-              is the difference between a magazine and a settings screen. They
-              are `reviewMeta`: semibold sans at 13, near-white, tight. Raised
-              from 11, because these are the facts somebody checks before
-              deciding whether to read the piece and they were the quietest type
-              on the masthead — still under the title and the score, which is the
-              constraint.
-
-              Every one of these was already on the log and the date is the one
-              that used to vanish entirely — it was nested inside
-              `rating !== null`, so a review written without a score, which the
-              API explicitly supports, rendered undated.
-
-              Platinum keeps its word. It was an unlabelled trophy glyph with no
-              role and no label, silent to a screen reader and carried by hue
-              alone against the house rule that colour is never the only carrier.
-            */}
-            <View style={styles.meta}>
-              {!!review.played_on && <Text variant="reviewMeta">Played on {review.played_on}</Text>}
-
-              {/* How far and how — "Completed · 4-player co-op". The same
-                  words the review list filters by, so a review found under
-                  "Finished" says why it was there. */}
-              {context && <Text variant="reviewMeta">{context}</Text>}
-
-              {review.hours_played != null && (
-                <Text variant="reviewMeta">{review.hours_played} hours logged</Text>
-              )}
-
-              {review.completion_percent != null && !percentSaid && (
-                <Text variant="reviewMeta">{review.completion_percent}% complete</Text>
-              )}
-
-              {review.platinum && (
-                <Text variant="reviewMeta" style={{ color: theme.platinum }}>
-                  Platinum
-                </Text>
-              )}
-
-              <Text variant="reviewMeta" color="textMuted">
-                Reviewed {formatReleaseDate(review.created_at)}
-              </Text>
-            </View>
-          </View>
+          )}
         </View>
 
-        {/* The scorecard, when the reviewer scored by category. Full width
-            rather than in the column: fourteen labelled bars cannot live in
-            200dp beside a poster. */}
-        {metrics && (
-          <View style={styles.metrics}>
-            <ReviewMetricsBreakdown metrics={metrics} />
-          </View>
-        )}
-
-        {/*
-          The article — full measure, under both columns, and nothing else in it.
-          No pull quote, no related rail, no sidebar.
-
-          `reviewProse` is the serif at 14/23 and `proseInk` is a cool muted grey
-          rather than a bright white. Both are the same decision: a thousand words
-          set at interface brightness in an interface typeface is a wall, and this
-          is the one block in the app somebody actually reads.
-        */}
-        <View style={styles.article}>
-          {!!review.review_title && (
-            <Text variant="reviewTitle" accessibilityRole="header">
-              {review.review_title}
-            </Text>
+        <View style={[styles.column, { width: column }]}>
+          {game && (
+            <Link href={{ pathname: '/game/[id]', params: { id: review.game_id } }} asChild>
+              <PressableScale
+                accessibilityRole="link"
+                accessibilityLabel={`Open ${game.title}`}
+                scaleTo={0.98}
+                style={StyleSheet.flatten(styles.art)}>
+                <ReviewArt game={game} size={column} />
+              </PressableScale>
+            </Link>
           )}
 
           {/*
-            The one screen where the notice uncovers rather than navigates.
-
-            Everywhere else a flagged review is replaced by a box that sends the
-            reader here — the decision to read a spoiler belongs on the screen
-            that exists to be read, not on a card they are scrolling past. Here
-            they have arrived on purpose, and there is nowhere further to send
-            them, so this is the end of that path: one deliberate tap and the
-            prose appears.
-
-            Not `numberOfLines`, not a blur, not a partial reveal. Once somebody
-            has walked to the destination and pressed the cover, they have asked
-            twice and get the whole thing.
+            The title and its credit line, ranged to the art's edges, with the
+            two round actions at the right — Surprise Me's row, with a like and
+            a share where that has a bookmark and a skip.
           */}
-          {hasProse && review.spoilers && !revealed ? (
-            <SpoilerNotice
-              onPress={() => setRevealed(true)}
-              minHeight={140}
-              hint="Shows the review on this screen"
-            />
-          ) : hasProse ? (
-            <Text variant="reviewProse" color="proseInk">
-              {review.review}
-            </Text>
-          ) : (
-            <Text variant="reviewProse" color="textMuted">
-              {authorName} scored this game without writing it up.
-            </Text>
+          <View style={styles.titleRow}>
+            <View style={styles.titleText}>
+              <MarqueeText
+                text={game?.title ?? 'Unknown game'}
+                variant="h3"
+                accessibilityRole="header"
+              />
+              {!!credit && (
+                <Text variant="bodySmall" numberOfLines={1} style={{ color: accent.quietInk }}>
+                  {credit}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.actions}>
+              <RoundAction
+                icon={liked ? 'heart' : 'heart-outline'}
+                label={liked ? 'Unlike this review' : 'Like this review'}
+                selected={liked}
+                onPress={toggle}
+              />
+              <RoundAction icon="share-outline" label="Share this review" onPress={handleShare} />
+            </View>
+          </View>
+
+          {/* The verdict, on the art's axis, over its length. */}
+          {review.rating !== null && (
+            <View style={styles.score}>
+              <ScoreMeter score={review.rating} />
+            </View>
           )}
-        </View>
 
-        {/*
-          The like, at the end of the piece, and it is the only thing on this row.
+          {/* The scorecard, when they scored by category: the bar above, broken
+              down, so it sits directly under it. */}
+          {metrics && (
+            <View style={styles.metrics}>
+              <ReviewMetricsBreakdown metrics={metrics} />
+            </View>
+          )}
 
-          Not `<EngagementBar>` — that is a row of three equal glyphs, which is
-          right on a card in a feed where every action is the same weight. At the
-          foot of an article they are not equal: the like is a response to what
-          you have just read, so it gets the words ("Liked", then the count).
+          {/* How they played it, in the game page's strip — only what they
+              recorded, so a quick review has a short strip or none. */}
+          {cells.length > 0 && (
+            <View style={styles.stats}>
+              <StatsStrip cells={cells} />
+            </View>
+          )}
 
-          The other two are not missing, they are elsewhere and better placed.
-          Share is a disc in the top bar, where it is on every screen. The
-          conversation is the section directly below this rule with its own
-          heading and its own composer — a second, smaller mark at the far end of
-          this row was a link to something already on screen.
-        */}
-        <View style={[styles.footer, { borderTopColor: theme.border }]}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityState={{ selected: liked }}
-            accessibilityLabel={liked ? 'Unlike this review' : 'Like this review'}
-            onPress={toggle}
-            hitSlop={FOOTER_SLOP}
-            style={StyleSheet.flatten(styles.likeRow)}
-            scaleTo={0.96}>
-            <Ionicons
-              name={liked ? 'heart' : 'heart-outline'}
-              size={17}
-              /* `liked`, not `danger`. A like is an endorsement; `danger` means
-                 something is about to be destroyed. See the token. */
-              color={liked ? theme.liked : theme.textMuted}
-            />
-            <Text variant="reviewByline">{liked ? 'Liked' : 'Like'}</Text>
-            {likeCount > 0 && (
-              <Text variant="bodySmall" color="textMuted">
-                {likeCount} {likeCount === 1 ? 'like' : 'likes'}
+          {/*
+            The article, in the review's own face.
+
+            `reviewProse` is the serif at 14/23 and `proseInk` a quieter ink than
+            the interface's: a thousand words at interface brightness is a wall,
+            and this is the one block in the app somebody actually reads.
+          */}
+          <View style={styles.article}>
+            {!!review.review_title && (
+              <Text variant="reviewTitle" accessibilityRole="header">
+                {review.review_title}
               </Text>
             )}
-          </PressableScale>
-        </View>
 
-        {/* The conversation, under the piece it is about. Below the interaction
-            row rather than above it: the row is the end of the article, and the
-            comments are a second document that starts after it. */}
-        <View style={styles.comments}>
-          <CommentSection targetType="log" targetId={review.id} />
+            {/*
+              The one screen where the notice uncovers rather than navigates.
+
+              Everywhere else a flagged review is replaced by a box that sends
+              the reader here — the decision to read a spoiler belongs on the
+              screen that exists to be read. Here they have arrived on purpose,
+              so one deliberate tap and the prose appears.
+            */}
+            {hasProse && review.spoilers && !revealed ? (
+              <SpoilerNotice
+                onPress={() => setRevealed(true)}
+                minHeight={140}
+                hint="Shows the review on this screen"
+              />
+            ) : hasProse ? (
+              <Text variant="reviewProse" color="proseInk">
+                {review.review}
+              </Text>
+            ) : (
+              <Text variant="reviewProse" style={{ color: accent.quietInk }}>
+                {authorName} scored this game without writing it up.
+              </Text>
+            )}
+          </View>
+
+          {/*
+            The end of the piece: when it was written and how many liked it, and
+            at the far end the flag, for anyone but its author.
+          */}
+          <View style={[styles.footer, { borderTopColor: accent.m3.outlineVariant }]}>
+            <Text variant="bodySmall" style={[styles.footerText, { color: accent.quietInk }]}>
+              {`Reviewed ${formatReleaseDate(review.created_at)}`}
+              {likeCount > 0 ? ` · ${likeCount} ${likeCount === 1 ? 'like' : 'likes'}` : ''}
+            </Text>
+
+            {canReport && (hasProse || !!review.review_title) && (
+              <ReportFlag
+                target={{ kind: 'review', logId: review.id }}
+                authorId={review.user_id}
+                label={`Report ${authorName}’s review`}
+                withWord
+              />
+            )}
+          </View>
+
+          {/* The conversation, under the piece it is about. */}
+          <View style={styles.comments}>
+            <CommentSection targetType="log" targetId={review.id} />
+          </View>
         </View>
       </ScrollView>
     </Screen>
@@ -435,113 +375,200 @@ export default function ReviewScreen() {
 }
 
 /**
- * The masthead poster, in fixed dp.
+ * The game's art: the square when SteamGridDB has one, and the IGDB portrait at
+ * the same height when it does not — Surprise Me's two shapes, for the same
+ * reason. A 2:3 cover forced into a square loses a third of itself.
  *
- * Artwork does not ride the `Spacing` ladder — retuning the chrome must move the
- * interface and leave the art where it is. The number is chosen against the
- * reading measure rather than against the artwork: at true 2:3 a 100dp cover
- * stands 150dp, and the ~236dp of column left beside it on a 390dp phone takes
- * the byline, a three-line title and the meta lines under the score without any
- * of them wrapping awkwardly.
- *
- * Down from 132, then from 116. At 132 the cover was the tallest thing in the
- * lockup by a clear margin and the text column ended well above it, so the
- * masthead read as a piece of box art with some text next to it rather than as a
- * review of something. 100 is the width at which the two columns finish within
- * about a line of each other and read as one block — which is the whole job of a
- * masthead lockup.
- *
- * It is deliberately the *shorter* of the two now: the column wins, the poster
- * ends partway down it, and both are top-aligned so the byline and the cover's
- * top edge share a line.
+ * **Nothing is drawn until the lookup has an answer**, only a skeleton in the
+ * square's shape: painting the portrait and swapping it for the square a beat
+ * later is exactly the flicker `useSquareCover`'s `resolved` exists to prevent.
  */
-const MASTHEAD_POSTER = 108;
+function ReviewArt({ game, size }: { game: CachedGame; size: number }) {
+  const square = useSquareCover({ gameId: game.id, title: game.title });
+
+  if (!square.resolved) return <Skeleton width={size} height={size} radius={SQUARE_RADIUS} />;
+
+  if (square.uri) return <SquareArt uri={square.uri} size={size} title={game.title} />;
+
+  /* `edition_kind` is a bare `string` on the cached row, and `editionLabel`
+     indexes `EDITIONS` unguarded — narrow it rather than cast. The Steam capsule
+     is preferred where the row has an appid; see CLAUDE.md's artwork ladder. */
+  const edition =
+    game.edition_kind && game.edition_kind in EDITIONS ? (game.edition_kind as EditionKind) : null;
+
+  return (
+    <Poster
+      coverUrl={game.cover_url}
+      heroUrl={game.hero_url}
+      title={game.title}
+      width={Math.round(size * PosterAspectRatio)}
+      steamAppId={game.source === 'steam' ? game.source_id : null}
+      edition={edition}
+      elevated
+    />
+  );
+}
+
+/** The most figures the strip carries; past four, a 300dp column truncates labels. */
+const MAX_CELLS = 4;
+
+/** What each progress choice is called in a strip label — one word, where it can be. */
+const PROGRESS_CELL: Partial<Record<ProgressChoice, string>> = {
+  playing: 'PLAYING',
+  paused: 'PAUSED',
+  completed: 'COMPLETED',
+  full: '100%',
+  dropped: 'DROPPED',
+};
 
 /**
- * Lifts the two footer marks to the platform floor.
+ * The playthrough as strip cells: where, how far, how long, how much, with whom.
  *
- * The like row is a 17px glyph beside a 18dp line — about 20dp against 44 (iOS)
- * and 48 (Android), and the comment mark is smaller still. Slop rather than
- * padding: padding would put a band of dead space between the last line of the
- * article and its rule, which is the one interval on this page that is doing
- * editorial work.
+ * **Only what the writer recorded.** The game page's strip keeps four cells
+ * always and says "N/A" in the empty ones, because it compares games; this one
+ * describes one person's run, and a blank they left is not a fact about the
+ * game. "Played" is never a cell for the reason `reviewContext` gives — everyone
+ * with a review played the game.
+ *
+ * Marks where the fact has one — the platform's own logo, the progress glyph in
+ * its status colour, a trophy for a platinum — and the label always says it in
+ * words, since colour and glyph are never the only carriers.
  */
-const FOOTER_SLOP = { top: 14, bottom: 14, left: 10, right: 10 };
+function reviewCells(review: LogWithRelations, theme: ThemePalette): StatsCell[] {
+  const cells: StatsCell[] = [];
 
-/**
- * Lifts the byline to the platform floor **without reserving any height**.
- *
- * An 18dp avatar beside one line of type is about 22dp. A `minHeight` would
- * close that gap by growing the row, which is what used to put a hole between
- * the byline and the title; slop grows only the touch area, so the column keeps
- * one interval from top to bottom.
- */
-const BYLINE_SLOP = { top: 13, bottom: 13, left: 8, right: 8 };
+  if (review.played_on) {
+    const family = familyForStored(review.played_on);
+    const key = platformKeyForStored(review.played_on);
+    cells.push(
+      family
+        ? {
+            key: 'platform',
+            value: review.played_on,
+            /* The short form the pickers write ("PS5"), resolved from older
+               free-text values too, so a label fits its cell. */
+            label: key ? PLATFORMS[key].short : family.label,
+            icon: { name: family.icon, color: family.accent },
+            a11y: `Played on ${review.played_on}`,
+          }
+        : {
+            /* A platform typed by hand that is not one we know: kept as the
+               writer's own word rather than dropped. */
+            key: 'platform',
+            value: review.played_on,
+            label: 'PLATFORM',
+            a11y: `Played on ${review.played_on}`,
+          }
+    );
+  }
+
+  /* A platinum reads as 100%, the same rule the review filters count by. */
+  const progress = progressChoiceFor({
+    status: review.status,
+    completion: review.platinum ? 'full' : review.completion,
+  });
+
+  if (review.platinum) {
+    cells.push({
+      key: 'progress',
+      value: 'Platinum',
+      label: 'PLATINUM',
+      icon: { name: 'trophy', color: theme.platinum },
+      a11y: 'Earned the platinum trophy',
+    });
+  } else if (progress && PROGRESS_CELL[progress]) {
+    const meta = PROGRESS_META[progress];
+    cells.push({
+      key: 'progress',
+      value: meta.label,
+      label: PROGRESS_CELL[progress]!,
+      icon: { name: meta.icon, color: statusColor(meta.status, theme) },
+      a11y: meta.label,
+    });
+  }
+
+  if (review.hours_played != null) {
+    cells.push({
+      key: 'hours',
+      value: `${review.hours_played} h`,
+      label: 'PLAYED',
+      a11y: `${review.hours_played} hours played`,
+    });
+  }
+
+  /* "100%" already said by the progress cell is not said twice. */
+  const percentSaid = review.completion_percent === 100 && (progress === 'full' || review.platinum);
+  if (review.completion_percent != null && !percentSaid) {
+    cells.push({
+      key: 'percent',
+      value: `${review.completion_percent}%`,
+      label: 'COMPLETE',
+      a11y: `${review.completion_percent}% complete`,
+    });
+  }
+
+  if (review.coop !== null) {
+    const players = review.coop && review.player_count ? review.player_count : null;
+    cells.push({
+      key: 'coop',
+      value: review.coop ? 'Co-op' : 'Solo',
+      label: review.coop ? (players ? `${players} PLAYERS` : 'CO-OP') : 'SOLO',
+      icon: { name: review.coop ? 'people' : 'person', color: theme.text },
+      a11y: review.coop
+        ? players
+          ? `Played co-op, ${players} players`
+          : 'Played co-op'
+        : 'Played solo',
+    });
+  }
+
+  return cells.slice(0, MAX_CELLS);
+}
 
 const styles = StyleSheet.create({
-  /* Small margins. The brief asks for a dense editorial page rather than a
-     mobile-app one, and the difference is mostly here: `x20` (16) against the
-     `x24` (18) this had, so the prose runs closer to the display's edges and
-     reads as a column of type rather than as a card with text in it. */
-  scrollContent: {
-    paddingHorizontal: Spacing.x20,
-    paddingTop: Spacing.x12,
-    paddingBottom: Spacing.x48,
-  },
-
-  /* ~10dp between the plate and the standfirst, per the reference. Tighter than
-     the app's usual `x20`, because these two are one object. */
-  lockup: { flexDirection: 'row', gap: Spacing.x12 },
-  /* `flex-start`, not centred: this column runs past the bottom of the poster on
-     most reviews, and centring a taller child against a shorter sibling pushes
-     the byline above the top of the artwork. */
-  lockupColumn: { flex: 1, gap: Spacing.x8 },
-  /*
-   * **No `minHeight`, and that is the fix.**
-   *
-   * It carried `minHeight: TapTarget` so the row cleared the platform floor
-   * without the avatar having to grow — which is a sound instinct and the wrong
-   * instrument here. An 18dp avatar beside an 17dp line is a ~22dp row, so the
-   * floor added ~22dp of empty box *below the byline*, inside the column's own
-   * `gap`. The result was a hole between "Review by …" and the title while every
-   * other interval in the column was 6.
-   *
-   * `BYLINE_SLOP` does the same job without occupying any space, which is the
-   * same trade the card elsewhere in the app makes. The column now has one
-   * rhythm from the byline to the last metadata line.
-   */
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  scroll: { alignItems: 'center', paddingBottom: Spacing.x48 },
+  masthead: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, maxWidth: '100%' },
   bylineName: { flexShrink: 1 },
   /*
-   * **No gap.** The four playthrough lines are a block, not a list — the leading
-   * inside `reviewMeta` (17 on 12) is the only interval between them, which is
-   * what makes them read as a standfirst rather than as four metadata rows with
-   * air between each.
+   * **Exactly as wide as the artwork**, set inline — the alignment rule for the
+   * whole page, as it is on Surprise Me. The cover is the widest object here, so
+   * its edges are the margins, and the title, the score, the strip and the prose
+   * all share them.
    */
-  meta: {},
-
-  metrics: { marginTop: Spacing.x20 },
+  column: { marginTop: Spacing.x8 },
+  /* Centred in the column: the portrait fallback is narrower than the square
+     and sits on the same axis. */
+  art: { alignSelf: 'center' },
+  /* The title and the two round actions on one line, the buttons against the
+     middle of the two-line text column rather than against its first line. */
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    marginTop: Spacing.x20,
+  },
+  /* `minWidth: 0` is what lets the marquee's window clip: without it a long
+     title measures its natural width and pushes the buttons off the row. */
+  titleText: { flex: 1, minWidth: 0, gap: Spacing.x4 },
+  actions: { flexDirection: 'row', gap: Spacing.x8 },
+  score: { marginTop: Spacing.x24 },
+  metrics: { marginTop: Spacing.x16 },
+  stats: { marginTop: Spacing.x12 },
   /*
-   * The one interval on this page that is deliberately larger than its
-   * neighbours.
-   *
-   * It was `x16`, which is the same step as the gaps *inside* the header — so
-   * the standfirst and the article read as one continuous block and the piece
-   * appeared to start mid-sentence. `x32` is unmistakably a section break: the
-   * header is a lockup you scan, the article is a thing you read, and the change
-   * of task deserves the pause. Still nowhere near the `x48` the app puts
-   * between Home's sections; this is one document, not two.
+   * The one interval deliberately larger than its neighbours: everything above
+   * is a lockup you scan, the article is a thing you read, and the change of
+   * task deserves the pause.
    */
   article: { marginTop: Spacing.x32, gap: Spacing.x12 },
-
-  /* One control, ranged left under the rule that closes the article. */
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing.x12,
     marginTop: Spacing.x32,
     paddingTop: Spacing.x16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  likeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  footerText: { flex: 1 },
   comments: { marginTop: Spacing.x40 },
 });

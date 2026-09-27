@@ -1,15 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-import {
-  GameTile,
-  gridItemWidth,
-  steamCoverUrl,
-  steamHeaderUrl,
-} from '@/components/gaming/game-tile';
+import { CdBinder } from '@/components/cd-binder';
+import { gridItemWidth, steamCoverUrl, steamHeaderUrl } from '@/components/gaming/game-tile';
+import { LibraryStats } from '@/components/library-stats';
+import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -24,8 +22,15 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
-import { getFavorites, getLibraryStatistics, getOwnedGames, getUserLogs } from '@/lib/api';
-import type { ListItem } from '@/lib/api';
+import {
+  getCopies,
+  getFavorites,
+  getLibraryStatistics,
+  getOwnedGames,
+  getUserGameStats,
+  getUserLogs,
+} from '@/lib/api';
+import type { CopyWithRelations, ListItem } from '@/lib/api';
 import type { LogWithRelations } from '@/lib/database.types';
 import {
   availableSorts,
@@ -41,28 +46,33 @@ import { useAuth } from '@/store/auth';
 const COLUMNS = 4;
 const GAP = Spacing.x8;
 
-type LibraryTab = 'all' | 'favourites' | 'owned' | 'logged' | 'stats';
+type LibraryTab = 'all' | 'physical' | 'logged' | 'favourites' | 'steam';
 
 /**
  * Everything a person's games can be filtered down to.
  *
- * `all` leads because it is the honest default — this screen is now about a
- * *person's games*, not about one storefront, and opening it on the Steam
- * subset would have kept the old framing with a new name.
+ * `all` leads because it is the honest default — this screen is about a
+ * *person's games*, not about one storefront — and it opens on what they add up
+ * to (`<LibraryStats>`) above the games themselves.
  *
- * `owned` and `logged` answer questions the merged list cannot: "what do I
- * actually have on Steam" and "what have I written about". Keeping both is what
- * lets `all` be a merge rather than a compromise.
+ * `physical` is the binder: the boxes on the shelf, as discs in sleeves.
+ * `steam` is the linked library, with Steam's own figures at its head — they
+ * used to be a Statistics tab of their own, which made the one tab about
+ * everything someone owns be about one storefront.
  */
-const TAB_ORDER: LibraryTab[] = ['all', 'favourites', 'owned', 'logged', 'stats'];
+const TAB_ORDER: LibraryTab[] = ['all', 'physical', 'logged', 'favourites', 'steam'];
 
 const TAB_LABELS: Record<LibraryTab, string> = {
   all: 'All games',
-  favourites: 'Favourites',
-  owned: 'Owned',
+  physical: 'Physical',
   logged: 'Logged',
-  stats: 'Statistics',
+  favourites: 'Favourites',
+  steam: 'Steam',
 };
+
+function isLibraryTab(value: string | undefined): value is LibraryTab {
+  return !!value && (TAB_ORDER as string[]).includes(value);
+}
 
 /**
  * A person's games.
@@ -81,11 +91,14 @@ const TAB_LABELS: Record<LibraryTab, string> = {
 export default function LibraryScreen() {
   const { width } = useWindowDimensions();
   const { onScroll } = useTopBarScroll();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id: string; tab?: string }>();
+  const id = params.id;
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === id;
 
-  const [tab, setTab] = useState<LibraryTab>('all');
+  /* The profile's "14 physical" opens straight onto the binder. */
+  const [tab, setTab] = useState<LibraryTab>(isLibraryTab(params.tab) ? params.tab : 'all');
   const [sort, setSort] = useState<LibrarySort>('most-played');
   const [search, setSearch] = useState('');
 
@@ -102,19 +115,37 @@ export default function LibraryScreen() {
     enabled: !!id,
   });
 
-  const stats = useQuery({
+  const steamStats = useQuery({
     queryKey: ['gaming-library-stats', 'steam', id],
     queryFn: () => getLibraryStatistics(id!),
-    enabled: !!id && tab === 'stats',
+    enabled: !!id && tab === 'steam',
   });
 
-  /* Games logged in this app. Fetched for every tab except Owned, because the
+  /* What the whole collection adds up to, for the head of All games — and the
+     physical count on the Physical tab. One server-side aggregate (0028). */
+  const collection = useQuery({
+    queryKey: ['user-game-stats', id],
+    queryFn: () => getUserGameStats(id!),
+    enabled: !!id,
+  });
+
+  const copies = useQuery({
+    queryKey: ['copies', id, 'all'],
+    queryFn: () => getCopies(id!),
+    enabled: !!id && tab === 'physical',
+  });
+  const physical = useMemo(
+    () => (copies.data ?? []).filter((copy) => copy.ownership === 'physical'),
+    [copies.data]
+  );
+
+  /* Games logged in this app. Fetched for every tab except Steam, because the
      merged list and the Logged list both need it and it is one indexed query
      capped at 100 rows. */
   const logs = useQuery({
     queryKey: ['user-logs', id],
     queryFn: () => getUserLogs(id!),
-    enabled: !!id && tab !== 'owned',
+    enabled: !!id && tab !== 'steam',
   });
 
   const favourites = useQuery({
@@ -136,7 +167,9 @@ export default function LibraryScreen() {
     const logged = logs.data ?? [];
 
     switch (tab) {
-      case 'owned':
+      case 'physical':
+        return [];
+      case 'steam':
         return owned.map(fromOwned);
       case 'logged':
         return logged.map(fromLog).filter((entry): entry is LibraryEntry => entry !== null);
@@ -156,9 +189,10 @@ export default function LibraryScreen() {
      already fetched are shown — a number that appears a second after you tap is
      worse than no number. */
   const counts: Partial<Record<LibraryTab, number>> = {
-    all: entries.length || undefined,
+    all: tab === 'all' ? entries.length || undefined : undefined,
+    physical: collection.data?.copies,
     favourites: favourites.data?.items?.length,
-    owned: games.data?.length,
+    steam: games.data?.length,
     logged: logs.data?.length,
   };
 
@@ -188,7 +222,18 @@ export default function LibraryScreen() {
     <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
       <TabBar tabs={tabs} value={tab} onChange={setTab} />
 
-      {tab !== 'stats' ? (
+      {tab === 'physical' ? (
+        <PhysicalTab
+          copies={physical}
+          loading={copies.isLoading}
+          error={copies.error}
+          onRetry={() => void copies.refetch()}
+          isSelf={isSelf}
+          ownerId={id}
+          width={width - Spacing.x16 * 2}
+          onOpenCopy={(copy) => router.push({ pathname: '/copy/[id]', params: { id: copy.id } })}
+        />
+      ) : (
         <Animated.FlatList
           data={entries}
           onScroll={onScroll}
@@ -201,12 +246,20 @@ export default function LibraryScreen() {
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            /* Search and sort are Steam's, so they appear on Steam's tab. The
+            tab === 'all' ? (
+              <LibraryStats
+                stats={collection.data}
+                loading={collection.isLoading}
+                failed={collection.isError}
+                onRetry={() => void collection.refetch()}
+              />
+            ) : /* Search and sort are Steam's, so they appear on Steam's tab. The
                merged and logged lists are short enough to scan, and a sort row
                that silently applied to only part of what was on screen would be
                worse than no sort row. */
-            tab === 'owned' ? (
+            tab === 'steam' ? (
               <View style={styles.controls}>
+                <SteamFigures data={steamStats.data} />
                 <TextField
                   value={search}
                   onChangeText={setSearch}
@@ -239,14 +292,6 @@ export default function LibraryScreen() {
               tileWidth={tileWidth}
             />
           }
-        />
-      ) : (
-        <StatisticsTab
-          data={stats.data}
-          loading={stats.isLoading}
-          error={stats.error}
-          tileWidth={tileWidth}
-          ownerId={id}
         />
       )}
     </Screen>
@@ -397,7 +442,7 @@ function LibraryEmpty({
   if (loading) return <GridSkeleton width={tileWidth} />;
   if (error) return <ErrorState error={error} />;
 
-  if (tab === 'owned') {
+  if (tab === 'steam') {
     if (noSteam) {
       return (
         <EmptyState
@@ -460,87 +505,117 @@ function LibraryEmpty({
 }
 
 // ---------------------------------------------------------------------------
-// Statistics
+// Physical — the binder
 // ---------------------------------------------------------------------------
 
-function StatisticsTab({
-  data,
+/**
+ * The Physical tab: the binder, and the ways to fill it.
+ *
+ * The binder is the whole view, not a header over a grid — it *is* the list of
+ * physical games, just kept the way discs are kept. The plain list survives one
+ * tap away for anyone who wants to scan titles rather than turn pages.
+ */
+function PhysicalTab({
+  copies,
   loading,
   error,
-  tileWidth,
+  onRetry,
+  isSelf,
   ownerId,
+  width,
+  onOpenCopy,
 }: {
-  data: Awaited<ReturnType<typeof getLibraryStatistics>> | undefined;
+  copies: CopyWithRelations[];
   loading: boolean;
   error: unknown;
-  tileWidth: number;
+  onRetry: () => void;
+  isSelf: boolean;
   ownerId: string;
+  width: number;
+  onOpenCopy: (copy: CopyWithRelations) => void;
 }) {
-  const theme = useTheme();
+  const router = useRouter();
 
   if (loading) {
     return (
-      <View style={styles.statsBody}>
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} width="100%" height={64} radius={Radius.image} />
-        ))}
+      <View style={styles.physical}>
+        <Skeleton width={Math.floor(width / 2)} height={Math.floor(width * 1.05)} />
       </View>
     );
   }
-
-  if (error) return <ErrorState error={error} />;
-  if (!data) return <EmptyState title="No statistics yet" />;
+  if (error) return <ErrorState error={error} onRetry={onRetry} />;
 
   return (
-    <ScrollView contentContainerStyle={styles.statsBody} showsVerticalScrollIndicator={false}>
-      <View style={styles.statsStack}>
-        <View style={[styles.statGrid, { borderTopColor: theme.border }]}>
-          <StatCell label="Games owned" value={data.totalGames.toLocaleString()} />
-          <StatCell label="Total playtime" value={formatPlaytime(data.totalPlaytimeMinutes)} />
-          <StatCell
-            label="Average per game"
-            value={formatPlaytime(Math.round(data.avgPlaytimeMinutes))}
-            hint="Across played games"
-          />
-          <StatCell label="Never played" value={data.neverPlayed.toLocaleString()} />
+    <ScrollView contentContainerStyle={styles.physical} showsVerticalScrollIndicator={false}>
+      <CdBinder copies={copies} width={width} onOpenCopy={onOpenCopy} />
+
+      {copies.length === 0 && (
+        <View style={styles.physicalEmpty}>
+          <Text variant="h3">No physical games yet</Text>
+          <Text variant="bodySmall" color="textMuted" style={styles.centred}>
+            {isSelf
+              ? 'Scan the barcode on a box, or add one by hand, and its disc goes in here.'
+              : 'Nothing on this shelf yet.'}
+          </Text>
         </View>
+      )}
 
-        <Text variant="bodySmall" color="textMuted">
-          {formatPlaytimeLong(data.totalPlaytimeMinutes)} across {data.playedGames} played{' '}
-          {data.playedGames === 1 ? 'game' : 'games'}.
-        </Text>
+      {isSelf && (
+        <View style={styles.physicalActions}>
+          <Button title="Scan a game" icon="scan-outline" onPress={() => router.push('/scan')} />
+          <Button
+            title="Add by hand"
+            variant="secondary"
+            onPress={() => router.push('/add-copy')}
+          />
+        </View>
+      )}
 
-        {data.mostPlayed.length > 0 && (
-          <Section title="Most played">
-            <View style={styles.railRow}>
-              {data.mostPlayed.slice(0, 4).map((game) => (
-                <GameTile key={game.appId} game={game} width={tileWidth} ownerId={ownerId} />
-              ))}
-            </View>
-          </Section>
-        )}
-
-        {data.recentlyPlayed.length > 0 && (
-          <Section title="Recently played">
-            <View style={styles.railRow}>
-              {data.recentlyPlayed.slice(0, 4).map((game) => (
-                <GameTile key={game.appId} game={game} width={tileWidth} ownerId={ownerId} />
-              ))}
-            </View>
-          </Section>
-        )}
-      </View>
+      {copies.length > 0 && (
+        <Link href={{ pathname: '/copies/[user]', params: { user: ownerId } }} asChild>
+          <PressableScale accessibilityRole="link" scaleTo={0.96} hitSlop={12}>
+            <Text variant="caption" color="primaryText">
+              See them as a list
+            </Text>
+          </PressableScale>
+        </Link>
+      )}
     </ScrollView>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// ---------------------------------------------------------------------------
+// Steam
+// ---------------------------------------------------------------------------
+
+/**
+ * Steam's own figures, at the head of the Steam tab. They were a Statistics tab
+ * of their own; they are about this library and nothing else, so they sit on it.
+ */
+function SteamFigures({
+  data,
+}: {
+  data: Awaited<ReturnType<typeof getLibraryStatistics>> | undefined;
+}) {
+  const theme = useTheme();
+  if (!data || data.totalGames === 0) return null;
+
   return (
-    <View style={styles.section}>
-      <Text variant="label" color="textSecondary">
-        {title.toUpperCase()}
+    <View style={styles.steamFigures}>
+      <View style={[styles.statGrid, { borderTopColor: theme.border }]}>
+        <StatCell label="Games owned" value={data.totalGames.toLocaleString()} />
+        <StatCell label="Total playtime" value={formatPlaytime(data.totalPlaytimeMinutes)} />
+        <StatCell
+          label="Average per game"
+          value={formatPlaytime(Math.round(data.avgPlaytimeMinutes))}
+          hint="Across played games"
+        />
+        <StatCell label="Never played" value={data.neverPlayed.toLocaleString()} />
+      </View>
+      <Text variant="bodySmall" color="textMuted">
+        {formatPlaytimeLong(data.totalPlaytimeMinutes)} across {data.playedGames} played{' '}
+        {data.playedGames === 1 ? 'game' : 'games'}.
       </Text>
-      {children}
     </View>
   );
 }
@@ -575,8 +650,7 @@ const styles = StyleSheet.create({
   grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
   controls: { gap: Spacing.x12, paddingTop: Spacing.x16, paddingBottom: Spacing.x12 },
-  statsBody: { padding: Spacing.x16, gap: Spacing.x12, paddingBottom: Spacing.x48 },
-  statsStack: { gap: Spacing.x24 },
+  steamFigures: { gap: Spacing.x8 },
   statGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -584,7 +658,15 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   statCell: { width: '50%', gap: 1, paddingVertical: Spacing.x8 },
-  section: { gap: Spacing.x8 },
-  railRow: { flexDirection: 'row', gap: GAP },
+  physical: {
+    alignItems: 'center',
+    gap: Spacing.x24,
+    padding: Spacing.x16,
+    paddingTop: Spacing.x24,
+    paddingBottom: Spacing.x48,
+  },
+  physicalEmpty: { alignItems: 'center', gap: Spacing.x4 },
+  centred: { textAlign: 'center' },
+  physicalActions: { flexDirection: 'row', gap: Spacing.x8 },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
 });

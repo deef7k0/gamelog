@@ -201,12 +201,10 @@ export type LibraryStatistics = {
   /** Games with any recorded playtime — the denominator for the average. */
   playedGames: number;
   neverPlayed: number;
-  mostPlayed: OwnedGame[];
-  recentlyPlayed: OwnedGame[];
 };
 
 /**
- * Everything the library's Statistics tab shows, in two queries.
+ * The figures at the head of the library's Steam tab, in two queries.
  *
  * The rollup comes from the view rather than being recomputed here so the
  * numbers cannot disagree with the ones in the profile header.
@@ -222,11 +220,6 @@ export async function getLibraryStatistics(
 
   const played = games.filter((game) => game.playtimeMinutes > 0);
 
-  const recentlyPlayed = games
-    .filter((game) => game.lastPlayedAt !== null)
-    .sort((a, b) => (b.lastPlayedAt ?? '').localeCompare(a.lastPlayedAt ?? ''))
-    .slice(0, 8);
-
   return {
     totalGames: stats?.gamesOwned ?? games.length,
     totalPlaytimeMinutes:
@@ -234,8 +227,6 @@ export async function getLibraryStatistics(
     avgPlaytimeMinutes: stats?.avgPlaytimeMinutes ?? 0,
     playedGames: played.length,
     neverPlayed: games.length - played.length,
-    mostPlayed: played.slice(0, 8),
-    recentlyPlayed,
   };
 }
 

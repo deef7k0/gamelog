@@ -7,6 +7,7 @@ import type {
   Profile,
   ProfileAchievementStats,
   ReviewMetrics,
+  UserGameStats,
 } from '../database.types';
 import { fetchSteamUnlocks, getGameAchievements, parseGameId, type Game } from '../games';
 import { inList } from '../postgrest';
@@ -934,5 +935,15 @@ export async function getGameReviewList(
  */
 export async function getReviewStats(gameId: string): Promise<GameReviewStats> {
   const { data, error } = await supabase.rpc('game_review_stats', { p_game: gameId });
+  return unwrap(data, error);
+}
+
+/**
+ * One person's collection, summarised on the server (0028): logs, reviews,
+ * scores, the best and worst of them, and the physical / digital split. Exact
+ * whatever the library's size — `getUserLogs` stops at a hundred rows.
+ */
+export async function getUserGameStats(userId: string): Promise<UserGameStats> {
+  const { data, error } = await supabase.rpc('user_game_stats', { p_user: userId });
   return unwrap(data, error);
 }

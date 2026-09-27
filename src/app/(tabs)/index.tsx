@@ -20,6 +20,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
+import { AmbientLight } from '@/components/ui/ambient-light';
 import { SoftGlow } from '@/components/ui/soft-glow';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
@@ -351,15 +352,22 @@ export default function HomeScreen() {
          it does not contain it. Inert either way: the canvas takes
          `pointerEvents="none"`. */
       backdrop={
-        <Animated.View style={glowStyle} pointerEvents="none">
-          <SoftGlow
-            size={GLOW_SIZE}
-            blurRadius={GLOW_BLUR}
-            offsetX={GLOW_X}
-            offsetY={GLOW_Y}
-            opacity={GLOW_OPACITY}
-          />
-        </Animated.View>
+        <>
+          {/* The atmospheric light: a huge, very faint field centred near the
+              top of the viewport. Under the corner glow, fixed rather than
+              scroll-faded — it is the room's light, not the masthead's. See
+              `ui/ambient-light`. */}
+          <AmbientLight />
+          <Animated.View style={glowStyle} pointerEvents="none">
+            <SoftGlow
+              size={GLOW_SIZE}
+              blurRadius={GLOW_BLUR}
+              offsetX={GLOW_X}
+              offsetY={GLOW_Y}
+              opacity={GLOW_OPACITY}
+            />
+          </Animated.View>
+        </>
       }>
       <Animated.ScrollView
         ref={scroller}

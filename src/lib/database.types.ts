@@ -57,6 +57,15 @@ export type SimilarityReason =
 
 export type SimilarityReportReason = 'spam' | 'inappropriate' | 'incorrect';
 
+// --- 0031 reports on suggestions and reviews --------------------------------
+
+/**
+ * What is wrong with something a person wrote — a suggestion or a review. Must
+ * match the CHECKs on `similarity_suggestion_reports` and `review_reports`.
+ */
+export type ContentReportReason =
+  'spoilers' | 'spam' | 'inappropriate' | 'harassment' | 'off_topic';
+
 export type Profile = {
   id: string;
   username: string;
@@ -312,9 +321,18 @@ export type ListRow = {
    * it can never point at something the collection no longer holds.
    */
   cover_game_id: string | null;
+  /**
+   * Four covers or one (0033). **Absent on a database before 0033** — not null,
+   * absent — so every reader falls back to `'mosaic'`, which is what every
+   * collection looked like before the column existed.
+   */
+  cover_style?: ListCoverStyle;
   created_at: string;
   updated_at: string;
 };
+
+/** How a collection's artwork is drawn: its first four covers, or one (0033). */
+export type ListCoverStyle = 'mosaic' | 'single';
 
 export type ListItemRow = {
   list_id: string;
@@ -697,6 +715,31 @@ export type GameSimilarityVoteRow = {
   updated_at: string;
 };
 
+/** One person upvoting one suggestion (0029) — the vote `author_id` cast on a pair. */
+export type GameSimilarityUpvoteRow = {
+  similarity_id: string;
+  author_id: string;
+  user_id: string;
+  created_at: string;
+};
+
+/** One row of `similarity_suggestions()` — somebody's reasons for a pair (0029). */
+export type SimilaritySuggestion = {
+  author_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  reasons: SimilarityReason[];
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+  upvotes: number;
+  viewer_upvoted: boolean;
+};
+
+/** How the community's picks can be ordered (0029). `unrated` also filters. */
+export type SimilaritySort = 'top' | 'low' | 'votes' | 'new' | 'unrated';
+
 /** Private to its author; moderators read them through an RPC. */
 export type GameSimilarityReportRow = {
   similarity_id: string;
@@ -724,9 +767,26 @@ export type CommunitySimilarGame = {
   score: number;
   /** Reason → how many counted upvotes gave it, most given first. */
   reasons: Partial<Record<SimilarityReason, number>>;
-  comment: string | null;
-  comment_author: string | null;
   viewer_vote: -1 | 1 | null;
+  /** Counted votes either way (0029). */
+  votes: number;
+  /** When the pair was first suggested (0029). */
+  created_at: string;
+  /**
+   * People who said why — a reason or a line — and people who only tapped Agree
+   * (0030). They never overlap. **Null when the database predates 0030**: the
+   * client can run ahead of migrations applied by hand, and an older function
+   * returns rows without these columns. `getCommunitySimilar` turns the missing
+   * columns into nulls so every reader has to decide what to show without them.
+   */
+  suggesters: number | null;
+  agreers: number | null;
+  /** The most upvoted suggestion, ties to the earliest (0030). Null with none. */
+  top_author_id: string | null;
+  top_author: string | null;
+  top_author_avatar: string | null;
+  top_comment: string | null;
+  top_reasons: SimilarityReason[] | null;
 };
 
 export type SimilarityReportQueueRow = {
@@ -738,6 +798,73 @@ export type SimilarityReportQueueRow = {
   game_b_title: string;
   report_count: number;
   reasons: SimilarityReportReason[];
+  latest_note: string | null;
+  first_reported: string;
+};
+
+/**
+ * Private to its author (0031); moderators read them through an RPC.
+ *
+ * Keyed on its own `id` (0032), with one report per person per suggestion held
+ * by a unique constraint instead — see that migration for why the natural key
+ * could not be the primary one.
+ */
+export type SuggestionReportRow = {
+  id: string;
+  similarity_id: string;
+  /** Whose suggestion — with `similarity_id`, the vote being reported. */
+  author_id: string;
+  user_id: string;
+  reason: ContentReportReason;
+  note: string | null;
+  status: 'open' | 'resolved';
+  created_at: string;
+};
+
+/**
+ * Private to its author (0031); moderators read them through an RPC.
+ *
+ * Keyed on its own `id` (0032): keyed on (log_id, user_id), PostgREST read the
+ * table as a join between `logs` and `profiles` and refused every embed of a
+ * log's author as ambiguous.
+ */
+export type ReviewReportRow = {
+  id: string;
+  log_id: string;
+  user_id: string;
+  reason: ContentReportReason;
+  note: string | null;
+  status: 'open' | 'resolved';
+  created_at: string;
+};
+
+/** One row of `suggestion_reports_queue()` — a reported suggestion and its words. */
+export type SuggestionReportQueueRow = {
+  similarity_id: string;
+  author_id: string;
+  author_name: string;
+  game_a_title: string;
+  game_b_title: string;
+  reasons: SimilarityReason[];
+  comment: string | null;
+  report_count: number;
+  report_reasons: ContentReportReason[];
+  latest_note: string | null;
+  first_reported: string;
+};
+
+/** One row of `review_reports_queue()` — a reported review, in full. */
+export type ReviewReportQueueRow = {
+  log_id: string;
+  author_id: string;
+  author_name: string;
+  game_id: string;
+  game_title: string;
+  review_title: string | null;
+  review: string | null;
+  spoilers: boolean;
+  report_count: number;
+  report_reasons: ContentReportReason[];
   latest_note: string | null;
   first_reported: string;
 };
@@ -758,6 +885,38 @@ export type GameReviewStats = {
   platforms: ({ platform: string } & ScoreTally)[];
   /** Every stored platform string with a written review — the filter's choices. */
   written_platforms: string[];
+};
+
+/** A game named in `user_game_stats()` — the best or worst thing someone scored. */
+export type StatGame = {
+  game_id: string;
+  title: string;
+  rating: number;
+  cover_url: string | null;
+  hero_url: string | null;
+};
+
+/**
+ * `user_game_stats()` (0028) — one person's collection, summarised. `physical`
+ * and `digital` count games, never overlap, and add up to the collection; see
+ * the migration for what each includes.
+ */
+export type UserGameStats = {
+  logged: number;
+  reviews: number;
+  rated: number;
+  /** Mean score, 0-100, rounded. Null with nothing rated. */
+  average: number | null;
+  finished: number;
+  full: number;
+  platinum: number;
+  hours: number;
+  physical: number;
+  /** Physical boxes, which can exceed `physical` — two releases of one game. */
+  copies: number;
+  digital: number;
+  highest: StatGame | null;
+  lowest: StatGame | null;
 };
 
 export type ModeratorRow = {
@@ -901,6 +1060,7 @@ export type Database = {
           | 'is_ranked'
           | 'tags'
           | 'cover_game_id'
+          | 'cover_style'
         >;
         Update: Partial<ListRow>;
         Relationships: [
@@ -1125,6 +1285,12 @@ export type Database = {
           FK<'game_similarities_game_b_fkey', 'game_b', 'games', 'id'>,
         ];
       };
+      game_similarity_upvotes: {
+        Row: GameSimilarityUpvoteRow;
+        Insert: Insert<GameSimilarityUpvoteRow, 'created_at'>;
+        Update: Partial<GameSimilarityUpvoteRow>;
+        Relationships: [];
+      };
       game_similarity_votes: {
         Row: GameSimilarityVoteRow;
         Insert: Insert<GameSimilarityVoteRow, 'created_at' | 'updated_at' | 'reasons' | 'comment'>;
@@ -1142,6 +1308,20 @@ export type Database = {
         Row: GameSimilarityReportRow;
         Insert: Insert<GameSimilarityReportRow, 'created_at' | 'note' | 'status'>;
         Update: Partial<GameSimilarityReportRow>;
+        Relationships: [];
+      };
+      // --- 0031 reports on suggestions and reviews ----------------------------
+      // Insert and read-your-own only; moderators close them through RPCs.
+      similarity_suggestion_reports: {
+        Row: SuggestionReportRow;
+        Insert: Insert<SuggestionReportRow, 'id' | 'created_at' | 'note' | 'status'>;
+        Update: Partial<SuggestionReportRow>;
+        Relationships: [];
+      };
+      review_reports: {
+        Row: ReviewReportRow;
+        Insert: Insert<ReviewReportRow, 'id' | 'created_at' | 'note' | 'status'>;
+        Update: Partial<ReviewReportRow>;
         Relationships: [];
       };
       moderators: {
@@ -1307,8 +1487,12 @@ export type Database = {
         Returns: string;
       };
       community_similar_games: {
-        Args: { p_game: string; p_limit?: number };
+        Args: { p_game: string; p_limit?: number; p_sort?: SimilaritySort; p_pair?: string };
         Returns: CommunitySimilarGame[];
+      };
+      similarity_suggestions: {
+        Args: { p_similarity: string };
+        Returns: SimilaritySuggestion[];
       };
       similarity_reports_queue: {
         Args: Record<string, never>;
@@ -1318,10 +1502,32 @@ export type Database = {
         Args: { p_id: string; p_action: 'hide' | 'restore' };
         Returns: undefined;
       };
+      // --- 0031 ---------------------------------------------------------------
+      suggestion_reports_queue: {
+        Args: Record<string, never>;
+        Returns: SuggestionReportQueueRow[];
+      };
+      review_reports_queue: {
+        Args: Record<string, never>;
+        Returns: ReviewReportQueueRow[];
+      };
+      moderate_suggestion: {
+        Args: { p_similarity: string; p_author: string; p_action: 'remove' | 'dismiss' };
+        Returns: undefined;
+      };
+      moderate_review: {
+        Args: { p_log: string; p_action: 'remove' | 'dismiss' };
+        Returns: undefined;
+      };
       // --- 0026 ---------------------------------------------------------------
       game_review_stats: {
         Args: { p_game: string };
         Returns: GameReviewStats;
+      };
+      // --- 0028 ---------------------------------------------------------------
+      user_game_stats: {
+        Args: { p_user: string };
+        Returns: UserGameStats;
       };
     };
     Enums: { log_status: LogStatus };

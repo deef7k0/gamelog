@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
+import { ReportFlag, useCanReport } from '@/components/report-flag';
 import { ReviewMarks, reviewMarkRow } from '@/components/review-marks';
 import { SpoilerNotice } from '@/components/spoiler-notice';
 import { Avatar } from '@/components/ui/avatar';
@@ -44,7 +45,7 @@ export type ReviewCardProps = {
  *   (avatar) username        [91 EXCELLENT] (ps) (23h)
  *   ──────────────────────────────────────────────────
  *   … the review, clamped to `lines` …
- *   ♥ 12
+ *   ♥ 12                          Completed · co-op  ⚑
  * ```
  *
  * Three bands, one left edge, a hairline between who is talking and what they
@@ -78,6 +79,10 @@ export function ReviewCard({
   const headline = log.review_title?.trim() || null;
   const prose = (log.review ?? '').trim();
   const context = reviewContext(log);
+  /* Words are what a report is about, and the prose is the only writing this
+     card prints — a bare score has nothing in it to report. The headline is on
+     the review's own page, which carries its own flag. */
+  const canReport = useCanReport(log.user_id) && !!prose;
 
   return (
     <View style={styles.card}>
@@ -145,9 +150,9 @@ export function ReviewCard({
       )}
 
       {/* The heart, on the last line. Liking is not reading, so it stays its own
-          control even when the card around it is a link — and it is the only
-          one, because sharing lives in the top bar and the conversation has its
-          own screen. */}
+          control even when the card around it is a link. Sharing lives in the
+          top bar and the conversation has its own screen; the only other
+          control down here is the report flag at the far end. */}
       <View style={styles.foot}>
         <PressableScale
           accessibilityRole="button"
@@ -183,6 +188,19 @@ export function ReviewCard({
           <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.context}>
             {context}
           </Text>
+        )}
+
+        {/* The flag ends the heart's line, as it ends the upvote's on a
+            suggestion: the two things you can do *to* a review share one row,
+            at opposite ends of it. Nobody's own review carries one. */}
+        {canReport && (
+          <View style={styles.report}>
+            <ReportFlag
+              target={{ kind: 'review', logId: log.id }}
+              authorId={log.user_id}
+              label={`Report ${name}’s review`}
+            />
+          </View>
         )}
       </View>
     </View>
@@ -270,4 +288,8 @@ const styles = StyleSheet.create({
   /* Takes the rest of the line and ends on the card's edge; a long phrase
      truncates before it can push the heart. */
   context: { flex: 1, textAlign: 'right' },
+  /* `auto`, so with no context line the flag still ends the row rather than
+     sitting against the heart. Beside a context line it is a no-op: `flex: 1`
+     has already taken the slack. */
+  report: { marginLeft: 'auto' },
 });

@@ -152,6 +152,9 @@ function SuggestForm({
       queryClient.invalidateQueries({ queryKey: ['community-similar', game.id] });
       queryClient.invalidateQueries({ queryKey: ['community-similar', other.id] });
       queryClient.invalidateQueries({ queryKey: ['similarity-pair', userId] });
+      // The pick's own screen, if the form was opened from it.
+      queryClient.invalidateQueries({ queryKey: ['similar-pair'] });
+      queryClient.invalidateQueries({ queryKey: ['similar-suggestions'] });
       router.back();
     },
   });

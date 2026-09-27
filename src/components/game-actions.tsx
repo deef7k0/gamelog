@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import { AddToCollection } from '@/components/add-to-collection';
@@ -65,7 +65,13 @@ export function formatReleaseDate(iso: string): string {
  * game completed is two taps without ever opening the review form; the form is
  * still there for scores and writing.
  */
-export function GameActions({ game, log, onOpenProgress }: GameActionsProps) {
+/* Memoised: the page passes the query's own game and log objects and a stable
+   opener, so it re-renders when one of those changes and not otherwise. */
+export const GameActions = memo(function GameActions({
+  game,
+  log,
+  onOpenProgress,
+}: GameActionsProps) {
   const theme = useTheme();
   /** The collection picker, opened by the fifth action. */
   const [picking, setPicking] = useState(false);
@@ -295,7 +301,7 @@ export function GameActions({ game, log, onOpenProgress }: GameActionsProps) {
       <AddToCollection game={game} visible={picking} onClose={() => setPicking(false)} />
     </View>
   );
-}
+});
 
 /**
  * How the row lands, in milliseconds.

@@ -78,6 +78,8 @@ export default function AddCopyScreen() {
     release?: string;
     contribution?: string;
     copy?: string;
+    /** A platform's short form to start from — a ScanDex match knows it. */
+    platform?: string;
   }>();
   const userId = useAuth((state) => state.session?.user.id) ?? null;
   const [pickedGameId, setPickedGameId] = useState<string | null>(null);
@@ -153,6 +155,7 @@ export default function AddCopyScreen() {
         existing={existing.data ?? null}
         preselectedRelease={params.release ?? null}
         contribution={contribution.data ?? null}
+        suggestedPlatform={params.platform ?? null}
       />
     );
   }
@@ -174,6 +177,7 @@ function CopyForm({
   existing,
   preselectedRelease,
   contribution,
+  suggestedPlatform,
 }: {
   userId: string;
   game: Game;
@@ -181,6 +185,7 @@ function CopyForm({
   existing: CopyWithRelations | null;
   preselectedRelease: string | null;
   contribution: ContributionWithRelations | null;
+  suggestedPlatform: string | null;
 }) {
   const theme = useTheme();
   const router = useRouter();
@@ -195,7 +200,7 @@ function CopyForm({
       ? { kind: 'release', id: startRelease }
       : { kind: 'describe' }
   );
-  const [platform, setPlatform] = useState(seed?.platform ?? '');
+  const [platform, setPlatform] = useState(seed?.platform ?? suggestedPlatform ?? '');
   const [region, setRegion] = useState<ReleaseRegion | null>(seed?.region ?? null);
   const [edition, setEdition] = useState(seed?.edition ?? '');
   const [completeness, setCompleteness] = useState<CopyCompleteness | null>(
@@ -231,7 +236,7 @@ function CopyForm({
 
   function invalidate(copyId?: string) {
     queryClient.invalidateQueries({ queryKey: ['copies', userId] });
-    queryClient.invalidateQueries({ queryKey: ['copy-count', userId] });
+    queryClient.invalidateQueries({ queryKey: ['user-game-stats', userId] });
     if (copyId) queryClient.invalidateQueries({ queryKey: ['copy', copyId] });
   }
 

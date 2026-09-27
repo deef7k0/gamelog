@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Alert, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { AwardShow } from '@/components/award-show';
@@ -30,9 +30,11 @@ import {
   removeFromList,
   reorderList,
   setListCover,
+  setListCoverStyle,
   TIERS,
   type ListItem,
 } from '@/lib/api';
+import type { ListCoverStyle } from '@/lib/database.types';
 import { sortGames, type GameSort } from '@/lib/games';
 import { useAuth } from '@/store/auth';
 
@@ -184,6 +186,24 @@ export default function ListDetailScreen() {
   });
 
   /*
+   * Four covers or one. Choosing one with more than one game to choose from
+   * goes straight into the picking mode, so "show one cover" and "which one"
+   * are a single act rather than two trips to the menu.
+   */
+  const setDisplay = useMutation({
+    mutationFn: (display: ListCoverStyle) => setListCoverStyle(id!, display),
+    onSuccess: (_result, display) => {
+      invalidate();
+      if (display === 'single' && (list.data?.items?.length ?? 0) > 1) setPickingCover(true);
+    },
+    onError: (error) =>
+      Alert.alert(
+        'Could not change the artwork',
+        error instanceof Error ? error.message : 'Try again in a moment.'
+      ),
+  });
+
+  /*
    * Display order only — nothing here is written back.
    *
    * `rankOf` is keyed off the *stored* sequence rather than the rendered index,
@@ -283,6 +303,7 @@ export default function ListDetailScreen() {
         }
         onDelete={isOwner ? () => destroy.mutate() : undefined}
         onPickCover={isOwner ? () => setPickingCover(true) : undefined}
+        onSetDisplay={isOwner ? (display) => setDisplay.mutate(display) : undefined}
       />
 
       {/* The picking mode's own bar. Only while the mode is on: the control
@@ -291,7 +312,7 @@ export default function ListDetailScreen() {
         <View style={styles.controls}>
           <View style={[styles.coverHint, { backgroundColor: theme.surfaceElevated }]}>
             <Text variant="bodySmall" color="textSecondary" style={styles.coverHintText}>
-              Tap a game to use its cover as this collection&rsquo;s preview.
+              Tap a game to use its cover as this collection&rsquo;s artwork.
             </Text>
             <Button
               title="Cancel"

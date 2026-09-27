@@ -40,7 +40,8 @@ npx tsc --noEmit   # typecheck
 npx eslint src     # lint
 npx prettier --write "src/**/*.{ts,tsx}"
 npm test           # node:test — pure modules only: the M3 scheme generator, the
-                   # genre reach order, barcodes, progress choices, review filters
+                   # genre reach order, barcodes, progress choices, review filters,
+                   # and the report reasons against 0031's CHECKs
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -69,7 +70,15 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    stats. The log form writes `completion` and `coop`, so **without `0023` no log
    can be saved at all**; without `0024` scanning and copies fail, without `0025`
    the Similar tab's community section errors, and without `0026` the reviews
-   sheet loses its breakdown and its platform filter.
+   sheet loses its breakdown and its platform filter. `0028` is the library's
+   stats: without it the profile's digital / physical line never appears and the
+   head of a library says its stats did not load. `0031` is reports on
+   suggestions and reviews: without it the report form fails for those two (a
+   pick still reports, through 0025) and the moderation queue's Suggestions and
+   Reviews tabs error. **Run `0032` straight after it**: 0031 alone makes every
+   query that embeds a log's author fail (PGRST201 — see the gotcha on join
+   tables), which is every list of reviews in the app. Without `0033` every
+   collection shows the mosaic and choosing "Show one cover" fails.
    `0006`, `0015`, `0019` and `0022` each add an enum value and must run
    **alone** — see the notes in those files.
    Moderators are rows in `public.moderators`, which no client can write; make
@@ -88,6 +97,12 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    user-scoped endpoints this app does not call. See
    `supabase/functions/README.md`. Without it the game page simply has no
    "Where to buy" section.
+6. Optional: deploy the ScanDex Edge Function so a scan identifies boxes nobody
+   has added yet — run migration `0027`, then
+   `supabase secrets set SCANDEX_API_TOKEN=…` and
+   `supabase functions deploy scandex`. The token is the one on your ScanDex
+   developer account, pasted as issued (no `Bearer `). Without it, scanning
+   still works against Gamelog's own releases and ends at "unknown" otherwise.
 
 ## Adding a route
 
@@ -113,14 +128,22 @@ src/
                      Steam's measured playtime. Opened from a library cover or a
                      profile's Steam rail, never from the game page
     playthroughs/[game]  your runs of one game; playthrough/[id] edits one (modal)
-    copies/[user]    a physical collection; copy/[id] one copy (modal),
-                     add-copy the copy form (modal)
+    library/[id]     a person's games: All (stats header + grid), Physical
+                     (the CD binder), Logged, Favourites, Steam. Takes ?tab=
+    copies/[user]    a physical collection as a plain list; copy/[id] one copy,
+                     showcased — its case, its disc, its back; add-copy the
+                     copy form (modal)
     scan             barcode camera (full-screen modal), with typed entry as the
                      fallback for a denied or missing camera
     add-release      submit or edit a barcode's release claim (modal)
     submissions      your release claims and what became of them
-    moderation       moderators only: release claims and similarity reports
+    moderation       moderators only: release claims, and reports on picks,
+                     suggestions and reviews
     suggest-similar/[id]  recommend a game like this one, with reasons (modal)
+    similar/[id]     one community pick (?game= the side you came from): agree
+                     or disagree, and every suggestion behind it, upvotable
+    report/[kind]/[id]  report a pick, a suggestion (?author=) or a review
+                     (modal). Every `<ReportFlag>` in the app opens it
     profile/[id]     someone else's profile
     new-list, edit-list/[id], edit-profile (modals)
     settings         the games hidden from Surprise Me, plus a link to the
@@ -141,25 +164,43 @@ src/
                      store-prices       where to buy, from IsThereAnyDeal
                      ui/soft-glow       Skia radial glow (+ .web.tsx fallback)
                      ui/scroll-ambience scroll-driven page gradient (+ .web.tsx)
-                     collection-mosaic  a collection's first four covers, 2x2,
-                                        each square (SteamGridDB, IGDB crop below)
+                     collection-mosaic  a collection's artwork: its first four
+                                        IGDB covers 2x2, or the owner's one cover
+                                        (0033), cropped — never SteamGridDB
+                     ui/ambient-light   Home's faint top-of-screen light (Skia,
+                                        + .web.tsx CSS fallback)
                      surprise-deck / -bloom / -sheen / -page-wash
                                         the dealt card's deck, its light, its
                                         gloss and the page's colour transition.
                                         DESIGN.md § 4.2; that screen only
+                     ui/square-art / ui/round-action / ui/marquee-text
+                                        the square cover, the round keys beside
+                                        its title, and the title that scrolls —
+                                        shared by Surprise Me and a review
+                     ui/stats-strip     a row of figures with rules between;
+                                        the game page's strip and a review's
+                     ui/score-meter     a score's readout and bar, shared by the
+                                        review page and the log form's input
                      progress-sheet     the seven progress choices + details
-                     community-similar  the community's picks on the Similar tab
+                     community-similar  the Similar tab's card, and the sortable
+                                        sheet of community picks it opens
+                     report-flag        the flag on a suggestion or a review,
+                                        and `reportHref()` for anything else
                      review-breakdown   the reviews sheet's split averages
-                     physical-shelf-row a profile's physical copies
                      choice-chips       one (or several) of a short vocabulary
                      game-picker        search-and-tap, for forms that need a game
+                     cd-binder / cd-binder-page  the zip binder of discs
+                     cd-disc            a game's art printed on game_cd.png
+                     copy-showcase / copy-case-back  a copy's case, disc and back
+                     library-stats      the head of a library (0028)
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
                      stores.ts (storefront brand marks), progress.ts (the seven
                      progress choices), physical.ts (region / completeness /
                      condition words), platform-media.ts (disc, cartridge…),
-                     similarity.ts (the twelve reasons)
+                     similarity.ts (the twelve reasons), reports.ts (what a
+                     report can say, per kind)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -199,6 +240,7 @@ src/
       progress.ts    progress writes and playthroughs
       physical.ts    releases, barcode lookup, claims, moderation, copies
       similarity.ts  community similar games: pairs, votes, reports
+      reports.ts     reports on suggestions and reviews, and their queues
       notifications.ts
       songs.ts       the one starred track per profile
       storage.ts     image upload
@@ -217,12 +259,19 @@ supabase/
                      0021 review spoilers, 0022 paused status,
                      0023 completion + co-op + playthroughs,
                      0024 releases, barcodes, claims, copies, moderators,
-                     0025 community similarity, 0026 review stats
+                     0025 community similarity, 0026 review stats,
+                     0027 ScanDex answer cache, 0028 a person's game stats,
+                     0029 sortable similar picks + upvotes on suggestions,
+                     0030 each pick's top suggestion + suggester/agreer counts,
+                     0031 reports on suggestions and reviews,
+                     0032 those report tables keyed on their own id,
+                     0033 a collection's artwork: four covers or one
                      (0006, 0015, 0019 and 0022 each add an enum value and must
                       run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
   functions/opencritic/  per-outlet critic scores; IGDB has none
   functions/itad/    Edge Function proxying IsThereAnyDeal (prices)
+  functions/scandex/ Edge Function proxying ScanDex (barcode → IGDB game)
 ```
 
 **Data flow.** Game metadata comes from external providers (`lib/games/`), but
@@ -260,11 +309,13 @@ and must never become one: nothing there may put a game *into* the app, only art
 onto a game already in it.
 
 **Exactly three surfaces use it**, all through `useSquareCover()`: a profile's
-Reviews tab (`<ReviewListRow>`, 80dp), the collection mosaic
-(`<CollectionMosaic>`, per tile) and Surprise Me. The mosaic is the one where the
-crop was *structural* — every quarter of that shape is a square. **The rows
-inside a collection are not a square surface** and keep portrait box art; square
-art belongs to the mosaic shape, not to collections.
+Reviews tab (`<ReviewListRow>`, 80dp), Surprise Me, and a review's own page,
+which is built as Surprise Me is — the art at 84% of the width, its title and two
+round actions under it, the portrait at the same height when there is no square
+(`app/review/[id].tsx`). **Collections are not a square surface, by the owner's
+decision**: the mosaic used SteamGridDB per tile for a while and was taken back
+to cropped IGDB covers — a community grid is somebody's redesign of the box, and
+a collection is a shelf of the boxes themselves.
 
 **There is no per-platform lookup, and rebuilding one against this API will not
 work.** The game page briefly asked for the selected platform's own box front.
@@ -342,7 +393,8 @@ into one call and persists the result for 7 days.
   one. `['feed']`, `['my-log', userId, gameId]`, `['game-reviews', gameId]`,
   `['user-logs', userId]`, `['profile-stats', profileId]`,
   `['playthroughs', userId, gameId]`, `['copies', userId, gameId | 'all']`,
-  `['community-similar', gameId]`, and the reviews sheet's three:
+  `['community-similar', gameId, sort]`, `['similar-pair', pairId, gameId]`,
+  `['similar-suggestions', pairId]`, and the reviews sheet's three:
   `['game-review-list', gameId, …]`, `['rating-breakdown', gameId]`,
   `['review-stats', gameId]` — anything that writes a log's status, completion,
   score or co-op invalidates all three.
@@ -495,7 +547,20 @@ into one call and persists the result for 7 days.
   new work at a *different* scale on purpose — that instruction is gone because
   the spec it pointed at is no longer the one this app is built on. Same for
   `Radius`: the frontmatter's `rounded:` block matches what ships.
+- **A `fontSize` set outside `Type` brings its own `lineHeight`.** `<Text>`
+  defaults to the `body` variant, so a style that overrides only `fontSize`
+  keeps body's 18px line — and Android clips glyphs to their line box. The log
+  form's 35px score showed only the middle band of each digit, and
+  `<ScorePill size="large">` did the same at 25px. `<ScoreNumber>` and
+  `<ScoreReadout>` set one now; anything else drawn larger than `Type` must too.
 - **Elevation, not borders.** Reach for `Elevation.card` before a `borderWidth`.
+- **`<Card style>` cannot lay out the card's contents.** It lands on the outer
+  view (fill and shadow), whose only child is the inner view holding
+  `children` — so padding works there and `flexDirection`, `gap` and
+  `alignItems` silently do not. This is what stacked the community sheet's text
+  *under* each cover instead of beside it, and what left a suggestion card's
+  byline, text and reasons flush against each other. Put a `<View>` with the
+  layout inside the card.
 - **`Spacing.x*` names are step names, not dp values.** The ladder has been
   compressed twice to scale the chrome down — `x16` is 10, `x24` is 15, `x48` is
   30. Only `x4` still equals its name. Read the value in `constants/theme.ts`;
@@ -577,20 +642,22 @@ into one call and persists the result for 7 days.
   now one caption line under the stack. `buildShelf()` merges logs with the
   Steam library, **logs winning on a tie** — a log carries a real catalogue id,
   so its art is IGDB box art rather than a Steam capsule that may not exist.
-- **A collection is its first four covers.** `<CollectionMosaic>` is the one
-  artwork for a collection, at both sizes: a 164dp block on `<ListTile>` and
-  full-width behind `<CollectionHeader>`. Tapping the small one must land on the
-  big one showing the *same four covers*, which is why both read items in
-  `position` order rather than using the owner's chosen `cover_game_id` — that
-  still picks `preview`, which is a different question ("what represents this")
-  from what the mosaic answers ("what is in this"). **Each tile is square art,
-  not a square crop** — this is the shape where the crop was structural, since
-  every quarter of it is a 1:1 slot. `<Tile>` resolves its own cover through
-  `useSquareCover()` and falls back to the cropped IGDB cover per tile, so a
-  mixed collection draws some composed squares and some crops rather than waiting
-  on the slowest lookup or refusing the feature to every game SteamGridDB has not
-  heard of. The rows *inside* a collection are a list of games and keep portrait
-  box art.
+- **A collection is its first four covers, or the one its owner chose.**
+  `<CollectionMosaic>` is the one artwork for a collection, at both sizes: a
+  96dp block on `<ListTile>` and full-width behind `<CollectionHeader>`, and
+  `lists.cover_style` (0033) says which it draws — `mosaic`, the first four items
+  in `position` order, or `single`, the owner's `cover_game_id` (the menu's
+  "Choose the cover", which switching to one cover opens straight away), falling
+  back to the first item. Tapping the small one must land on the big one showing
+  the *same* artwork, so the tile and the header resolve it the same way
+  (`resolvePreview` / `singleCover`). Every tile is IGDB box art centre-cropped;
+  the header's single cover is cropped to the banner and anchored a fifth of the
+  way down, where a box's subject and logo sit. The header itself is a
+  music-app playlist hero: ~44% of the display, the art tinted toward the page,
+  then a long early fade into it, so there is no edge where the image stops. A
+  database before 0033 has no `cover_style` at all, and every reader treats that
+  as `mosaic`. The rows *inside* a collection are a list of games and keep
+  portrait box art.
 - **Three ways to show a game, and they are not interchangeable.** `<GameCase />`
   on a game's own page; `<GameListItem />` for a row that needs a surface behind
   it (search results, feeds); `<CoverTile />` for a grid where the artwork *is*
@@ -682,8 +749,11 @@ into one call and persists the result for 7 days.
   `import()` behind a latching availability flag and falls back to
   `lib/artwork-color.ts` (pure-JS `jpeg-js`, works anywhere). Dev builds get the
   native extractor; Expo Go gets the decoder; neither branch is a degraded mode.
-- **The game page and Surprise Me have no gradient.** `<ScrollAmbience>` is gone
-  from both; they fill flat with `<Screen background={accent.page}>`. The
+- **The game page, Surprise Me and a review have no gradient.** `<ScrollAmbience>`
+  is gone from all three; they fill flat with `<Screen background={accent.page}>`.
+  (The review page stayed a neutral dark room for a long time; it now runs on the
+  game's colour like the other two, and its prose keeps `proseInk` on M3's
+  darkest tone.) The
   gradient put the page's brightest colour directly behind the masthead, so
   every control there was competing with a backdrop made of its own hue — which
   is why so many notes in those files read "this measures 2.02:1 on the
@@ -800,11 +870,36 @@ that are easy to break:
 - **Barcodes are GTIN-14 on both sides.** `lib/barcode.ts` and
   `normalize_gtin()` agree; UPC-E is expanded using the scanner's own type
   (`scannerType`), since an eight-digit code alone is ambiguous with EAN-8.
+- **ScanDex identifies; it never canonises.** `lookupBarcode` asks Gamelog's
+  releases, then pending claims, and only then the `scandex` Edge Function. A
+  ScanDex answer is a game and a platform with no region or edition, so it is
+  shown as "Identified by ScanDex", prefills the copy and release forms, and is
+  never written into `game_releases`. Its cache (`scandex_lookups`, 0027) has no
+  policies and no grants — only the function's service role touches it — and the
+  function refuses the anon key, which is a valid JWT, so the token's quota is
+  spent only by signed-in people. A failure there must end at "unknown", never
+  at an error on the scan screen.
 - **Community similarity is its own section, never merged with IGDB's.** Pairs
   are stored once (`game_a < game_b`); suggesting a pair *is* voting for it.
   Votes from accounts with no logs are kept but not counted, ranking is the
   Wilson lower bound, and three open reports hide a pair until a moderator
-  restores it.
+  restores it. A positive vote with reasons or a comment is a **suggestion**
+  (0029): it is listed on the pick's screen and can be upvoted by others, never
+  by its author. Agreeing with the pair and upvoting someone's reasoning are
+  separate acts and separate controls. A positive vote with neither reasons nor
+  a comment is an **agreement** (the Agree button); every positive vote is
+  exactly one of the two, which is what lets a pick say "3 users suggested this
+  game, with 12 users agreeing" without counting anyone twice (0030). Deleting
+  your suggestion deletes the vote, and the upvotes on it go with it.
+- **A pick can be reported down; somebody's writing cannot.** Three open
+  reports hide a pick (0025), because a pick is the community's claim and
+  belongs to nobody. A suggestion or a review is one person's words, so reports
+  on those (0031) only queue them: a moderator removes the *words* — a
+  suggestion keeps its vote, a review keeps its log and score — or dismisses the
+  reports, and removal is not reversible. Every flag opens `report/[kind]/[id]`
+  and a flag reports the thing it sits on. Never report through `Alert.alert`:
+  Android draws at most three buttons, and with three reasons plus Cancel it
+  dropped Cancel, so the pick's old report dialog could not be dismissed.
 - **Review filters are clauses on the request, never a sift on the phone.**
   `lib/review-facets.ts` says what "Finished" or "PlayStation" means and
   `getGameReviewList` spells it in PostgREST. A platform filter is a *family*:
@@ -812,6 +907,16 @@ that are easy to break:
   into families and sends the matching strings through `inList()` — never
   `.in()`, which does not escape a `"` in text somebody typed. A platinum counts
   as finished and 100% in both the filters and the stats.
+- **Physical and digital never overlap.** `user_game_stats` (0028) counts a game
+  with a physical copy as physical only; digital is the Steam library plus
+  logged games (not the backlog), each game once. So the profile's
+  "128 digital · 14 physical" adds up to the collection.
+- **The disc is not the case's disc.** `<CdDisc>` draws `game_cd.png` over the
+  art, with its geometry in `constants/cd-template.ts` (measured from the file);
+  `<GameDisc>` and `DISC_TEMPLATE` belong to the protected case feature and are
+  untouched. The copy showcase *uses* `<GameCaseDisplay>` as it is and composes
+  its own gesture — tap for the disc, drag to turn — because `<GameCaseFlip>`'s
+  tap already means "turn over". Its constants are copied, not changed.
 - **Stored platforms are short forms; read them back with `familyForStored` /
   `platformKeyForStored`.** Everything the pickers write is `PLATFORMS[key].short`
   ("PS5", "SWITCH 2"). `platformFamilies()` matches *provider* names ("Nintendo
@@ -985,6 +1090,20 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   it to type embedded selects (`select('*, profile:profiles(*)')`). Leave it `[]`
   and every embed resolves to `SelectQueryError` instead of the joined row. Add
   an `FK<…>` entry for each foreign key you actually embed across.
+- **A table whose primary key holds two foreign keys is a join table to
+  PostgREST**, whether you meant one or not. It infers a many-to-many
+  relationship through it, and if the two tables it links were already related
+  directly, every unhinted embed between them becomes ambiguous and is refused
+  (PGRST201, "more than one relationship was found"). 0031 keyed
+  `review_reports` on `(log_id, user_id)` and took down every
+  `profile:profiles(*)` on `logs` — the feed, profiles, the review page, every
+  review list — until 0032 gave it an `id` key. A table that only *records*
+  something about a pair (a report, a vote, a flag) gets its own `id` primary
+  key and a UNIQUE constraint on the pair; PostgREST reads only the primary key,
+  and `upsert(..., { onConflict })` works against the unique constraint just the
+  same. `game_similarity_reports` (0025) and `game_similarity_upvotes` (0029)
+  still have the junction shape; nothing embeds `profiles` from pairs or votes
+  today, and the first thing that does must name its key (`profiles!…_fkey`).
 - **Likes and comments are polymorphic** over `(target_type, target_id)`, and
   since 0018 both work on logs **and lists** — the two CHECK constraints used to
   differ deliberately and no longer do. Postgres cannot FK a polymorphic column,
@@ -1035,6 +1154,31 @@ Port snippets that way rather than installing DOM libraries — `motion` and
 - **Storage paths must start with the user id** (`media/<uid>/…`). The storage
   RLS policy authorises writes by reading that first path segment, so uploading
   anywhere else is rejected.
+- **The app can be a migration ahead of its database.** Migrations are run by
+  hand in the SQL editor, so a column a newer migration adds to an RPC's result
+  may simply be absent — not null, *absent* — on a database that has not run it.
+  Reading one as a number is a crash, not an empty state: the community sheet
+  went down on `suggesters.toLocaleString()` against a database at 0029. Make
+  such fields nullable in the type, turn a missing one into `null` in
+  `lib/api/` (see `withSuggestionFields`), and give the screen something it can
+  say without it.
+- **The colour extractor only decodes thumbnails.** `lib/artwork-color.ts`
+  decodes JPEGs in JavaScript, on the JS thread, so its cost is the pixel count:
+  a 90×90 IGDB `t_thumb` is nothing, and a 600×900 Steam `library_600x900.jpg`
+  froze the app for seconds on every legacy game's page. `swatchUrl()` maps IGDB
+  to `t_thumb` and Steam to `capsule_sm_120.jpg`, returns null for any other
+  host (the genre hue takes over), and the decoder is capped at 0.1 MP and
+  120 KB. Never feed it a URL it has not shrunk.
+- **Performance traps that have already cost this app.** A one-item `FlatList`
+  wrapping a whole page (`data={[null]}`) re-renders its page-sized cell whenever
+  `renderItem` changes identity — which, as an inline arrow, is every render; use
+  a `ScrollView` unless the content is genuinely a list. An inline
+  `ItemSeparatorComponent={() => …}` is a new component type per render and
+  remounts every separator on screen. And a page that holds its sheets' open
+  flags in its own state re-renders itself to open one: the game page keeps them
+  in a small store `<GameSheets>` subscribes to. Performance warnings from Expo Go
+  are measured in **dev mode**, several times slower than a release build — judge
+  speed with `npx expo start --no-dev --minify`.
 - **The path contains a space** (`claude code app/`). Fine for Expo Go, but
   Android Gradle builds historically break on it. If you ever run
   `expo prebuild` / a local native build and see odd path errors, rename that

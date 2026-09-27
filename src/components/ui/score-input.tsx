@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { StyleSheet, View, type GestureResponderEvent } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { SCORE_TRACK_HEIGHT, ScoreBar, ScoreReadout } from '@/components/ui/score-meter';
 import { Text } from '@/components/ui/text';
-import { MAX_SCORE, MIN_SCORE, clampScore, labelFor, scoreColor } from '@/constants/score';
-import { FontFamily, Radius, ScoreSizes, Spacing, TapTarget } from '@/constants/theme';
+import { MAX_SCORE, MIN_SCORE, clampScore } from '@/constants/score';
+import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-const TRACK_HEIGHT = 14;
 const DEFAULT_SCORE = 75;
 
 /*
@@ -20,7 +20,7 @@ const DEFAULT_SCORE = 75;
  * says a control that looks smaller is one whose padding is doing the work;
  * before this the props sat on the 14dp view itself and nothing was.
  */
-const TRACK_INSET = (TapTarget - TRACK_HEIGHT) / 2;
+const TRACK_INSET = (TapTarget - SCORE_TRACK_HEIGHT) / 2;
 
 export type ScoreInputProps = {
   /** 0-100, or null when unrated. */
@@ -32,12 +32,17 @@ export type ScoreInputProps = {
    * full strength — it is still the headline number, just no longer editable.
    */
   disabled?: boolean;
-  /** Replaces the "out of 100" sub-line. */
+  /** Replaces "out of 100" beside the verdict. */
   hint?: string;
 };
 
 /**
  * Score picker: a big number, its verdict, a draggable track, and ±1 nudges.
+ *
+ * The number, the verdict and the bar are `<ScoreReadout>` and `<ScoreBar>`, the
+ * same two the review page reads a score with — so what you set here is drawn
+ * exactly as it will be read. This component adds the touch handling around
+ * them and nothing visual of its own but the nudges and the clear button.
  *
  * The track uses React Native's responder props directly rather than a
  * PanResponder or a slider dependency. PanResponder has to be created once and
@@ -54,7 +59,6 @@ export function ScoreInput({ value, onChange, disabled = false, hint }: ScoreInp
   const [trackWidth, setTrackWidth] = useState(0);
 
   const score = value ?? DEFAULT_SCORE;
-  const tint = value === null ? theme.textMuted : scoreColor(score, theme);
 
   function handleTrack(event: GestureResponderEvent) {
     if (trackWidth <= 0) return;
@@ -65,23 +69,18 @@ export function ScoreInput({ value, onChange, disabled = false, hint }: ScoreInp
     onChange(clampScore(score + delta));
   }
 
-  const filled = value === null ? 0 : (score - MIN_SCORE) / (MAX_SCORE - MIN_SCORE);
-
   return (
     <View style={styles.wrapper}>
-      <View style={styles.readout}>
-        <Text style={[styles.number, { color: tint }]}>{value === null ? '—' : score}</Text>
-
-        <View style={styles.readoutText}>
-          <Text variant="h3" style={{ color: tint }}>
-            {value === null ? 'Not scored' : labelFor(score)}
-          </Text>
-          <Text variant="caption" color="textMuted">
-            {/* The nudges start from `DEFAULT_SCORE`, so an unscored readout that
-                said only "tap the bar" left −1 producing an unexplained 74. */}
-            {hint ??
-              (value === null ? `Tap the bar, or nudge from ${DEFAULT_SCORE}` : 'out of 100')}
-          </Text>
+      <View style={styles.readoutRow}>
+        <View style={styles.readout}>
+          <ScoreReadout
+            score={value}
+            /* The nudges start from `DEFAULT_SCORE`, so an unscored readout that
+               said only "tap the bar" left −1 producing an unexplained 74. */
+            hint={
+              hint ?? (value === null ? `Tap the bar, or nudge from ${DEFAULT_SCORE}` : undefined)
+            }
+          />
         </View>
 
         {value !== null && !disabled && (
@@ -133,14 +132,7 @@ export function ScoreInput({ value, onChange, disabled = false, hint }: ScoreInp
                 if (event.nativeEvent.actionName === 'decrement') nudge(-1);
               },
             })}>
-        <View
-          style={[
-            styles.track,
-            { backgroundColor: theme.surfaceElevated, opacity: disabled ? 0.55 : 1 },
-          ]}
-          pointerEvents="none">
-          <View style={[styles.fill, { width: `${filled * 100}%`, backgroundColor: tint }]} />
-        </View>
+        <ScoreBar score={value} dim={disabled} />
       </View>
 
       {!disabled && (
@@ -176,17 +168,12 @@ const styles = StyleSheet.create({
   /* The track's own padding is inside `trackHit`, so the gaps here are measured
      against the bar rather than against its touch area. */
   wrapper: { gap: Spacing.x4 },
-  readout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16 },
-  number: { fontSize: ScoreSizes.hero, fontFamily: FontFamily.bold, minWidth: 86 },
-  readoutText: { flex: 1, gap: 1 },
+  /* The readout takes the row; the clear button keeps its own width at the end.
+     `center` here, `baseline` inside the readout: the button is a glyph, not a
+     line of type, and a glyph has no baseline to share. */
+  readoutRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16 },
+  readout: { flex: 1, minWidth: 0 },
   trackHit: { paddingVertical: TRACK_INSET, justifyContent: 'center' },
-  track: {
-    height: TRACK_HEIGHT,
-    borderRadius: Radius.pill,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  fill: { height: '100%', borderRadius: Radius.pill },
   nudges: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   spacer: { flex: 1 },
   nudge: {

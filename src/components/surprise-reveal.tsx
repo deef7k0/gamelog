@@ -1,7 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -10,9 +9,6 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -22,16 +18,17 @@ import { SurpriseDeck } from '@/components/surprise-deck';
 import { SurpriseSheen } from '@/components/surprise-sheen';
 import { Poster } from '@/components/ui/poster';
 import { PlatformMarks } from '@/components/ui/platform-chip';
-import { PressableScale } from '@/components/ui/pressable-scale';
+import { MarqueeText } from '@/components/ui/marquee-text';
+import { ROUND_ACTION, RoundAction } from '@/components/ui/round-action';
 import { ScoreLine } from '@/components/ui/score';
+import { SQUARE_RADIUS, SQUARE_RATIO, SquareArt } from '@/components/ui/square-art';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { platformFamilies } from '@/constants/platform-family';
-import { Elevation, PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
+import { PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { ARRIVAL_CONTROL, ARRIVAL_OBJECT, useArrival } from '@/hooks/use-arrival';
 import { useSquareCover } from '@/hooks/use-square-cover';
-import { useTheme } from '@/hooks/use-theme';
 import type { DealDirection } from '@/components/surprise-deal-gesture';
 import type { GameSearchResult } from '@/lib/games/types';
 
@@ -86,32 +83,6 @@ const SUPPORT_DELAY = 130;
 
 /** How far the type and controls travel relative to the card in front of them. */
 const FOLLOW_RATIO = 0.22;
-
-/**
- * The square's share of the display width.
- *
- * It ran flush to `SQUARE_GUTTER` on both sides — genuinely edge to edge — and
- * that was too much. A cover with nothing either side of it stops reading as an
- * object on a page and starts reading as the page, which is why the reference
- * leaves a margin: the art is unmistakably the subject *and* unmistakably a
- * thing sitting in a room. 0.84 is that margin — about 31dp a side on a 390dp
- * phone — and the space it buys back goes to the block underneath, which is the
- * part you act on.
- */
-const SQUARE_RATIO = 0.84;
-
-/**
- * The square's corner.
- *
- * A step above `Radius.caseImage` (12), which is the game case's own token and
- * not this component's to move. At 328dp a 12 reads as very nearly square; 18 is
- * where the softening is visible as an intention without the art starting to
- * look like a chip.
- */
-const SQUARE_RADIUS = 18;
-
-/** Edge of the two round controls beside the title. Past both tap floors. */
-const ROUND_ACTION = 48;
 
 export type RevealLayout = {
   /**
@@ -391,7 +362,6 @@ export function SurpriseReveal({
   layout,
 }: SurpriseRevealProps) {
   const accent = useAccent();
-  const theme = useTheme();
   const reduceMotion = useReducedMotion();
 
   /*
@@ -748,16 +718,8 @@ export function SurpriseReveal({
               selected={backlog.done}
               busy={backlog.busy}
               onPress={onBacklog}
-              accent={accent}
-              theme={theme}
             />
-            <RoundAction
-              icon="play-skip-forward"
-              label="Another game"
-              onPress={() => onDeal(1)}
-              accent={accent}
-              theme={theme}
-            />
+            <RoundAction icon="play-skip-forward" label="Another game" onPress={() => onDeal(1)} />
           </View>
         </View>
       </Animated.View>
@@ -826,230 +788,6 @@ const ACTIONS = [
  * The opacity beat runs under Reduce Motion for the reason `useCrossfade`
  * records: with every spring flattened, a cut is not a transition.
  */
-/**
- * A square cover, framed like the poster it replaces.
- *
- * Not a `<Poster>` with a different aspect ratio. `<Poster>` is the app's
- * portrait primitive — 2:3 is in its name, its docblock and its `PosterProps` —
- * and it carries a Steam-capsule preference and an edition badge that both
- * assume that shape. Teaching it a second ratio would put a branch in the one
- * component that is on nearly every screen, to serve one screen.
- *
- * What it does borrow is the frame: the same `Radius.caseImage` corner, the same
- * outer-view-fill / inner-view-clip split that `<Poster>` documents (Android
- * clips `elevation` away under `overflow: 'hidden'`, so the shadow and the clip
- * cannot share a view), and `Elevation.raised`, which is the tier `<Poster
- * elevated>` uses for a detail hero. The artwork changes shape; the object it is
- * mounted in does not.
- *
- * No edition badge. At this size the art is the screen, and the one game on it
- * is about to be named in `h1` directly underneath.
- */
-function SquareArt({ uri, size, title }: { uri: string; size: number; title: string | null }) {
-  const theme = useTheme();
-
-  return (
-    <View
-      style={[
-        styles.squareFrame,
-        { width: size, height: size, backgroundColor: theme.surfaceElevated },
-        Elevation.raised,
-      ]}>
-      <View style={styles.squareClip}>
-        <Image
-          source={{ uri, cacheKey: `square-${uri}` }}
-          style={styles.squareImage}
-          cachePolicy="memory-disk"
-          contentFit="cover"
-          transition={220}
-          accessibilityIgnoresInvertColors
-          accessibilityLabel={title ? `Cover art for ${title}` : undefined}
-        />
-      </View>
-    </View>
-  );
-}
-
-/**
- * One of the two round controls beside the title.
- *
- * Not `<IconButton>`: that primitive is a `Radius.control` rounded rectangle
- * with a hairline edge, which is the app's shape for a control in a toolbar or a
- * form. These are transport keys for the card above them — the same argument
- * `<Button shape="pill">` makes on the game page — and the circle is what says
- * so. They are the only two of their kind in the app and they stay that way.
- */
-function RoundAction({
-  icon,
-  label,
-  onPress,
-  selected = false,
-  busy = false,
-  accent,
-  theme,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-  selected?: boolean;
-  busy?: boolean;
-  accent: ReturnType<typeof useAccent>;
-  theme: ReturnType<typeof useTheme>;
-}) {
-  return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ selected, busy, disabled: busy }}
-      disabled={busy}
-      onPress={onPress}
-      scaleTo={0.9}
-      style={StyleSheet.flatten([
-        styles.roundAction,
-        busy && styles.roundBusy,
-        {
-          /* M3's filled-tonal → filled pair, the same one the game page's action
-             row uses. A saved bookmark is a *state*, so it lights; skip is an
-             act and stays tonal however many times it is pressed. */
-          backgroundColor: selected ? accent.m3.primaryContainer : accent.m3.surfaceContainerHigh,
-        },
-      ])}>
-      <Ionicons
-        name={icon}
-        size={22}
-        /* Measured against the fill directly behind it rather than against the
-           page — the fill is the only thing under the glyph. */
-        color={selected ? accent.m3.onPrimaryContainer : theme.text}
-      />
-    </PressableScale>
-  );
-}
-
-/**
- * How long the title holds still at each end of its travel, in ms.
- *
- * A marquee that turns round the instant it arrives is unreadable at exactly the
- * moment it matters — the end of the title is the part you could not see. It
- * rests there for as long as it rested at the start.
- */
-const MARQUEE_HOLD = 1400;
-
-/** Scroll speed, in ms per dp. Slow enough to read a proper noun at a glance. */
-const MARQUEE_MS_PER_DP = 22;
-
-/** How fast it returns. A snap back, not a second read of the same words. */
-const MARQUEE_RETURN_MS = 420;
-
-/**
- * A single line of text that scrolls to reveal its end, then loops.
- *
- * For the one string on this screen whose length is not ours: a game's title.
- * "The Legend of Zelda: Tears of the Kingdom" does not fit beside two round
- * buttons at any type size this block can afford, and the alternatives are both
- * worse — wrapping to two lines moves everything under it by a line depending on
- * the game, and truncating loses the half of a subtitle that distinguishes one
- * edition from another.
- *
- * ## How it measures
- *
- * A second, off-screen copy at `left: -9999` inside a 9999dp box, where nothing
- * constrains it, reports its natural width; the visible window reports the space
- * available. The difference is the travel. This is two `onLayout` callbacks
- * rather than an effect — a layout event is an event, so the state it sets is
- * not the setState-in-an-effect the React Compiler rules forbid.
- *
- * ## When it does nothing
- *
- * A title that fits is not animated at all, which is the overwhelming majority
- * of them. Neither is any title under Reduce Motion: a looping horizontal
- * crawl is precisely the vestibular trigger that setting exists for, and the
- * fallback is an ellipsis, which is what the block did before.
- */
-function MarqueeText({
-  text,
-  variant,
-  accessibilityRole,
-}: {
-  text: string;
-  variant: 'h3';
-  accessibilityRole?: 'header';
-}) {
-  const reduceMotion = useReducedMotion();
-  const [boxWidth, setBoxWidth] = useState(0);
-  const [textWidth, setTextWidth] = useState(0);
-
-  const overflow = boxWidth > 0 && textWidth > boxWidth ? Math.ceil(textWidth - boxWidth) : 0;
-  const scrolling = overflow > 0 && !reduceMotion;
-
-  const offset = useSharedValue(0);
-
-  useEffect(() => {
-    if (!scrolling) {
-      offset.set(0);
-      return;
-    }
-
-    offset.set(0);
-    offset.set(
-      withRepeat(
-        withSequence(
-          withDelay(
-            MARQUEE_HOLD,
-            withTiming(-overflow, {
-              duration: overflow * MARQUEE_MS_PER_DP,
-              easing: Easing.inOut(Easing.quad),
-            })
-          ),
-          withDelay(
-            MARQUEE_HOLD,
-            withTiming(0, { duration: MARQUEE_RETURN_MS, easing: Easing.out(Easing.quad) })
-          )
-        ),
-        -1,
-        false
-      )
-    );
-
-    return () => {
-      offset.set(0);
-    };
-  }, [scrolling, overflow, offset]);
-
-  const style = useAnimatedStyle(() => ({ transform: [{ translateX: offset.get() }] }));
-
-  return (
-    <View
-      style={styles.marquee}
-      onLayout={(event) => setBoxWidth(event.nativeEvent.layout.width)}
-      accessibilityRole={accessibilityRole}
-      accessibilityLabel={text}>
-      {/* The probe. Never seen, never read aloud, never part of the layout. */}
-      <View style={styles.marqueeProbe} pointerEvents="none" accessibilityElementsHidden>
-        <Text
-          variant={variant}
-          numberOfLines={1}
-          style={styles.marqueeText}
-          onLayout={(event) => setTextWidth(event.nativeEvent.layout.width)}>
-          {text}
-        </Text>
-      </View>
-
-      <Animated.View style={style}>
-        {/* An explicit width when it is scrolling, so the line is laid out at its
-            natural size and the window does the cutting. Without it the Text
-            truncates itself to the window and there is nothing left to reveal. */}
-        <Text
-          variant={variant}
-          numberOfLines={1}
-          style={scrolling ? { width: textWidth } : undefined}
-          importantForAccessibility="no">
-          {text}
-        </Text>
-      </Animated.View>
-    </View>
-  );
-}
-
 function HiddenNotice({ showing, width }: { showing: boolean; width: number }) {
   const progress = useSharedValue(0);
 
@@ -1199,24 +937,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x12,
     paddingVertical: Spacing.x4,
   },
-  /* Circular, and the one shape in the app allowed to be: these are the
-     transport controls for the card above them, not form buttons, and the round
-     key is what the reference — and every music player — uses to say so. */
-  roundAction: {
-    width: ROUND_ACTION,
-    height: ROUND_ACTION,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  roundBusy: { opacity: 0.5 },
-  /* The window the title scrolls inside. `hidden` is the whole mechanism. */
-  marquee: { alignSelf: 'stretch', overflow: 'hidden' },
-  /* Off-screen twin, measured at its natural width so the marquee knows how far
-     it has to travel. `left: -9999` rather than `opacity: 0` — an invisible copy
-     still occupies its own line and would double the block's height. */
-  marqueeProbe: { position: 'absolute', left: -9999, top: 0, width: 9999 },
-  marqueeText: { alignSelf: 'flex-start' },
   /*
    * The four offsets written out rather than `StyleSheet.absoluteFillObject` —
    * that is gone from the RN types on SDK 57 (see CLAUDE.md).
@@ -1246,11 +966,6 @@ const styles = StyleSheet.create({
      idea — quieter than the line above — without borrowing a value measured
      somewhere else. */
   noticeBody: { textAlign: 'center', color: 'rgba(255, 255, 255, 0.78)' },
-  /* Fill and shadow out here, clip on the child — Android drops `elevation`
-     under `overflow: 'hidden'`. Same split `<Poster>` documents. */
-  squareFrame: { borderRadius: SQUARE_RADIUS },
-  squareClip: { width: '100%', height: '100%', borderRadius: SQUARE_RADIUS, overflow: 'hidden' },
-  squareImage: { width: '100%', height: '100%' },
   /*
    * Two spacers, equal, one above the artwork and one below the cards.
    *

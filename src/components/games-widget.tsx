@@ -96,6 +96,13 @@ export type GamesWidgetProps = {
   achievementsUnlocked?: number | null;
   /** Total playtime in minutes, from Steam plus logged hours. */
   playtimeMinutes?: number | null;
+  /**
+   * Games owned digitally and physically (0028). They never overlap — a game
+   * with a box counts as physical only — so the two add up to the collection.
+   * Null while loading, and the line waits for both rather than jumping.
+   */
+  digitalCount?: number | null;
+  physicalCount?: number | null;
 };
 
 /**
@@ -144,6 +151,8 @@ export const GamesWidget = memo(function GamesWidget({
   games,
   achievementsUnlocked,
   playtimeMinutes,
+  digitalCount,
+  physicalCount,
 }: GamesWidgetProps) {
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
@@ -276,6 +285,33 @@ export const GamesWidget = memo(function GamesWidget({
         </Text>
       )}
 
+      {/* What the collection is made of, directly under the covers it is made
+          of. Each half opens the library on the matching view — the physical
+          one on the binder. Hidden until both counts are in, and hidden for a
+          profile with neither, where "0 digital · 0 physical" would be a line
+          about nothing. */}
+      {digitalCount != null && physicalCount != null && digitalCount + physicalCount > 0 && (
+        <View style={styles.split}>
+          <SplitLink
+            profileId={profileId}
+            tab="all"
+            icon="cloud-outline"
+            count={digitalCount}
+            word="digital"
+          />
+          <Text variant="caption" color="textMuted">
+            ·
+          </Text>
+          <SplitLink
+            profileId={profileId}
+            tab="physical"
+            icon="disc-outline"
+            count={physicalCount}
+            word="physical"
+          />
+        </View>
+      )}
+
       {hasStats && (
         <View style={styles.stats}>
           {achievementsUnlocked != null && (
@@ -300,6 +336,45 @@ export const GamesWidget = memo(function GamesWidget({
     </View>
   );
 });
+
+/** One half of the digital · physical line, and the door to that view. */
+function SplitLink({
+  profileId,
+  tab,
+  icon,
+  count,
+  word,
+}: {
+  profileId: string;
+  tab: 'all' | 'physical';
+  icon: keyof typeof Ionicons.glyphMap;
+  count: number;
+  word: string;
+}) {
+  const theme = useTheme();
+  const label = `${count.toLocaleString()} ${word} ${count === 1 ? 'game' : 'games'}`;
+  return (
+    <Link href={{ pathname: '/library/[id]', params: { id: profileId, tab } }} asChild>
+      <PressableScale
+        accessibilityRole="link"
+        accessibilityLabel={label}
+        hitSlop={SPLIT_SLOP}
+        scaleTo={0.96}
+        style={StyleSheet.flatten(styles.stat)}>
+        <Ionicons name={icon} size={13} color={theme.textMuted} />
+        <Text variant="caption" color="textSecondary">
+          <Text variant="caption" color="text">
+            {count.toLocaleString()}
+          </Text>{' '}
+          {word}
+        </Text>
+      </PressableScale>
+    </Link>
+  );
+}
+
+/** A caption-high link is ~13dp; the slop lifts it to the platform floor. */
+const SPLIT_SLOP = { top: 16, bottom: 16, left: 8, right: 8 };
 
 const styles = StyleSheet.create({
   widget: {
@@ -335,6 +410,7 @@ const styles = StyleSheet.create({
   },
   art: { width: '100%', height: '100%' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  split: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x16 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 });

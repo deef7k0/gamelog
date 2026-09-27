@@ -199,6 +199,8 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
                 style={StyleSheet.flatten([styles.row, { backgroundColor: theme.surface }])}>
                 <CollectionMosaic
                   covers={list.mosaic}
+                  display={list.cover_style ?? 'mosaic'}
+                  preview={list.preview}
                   size={ROW_MOSAIC}
                   title={list.title}
                   award={list.kind === 'awards'}

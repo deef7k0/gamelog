@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { ReviewBreakdown } from '@/components/review-breakdown';
@@ -113,7 +113,6 @@ export type GameReviewsSheetProps = {
  */
 export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviewsSheetProps) {
   const theme = useTheme();
-  const router = useRouter();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
 
   const [sort, setSort] = useState<ReviewSort>('popular');
@@ -319,12 +318,7 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
       ListHeaderComponent={header}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
-      renderItem={({ item }) => (
-        <ReviewRow
-          item={item}
-          onPress={() => router.push({ pathname: '/review/[id]', params: { id: item.log.id } })}
-        />
-      )}
+      renderItem={renderReviewRow}
       ListEmptyComponent={
         reviews.isPending ? (
           <LoadingState label="Loading reviews…" />
@@ -464,8 +458,17 @@ function ScoreSummary({
  *
  * How much of the review it prints is `REVIEW_LINES`, which says why.
  */
-function ReviewRow({ item, onPress }: { item: ReviewListItem; onPress: () => void }) {
+/* Memoised, and it opens its own review: the row used to be handed a fresh
+   `onPress` closure by an inline `renderItem`, so every one of up to a hundred
+   rows re-rendered whenever the sheet did — a sort, a filter pill, a query
+   landing — to draw exactly what it already showed. */
+const ReviewRow = memo(function ReviewRow({ item }: { item: ReviewListItem }) {
+  const router = useRouter();
   const { log } = item;
+  const onPress = useCallback(
+    () => router.push({ pathname: '/review/[id]', params: { id: log.id } }),
+    [router, log.id]
+  );
 
   /* The optimistic heart, from the shared hook rather than a second copy of the
      same override rule. The row is fed a plain count and flag, which is exactly
@@ -504,7 +507,9 @@ function ReviewRow({ item, onPress }: { item: ReviewListItem; onPress: () => voi
       </Card>
     </View>
   );
-}
+});
+
+const renderReviewRow = ({ item }: { item: ReviewListItem }) => <ReviewRow item={item} />;
 
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },

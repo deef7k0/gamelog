@@ -1,9 +1,18 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
+import { RadioMark } from '@/components/ui/selection-marks';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, TapTarget } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import {
+  ControlHeight,
+  Radius,
+  SmallControlRowGap,
+  SmallControlSlop,
+  Spacing,
+} from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 
 export type Choice<T extends string> = {
   value: T;
@@ -19,21 +28,30 @@ export type ChoiceChipsProps<T extends string> = {
   onChange: (value: T | null) => void;
   /** Tapping the chosen one clears it. On by default: these are optional facts. */
   clearable?: boolean;
-  /** Print each hint under its label — for scales whose words need defining. */
+  /**
+   * Print each hint under its label — for scales whose words need defining.
+   *
+   * The choices become **selection cards**, one per row: the name, the hint
+   * under it, and a radio on the trailing edge. A report reason or a copy's
+   * condition is a decision with a sentence behind it, and a card gives the
+   * sentence room to be read before the tap rather than after.
+   */
   withHints?: boolean;
 };
 
 /**
- * One choice from a short, fixed vocabulary, as a wrapping row of controls.
+ * One choice from a short, fixed vocabulary, every choice visible at once.
  *
  * For the forms that describe a copy or a release — completeness, condition,
- * region, photo kind — where every choice should be visible at once, which a
- * `<SelectField>` sheet would hide behind a tap. Selection follows the app's
- * rule (CLAUDE.md): one surface step lighter and the stronger edge, never a hue,
- * because none of these values is data with a colour of its own.
+ * region, photo kind — and for a report's reason, where a `<SelectField>` sheet
+ * would hide the options behind a tap.
  *
- * Rounded rectangles, not pills: these are controls, and the pill is kept for
- * metadata you cannot press.
+ * **Two shapes.** Bare choices are pills in a wrapping row, the filter shape;
+ * choices with hints are full-width selection cards. Both select the same way,
+ * which is the app's one selected state (`useSelectable`): an accent wash
+ * inside, the accent's edge around, and the label up to full strength — three
+ * carriers, only one of them a hue, so the choice survives colour blindness.
+ * The cards add a fourth, the filled radio.
  */
 export function ChoiceChips<T extends string>({
   label,
@@ -43,16 +61,17 @@ export function ChoiceChips<T extends string>({
   clearable = true,
   withHints = false,
 }: ChoiceChipsProps<T>) {
-  const theme = useTheme();
+  const selectable = useSelectable();
 
   return (
     <View style={styles.field}>
-      <Text variant="label" color="textMuted" accessibilityRole="header">
+      <Text variant="fieldLabel" accessibilityRole="header">
         {label}
       </Text>
-      <View style={styles.row} accessibilityRole="radiogroup">
+      <View style={withHints ? styles.cards : styles.row} accessibilityRole="radiogroup">
         {choices.map((choice) => {
           const selected = value === choice.value;
+          const look = selectable(selected);
           return (
             <PressableScale
               key={choice.value}
@@ -61,21 +80,31 @@ export function ChoiceChips<T extends string>({
               accessibilityLabel={choice.label}
               accessibilityHint={choice.hint}
               onPress={() => onChange(selected && clearable ? null : choice.value)}
-              scaleTo={0.96}
-              style={StyleSheet.flatten([
-                styles.chip,
-                withHints && styles.chipWide,
-                {
-                  backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
-                  borderColor: selected ? theme.borderStrong : theme.border,
-                },
-              ])}>
-              <Text variant="bodySmall" color={selected ? 'text' : 'textSecondary'}>
-                {choice.label}
-              </Text>
-              {withHints && choice.hint && (
-                <Text variant="caption" color="textMuted">
-                  {choice.hint}
+              scaleTo={withHints ? 0.985 : 0.96}
+              hitSlop={withHints ? undefined : SmallControlSlop}
+              pressedColor={look.pressedColor}
+              focusRing={look.focusRing}
+              style={StyleSheet.flatten([withHints ? styles.card : styles.chip, look.style])}>
+              {withHints ? (
+                <>
+                  <View style={styles.cardText}>
+                    <Text variant="fieldLabel" color={look.label}>
+                      {choice.label}
+                    </Text>
+                    {choice.hint && (
+                      /* `textSecondary`, never `textMuted`: the quiet step is
+                         4.32:1 on an accent-washed card and this has to be
+                         read to be chosen. */
+                      <Text variant="bodySmall" color="textSecondary">
+                        {choice.hint}
+                      </Text>
+                    )}
+                  </View>
+                  <RadioMark on={selected} />
+                </>
+              ) : (
+                <Text variant="body" color={look.label}>
+                  {choice.label}
                 </Text>
               )}
             </PressableScale>
@@ -87,18 +116,40 @@ export function ChoiceChips<T extends string>({
 }
 
 const styles = StyleSheet.create({
-  field: { gap: Spacing.x8 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
-  chip: {
-    justifyContent: 'center',
-    minHeight: TapTarget,
-    paddingHorizontal: Spacing.x12,
-    paddingVertical: Spacing.x4,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+  field: { gap: Spacing.x12 },
+  /* Columns `x12` (8), Material's floor between touch targets. Rows exactly the
+     two slops that meet across the gap, so wrapped rows' touch boxes tile
+     without overlapping — see `SmallControlRowGap`. */
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: Spacing.x12,
+    rowGap: SmallControlRowGap,
   },
-  /* Two per row, so a hint has room to be a sentence rather than a fragment. */
-  chipWide: { flexBasis: '47%', flexGrow: 1, paddingVertical: Spacing.x8, gap: 1 },
+  cards: { gap: Spacing.x8 },
+  /* Drawn at 36 and touched at the floor through `SmallControlSlop`. */
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.x8,
+    minHeight: ControlHeight.small,
+    paddingHorizontal: Spacing.x24,
+    paddingVertical: Spacing.x4,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x16,
+    minHeight: ControlHeight.medium + Spacing.x16,
+    paddingVertical: Spacing.x16,
+    paddingHorizontal: Spacing.x24,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+  },
+  cardText: { flex: 1, gap: 2 },
   unavailable: { opacity: 0.45 },
 });
 
@@ -112,8 +163,9 @@ export type MultiChoiceChipsProps<T extends string> = {
 };
 
 /**
- * Several choices from a fixed vocabulary, up to a limit — the same object as
- * `<ChoiceChips>`, with checkboxes rather than a radio group.
+ * Several choices from a fixed vocabulary, up to a limit — the same pills as
+ * `<ChoiceChips>`, as checkboxes rather than a radio group. A ticked pill carries
+ * a check before its word, so "on" is a glyph as well as a tint.
  *
  * The limit is stated in the label ("2 of 4") rather than discovered by a tap
  * that silently does nothing: once the fourth is on, the rest dim and announce
@@ -126,18 +178,20 @@ export function MultiChoiceChips<T extends string>({
   onChange,
   max,
 }: MultiChoiceChipsProps<T>) {
-  const theme = useTheme();
+  const accent = useAccent();
+  const selectable = useSelectable();
   const full = value.length >= max;
 
   return (
     <View style={styles.field}>
-      <Text variant="label" color="textMuted" accessibilityRole="header">
+      <Text variant="fieldLabel" accessibilityRole="header">
         {`${label} · ${value.length} of ${max}`}
       </Text>
       <View style={styles.row}>
         {choices.map((choice) => {
           const selected = value.includes(choice.value);
           const unavailable = full && !selected;
+          const look = selectable(selected);
           return (
             <PressableScale
               key={choice.value}
@@ -154,15 +208,16 @@ export function MultiChoiceChips<T extends string>({
                 )
               }
               scaleTo={0.96}
+              hitSlop={SmallControlSlop}
+              pressedColor={look.pressedColor}
+              focusRing={look.focusRing}
               style={StyleSheet.flatten([
                 styles.chip,
                 unavailable && styles.unavailable,
-                {
-                  backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
-                  borderColor: selected ? theme.borderStrong : theme.border,
-                },
+                look.style,
               ])}>
-              <Text variant="bodySmall" color={selected ? 'text' : 'textSecondary'}>
+              {selected && <Ionicons name="checkmark" size={14} color={accent.onSurface} />}
+              <Text variant="body" color={look.label}>
                 {choice.label}
               </Text>
             </PressableScale>

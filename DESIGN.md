@@ -1,31 +1,42 @@
 ---
 name: GameLog
-description: A premium, calm, information-dense gaming social platform. Dark, greyscale, one blue accent, and a lot of games.
+description: A premium, calm, information-dense gaming social platform. A near-black room, soft rounded controls in the language of a premium music player, one blue accent, and a lot of games.
 scheme: dark-only
 target: react-native
 colors:
-  background: "#14171b"
-  # The fixed-colour ladder, on the page's own hue (206°, sat 0.127). `surface`
-  # is a given value; the other three take its hue and saturation at their own
-  # original lightness, so the ladder's spacing is unchanged and only its colour
-  # temperature moved. Nothing on a game's screens uses these — those derive
-  # their surfaces from the artwork through `accentRoles`.
-  surface: "#181C1F"
-  surfaceElevated: "#1F2529"
-  surfaceSelected: "#252B2F"
-  input: "#1C2124"
+  # A near-black with a faint cool trace: darker than the #14171b it replaced
+  # and without its blue-grey cast — not black. The whole ladder shares the
+  # trace (hue ~260°, too faint to read as a colour), with slightly wider steps
+  # than before: card on page 1.068:1,
+  # elevated on card 1.070, selected on elevated 1.100. Nothing on a game's
+  # screens uses these for surfaces — those derive them from the artwork
+  # through `accentRoles`.
+  background: "#0B0A0D"
+  surface: "#141317"
+  # The resting fill of a control: a secondary button, an icon button, an
+  # unselected chip or pill. The reference's "interactive surface".
+  surfaceElevated: "#1B1A20"
+  surfaceSelected: "#24222A"
+  input: "#111014"
   hover: "rgba(255,255,255,0.04)"
   pressed: "rgba(255,255,255,0.07)"
-  border: "rgba(255,255,255,0.05)"
+  # The 1px edge every resting control carries, and dividers. 1.15:1 on the page.
+  border: "rgba(255,255,255,0.07)"
+  # Unchanged: the protected game case's PC-cover frame is drawn in it.
   borderStrong: "rgba(255,255,255,0.12)"
+  # PlayStation blue, the house accent. Fills only: 3.94:1 on the page, right
+  # under white (5.01:1), wrong for a word. Blue *type* uses `primaryText`,
+  # and so do the house selected and focus states — a 14% wash of the fill
+  # blue over near-black lands darker than a resting control.
   primary: "#0070CC"
   onPrimary: "#FFFFFF"
-  primaryMuted: "rgba(0,112,204,0.16)"
+  # `primaryText` at 16%: the house `wash`, lighter than the resting control fill.
+  primaryMuted: "rgba(46,147,232,0.16)"
   accent: "#0070CC"
-  # Blue *fills* use `primary`; blue *type* uses `primaryText`. #0070CC is
-  # 3.74:1 on the page — correct under white on a filled button, below AA the
-  # moment it becomes a word.
+  # 6.07:1 on the page, 5.31 on `surfaceElevated`.
   primaryText: "#2E93E8"
+  # Neutral, deliberately: the reference's violet inks are within a few units
+  # of these, and these are what the protected case's printed back is set in.
   text: "#F5F5F5"
   textSecondary: "#A8A8A8"
   textMuted: "#8F8F8F"
@@ -62,15 +73,15 @@ colors:
   glowCore: "#6B4C9A"
   glowEdge: "#3A2050"
   platinum: "#A9B6CC"
-  # Review prose, and only review prose: a cool muted grey, quieter than
-  # `textSecondary` and carrying the surfaces' blue-green cast. 5.81:1 on the
-  # page. See § Typography — the serif block.
-  proseInk: "#8A949A"
+  # Review prose, and only review prose: a muted grey, quieter than
+  # `textSecondary` and carrying the surfaces' cool trace (it was blue-green
+  # when the room was). 6.29:1 on the page. See § Typography — the serif block.
+  proseInk: "#958F9D"
   # A liked review's heart. Deliberately not `danger`: a like is an endorsement,
   # `danger` means something is about to be destroyed. 8.67:1 on the page.
   liked: "#FF9D35"
   scrim: "rgba(0,0,0,0.6)"
-  skeleton: "#1F2529"
+  skeleton: "#1B1A20"
   # Ink for gradient ramps over artwork. Not a surface — never fill with it.
   shadowInk: "#000000"
   # Tier-list ramp. Data, not chrome. See § 1.5.
@@ -162,11 +173,27 @@ typography:
     lineHeight: "13px"
     letterSpacing: "0.8px"
     textTransform: "uppercase"
+  # 13, up from 12, with the controls: a 48dp button with a 12px word read as
+  # a slab with a caption on it.
   button:
     fontFamily: "Inter_600SemiBold"
-    fontSize: "12px"
+    fontSize: "13px"
     fontWeight: 600
-    lineHeight: "17px"
+    lineHeight: "18px"
+    letterSpacing: "0"
+  # A form field's label, set above the field at full-strength ink.
+  fieldLabel:
+    fontFamily: "Inter_600SemiBold"
+    fontSize: "13px"
+    fontWeight: 600
+    lineHeight: "18px"
+    letterSpacing: "0"
+  # What is typed into a field. No lineHeight on purpose: on Android a
+  # lineHeight on a TextInput clips descenders.
+  fieldText:
+    fontFamily: "Inter_400Regular"
+    fontSize: "14px"
+    fontWeight: 400
     letterSpacing: "0"
   # Preserved — the game case keeps its own type. See § 2.3. Do not use elsewhere
   # and do not fold these into the scale above.
@@ -250,20 +277,28 @@ spacing:
   # sections, and it keeps a clear margin over `x48` so that reads.
   x64: "40px"
 rounded:
+  # Two regimes: interface is large and soft; artwork keeps small corners.
   none: "0px"
   xs: "2px"
   sm: "3px"
   md: "5px"
   lg: "8px"
+  # Chips, filters, tabs, search, badges, progress tracks, avatar rings.
   pill: "999px"
-  # Role aliases, mapped onto the scale above.
+  # Role aliases.
   image: "4px"
-  control: "6px"
-  card: "6px"
-  # The game page's content panels (<InfoCard>). Deliberately far from `control`:
-  # a container must not share the corner of the buttons inside it.
+  # Every button and pressable control. A soft stadium at 48dp, a true pill at
+  # 40dp and under. Icon buttons are circles: size / 2, not a token.
+  control: "20px"
+  card: "16px"
+  # The game page's Material 3 panels (<InfoCard>). Preserved.
   cardLarge: "18px"
-  input: "6px"
+  # Text and select fields: squarer than `control`, so a field and the button
+  # that submits it read as two objects. The search bar takes `pill`.
+  input: "16px"
+  inputArea: "20px"
+  # Bottom sheets (top corners), dialogs and menus.
+  sheet: "24px"
   # Preserved — the game case keeps its own radii. See § 4.1. Do not fold these
   # into the scale above.
   caseImage: "12px"
@@ -275,6 +310,8 @@ motion:
   easing: "ease-out"
   pressScale: 0.98
 elevation:
+  # Controls do not cast: buttons, fields, chips and icon buttons are drawn by a
+  # surface step and a 1px `border`. These tiers are for cards and overlays.
   none: "none"
   card: { opacity: 0.2, radius: 6, offsetY: 2, android: 2 }
   control: { opacity: 0.24, radius: 8, offsetY: 3, android: 3 }
@@ -283,10 +320,10 @@ elevation:
   # Ceiling — the depicted object (§ 4.1.7). Interface must never reach this.
   gameCase: { opacity: 0.45, radius: 18, offsetX: 6, offsetY: 12, android: 12 }
 score:
-  inline: 13
-  medium: 19
-  large: 27
-  hero: 38
+  inline: 12
+  medium: 17
+  large: 25
+  hero: 35
 layout:
   maxContentWidth: "800px"
   # Resolves per platform in `constants/theme.ts` — 44 on iOS, 48 on Android.
@@ -295,6 +332,11 @@ layout:
   # hard-code either number in a component.
   tapTarget: "44px"
   tapTargetAndroid: "48px"
+  # How tall a control is drawn, as distinct from how large it is to touch.
+  # `small` reaches the tap floor through vertical slop, and wrapped rows of
+  # small controls are spaced by exactly the two slops (`SmallControlRowGap`)
+  # so their touch boxes tile rather than overlap.
+  controlHeight: { small: "36px", medium: "48px", large: "60px" }
   posterAspectRatio: "2:3"
   heroAspectRatio: "16:9"
   heroHeightRatio: 0.38
@@ -302,76 +344,131 @@ components:
   card:
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.card}"
-    padding: "16px"
+    padding: "10px"
+    # No edge: an edge is what marks something pressable.
     border: none
-    shadow: none
+    shadow: "{elevation.card}"
   card-elevated:
     backgroundColor: "{colors.surfaceElevated}"
+  # Metadata — not pressable, so no edge.
   chip:
     backgroundColor: "{colors.surfaceSelected}"
     textColor: "{colors.textSecondary}"
-    typography:
-  # The whole scale was zoomed out ~8% alongside the spacing ladder. `caption`
-  # and `label` held at the 10px floor and are the reason it is only 8% — every
-  # other step lost a point or two. If it is tightened again it comes out of
-  # `display` through `body`, never out of the floor.
-  # `caseTitle` / `caseEdition` are pinned and did not move: see § 2.3. "{typography.caption}"
+    typography: "{typography.bodySmall}"
     rounded: "{rounded.pill}"
     height: "34px"
     padding: "0 14px"
+    border: none
   chip-active:
     backgroundColor: "{colors.primaryMuted}"
-    textColor: "{colors.primary}"
+    textColor: "{colors.primaryText}"
+  # The app's one selected state (`useSelectable`), for every pressable control
+  # with an on/off: sort and filter pills, choice cards, segments, toggles.
+  selectable:
+    backgroundColor: "{colors.surfaceElevated}"
+    border: "1px {colors.border}"
+    textColor: "{colors.textSecondary}"
+  selectable-selected:
+    backgroundColor: "accent wash (14%)"
+    border: "1px accent edge (45%)"
+    textColor: "{colors.text}"
+  filter-pill:
+    rounded: "{rounded.pill}"
+    height: "{layout.controlHeight.small}"
+    padding: "0 13px"
+  choice-card:
+    rounded: "{rounded.card}"
+    padding: "10px 15px"
+    trailing: "radio mark"
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.onPrimary}"
+    backgroundColor: "accent (the house blue on house screens)"
+    textColor: "accent ink ({colors.onPrimary} on the house blue)"
+    pressedColor: "accent pressed (14% deeper)"
     rounded: "{rounded.control}"
-    padding: "12px 20px"
-    height: "46px"
+    height: "{layout.controlHeight.medium}"
+    padding: "0 20px"
     border: none
   button-secondary:
     backgroundColor: "{colors.surfaceElevated}"
+    pressedColor: "{colors.surfaceSelected}"
     textColor: "{colors.text}"
+    border: "1px {colors.border}"
     rounded: "{rounded.control}"
-    padding: "12px 20px"
-    height: "46px"
-    border: none
   button-ghost:
     backgroundColor: "transparent"
+    pressedColor: "{colors.pressed}"
     textColor: "{colors.text}"
+  button-danger:
+    backgroundColor: "danger at 10%"
+    border: "1px danger at 30%"
+    textColor: "{colors.danger}"
+  button-disabled:
+    backgroundColor: "{colors.surfaceElevated}"
+    border: "1px {colors.border}"
+    textColor: "{colors.textMuted}"
   button-small:
-    padding: "8px 16px"
-    height: "40px"
+    height: "{layout.controlHeight.small}"
+    padding: "0 13px"
+  button-large:
+    height: "{layout.controlHeight.large}"
   icon-button:
     backgroundColor: "{colors.surfaceElevated}"
-    rounded: "{rounded.control}"
-    size: "44px"
-    border: "hairline {colors.border}"
+    rounded: "50%"
+    size: "40px (32px small), touched at the tap floor"
+    border: "1px {colors.border}"
+  focus-ring:
+    outline: "3px accent at 22%, outside the control's edge"
   input:
     backgroundColor: "{colors.input}"
+    border: "1px {colors.border}"
+    borderFocused: "1px accent edge + focus ring"
+    borderError: "1px {colors.danger}"
     rounded: "{rounded.input}"
-    padding: "12px 16px"
-    height: "48px"
+    height: "{layout.controlHeight.medium}"
+    padding: "0 15px"
+    typography: "{typography.fieldText}"
+    label: "{typography.fieldLabel}, above the field"
+  textarea:
+    rounded: "{rounded.inputArea}"
+    minHeight: "120px"
+  select:
+    extends: input
+    trailing: "chevron-down"
+    menu: "{components.sheet}"
   search-bar:
     backgroundColor: "{colors.input}"
-    rounded: "{rounded.input}"
-    height: "56px"
+    rounded: "{rounded.pill}"
+    height: "{layout.controlHeight.medium}"
     iconPosition: "leading"
+  checkbox:
+    size: "20px"
+    rounded: "{rounded.md}"
+    border: "1.5px {colors.borderStrong}"
+    checked: "accent fill, accent ink check"
+  radio:
+    size: "20px"
+    border: "1.5px {colors.borderStrong}"
+    selected: "accent ring, accent dot"
+  sheet:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.sheet} (top corners)"
+    border: "hairline {colors.border}"
+  tab:
+    rounded: "{rounded.pill}"
+    selectedBackground: "accent wash"
+    selectedText: "accent"
+    text: "{colors.textMuted}"
   bottom-nav:
     backgroundColor: "{colors.surface}"
-    height: "68px"
+    borderTop: "hairline {colors.border}"
+    height: "58px"
     maxItems: 5
-    selectedColor: "{colors.primary}"
+    selectedColor: "{colors.primaryText}"
     unselectedColor: "{colors.textMuted}"
   score:
     display: "bare numeral, verdict colour"
-    typography:
-  # The whole scale was zoomed out ~8% alongside the spacing ladder. `caption`
-  # and `label` held at the 10px floor and are the reason it is only 8% — every
-  # other step lost a point or two. If it is tightened again it comes out of
-  # `display` through `body`, never out of the floor.
-  # `caseTitle` / `caseEdition` are pinned and did not move: see § 2.3. "700"
-    sizes: "inline 15 / medium 22 / large 32 / hero 44"
+    fontWeight: "700"
+    sizes: "inline 12 / medium 17 / large 25 / hero 35"
 gameCase:
   templateSize: { width: 540, height: 680 }
   widths: { small: 108, medium: 168, large: 232 }
@@ -435,12 +532,11 @@ gameCase:
 > panel. Where prose and the frontmatter disagree, the frontmatter wins and the
 > prose is a bug.
 >
-> **Colour mirrors the code; typography and radius lead it.** All 26 colour
-> tokens match `src/constants/theme.ts` exactly. The type scale (§ 2) and radius
-> scale (§ 5) are a **specified target the code has not been migrated to yet** —
-> adopted deliberately over the shipped values. New work follows this document;
-> § 26.2 lists every value that still differs and what it takes to close the gap.
-> Expect the live panel to report drift on type and radius until it does.
+> **The frontmatter mirrors the code.** Colour, type, radius, spacing, motion
+> and the component geometry match `src/constants/theme.ts` and
+> `src/components/ui/`. Some prose below predates a later pass and quotes older
+> numbers; where it does, the frontmatter wins. § 9 is the current statement of
+> how controls look and behave.
 >
 > **Preserved feature.** The **physical videogame case** is specified in
 > **§ 4.1**. Its rules, dimensions, materials and placement constraints are
@@ -467,26 +563,39 @@ it is doing a trick.
 **Two sanctioned exceptions, both structural rather than decorative**, and both
 defined in the frontmatter, which is normative where this prose disagrees:
 
-- **The ambient glow** (`glowCore` / `glowEdge`). A gradient, never an image, and
-  never behind content it would compete with — see § 25's rule on `<Ambience>`.
-  It lights the top of a *document*, so it fades out as the page scrolls past
-  it; a glow pinned to the viewport for six screenfuls is a wash, and it drags
-  text below AA where it lingers.
+- **The ambient light** (`glowCore`). A gradient, never an image, and never
+  behind content it would compete with — see § 25's rule on `<Ambience>`.
+  Home's `<AmbientLight>` is a very large, very soft field in the top-left
+  corner — where an earlier, far stronger corner glow sat — lighting the left of
+  the screen and falling off before it reaches the right. 1.12:1 against the
+  page at its brightest, so it can stay fixed while the page scrolls through it
+  without dragging any text below AA. The earlier glow was a `<SoftGlow>` that
+  faded out on scroll; it read as a lit corner rather than as light.
 - **The frosted bar.** `<FrostedTopBar>` is blur plus a 30% scrim and no fill of
   its own. It is a layer, not a surface: it has nothing to show and exists to
   soften what the page put behind it.
 
 **Key characteristics:**
 
-- Dark only, and never true black. `#14171b` is the floor — a *cool* near-black.
-- Depth is a *surface step*, not a shadow: background → surface → elevated.
-- One accent — PlayStation blue — on selected nav, primary actions, active
-  states and badges. Nothing else.
-- ~90% of any screen is greyscale. Artwork and the accent are the colour.
+- Dark only, and never true black. `#0B0A0D` is the floor — a near-black with
+  a faint cool trace, darker than the blue-grey it replaced.
+- Depth is a *surface step* plus an edge, not a shadow: background → surface →
+  elevated, and a 1px `border` on every control.
+- One accent — **PlayStation blue** `#0070CC`, with `#2E93E8` for type — on
+  selected nav, primary actions, selected and focused controls, and links. It
+  is an accent, not a theme: most of any screen is black, near-black, grey and
+  white.
+- A game's own screens keep their **Material 3** palette, read from the box art;
+  the accent in force there is the game's colour, not the house blue.
 - Medium-high density, achieved with chips and spacing, never by shrinking text.
-- Four geometric primitives: rounded rectangle, circle, pill, rounded square.
-- Small radii, generally **3–6px** rather than highly rounded cards. The artwork
-  should be the roundest thing on screen, not the chrome around it.
+- **Two radius regimes.** Interface is large and soft — controls at 20, fields
+  and cards at 16, sheets at 24, a pill for anything that filters or tags, a
+  circle for a glyph on its own. Artwork keeps its small, square-ish corners.
+
+**The control language is a premium music player's.** Dark surfaces, large
+rounded controls, subtle 1px edges, generous height (48dp), the accent only where
+something is selected, focused or primary, soft pressed states, and next to no
+shadow. See § 9.
 
 The deliberate exceptions to all this restraint are the system's two **depicted
 physical objects** — the things that are drawn as objects rather than as
@@ -504,86 +613,87 @@ exists mostly to say by how much.
 
 ## 1.1 The room
 
-Six neutral steps, and each one has a job. Separation between them is what
-replaces every border and every shadow in the app.
+Six steps on one faint cool trace, and each one has a job.
 
-- **Background** `#14171b` — the page. Never `#000`: true black smears on OLED
-  during scroll and removes the contrast the whole depth model is built on.
-  A cool near-black; the greys above it are neutral, so surfaces read very
-  slightly warm against it. That is the trade the colour was chosen with.
-- **Surface** `#1C1C1C` — cards and the bottom bar. One step off the page, and a
-  *quieter* one than it used to be: 1.055:1 against `#14171b` where it measured
-  1.100:1 against the old neutral floor. Depth on this page leans harder on
-  `Elevation` than it did — see § 6.
-- **Surface elevated** `#242424` — a block inside a card, a secondary button, a
-  thumbnail well.
-- **Surface selected** `#2A2A2A` — chips, and the resting state of anything
-  selected.
-- **Input** `#202020` — text fields and the search bar. Deliberately *darker*
+- **Background** `#0B0A0D` — the page. Never `#000`: true black smears on OLED
+  during scroll and removes the contrast the whole depth model is built on. It
+  replaced the cool `#14171b` at the owner's request — darker, not bluer, not
+  black.
+- **Surface** `#141317` — cards and the bottom bar. 1.068:1 against the page.
+- **Surface elevated** `#1B1A20` — a block inside a card, and the resting fill of
+  every control: a secondary button, an icon button, an unselected pill.
+- **Surface selected** `#24222A` — the chip fill, and a control while pressed.
+- **Input** `#111014` — text fields and the search bar. Deliberately *darker*
   than a card: an input is a well you type into, not an object sitting on the
-  page, and inverting that relationship is what makes a form read as a form.
+  page. Its 1px edge is what draws it on the page itself.
 - **Hover** `rgba(255,255,255,0.04)` / **Pressed** `rgba(255,255,255,0.07)` —
   layered *over* a surface, never replacing it.
-- **Border** `rgba(255,255,255,0.05)` — dividers only. Barely visible on purpose.
-  `borderStrong` `rgba(255,255,255,0.12)` marks a selected edge.
+- **Border** `rgba(255,255,255,0.07)` — dividers, and the 1px edge every resting
+  control carries. `borderStrong` `rgba(255,255,255,0.12)` is the strong edge.
 
 ## 1.2 The accent
 
-**PlayStation blue** `#0070CC`, and there is only one.
+**PlayStation blue** `#0070CC`, and there is only one per screen. (Lavender was
+tried for one pass of the control migration; the owner took it back to blue.)
 
-It appears on: selected navigation, primary buttons, active states, badges,
-links, and the "See all" affordance. It appears nowhere else. The rule is
-absolute because the accent only directs attention while it is rare — a screen
-with six blue things has no primary action, it has six.
+It appears on: selected navigation, the primary button, selected and focused
+controls, badges, and links. The rule is absolute because the accent only
+directs attention while it is rare — a screen with six blue things has no
+primary action, it has six. **Most of any screen stays black, near-black, grey
+and white.**
 
-`primaryMuted` (blue at 16%) is the fill behind an *active* chip or badge. It is
-the only tinted fill in the system.
+**Fills only.** At 3.94:1 on the page it is below AA for text — right under
+white on a filled button (5.01:1), wrong for a word. Blue *type* uses
+`primaryText` `#2E93E8` (6.07:1 on the page, 5.31 on `surfaceElevated`).
 
-`accent` is an alias of `primary` and holds the same `#0070CC`. It exists so that
-score code can ask for "the meaningful neutral colour" without reaching for the
-button colour by name.
+Every state is derived from whichever accent is in force (`accentRoles`). On the
+house accent they are built from `primaryText`, not from the fill: `wash` (16%)
+is the selected fill, `edge` (55%) the selected or focused edge, `ring` (30%)
+the keyboard focus ring. A 14% wash of the *fill* blue over near-black lands
+darker than a resting control, and a selected pill would look dimmer than its
+neighbours. `pressed` is the primary fill 14% deeper (`#0060AF`, 6.38:1 under
+white). On a game's screens the same roles come from the game's Material 3
+palette — so a selected sort pill is blue on the Search tab and the game's own
+colour on its reviews sheet.
+
+`accent` is an alias of `primary`.
 
 ## 1.3 Text
 
-`#F5F5F5` primary, `#A8A8A8` secondary, `#767676` muted. Three steps, and
-hierarchy within a block is expressed by moving between them before it is
-expressed by changing size.
+`#F5F5F5` primary, `#A8A8A8` secondary, `#8F8F8F` muted. Three neutral steps —
+they did not take the room's cool trace, because the protected game case's printed
+back is set in them — and hierarchy within a block is expressed by moving
+between them before it is expressed by changing size. Inside a *selected*
+control, muted steps up to secondary: it is 4.32:1 on the accent's wash.
 
 ## 1.4 Colour usage
 
 | Token              | Value                    | Usage                                        |
 | ------------------ | ------------------------ | -------------------------------------------- |
-| `background`       | `#14171b`                | The page                                     |
-| `surface`          | `#1C1C1C`                | Cards, tab bar                                |
-| `surfaceElevated`  | `#242424`                | Nested block, secondary button, thumbnail well|
-| `surfaceSelected`  | `#2A2A2A`                | Chips, selected resting state                 |
-| `input`            | `#202020`                | Text fields, search bar                       |
+| `background`       | `#0B0A0D`                | The page                                     |
+| `surface`          | `#141317`                | Cards, tab bar, sheets                        |
+| `surfaceElevated`  | `#1B1A20`                | Nested block, every control's resting fill    |
+| `surfaceSelected`  | `#24222A`                | Chips, a control while pressed                |
+| `input`            | `#111014`                | Text fields, search bar                       |
 | `text`             | `#F5F5F5`                | Titles, headings, primary copy                |
 | `textSecondary`    | `#A8A8A8`                | Supporting copy                               |
-| `textMuted`        | `#767676`                | Metadata, timestamps, counts                  |
-| `primary`          | `#0070CC`                | Primary action, selected nav, links, badges   |
-| `primaryMuted`     | `rgba(0,112,204,.16)`    | Active chip / badge fill                      |
-| `border`           | `rgba(255,255,255,.05)`  | Dividers                                      |
-| `borderStrong`     | `rgba(255,255,255,.12)`  | Selected edge, icon-button hairline           |
+| `textMuted`        | `#8F8F8F`                | Metadata, timestamps, counts                  |
+| `primary`          | `#0070CC`                | Primary fill, badges — never type             |
+| `primaryText`      | `#2E93E8`                | Links, selected nav, the accent as type       |
+| `primaryMuted`     | `rgba(46,147,232,.16)`   | Active chip / badge fill, the house wash      |
+| `border`           | `rgba(255,255,255,.07)`  | Dividers, every control's 1px edge            |
+| `borderStrong`     | `rgba(255,255,255,.12)`  | Strong edge, unchecked box and radio rings    |
 | `scrim`            | `rgba(0,0,0,.6)`         | Overlay on hero artwork                       |
 | `platinum`         | `#A9B6CC`                | Platinum trophy marker                        |
 
 ## 1.5 Colour that carries meaning
 
-Three colours mean something, and they are **data rather than chrome**:
-
-- `success` `#4ADE80` — a positive verdict.
-- `accent` `#0070CC` — a neutral verdict.
-- `danger` `#EF4444` — a negative verdict, and destructive actions.
-
-`scoreColor()` in `constants/score.ts` maps a 0-100 score's tone to exactly these
-three. A score has to read as good, mixed or bad before the digits are parsed,
-and one accent alone cannot say that.
-
-A separate three-stop ramp — `scoreHigh` `#4ADE80`, `scoreMid` `#F5A524`,
-`scoreLow` `#EF4444` — exists in the palette and is used by
-`components/ui/surface.tsx`. See § 26: the app currently has two score colourings
-and they disagree at the neutral band.
+Score is **data rather than chrome**, and it has one ramp: `scoreHigh`
+`#4ADE80`, `scoreMid` `#F5A524`, `scoreLow` `#F35555`, returned by
+`scoreColor()` in `constants/score.ts`. A score has to read as good, mixed or bad
+before the digits are parsed, and the accent must never be one of the three — a
+blue 55 would look endorsed. `danger` `#F35555` is also destructive actions;
+`success` `#4ADE80` a positive result.
 
 ### The tier ramp
 
@@ -603,7 +713,7 @@ are tuned as backgrounds for near-black type).
 
 `shadowInk` `#000000`. Pure black, and the palette's only one.
 
-It is **not a surface** — `#14171b` remains the floor and nothing is ever filled
+It is **not a surface** — `#0B0A0D` remains the floor and nothing is ever filled
 with `shadowInk`. It exists solely as the far stop of a gradient ramp over
 artwork, where a fade has to reach true black to sit under a photograph. `scrim`
 `rgba(0,0,0,0.6)` is the flat overlay; `shadowInk` is the gradient ink. Fade it
@@ -611,12 +721,13 @@ with `withAlpha(shadowInk, 0)`, never the keyword `'transparent'`.
 
 ### Named rules
 
-**The One Accent Rule.** Blue means "this, here, now". If a second thing on the
-screen is blue, one of them is wrong.
+**The One Accent Rule.** Blue means "this, here, now" — selected, focused,
+or the thing to press. If it is decorating something that is none of those, it
+is wrong.
 
 **The Borrowed Colour Rule.** Every other hue on screen belongs to a game's
-artwork. The interface supplies greyscale and one blue; the covers supply the
-rest.
+artwork or to data (score, status, rarity, tier). The interface supplies
+near-black, grey, white and one blue; the covers supply the rest.
 
 > **Case exception.** The per-platform case colours in § 4.1 (`#0D47A1`,
 > `#107C10`, `#E60012`) are **not** UI accents and are exempt from the One Accent
@@ -1121,41 +1232,43 @@ No colour of their own: everything is the surface ladder and the artwork.
 
 # 5. Shapes & Radius
 
-The UI is deliberately **not highly rounded**. Small radii keep the artwork the
-roundest thing on screen.
+**Two regimes.** Interface is large and soft — the music-app language. Artwork
+keeps small, square-ish corners, because a box is a box: rounding a cover to
+match the buttons beside it would make it look like one of them.
 
 ## 5.1 The scale
 
-| Token  | Value |
-| ------ | ----: |
-| `none` |     0 |
-| `xs`   |     2 |
-| `sm`   |     3 |
-| `md`   |     5 |
-| `lg`   |     8 |
-| `pill` |   999 |
+| Token  | Value | Used for                                                     |
+| ------ | ----: | ------------------------------------------------------------ |
+| `none` |     0 |                                                              |
+| `xs`   |     2 | Details inside a control                                     |
+| `sm`   |     3 |                                                              |
+| `md`   |     5 | A checkbox                                                   |
+| `lg`   |     8 | The game page's Material 3 seams — preserved                  |
+| `pill` |   999 | Chips, filters, tabs, search, badges, tracks, avatar rings   |
 
 ## 5.2 Role aliases
 
-Named for **what they wrap**, not for how big they are — that is what stops
-`card` drifting onto a button the way `large` could.
+Named for **what they wrap**, not for how big they are.
 
-| Alias            | Value | Wraps                                              |
-| ---------------- | ----: | -------------------------------------------------- |
-| `Radius.image`   |     4 | Covers, screenshots, thumbnails (3–5 acceptable)    |
-| `Radius.control` |     6 | Every button and icon button (4–6 acceptable)       |
-| `Radius.card`    |     6 | Cards and modular surfaces (4–6 acceptable)         |
-| `Radius.input`   |     6 | Text fields and the search bar                      |
-| `Radius.pill`    |   999 | Chips, badges, progress tracks, avatar rings        |
+| Alias              | Value | Wraps                                                   |
+| ------------------ | ----: | ------------------------------------------------------- |
+| `Radius.image`     |     4 | Covers, screenshots, thumbnails                          |
+| `Radius.control`   |    20 | Every button and pressable control                       |
+| `Radius.card`      |    16 | Cards, notices, list tiles, choice cards, menu rows     |
+| `Radius.cardLarge` |    18 | The game page's `<InfoCard>` panels — preserved          |
+| `Radius.input`     |    16 | Text and select fields                                   |
+| `Radius.inputArea` |    20 | Multi-line text areas                                    |
+| `Radius.sheet`     |    24 | Bottom sheets (top corners), dialogs, menus             |
 
-Avatars are circles. A circular icon button or FAB is `50%`, not a token.
+A radius larger than half a control's side clamps to a pill, so `control` is a
+soft stadium on a 48dp button and a true pill on anything 40dp or shorter.
+Icon-only buttons are circles — `size / 2`, not a token.
 
-`Radius.pill` is reserved for progress tracks, badges, avatar rings and `<Chip>`.
-A chip staying a pill is deliberate: shape is the only thing left distinguishing
-metadata from a control.
-
-Do not reach for 12–20px "soft UI" corners. At this scale roundness reads as
-padding, and the app is dense.
+**No one radius for everything.** A field is squarer than the button that
+submits it, and a sheet is rounder than the rows in it, so each reads as a
+different kind of object. Filters and tabs are pills; buttons are stadiums;
+containers are rounded rectangles.
 
 ## 5.3 Case exception — **PRESERVED**
 
@@ -1187,7 +1300,8 @@ tuned to seat the cover without imitating the case's physicality. It takes
 of the work: a card reads as lifted mainly because it is lighter than the page.
 The shadow is what turns that from *painted on* into *sitting above*. Neither
 alone is enough on a near-black screen — the step has no edge, and a shadow
-against `#14171b` has almost nothing to darken.
+against `#0B0A0D` has almost nothing to darken. That is also why controls do not
+use shadows at all: they carry a 1px edge instead (§ 6.1).
 
 ## 6.1 The interface scale
 
@@ -1198,9 +1312,15 @@ that a user can touch should be flat.
 | --------- | ------: | -----: | -------: | ------: | ------------------------------------------- |
 | `none`    |       — |      — |        — |       — | Text, dividers, things inside a lifted block |
 | `card`    |    0.20 |      6 |        2 |       2 | A block resting on the page                  |
-| `control` |    0.24 |      8 |        3 |       3 | Buttons, icon buttons, chips, inputs         |
+| `control` |    0.24 |      8 |        3 |       3 | An object *on* the page, rarely used now      |
 | `raised`  |    0.30 |     12 |        5 |       6 | Pressed, active, or floating above siblings  |
 | `overlay` |    0.38 |     16 |        8 |      10 | Dock, popovers, sheets, modals               |
+
+**Controls do not cast.** Buttons, fields, chips, pills and icon buttons are
+drawn by a surface step and a 1px `border`, the way the music-app reference
+draws them; a control that needs more presence gets a brighter edge or a fill,
+not a tier. The one exception is the game page's review button, which takes
+`raised` because its fill and the page behind it are the same hue.
 
 All four use `shadowInk` and a **zero horizontal offset** — light comes from
 straight above. The lift comes from a tight radius and a short offset, not from
@@ -1255,14 +1375,16 @@ Page title: `h1` variant, 28 / 34, bold.
 Five tabs, maximum: home, search, create, notifications, profile.
 
 ```ts
-backgroundColor: theme.surface,   // #1C1C1C
-height: 68,
-// no top border
+backgroundColor: theme.surface,   // #141317
+borderTopWidth: StyleSheet.hairlineWidth,
+borderTopColor: theme.border,
+height: 58 + insets.bottom,
 ```
 
 Icons above labels — labels shown, not hidden, because an icon-only bar asks
-every new user to guess what a newspaper glyph leads to, and five words cost
-14px. Selected is `primary` on both glyph and label; unselected is `textMuted`.
+every new user to guess what a newspaper glyph leads to. Selected is the house
+blue (`primaryText`) on both glyph and label; unselected is `textMuted`. It never
+takes a game's colour. Separated by tone and a hairline, not a shadow.
 
 Five is the ceiling. A sixth destination means something belongs one level down.
 
@@ -1270,64 +1392,120 @@ Five is the ceiling. A sixth destination means something belongs one level down.
 
 # 9. Buttons & Controls
 
-Three styles, all filled, **no outlines**.
+**The language of a premium music player.** Dark surfaces, large rounded
+controls, a subtle 1px edge on everything you can press, generous height,
+the accent only where something is selected, focused or primary, soft pressed
+states and next to no shadow. Controls are built from the primitives in
+`components/ui/`; a screen that draws its own control reads its colours from
+`useSelectable()` rather than restating them.
 
-- **Primary** — filled `primary`, `onPrimary` label. At most one per screen.
-- **Secondary** — filled `surfaceElevated`. The default.
-- **Ghost** — no fill. For an action that must not draw the eye.
-- **Danger** — secondary's shape with a `danger` label. Deliberately not a red
-  slab: a filled red button is the loudest thing a dark screen can show, and
-  deleting a collection does not warrant outshouting the artwork beside it.
+**What kept its own treatment.** The game page's Material 3 cluster — the vivid
+pill "Write a review", the connected row of tonal action keys, the platform keys
+— and `<RoundAction>` on Surprise Me and a review are deliberate M3 designs and
+did not move. So did the collection header's white "Like" pill and round keys
+(a playlist hero), the sign-in providers' brand colours, and every *meaning*
+colour: a log status fills with the status's hue, a platinum or spoiler toggle
+lights in its own colour. The physical game case and the dealt card are objects,
+not controls, and are untouched.
 
-46 tall (40 when small) so the tap target clears 44 without padding tricks.
-`Radius.control`.
+## 9.1 Buttons
 
-An outline is a fourth signal in a system that already separates by surface step,
-and a screen of outlined rectangles reads as a form.
+Four variants, one family. `Radius.control`, 48dp tall (36 small, touched at the
+floor through slop; 60 large), `button` type (13/18 semibold).
 
-`<IconButton>` is the one exception: 44 square, `surfaceElevated`, with a
-`StyleSheet.hairlineWidth` edge in `border` — or `danger` at 33% for a
-destructive glyph. The `plain` tone drops both fill and outline, for clusters
-like up/down/remove where a second outline around each glyph would turn a row of
-controls into a grid.
+- **Primary** — filled with the accent in force (the house blue with white ink;
+  a game's own colour, with its own measured ink, on its screens). At most one
+  per screen. Held, it deepens to `accent.pressed`.
+- **Secondary** — `surfaceElevated` with a 1px `border`, `text` label. The
+  default. Held, `surfaceSelected`.
+- **Ghost** — no fill, no edge; a faint `pressed` fill while held. For an action
+  that must not draw the eye.
+- **Danger** — a subtle red: `danger` at 10% inside, 30% on the edge, a red
+  label. Destructive must not look safe, and must not outshout the artwork either.
 
-### Selection is one step lighter, never a colour
+**Every state is drawn, not faded.** Pressed is a deeper fill plus a 3% sink
+(`PressableScale`'s `pressedColor`, eased on the UI thread, 150/200ms). Focused
+from a keyboard, a 3dp ring in `accent.ring` outside the edge. Disabled drops to
+the resting control surface with `textMuted` type — readable, and told apart
+without leaning on opacity. Loading keeps the button's colours and swaps the
+label for a spinner without resizing.
 
-Any control with an on/off state goes `surfaceElevated` → `surfaceSelected` for
-the fill, `border` → `borderStrong` for the edge, and `textSecondary` /
-`textMuted` → `text` for the label. `<SortBar>`, the search mode switch, tag
-pickers and RSVP buttons all follow it; a new one should too.
+## 9.2 Icon buttons
+
+Circles: 40dp (32 small) on `surfaceElevated` with a 1px edge, touched at the
+platform floor through vertical slop. `active` lights wash, edge and glyph in
+the accent; `danger` tints glyph and edge; `plain` drops fill and edge for rows
+that already have a container. The floating back/close disc (`<TopBarDisc>`) is
+a circle of frosted glass and stays glass.
+
+## 9.3 Fields
+
+A label above in `fieldLabel` (13 semibold, full-strength ink), then a recessed
+well: `input` fill, 1px `border`, `Radius.input`, 48dp, `fieldText` (14). Text
+areas take `Radius.inputArea` and start at 120dp. **Focus** lights the edge in
+`accent.edge` and draws the ring outside it; an **error** keeps the edge red
+until it is fixed, with the message under the field. `<SelectField>` is the same
+well with a chevron, opening a sheet; the search bar is the same well as a pill.
+
+## 9.4 Selection
+
+**One selected state, everywhere** (`useSelectable()`): the accent's `wash`
+inside, its `edge` around, and the label up from `textSecondary` to `text`.
+Three carriers, only one of them a hue — the wash is lighter than the resting
+fill and the edge brighter than the resting edge, so a choice survives colour
+blindness and greyscale. It is used by sort and filter pills, choice cards,
+segments, toggles, the reviews filter button and the select sheet's rows.
+
+- **Filter and sort pills** — `ControlHeight.small`, `Radius.pill`, 1px edge.
+  Wrapped rows are spaced by `SmallControlRowGap`, exactly the two slops that
+  meet across the gap, so touch boxes tile and never overlap.
+- **Choice cards** — `<ChoiceChips withHints>`: one per row, name and hint and a
+  radio, `Radius.card`. A report's reasons, a copy's condition, a collection's
+  type.
+- **Checkbox and radio marks** — `<Checkbox>` and `<RadioMark>`, 20dp. Unchecked
+  is a ring in `borderStrong`; checked fills with the accent and holds its ink's
+  check; a chosen radio holds an accent dot. The row around them is the control.
+- **Tabs** — pills; the selected one takes the accent's wash and its label goes
+  to the accent. `<TabBar>` and the News dock (a segmented capsule) both.
+
+There is no on/off switch in the app; boolean settings are checkbox rows or
+toggle pills, and a new one should be the same.
+
+## 9.5 Sheets, dialogs and menus
+
+`surface` (or `surfaceElevated` for a centred dialog), `Radius.sheet`, a hairline
+edge against the scrim, `Elevation.overlay`. Close is a round key. Menu rows are
+flat until pressed and inset from the sheet's edge so their rounded ends show;
+a destructive row presses in red. `Alert.alert` stays native — it is the
+platform's own dialog and is not ours to restyle.
 
 ---
 
 # 10. Search Bar
 
-56 tall, `Radius.input`, filled `input`, magnifier leading, placeholder
-vertically centred. It is the primary control on the screen it appears on and it
-is sized to say so.
+A pill: `input` fill, 1px edge, 48dp, magnifier leading, the accent's edge and ring
+on focus. Every field that searches — the Search tab, the game pickers, a
+library's search — is this shape.
 
 ---
 
 # 11. Cards
 
-Filled `surface`, `Radius.card` (6), 16 padding, **no border and no shadow**.
-The card is the app's basic unit and it should feel modular — a thing you could
-pick up and move somewhere else. `elevated` puts it on `surfaceElevated`, for a
-card that sits on another card.
+Filled `surface`, `Radius.card` (16), `x16` padding, a light `Elevation.card`,
+and **no border**: an edge is what marks something pressable, and a card of
+content is not one big button. `elevated` puts it on `surfaceElevated`, for a
+card on a card.
 
 ---
 
 # 12. Chips
 
 The metadata capsule, and the main reason this app is dense without being
-cramped: `📅 Played` · `⏱ 45h` · `🏁 Completed` · `🎮 Main Story`. Six facts in
-two rows of chips are scannable in a way six lines of small grey text are not.
+cramped: `📅 Played` · `⏱ 45h` · `🏁 Completed`.
 
-34 tall, 14 horizontal padding, `Radius.pill`, on `surfaceSelected`. Active chips
-take `primaryMuted` with `primary` text.
-
-Chips are **not** buttons. The fully-round shape is what says so — every real
-control is a 6px rounded rectangle.
+34 tall, `Radius.pill`, on `surfaceSelected`, **no edge and no shadow**. A filter
+pill is the same shape *with* a 1px edge, because a filter can be pressed and a
+fact cannot. Active chips take the accent's wash with accent text.
 
 ---
 
@@ -1596,14 +1774,14 @@ Visual hierarchy follows this priority:
 Use contrast in this order:
 
 ```text
-#F5F5F5  →  #A8A8A8  →  #767676
+#F5F5F5  →  #A8A8A8  →  #8F8F8F
 ```
 
 Do not use multiple bright colours for hierarchy. The interface should remain
 overwhelmingly:
 
 ```text
-dark neutral + near-white + muted grey + one blue
+near-black + near-white + muted grey + one blue
 ```
 
 Platform case colours are part of the depicted object, not the interface palette
@@ -1631,9 +1809,13 @@ Platform case colours are part of the depicted object, not the interface palette
   Any of them dates the app instantly. The two exceptions are the ambient glow
   and the frosted bar — both structural, both defined in the frontmatter, both
   argued in § 0.
-- **Don't** give interface a drop shadow. Only depicted objects cast.
-- **Don't** outline a button. Fills and surface steps already separate them.
-- **Don't** introduce a second accent colour.
+- **Don't** give a control a shadow. Controls are drawn by a fill and a 1px edge;
+  depicted objects cast.
+- **Don't** put an edge on a card of content. The edge means "you can press
+  this".
+- **Don't** hand-roll a selected state. Read it from `useSelectable()`.
+- **Don't** introduce a second accent colour, and don't spend the accent on
+  anything that is not selected, focused or primary.
 - **Don't** set `fontWeight` on text — Inter's weights are separate families and
   `fontWeight` is silently ignored on Android.
 - **Don't** shrink type to fit more in. Use chips, spacing and alignment.
@@ -1711,14 +1893,37 @@ Under the previous scale `Radius.image` and the case's cover radius were the sam
 number. They are separate tokens now for exactly that reason — a find-and-replace
 on `12` would have silently redesigned the case.
 
+### The control migration
+
+Every generic control moved to the language of a premium music player; the
+game page's Material 3 treatment, the brand buttons, the meaning colours and the
+physical objects kept theirs (§ 9).
+
+| Was | Became |
+|---|---|
+| `primary` PlayStation blue `#0070CC`, white ink | Unchanged. Lavender `#C4A1FF` was tried for one pass and the owner took it back to blue; the state roles are built from `primaryText` |
+| `background` `#14171b`, ladder on hue 206° | `#0B0A0D`, ladder on a faint cool trace |
+| `Radius.control` 6, `card` 6, `input` 6 | 20, 16, 16 — plus `inputArea` 20, `sheet` 24 |
+| Selection one surface step lighter, never a hue | The accent's wash + edge + a brighter label (`useSelectable`) |
+| Buttons filled, never outlined; `control` shadow | 1px edge on secondary and danger; no shadow |
+| Square icon buttons | Circles, touched at the floor through slop |
+| Fields: `bodySmall` label, no edge, card shadow | `fieldLabel` above, 1px edge, accent focus ring |
+| Filter pills 44/48 tall, 6px corners | 36 tall pills touched at the floor, rows gapped by the slop |
+| Home's strong corner glow + a centred ambient light | The soft ambient light alone, moved into the corner glow's place |
+
+The case came through this one unchanged too: its files were not touched, and
+the three text inks and `borderStrong` it reads were deliberately left at their
+old values. Its artwork wells use `surfaceElevated`, which darkened with the
+room — visible only while a cover is loading or where a game has none.
+
 ### Remaining deltas
 
 | # | Delta | Status |
 |---|---|---|
-| 1 | Two score colourings coexist. `scoreColor()` in `constants/score.ts` returns `success` / `accent` / `danger`; `components/ui/surface.tsx` uses the `scoreHigh` / `scoreMid` / `scoreLow` ramp. They disagree at the neutral band — blue vs amber `#F5A524`. | **Unresolved. Pick one.** |
-| 2 | Colour was evaluated against a Letterboxd-style alternate (`#14181C` background, `#00E054` accent) and the *accent* half was **rejected** — the palette stays PlayStation blue. The **cool background was later adopted** by owner decision as `#14171b`, which is within a point of that alternate's floor. Typography and radius from the same spec were adopted at the migration. | Decided; background revised. |
-| 7 | The neutral ramp (`surface` … `surfaceSelected`, `input`, `skeleton`) is still perfectly neutral while the page is cool, and the `background` → `surface` step fell from 1.100:1 to 1.055:1 with the new floor. Shifting the ramp cool at equal luminance would restore both — it was **not** done, because only `background` was in scope. | **Open. Owner's call.** |
+| 1 | One score ramp: `scoreColor()` returns `scoreHigh` / `scoreMid` / `scoreLow` everywhere (amber won the neutral band). | Resolved. |
+| 2 | The accent is **PlayStation blue** `#0070CC` (lavender was tried and reverted) and the page a near-black `#0B0A0D`, both by owner decision in the control migration (below). The cool `#14171b` is retired. | Decided. |
+| 7 | The surface ladder shares the page's hue and its steps are slightly wider than before (1.068 / 1.070 / 1.100). | Resolved. |
 | 3 | `MaxContentWidth` is 800 and the layout is phone-first single-column. There is no desktop grid. | By design. |
-| 4 | Component geometry — 46 buttons, 34 chips, 56 search bar, 68 tab bar, 44 tap target — was outside the migration and still describes shipped code. | Current. |
+| 4 | Component geometry: 48 buttons and fields (36 small, 60 large), 34 chips, 48 search pill, 58 tab bar, 44/48 tap target. | Current. |
 | 5 | `game-disc.tsx` is protected, so its stray colour literals and its two bare `'transparent'` gradient stops were left alone. Those stops are the Android black-bruise bug this document warns about in § 1.5. | Knowingly deferred. |
 | 6 | Regenerate `.impeccable/design.json` after any frontmatter change. No hook enforces it. | Manual. |

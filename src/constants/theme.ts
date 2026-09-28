@@ -1,10 +1,17 @@
 /**
  * Design tokens.
  *
- * Dark only, and never true black. The page is #14171b and depth is built from
+ * Dark only, and never true black. The page is #0B0A0D and depth is built from
  * *surface steps* — background → surface → surfaceElevated → surfaceSelected —
- * rather than from shadows, which are close to invisible on a dark screen
- * anyway. A card looks lifted because it is lighter than what is behind it.
+ * plus a hairline edge, rather than from shadows, which are close to invisible
+ * on a dark screen anyway. A card looks lifted because it is lighter than what
+ * is behind it.
+ *
+ * **Controls speak one language: dark, rounded, edged, lit in the house blue.** A
+ * premium music player rather than a settings form — large radii, a 1px edge in
+ * white at a few percent, generous height, and the accent spent only on what is
+ * selected, focused or primary. See DESIGN.md § 9 for the families and
+ * `components/ui/` for the primitives that implement them.
  *
  * **The room is dark; the light comes from the games in it.**
  *
@@ -25,10 +32,12 @@
  *     page (`components/ui/ambience.tsx`). Not a derived colour at all: the
  *     actual pixels of the actual box art.
  *
- * `primary` remains PlayStation blue and remains the *house* colour — every
- * screen that is not about one specific game still runs on it, which is what
- * keeps the app from becoming a fruit salad. Identity shifts the accent only
- * where there is a game to shift it to.
+ * `primary` is PlayStation blue and is the *house* colour — every screen that
+ * is not about one specific game runs on it, which is what keeps the app from
+ * becoming a fruit salad. (It was lavender for one pass of the control
+ * migration; the owner took it back to blue.) Identity shifts the accent only
+ * where there is a game to shift it to, and a game's own screens keep their
+ * Material 3 palette.
  *
  * Everything is a token. Colours, spacing, radii, type, motion and the minimum
  * tap target all live here, and a value typed directly into a component is a
@@ -56,25 +65,26 @@ export const Colors = {
    * `hooks/use-theme` is the single place that says so.
    */
   dark: {
+    /*
+     * The three inks stayed neutral through the move to the violet-black room.
+     * The music-app reference proposed violet-tinted ones; they are within a
+     * few RGB units of these, and these are also what the physical game case's
+     * printed back is set in — a protected feature that must render exactly as
+     * it did. Hierarchy is brightness: 18.1:1, 8.3:1 and 6.1:1 on the page.
+     */
     text: '#F5F5F5',
     textSecondary: '#A8A8A8',
     /**
      * The quiet step — timestamps, counts, captions.
      *
-     * Was #767676 (4.12:1 on the page), then #808080, which cleared the *page*
-     * at 4.74:1 and stopped there. That was the bug: this token is used on
-     * cards far more often than on the page, and #808080 measured **4.32:1 on
-     * `surface`, 3.93:1 on `surfaceElevated` and 3.63:1 on `surfaceSelected`**
-     * — failing AA on all three of the surfaces it actually lands on, at 10px.
+     * Was #767676 (4.12:1 on the old page), then #808080, which cleared the
+     * page and failed every card. #8F8F8F clears every fill the app has: 6.11
+     * page, 5.72 surface, 5.34 elevated, 4.86 selected. The reference's #77727F
+     * was not adopted: 4.23:1 on the page and 3.70:1 on `surfaceElevated`,
+     * under AA wherever it would actually land, at the 10px this is set at.
      *
-     * #8F8F8F clears every step the app has a fill for: 5.79 page, 5.27
-     * surface, 4.80 elevated. (`surfaceSelected` reaches 4.44, 0.06 short; no
-     * call site puts this token on that fill — it carries `textSecondary`.)
-     *
-     * **The cost, stated plainly:** the gap to `textSecondary` narrows from 40
-     * RGB units to 25 (5.79:1 against 7.88:1 on the page). Two quiet steps that
-     * close is the price of the quieter one being legible on a card, and it is
-     * the right way round — a tier nobody can read is not a tier.
+     * It is *not* legible on an accent-washed control (4.32:1 on a selected
+     * card), so type inside anything selected steps up to `textSecondary`.
      */
     textMuted: '#8F8F8F',
 
@@ -82,75 +92,99 @@ export const Colors = {
      * The page. Never true black: #000 on OLED smears on scroll and kills the
      * sense of depth the surface steps are built on.
      *
-     * A cool near-black rather than the neutral #121212 this shipped with. It is
-     * fractionally lighter (luminance 0.0084 against 0.0061), which costs every
-     * ink on the page about 0.2 of a contrast point — the worst case, `danger`,
-     * goes 5.57:1 → 5.34:1 and nothing drops below AA.
-     *
-     * **The surface step above it is what actually moved.** `surface` measured
-     * 1.100:1 against the old page and measures 1.055:1 against this one, so a
-     * card separates about half as strongly as it used to. The greys are still
-     * neutral while the page is not, which is the other half of the same
-     * decision — see § "State of the code" in DESIGN.md.
+     * A near-black with a faint cool trace — darker than the #14171b it
+     * replaced (luminance 0.0032 against 0.0084) and without that one's
+     * blue-grey cast, at the owner's request: darker, not bluer, and not black.
+     * The trace (hue 260°, 13% saturation at 4.5% lightness) is too faint to
+     * read as a colour; it only keeps the room cool rather than warm-neutral.
      */
-    background: '#14171b',
+    background: '#14171c',
+    /**
+     * Home's page fill, and only Home's — an experiment with the room's floor,
+     * kept to one screen so the rest of the app is unaffected. Change it here.
+     *
+     * True black for now, which the note above warns against on OLED; that is
+     * the thing being tried. The surface ladder was tuned against `background`,
+     * so cards on Home separate a little more strongly than elsewhere.
+     */
+    homeBackground: '#14171c',
     /**
      * Cards and the tab bar. One perceptible step off the page.
      *
-     * **The whole ladder is on the page's hue now.** These four were neutral
-     * greys (#1C1C1C / #242424 / #2A2A2A / #202020) sitting on a cool near-black
-     * page — the inconsistency DESIGN.md's "State of the code" already flagged,
-     * and it read as it sounds: a warm-neutral card on a blue-green page.
-     *
-     * `surface` is the given value; the other three take its hue (206°) and
-     * saturation (0.127) at **their own original lightness**, so the ladder's
-     * spacing is exactly what it was and only its colour temperature moved.
-     * Every ink measures fractionally *better* than before — `text` 15.73:1
-     * (was 15.63), `textSecondary` 7.21 (7.17), `textMuted` 5.30 (5.27) — and
-     * the card-against-page step is unchanged at 1.049:1 (was 1.055).
+     * The whole ladder shares the page's cool trace, and the steps are
+     * slightly *wider* than on the old blue-grey ladder — card on page 1.068:1
+     * (was 1.048), elevated on card 1.070, selected on elevated 1.100 — because
+     * a darker floor needs a larger step to read as one.
      *
      * This is the fixed-colour ladder and nothing on a game's own screens uses
-     * it: those run on `accentRoles`, which derives its surfaces from the
-     * artwork. See CLAUDE.md, "The room is dark".
+     * it for their surfaces: those run on `accentRoles`, which derives them from
+     * the artwork. See CLAUDE.md, "The room is dark".
      */
-    surface: '#181C1F',
-    /** Nested surfaces — a block inside a card, a chip, a thumbnail well. */
-    surfaceElevated: '#1F2529',
-    /** Selected / pressed surface, and the chip fill. */
-    surfaceSelected: '#252B2F',
+    surface: '#1b1e249f',
+    /**
+     * Nested surfaces, and the resting fill of a control — a secondary button,
+     * an icon button, an unselected chip. The reference's "interactive surface".
+     */
+    surfaceElevated: '#1B1A20',
+    /** Pressed and neutral-selected fill: one step above a resting control. */
+    surfaceSelected: '#24222A',
     /** Text fields and the search bar: darker than a card, so an input reads as
-     *  a recess rather than as another card. */
-    input: '#1C2124',
+     *  a recess rather than as another card. Its 1px `border` is what draws it
+     *  on the page, where the two fills are 1.02:1 apart. */
+    input: '#111014',
 
     /** Overlays for touch feedback. Layered *over* a surface, never instead. */
     hover: 'rgba(255, 255, 255, 0.04)',
     pressed: 'rgba(255, 255, 255, 0.07)',
 
-    /** Dividers. Barely there on purpose — separation is the surface step's job. */
-    border: 'rgba(255, 255, 255, 0.05)',
+    /**
+     * The subtle edge: dividers, and the 1px outline every resting control
+     * carries. 1.15:1 against the page — visible as an edge, never as a line
+     * you read. Controls are drawn by this edge and a surface step, not by a
+     * shadow.
+     */
+    border: 'rgba(255, 255, 255, 0.07)',
+    /**
+     * The strong edge: an open disclosure, an unchecked box's ring, a rule that
+     * must hold on the page (1.33:1). Unchanged at 12% — the game case's
+     * PC-cover frame is drawn in it, and that frame is protected.
+     */
     borderStrong: 'rgba(255, 255, 255, 0.12)',
 
     /**
-     * The house accent. PlayStation blue, and still the app's own colour:
-     * the tab bar, the home feed, search, notifications and every screen that
-     * is not about one particular game.
+     * The house accent. PlayStation blue, and the app's own colour: the tab
+     * bar, the home feed, search, notifications and every screen that is not
+     * about one particular game.
      *
-     * **Fills only.** At 3.74:1 on the page it is below AA for text — fine
-     * under white (5.0:1 the other way), wrong for a link. Type that wants to
-     * look like the house colour uses `primaryText`.
+     * **An accent, not a theme.** Most of any screen stays black, near-black,
+     * grey and white; the blue marks what is selected, focused or primary, and a
+     * screen with six blue things has no primary action.
+     *
+     * **Fills only.** At 3.94:1 on the page it is below AA for text — right
+     * under white on a filled button (5.01:1), wrong for a word. Type that wants
+     * to look like the house colour uses `primaryText`, and so do the selected
+     * and focus states (`accentRoles`), because a 14% wash of *this* blue over
+     * near-black comes out darker than the resting control surface.
      */
     primary: '#0070CC',
+    /** White on the blue fill, 5.01:1. */
     onPrimary: '#FFFFFF',
     /**
-     * The same blue, lifted to 5.76:1 so it can carry a label.
+     * The same blue, lifted so it can carry a label: 6.07:1 on the page, 5.31 on
+     * `surfaceElevated`, 4.83 on `surfaceSelected`.
      *
-     * Not a second accent — a legibility variant of the first. Anywhere the
-     * blue is *type* (a link, an active tab label, "See all") reaches for this;
-     * anywhere it is a *fill* keeps `primary`.
+     * Not a second accent — a legibility variant of the first. Anywhere the blue
+     * is *type* (a link, an active tab label, "See all") reaches for this;
+     * anywhere it is a *fill* keeps `primary`. It is also the base the house
+     * `wash`, `edge` and `ring` are built from.
      */
     primaryText: '#2E93E8',
-    /** A wash of the accent, for the fill behind an active chip or badge. */
-    primaryMuted: 'rgba(0, 112, 204, 0.16)',
+    /**
+     * A wash of the accent — the house `wash`: `primaryText` at 16%. Lighter
+     * than the resting control fill it replaces, which is what lets it mark a
+     * selected control by brightness as well as by hue.
+     */
+    primaryMuted: 'rgba(46, 147, 232, 0.16)',
     accent: '#0070CC',
 
     /*
@@ -261,15 +295,15 @@ export const Colors = {
     /**
      * Review prose, and only review prose.
      *
-     * A cool muted grey rather than `textSecondary`'s neutral #A8A8A8. Body copy
-     * set in a serif at reading length wants to be *quieter* than interface
-     * text, not the same brightness — a thousand words at `text` is a wall, and
-     * at `textSecondary` it still reads as a UI string that happens to be long.
-     * This is the colour of ink on a page: present, unemphatic, and carrying the
-     * same blue-green cast as the surface under it. 5.81:1 on the page, 5.54:1
-     * on a card — comfortably past AA at the size prose is set.
+     * A muted grey rather than `textSecondary`. Body copy set in a serif at
+     * reading length wants to be *quieter* than interface text, not the same
+     * brightness — a thousand words at `text` is a wall, and at `textSecondary`
+     * it still reads as a UI string that happens to be long. This is the colour
+     * of ink on a page: present, unemphatic, and carrying the same violet trace
+     * as the surface under it (it was #8A949A, blue-green, when the room was).
+     * Same luminance as before: 6.29:1 on the page, 5.90:1 on a card.
      */
-    proseInk: '#8A949A',
+    proseInk: '#958F9D',
 
     /**
      * A liked review's heart.
@@ -288,7 +322,13 @@ export const Colors = {
     success: '#4ADE80',
 
     /*
-     * The ambient glow in Home's top-left corner. See `ui/soft-glow.tsx`.
+     * Home's ambient light in its top-left corner (`ui/ambient-light.tsx`), and
+     * `<SoftGlow>`'s default colours.
+     *
+     * These were drawn for an earlier, much stronger corner glow — a `<SoftGlow>`
+     * in the same corner — which was replaced by the soft ambient light because
+     * it read as a lit corner rather than as light. The notes below are that
+     * glow's history, and still explain the values.
      *
      * `glowCore` was #3A2050 and the glow was **invisible on a device** — not
      * dim, invisible. That hex is 1.34:1 against the page at *full* opacity, and
@@ -303,9 +343,10 @@ export const Colors = {
      * meant to be nearly gone.
      *
      * Not part of the identity system and not available to it. This is the one
-     * decorative colour in the app, it appears in exactly one place, and it is
-     * fixed rather than derived precisely so Home does not shift hue with
-     * whatever game happens to be on it.
+     * decorative colour in the app, and it is fixed rather than derived
+     * precisely so Home does not shift hue with whatever game happens to be on
+     * it. It stays violet beside the blue house accent, as it always had: the
+     * light is atmosphere, not chrome, and does not have to match the controls.
      */
     glowCore: '#6B4C9A',
     glowEdge: '#3A2050',
@@ -313,7 +354,7 @@ export const Colors = {
     /** Scrim over hero artwork so text stays legible on any cover. */
     scrim: 'rgba(0, 0, 0, 0.6)',
     /** Skeleton placeholder fill. */
-    skeleton: '#1F2529',
+    skeleton: '#1B1A20',
 
     /**
      * Ink for gradient ramps over artwork, and the palette's only true black.
@@ -437,8 +478,26 @@ export type AccentRoles = {
    * a neutral grey reads as a foreign object, and this does not.
    */
   quietInk: string;
-  /** 14% fill behind an active chip, pill or badge. */
+  /**
+   * The fill behind an active chip, pill or badge — and the fill of anything
+   * *selected*: a sort pill, a report reason, a tab. A light wash of the hue's
+   * legible form; see `HOUSE_STATES` for why it is not a wash of the fill.
+   */
   wash: string;
+  /**
+   * The edge of a selected or focused control.
+   *
+   * Paired with `wash` it is what "selected" looks like everywhere — a tint
+   * inside, a lit edge around it, and the label up a step. The edge is the
+   * carrier that survives colour blindness: over the page the house edge
+   * measures 2.53:1 against a resting edge's 1.15, a difference of brightness,
+   * not of hue.
+   */
+  edge: string;
+  /** `color` while it is held down — a deeper, not a lighter, fill. */
+  pressed: string;
+  /** The focus ring: a 3dp halo outside the control's edge. */
+  ring: string;
   /**
    * The page itself. **Tonal accents only** — it is `background` otherwise.
    *
@@ -485,37 +544,73 @@ export type AccentRoles = {
 };
 
 /**
+ * How far `pressed` deepens `color`: toward black on the house accent, toward
+ * M3's `onPrimary` — itself near-black — on a game's.
+ */
+const PRESSED_DEPTH = 0.14;
+
+/**
+ * How strong the state roles are, per mode.
+ *
+ * **Built from the hue's legible form, not its fill.** The house blue is a
+ * mid-luminance fill (3.94:1 on the page), and a 14% wash of it over near-black
+ * lands *darker* than the resting control surface — a selected pill would look
+ * dimmer than the ones around it, and brightness would stop carrying selection
+ * for anyone who cannot see the hue. `onSurface` (`primaryText` for the house)
+ * is light enough that its wash lifts the fill instead: 0.0137 against the
+ * resting 0.0108 in luminance. A game's M3 `primary` is tone 80 and already
+ * light, so it takes a slightly softer set.
+ */
+const HOUSE_STATES = { wash: 0.16, edge: 0.55, ring: 0.3 } as const;
+const TONAL_STATES = { wash: 0.14, edge: 0.45, ring: 0.22 } as const;
+
+/**
  * Build the roles for one hue.
  *
  * ## Two modes, and the difference is where the hue came from
  *
  * `tonal: false` (the default) is the **house blue**. `primary` is a chosen
  * brand colour that already has the right saturation and lightness, and the app
- * outside a game page is grey-surfaced with a fixed `background` — so the roles
- * are the hue itself plus the legacy `tint()`ed surfaces, and nothing about the
- * forty screens on the house accent changes.
+ * outside a game page is surfaced from the fixed ladder with a fixed
+ * `background` — so the roles are the hue itself plus the legacy `tint()`ed
+ * surfaces, and nothing about the forty screens on the house accent moves with
+ * any game.
  *
  * `tonal: true` is a **game**. The hue is a measurement off box art, the page is
  * about to be built entirely out of it, and every role is read off
  * a Material 3 tonal palette. This is the mode `<AccentProvider>` uses.
  *
  * Keeping both in one function rather than forking it is deliberate: every
- * consumer reads the same seven role names either way, so a shared primitive —
+ * consumer reads the same role names either way, so a shared primitive —
  * `<Button>`, `<InfoCard>`, `<TabBar>` — never learns which kind of screen it is
- * on. Only the values under the names change.
+ * on. Only the values under the names change. That is also why a selected sort
+ * pill is blue on the Search tab and the game's own colour on its reviews
+ * sheet: `wash`, `edge` and `ring` are derived here, from whichever hue is in
+ * force.
  */
 export function accentRoles(hue: string, { tonal = false }: { tonal?: boolean } = {}): AccentRoles {
   if (!tonal) {
-    /* The house blue, unchanged. `primary` is a chosen brand colour sitting on a
-       fixed grey `background`, not a measurement, so there is nothing for a
-       tonal palette to derive — and running it through one would relight the
-       forty screens that are not about a game. */
+    /* The house blue. `primary` is a chosen brand colour sitting on a fixed
+       `background`, not a measurement, so there is nothing for a tonal palette
+       to derive — and running it through one would relight the forty screens
+       that are not about a game. */
+    const ink = readableInk(hue);
+    /* The house hue's type twin is a chosen value, `primaryText`, so the tab
+       labels, links and selected states all say the same blue. Any other hue's
+       is computed. */
+    const type =
+      hue === Colors.dark.primary
+        ? Colors.dark.primaryText
+        : ensureContrast(hue, Colors.dark.surfaceElevated, 4.5);
     return {
       color: hue,
-      onSurface: ensureContrast(hue, Colors.dark.surfaceElevated, 4.5),
-      ink: readableInk(hue),
+      onSurface: type,
+      ink,
       quietInk: mix('#FFFFFF', hue, 0.24),
-      wash: withAlpha(hue, 0.14),
+      wash: withAlpha(type, HOUSE_STATES.wash),
+      edge: withAlpha(type, HOUSE_STATES.edge),
+      pressed: mix(hue, Colors.dark.shadowInk, PRESSED_DEPTH),
+      ring: withAlpha(type, HOUSE_STATES.ring),
       page: Colors.dark.background,
       surface: tint(Colors.dark.surface, hue, SURFACE_TINT),
       elevated: tint(Colors.dark.surfaceElevated, hue, SURFACE_TINT),
@@ -569,7 +664,12 @@ export function accentRoles(hue: string, { tonal = false }: { tonal?: boolean } 
     onSurface: ensureContrast(m3.primary, m3.surfaceContainerHigh, 4.5),
     ink: m3.onPrimary,
     quietInk: m3.onSurfaceVariant,
-    wash: withAlpha(m3.primary, 0.14),
+    wash: withAlpha(m3.primary, TONAL_STATES.wash),
+    edge: withAlpha(m3.primary, TONAL_STATES.edge),
+    /* M3's own pressed state is `onPrimary` layered over `primary`, which is
+       what a mix toward the ink computes. */
+    pressed: mix(m3.primary, m3.onPrimary, PRESSED_DEPTH),
+    ring: withAlpha(m3.primary, TONAL_STATES.ring),
     page: m3.background,
     surface: m3.surface,
     elevated: m3.surfaceContainerHigh,
@@ -713,12 +813,20 @@ export const Spacing = {
 /**
  * Radii. See DESIGN.md § 5.
  *
- * The UI is deliberately not highly rounded: small corners keep the artwork the
- * roundest thing on screen. The scale is `none`…`lg` plus a pill; the role
- * aliases below map onto it and are what components should actually reach for.
+ * **Two regimes.** *Interface* is large and soft — the music-app language:
+ * controls at 20, fields at 16, cards at 16, sheets at 24, and a pill for
+ * anything that filters or tags. *Artwork* keeps its small, square-ish corners
+ * (`image`, the case's own radii), because a box is a box: rounding a cover to
+ * match the buttons beside it would make it look like one of them.
+ *
+ * The small steps (`xs`…`lg`) are for details inside a control — a badge, a
+ * swatch, a seam — and for the game page's Material 3 cluster, which is shaped
+ * by its own rules and did not move.
  *
  * Naming by role is what keeps them in place — `Radius.card` cannot drift onto a
- * button the way `md` could.
+ * button the way `md` could. Nothing uses the same radius as everything: a
+ * field is squarer than the button that submits it, and a sheet is rounder than
+ * the rows in it, so each reads as a different kind of object.
  */
 export const Radius = {
   none: 0,
@@ -726,33 +834,50 @@ export const Radius = {
   sm: 3,
   md: 5,
   lg: 8,
-  /** Chips, badges, progress tracks, avatar rings. */
+  /** Chips, filters, tabs, search, badges, progress tracks, avatar rings. */
   pill: 999,
 
   /** Game covers, screenshots, thumbnails — anything rectangular and pictorial. */
   image: 4,
-  /** Every button, icon button and control. */
-  control: 6,
-  /** Cards and modular surfaces. */
-  card: 6,
+  /**
+   * Every button and every pressable control — toggles, segments, choice rows.
+   *
+   * 20, which on a 48dp button resolves to a soft stadium and on anything 40dp
+   * or shorter to a true pill (React Native clamps a radius at half the side).
+   * Icon buttons are circles and take no token: `size / 2`.
+   */
+  control: 20,
+  /** Cards and modular surfaces — a review card, a notice, a list tile. */
+  card: 16,
   /**
    * The game page's content cards — `<InfoCard>` and nothing else yet.
    *
-   * A second card radius, which needs an argument. `card` (6) is the app's
-   * *list* shape: a review row, a tile, a block in a stack, where the corner is
-   * a softening and the eye reads a column of near-rectangles. The Overview tab
-   * is not a list — it is a page of self-contained panels, each about a
-   * different subject, and Material 3's own card scale puts that shape at 12-20
-   * rather than at 6. 18 is where a 340dp-wide panel reads as an object with
-   * edges instead of a paragraph with rounded corners.
+   * A second card radius, and its argument was made when `card` was 6: the
+   * Overview tab is not a list but a page of self-contained panels, each about
+   * a different subject, and Material 3's own card scale puts that shape at
+   * 12-20. 18 is where a 340dp-wide panel reads as an object with edges instead
+   * of a paragraph with rounded corners.
    *
-   * It is deliberately far from `Radius.control` (6): these panels *contain*
-   * buttons, and a container sharing its child's corner reads as a single
-   * oversized control.
+   * **Preserved at 18 through the control migration.** The game page is the
+   * one screen that keeps its Material 3 treatment. `card` has since risen to
+   * 16 and sits beside it rather than far from it; what separates a panel from
+   * the buttons inside it now is the fill step, not the corner.
    */
   cardLarge: 18,
-  /** Text fields and the search bar. */
-  input: 6,
+  /**
+   * Text fields and select fields — squarer than `control`, so a field and the
+   * button that submits it read as two different objects. The search bar is
+   * the exception and takes `pill`: it is a control, not a form row.
+   */
+  input: 16,
+  /** A multi-line text area. Rounder than a field because it is taller. */
+  inputArea: 20,
+  /**
+   * The top corners of a bottom sheet, and the corners of a dialog or a menu —
+   * anything that sits *above* the page. The roundest interface shape, because
+   * everything inside it is less round.
+   */
+  sheet: 24,
 
   /*
    * Preserved — the physical game case keeps its own radii. See DESIGN.md § 5.3.
@@ -823,7 +948,24 @@ export const Type = {
     textTransform: 'uppercase',
   },
 
-  button: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.semibold },
+  /*
+   * Control text. 13, up from 12, with the controls: a 48dp button carrying a
+   * 12px word read as a slab with a caption on it rather than as a button.
+   */
+  button: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
+  /**
+   * A form field's label, set *above* the field. Semibold at full-strength ink
+   * so the question reads before the answer box does — it used to be
+   * `bodySmall` in `textSecondary`, quieter than the placeholder under it.
+   */
+  fieldLabel: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
+  /**
+   * What is typed into a field. **No `lineHeight`, on purpose**: on Android a
+   * line height on a `TextInput` clips descenders and fights the vertical
+   * centring the field's min-height does. 14, a step above `body`, because a
+   * 48dp field is a larger object than a line of copy.
+   */
+  fieldText: { fontSize: 14, fontFamily: FontFamily.regular },
 
   /* -------------------------------------------------------------------------
    * Reviews, and nothing else in the app.
@@ -912,10 +1054,11 @@ export const ScoreSizes = {
  * nearly invisible against a near-black page — but the shadow is what makes an
  * element read as sitting *above* the page rather than being painted on it.
  *
- * The shadow carries proportionally more of that work since the page moved to
- * `#14171b`: the `background` → `surface` step is now 1.055:1 rather than
- * 1.100:1, so an element that reaches for a `borderWidth` because it "does not
- * read" should reach for the next `Elevation` tier first.
+ * **Controls do not cast.** Buttons, fields, chips and icon buttons are drawn
+ * by a surface step and a 1px `border` — the music-app language keeps shadows
+ * to near nothing, and a control that needs more presence gets a brighter edge
+ * or a fill, not a tier. `control` survives for the few elements that are
+ * genuinely *objects on* the page rather than controls in it.
  *
  * Four interface tiers, and they are deliberately restrained. On a near-black
  * page a large soft shadow does not look like depth, it looks like a grey
@@ -1010,6 +1153,45 @@ export const Motion = {
  * this constant exists to prevent, one file further down.
  */
 export const TapTarget = Platform.select({ android: 48, default: 44 }) as number;
+
+/**
+ * How tall a control is drawn, as distinct from how large it is to touch.
+ *
+ * Shared by buttons and fields so a text field and the button beside it are the
+ * same height on both platforms. `medium` clears both platforms' floors on its
+ * own; `small` is drawn shorter and reaches `TapTarget` through `hitSlop`,
+ * which is what lets a row of filter pills stay light without a thumb missing
+ * them; `large` is for the one action a screen exists for.
+ */
+export const ControlHeight = {
+  small: 36,
+  medium: 48,
+  large: 60,
+} as const;
+
+/**
+ * The touch slop that lifts a `ControlHeight.small` control to the platform
+ * floor: 4 on iOS, 6 on Android. Vertical only — horizontally the label is
+ * already wider than the floor.
+ */
+export const SmallControlSlop = {
+  top: (TapTarget - ControlHeight.small) / 2,
+  bottom: (TapTarget - ControlHeight.small) / 2,
+} as const;
+
+/**
+ * The vertical gap between wrapped rows of small controls: exactly the two
+ * slops that meet across it (8 on iOS, 12 on Android).
+ *
+ * Slop expands the touch rectangle without moving the box, and React Native
+ * resolves an *overlap* by view order rather than by proximity — so with a
+ * smaller gap, a tap between two rows of filter pills would land on whichever
+ * pill mounted later. At this gap the touch rectangles tile the row edge to
+ * edge and never overlap. Use it as `rowGap` on any wrapping row of
+ * `ControlHeight.small` controls; the column gap is free, because the slop is
+ * vertical only.
+ */
+export const SmallControlRowGap = TapTarget - ControlHeight.small;
 
 /**
  * The floating top bar's content row, above the safe-area inset.

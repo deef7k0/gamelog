@@ -832,8 +832,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: Spacing.x16,
     paddingTop: Spacing.x16,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
+    /* A sheet over the camera once it holds an answer: `Radius.sheet`. */
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
   },
   centred: {
     flex: 1,

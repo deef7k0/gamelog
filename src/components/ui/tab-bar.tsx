@@ -4,7 +4,9 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
+import { readableInk } from '@/lib/color';
 
 export type TabItem<T extends string> = {
   key: T;
@@ -78,10 +80,16 @@ export type TabBarProps<T extends string> = {
 /**
  * Horizontal pill tabs, shared by every screen that switches between views.
  *
- * The selected tab is a soft light pill; everything else is bare muted type on
- * the page. Labels are uppercase and tracked out, which is what makes a row of
- * them read as a *control strip* rather than as a sentence — at sentence case
- * and no tracking the row looked like a line of links.
+ * The selected tab is a soft pill of the accent's wash with its label in the
+ * accent; everything else is bare muted type on the page. Labels are uppercase
+ * and tracked out, which is what makes a row of them read as a *control strip*
+ * rather than as a sentence — at sentence case and no tracking the row looked
+ * like a line of links.
+ *
+ * **The accent, because a tab says where you are.** The bottom navigation
+ * marks the current destination in the house blue, and so does this — the
+ * game's own colour on its page. The fill is a light wash, not a solid —
+ * quieter than a cover, unmistakably "this one".
  *
  * ## Why the pill replaced the underline
  *
@@ -92,20 +100,15 @@ export type TabBarProps<T extends string> = {
  * did not exist — an underline is one or two pixels, so a busy screenshot
  * behind it swallowed the only thing saying where you were.
  *
- * The pill is a shape, not a line. It holds at any size, over any background,
- * and it puts this control back on the app's ordinary selection rule —
- * `surfaceElevated` → `surfaceSelected`, brightness rather than hue — which
- * `<SortBar>`, the search mode switch and the tag pickers already follow. The
- * tab bar used to be an explicit exception to that rule; it no longer needs to
- * be, which is one fewer thing to remember.
+ * The pill is a shape, not a line. It holds at any size, over any background.
  *
- * ## Why the pill is a light wash rather than a solid
+ * ## Why the pill is a wash rather than a solid
  *
- * A solid near-white pill is what the same control looks like on a light
- * background. Translated to a dark room it is the brightest object on any
- * screen it appears on, competing with the box art the whole app is built
- * around. 14% white reads unmistakably as "this one" while staying quieter than
- * a cover — the same reasoning that keeps `<Chip>` fills grey.
+ * A solid pill is the brightest object on any screen it appears on, competing
+ * with the box art the whole app is built around. A 14% wash reads
+ * unmistakably as "this one" while staying quieter than a cover. It also keeps
+ * a carrier that is not hue: the selected tab is the only one with a fill at
+ * all, and its label is markedly brighter than the muted ones beside it.
  *
  * Scrollable rather than evenly divided: label widths vary a lot ("OVERVIEW"
  * vs "SOUNDTRACK") and five in a fixed grid truncate on a narrow phone.
@@ -119,10 +122,12 @@ export function TabBar<T extends string>({
   align = 'start',
 }: TabBarProps<T>) {
   const theme = useTheme();
+  const accent = useAccent();
 
   const items = tabs.map((tab, index) => {
     const active = tab.key === value;
     const showCount = tab.count != null && tab.count > 0;
+    const ink = active ? accent.onSurface : theme.textMuted;
 
     return (
       <PressableScale
@@ -135,26 +140,21 @@ export function TabBar<T extends string>({
         accessibilityHint={`${index + 1} of ${tabs.length}`}
         onPress={() => onChange(tab.key)}
         scaleTo={0.95}
+        pressedColor={active ? accent.ring : theme.pressed}
+        focusRing={accent.ring}
         style={StyleSheet.flatten([
           styles.tab,
           iconOnly && styles.tabIcon,
           /* The pill is drawn only when selected. An inactive tab has no
              fill and no outline at all — a row of empty outlines would read
-             as five buttons, and only one of these is a destination. */
-          active ? { backgroundColor: withAlpha(theme.text, 0.14) } : null,
+             as five buttons, and only one of these is a destination. The
+             explicit `transparent` is what the press fill eases in from. */
+          { backgroundColor: active ? accent.wash : 'transparent' },
         ])}>
-        {tab.icon && (
-          <Ionicons
-            name={tab.icon}
-            size={iconOnly ? 22 : 15}
-            color={active ? theme.text : theme.textMuted}
-          />
-        )}
+        {tab.icon && <Ionicons name={tab.icon} size={iconOnly ? 22 : 15} color={ink} />}
 
         {!iconOnly && (
-          <Text
-            variant="h5"
-            style={[styles.label, { color: active ? theme.text : theme.textMuted }]}>
+          <Text variant="h5" style={[styles.label, { color: ink }]}>
             {tab.label}
           </Text>
         )}
@@ -163,9 +163,9 @@ export function TabBar<T extends string>({
           showCount &&
           (tab.alert ? (
             <View style={[styles.badge, { backgroundColor: theme.danger }]}>
-              {/* Always white: the badge is a fixed red, so a theme
-                  foreground would go black-on-red in a light scheme. */}
-              <Text variant="caption" color="onPrimary">
+              {/* Ink measured against the red: dark, at 5.74:1. White on this
+                  red is 3.36:1, under AA at the 10px a count is set in. */}
+              <Text variant="caption" style={{ color: readableInk(theme.danger) }}>
                 {tab.count! > 99 ? '99+' : tab.count}
               </Text>
             </View>
@@ -174,10 +174,7 @@ export function TabBar<T extends string>({
                number never competes with the word it belongs to. */
             <Text
               variant="caption"
-              style={[
-                styles.count,
-                { color: active ? withAlpha(theme.text, 0.6) : theme.textMuted },
-              ]}>
+              style={[styles.count, { color: active ? withAlpha(ink, 0.7) : theme.textMuted }]}>
               {tab.count}
             </Text>
           ))}

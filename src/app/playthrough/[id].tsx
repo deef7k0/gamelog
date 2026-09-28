@@ -1,20 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PartialDateField } from '@/components/ui/partial-date-field';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { useSelectable } from '@/components/ui/selectable';
 import { SelectField } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -104,6 +98,7 @@ function PlaythroughForm({
   number: number;
 }) {
   const theme = useTheme();
+  const selectable = useSelectable();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -226,14 +221,15 @@ function PlaythroughForm({
           default, because a new run has not finished yet.
         */}
         <View style={styles.field}>
-          <Text variant="label" color="textMuted" accessibilityRole="header">
+          <Text variant="fieldLabel" accessibilityRole="header">
             How far
           </Text>
           <View style={styles.levels} accessibilityRole="radiogroup">
             {([null, ...COMPLETION_LEVELS] as const).map((level) => {
               const selected = completion === level;
+              const look = selectable(selected);
               return (
-                <Pressable
+                <PressableScale
                   key={level ?? 'none'}
                   onPress={() => setCompletion(level)}
                   accessibilityRole="radio"
@@ -241,17 +237,14 @@ function PlaythroughForm({
                   accessibilityHint={
                     level ? COMPLETION_HINT[level] : 'Still going, or stopped short'
                   }
-                  style={[
-                    styles.level,
-                    {
-                      backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
-                      borderColor: selected ? theme.borderStrong : theme.border,
-                    },
-                  ]}>
-                  <Text variant="bodySmall" color={selected ? 'text' : 'textSecondary'}>
+                  scaleTo={0.97}
+                  pressedColor={look.pressedColor}
+                  focusRing={look.focusRing}
+                  style={StyleSheet.flatten([styles.level, look.style])}>
+                  <Text variant="bodySmall" color={look.label}>
                     {level ? COMPLETION_LABEL[level] : 'Not finished'}
                   </Text>
-                </Pressable>
+                </PressableScale>
               );
             })}
           </View>
@@ -337,6 +330,6 @@ const styles = StyleSheet.create({
     minHeight: TapTarget,
     paddingHorizontal: Spacing.x12,
     borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
 });

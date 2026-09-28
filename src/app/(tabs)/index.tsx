@@ -3,12 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useAnimatedRef,
-  useAnimatedStyle,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
 import { GameCardRail } from '@/components/game-card-rail';
 import { GamePosterRail } from '@/components/game-rail';
@@ -21,11 +16,10 @@ import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
 import { AmbientLight } from '@/components/ui/ambient-light';
-import { SoftGlow } from '@/components/ui/soft-glow';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getHomeReviews, getUnreadCount, getUserLogs } from '@/lib/api';
 import { displayNameFor, greetingFor } from '@/lib/format';
@@ -41,50 +35,6 @@ const REVIEW_PREVIEW = 3;
 const RECOMMENDED_LIMIT = 12;
 /** Posters in the merged releases rail, split evenly between out-now and upcoming. */
 const RELEASES_PER_HALF = 10;
-
-/*
- * Glow geometry.
- *
- * Simulated rather than guessed: composited over the page colour, this puts the
- * top-left corner at roughly 1.7:1 against the page and fades to nothing by
- * about 270dp down — which lands just past "Welcome back" and well before the
- * first rail, matching the reference.
- *
- * The previous numbers (460 / blur 90 / centre at -60,-110) measured 1.04:1,
- * i.e. invisible. See the note in `ui/soft-glow.tsx` for why; the short version
- * is that the centre must stay near the screen and `blur` is a sigma.
- *
- * **The glow belongs to the page, not to the bar.** Its centre sits at y=20,
- * which is *behind* the frosted top bar, and that is the intended composition
- * rather than an oversight: the bar has no colour of its own and no gradient in
- * it, it just blurs whatever the page put underneath. The brightest part of the
- * spotlight reaching it as a soft colour wash is the whole effect. Never give
- * the bar its own gradient to compensate — there would then be two ramps
- * meeting at the bar's bottom edge, which is a seam.
- */
-const GLOW_SIZE = 620;
-const GLOW_BLUR = 24;
-const GLOW_X = 80;
-const GLOW_Y = 20;
-const GLOW_OPACITY = 0.62;
-
-/**
- * How far the page scrolls before the glow is gone.
- *
- * The glow renders into `<Screen backdrop>`, which is fixed to the viewport
- * rather than to the document — so without this it stays at full strength
- * through six screenfuls of content that scroll *through* it. That is both a
- * composition error (it is the page's opening gesture, and an opening gesture
- * that never ends is a wash) and a measured accessibility failure: the bar
- * hides after 56dp, and past that, text crossing the glow's brightest region
- * loses the bar's 30% scrim. Composited at full strength the worst pixel is
- * `#493666`, where `textMuted` measures **3.24:1** and `primaryText` 3.22:1 —
- * both under AA, and `GamePosterRail`'s year caption is `textMuted` at 10px.
- *
- * 260 is just past the recommendation rail, so the glow covers the masthead it
- * was drawn for and is out of the way before anything scrolls into it.
- */
-const GLOW_FADE_DISTANCE = 260;
 
 /**
  * Roughly what an `<ArticleCard>` comes to, minus its image.
@@ -155,10 +105,10 @@ function newsCardHeight(width: number): number {
  */
 export default function HomeScreen() {
   const theme = useTheme();
+  const accent = useAccent();
   const router = useRouter();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
-  const { scrollY, onScroll } = useTopBarScroll();
   const userId = useAuth((state) => state.session?.user.id);
   const profile = useAuth((state) => state.profile);
 
@@ -336,43 +286,26 @@ export default function HomeScreen() {
   const newest = reviews.data?.newest ?? [];
   const hasReviews = followed.length > 0 || newest.length > 0;
 
-  /* Fixed to the viewport, so it has to be told when the page has moved past
-     it. See `GLOW_FADE_DISTANCE`. */
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.get(), [0, GLOW_FADE_DISTANCE], [1, 0], Extrapolation.CLAMP),
-  }));
-
   return (
     <Screen
       edges={[]}
+      /* Home's own floor, separate from the app's `background` while the
+         owner tries colours on it. See `homeBackground`. */
+      background={theme.homeBackground}
       /* The `backdrop` slot rather than a child: it renders outside the
-         safe-area inset, so the glow reaches the top of the display instead of
-         starting under the status bar and drawing a hard line across it. It is
-         also outside the top bar, which is the layer above — the bar blurs this,
-         it does not contain it. Inert either way: the canvas takes
-         `pointerEvents="none"`. */
-      backdrop={
-        <>
-          {/* The atmospheric light: a huge, very faint field centred near the
-              top of the viewport. Under the corner glow, fixed rather than
-              scroll-faded — it is the room's light, not the masthead's. See
-              `ui/ambient-light`. */}
-          <AmbientLight />
-          <Animated.View style={glowStyle} pointerEvents="none">
-            <SoftGlow
-              size={GLOW_SIZE}
-              blurRadius={GLOW_BLUR}
-              offsetX={GLOW_X}
-              offsetY={GLOW_Y}
-              opacity={GLOW_OPACITY}
-            />
-          </Animated.View>
-        </>
-      }>
+         safe-area inset, so the light reaches the top of the display instead of
+         starting under the status bar and drawing a hard line across it. Inert:
+         the canvas takes `pointerEvents="none"`.
+
+         The room's light and nothing else — a very soft field in the top-left
+         corner, where Home's old corner glow sat, lighting the left of the
+         screen and falling off before it reaches the right. Fixed rather than
+         scroll-faded. See `ui/ambient-light`. The old glow itself — a far
+         stronger `<SoftGlow>` that faded out on scroll — was removed at the
+         owner's request: it read as a lit corner rather than as light. */
+      backdrop={<AmbientLight />}>
       <Animated.ScrollView
         ref={scroller}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
         /*
          * Bands resolve at different times and some of them are over a thousand
          * dp tall. Without this, a band landing above the viewport teleports
@@ -416,17 +349,30 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.mastheadActions}>
+            {/* Round keys, as every icon-only control in the app now is. Not
+                `<IconButton>`, which has nowhere to hang the unread badge. */}
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={
                 unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
               }
               onPress={() => router.push('/notifications')}
-              scaleTo={0.94}
-              style={StyleSheet.flatten(styles.bell)}>
-              <Ionicons name="notifications-outline" size={24} color={theme.text} />
+              scaleTo={0.92}
+              pressedColor={theme.surfaceSelected}
+              focusRing={accent.ring}
+              style={StyleSheet.flatten([
+                styles.key,
+                { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+              ])}>
+              <Ionicons name="notifications-outline" size={20} color={theme.text} />
               {unreadCount > 0 && (
-                <View style={[styles.badge, { backgroundColor: theme.primary }]}>
+                /* Ringed in the page colour so the badge reads as sitting on
+                   the key rather than as a stain on its edge. */
+                <View
+                  style={[
+                    styles.badge,
+                    { backgroundColor: theme.primary, borderColor: theme.homeBackground },
+                  ]}>
                   <Text variant="caption" style={{ color: theme.onPrimary }}>
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </Text>
@@ -438,9 +384,14 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Settings"
               onPress={() => router.push('/settings')}
-              scaleTo={0.94}
-              style={StyleSheet.flatten(styles.bell)}>
-              <Ionicons name="settings-outline" size={22} color={theme.text} />
+              scaleTo={0.92}
+              pressedColor={theme.surfaceSelected}
+              focusRing={accent.ring}
+              style={StyleSheet.flatten([
+                styles.key,
+                { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+              ])}>
+              <Ionicons name="settings-outline" size={19} color={theme.text} />
             </PressableScale>
           </View>
         </View>
@@ -684,11 +635,6 @@ const REVIEW_CARD_HEIGHT = 320;
 const FOOTER_SLOP = { top: 14, bottom: 14, left: 8, right: 8 };
 
 const styles = StyleSheet.create({
-  /* `width`/`height` rather than padding, so the glyph keeps its optical
-     position while the touch box grows around it. `Spacing.x8` is 6, not 8 —
-     the old `padding: Spacing.x8` made this 36dp against a 44/48 floor, on the
-     only control in the bar and the sole route to notifications. The negative
-     margin puts the enlarged box back on the bar's own edge. */
   /* The masthead sits in the content column, so the row owns the page margin
      and its first band starts flush with everything below it. */
   masthead: {
@@ -700,23 +646,30 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.x8,
   },
   mastheadTitles: { flex: 1, gap: 1 },
-  mastheadActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  bell: {
+  /* `x12` (8) between the two keys: Material's gap between touch targets. */
+  mastheadActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  /* A round key at the tap floor itself — 44 on iOS, 48 on Android — so the
+     disc you see is the area you can press. These two are the sole routes to
+     notifications and settings and must not be the hardest things to hit. */
+  key: {
     width: TapTarget,
     height: TapTarget,
+    borderRadius: TapTarget / 2,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* Anchored to the glyph, not to the enlarged touch box — the box is now
-     `TapTarget` square and centring the badge on it would float it in space. */
+  /* On the key's upper-right shoulder, overlapping its edge the way a badge on
+     an app icon does. */
   badge: {
     position: 'absolute',
-    top: (TapTarget - 24) / 2 - 4,
-    right: (TapTarget - 24) / 2 - 6,
-    minWidth: 18,
-    height: 18,
+    top: -Spacing.x4,
+    right: -Spacing.x4,
+    minWidth: 20,
+    height: 20,
     paddingHorizontal: Spacing.x4,
     borderRadius: Radius.pill,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

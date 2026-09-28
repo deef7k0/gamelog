@@ -5,10 +5,12 @@ import { Modal, StyleSheet, View } from 'react-native';
 
 import { CollectionMosaic } from '@/components/collection-mosaic';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { LoadingState } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
+import { Radius, Spacing, withAlpha } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { appendToList, getLists } from '@/lib/api';
 import type { Game } from '@/lib/games';
@@ -58,6 +60,7 @@ export type AddToCollectionProps = {
  */
 export function AddToCollection({ game, visible, onClose }: AddToCollectionProps) {
   const theme = useTheme();
+  const accent = useAccent();
   const router = useRouter();
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id) ?? null;
@@ -113,15 +116,7 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
             </Text>
           </View>
 
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            onPress={onClose}
-            scaleTo={0.9}
-            hitSlop={Spacing.x8}
-            style={StyleSheet.flatten(styles.close)}>
-            <Ionicons name="close" size={22} color={theme.text} />
-          </PressableScale>
+          <IconButton icon="close" accessibilityLabel="Close" onPress={onClose} />
         </View>
 
         {/*
@@ -143,10 +138,12 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
             router.push({ pathname: '/add-copy', params: { game: game.id } });
           }}
           scaleTo={0.98}
+          pressedColor={theme.surfaceSelected}
+          focusRing={accent.ring}
           style={StyleSheet.flatten([
             styles.row,
             styles.ownRow,
-            { backgroundColor: theme.surfaceElevated },
+            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
           ])}>
           <View style={[styles.copyGlyph, { backgroundColor: theme.surfaceSelected }]}>
             <Ionicons name="disc-outline" size={22} color={theme.text} />
@@ -196,7 +193,12 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
                 disabled={add.isPending}
                 onPress={() => add.mutate(list.id)}
                 scaleTo={0.98}
-                style={StyleSheet.flatten([styles.row, { backgroundColor: theme.surface }])}>
+                pressedColor={theme.surfaceElevated}
+                focusRing={accent.ring}
+                style={StyleSheet.flatten([
+                  styles.row,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ])}>
                 <CollectionMosaic
                   covers={list.mosaic}
                   display={list.cover_style ?? 'mosaic'}
@@ -234,21 +236,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x16,
   },
   headText: { flex: 1, gap: 2 },
-  close: {
-    width: TapTarget,
-    height: TapTarget,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   gutter: { paddingHorizontal: Spacing.x16 },
 
   rows: { paddingHorizontal: Spacing.x16, gap: Spacing.x8 },
+  /* Interactive rows: a card's corner, and the 1px edge every pressable thing
+     carries. */
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
     padding: Spacing.x12,
     borderRadius: Radius.card,
+    borderWidth: 1,
   },
   rowText: { flex: 1, gap: 1 },
   /* Margin, not the `gutter` padding: the row is a surface, and it has to line

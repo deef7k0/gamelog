@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { InfoCardButton } from '@/components/ui/info-card';
+import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Elevation, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
@@ -136,21 +137,22 @@ export function GameDetailsSheet({
           style={[styles.scrim, { backgroundColor: withAlpha(theme.shadowInk, 0.6) }]}>
           {/* Stops a tap inside the card falling through to the scrim. */}
           <Pressable
-            style={[styles.card, Elevation.overlay, { backgroundColor: theme.surfaceElevated }]}
+            style={[
+              styles.card,
+              Elevation.overlay,
+              { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+            ]}
             onPress={() => undefined}>
             <View style={styles.cardHead}>
               <Text variant="h3" style={styles.cardTitle}>
                 Information
               </Text>
-              <PressableScale
-                accessibilityRole="button"
+              <IconButton
+                icon="close"
                 accessibilityLabel="Close"
+                size="small"
                 onPress={() => setOpen(false)}
-                scaleTo={0.9}
-                hitSlop={Spacing.x8}
-                style={StyleSheet.flatten(styles.close)}>
-                <Ionicons name="close" size={20} color={theme.text} />
-              </PressableScale>
+              />
             </View>
 
             <ScrollView
@@ -264,22 +266,23 @@ const styles = StyleSheet.create({
   scrim: { flex: 1, justifyContent: 'center', padding: Spacing.x24 },
   /* Capped at 70% of the display so it always reads as a card sitting *on* the
      page rather than as a new screen — the page has to stay visible around it. */
-  card: { maxHeight: '70%', borderRadius: Radius.card, overflow: 'hidden' },
+  /* A dialog: `Radius.sheet`, the roundest interface shape, and a hairline
+     edge to draw it against the scrim. */
+  card: {
+    maxHeight: '70%',
+    borderRadius: Radius.sheet,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
   cardHead: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    paddingLeft: Spacing.x16,
-    paddingRight: Spacing.x8,
-    paddingTop: Spacing.x12,
+    paddingLeft: Spacing.x20,
+    paddingRight: Spacing.x16,
+    paddingTop: Spacing.x16,
   },
   cardTitle: { flex: 1 },
-  close: {
-    width: TapTarget,
-    height: TapTarget,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardBody: { padding: Spacing.x16, gap: Spacing.x16 },
+  cardBody: { padding: Spacing.x20, gap: Spacing.x16 },
   row: { gap: Spacing.x4 },
 });

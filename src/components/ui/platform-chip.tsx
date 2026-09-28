@@ -116,18 +116,17 @@ export function platformSummary(families: readonly PlatformFamily[], max: number
 }
 
 const styles = StyleSheet.create({
-  /* `Radius.control`, not `pill`. CLAUDE.md reserves the pill for things that
-     are not controls, but it also reserves it for *metadata*, and these sit in
-     a row beside a price badge that is genuinely a status. Matching the control
-     radius keeps the two the same object family without making either a
-     button — neither has an `onPress`. */
+  /* A pill with no edge: metadata, the `<Chip>` family. It sits in a row
+     beside a status badge (`<GameListItem>`'s) of the same shape, so the two
+     read as one kind of object — and neither has the 1px edge that marks
+     something you can press, because neither has an `onPress`. */
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x4,
     paddingHorizontal: Spacing.x8,
     paddingVertical: 3,
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
   },
   /* No fill and no padding: on a rail these sit directly on the page under the
      artwork, where a capsule would be a container around two glyphs. */

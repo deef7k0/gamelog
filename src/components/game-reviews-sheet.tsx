@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/button';
 import { ScoreTile } from '@/components/ui/score-tile';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
+import { useSelectable } from '@/components/ui/selectable';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
 import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { PLATFORM_FAMILIES, familyForStored } from '@/constants/platform-family';
 import { ratingVerdict } from '@/constants/score';
-import { Radius, Spacing, TapTarget } from '@/constants/theme';
+import { ControlHeight, Radius, SmallControlSlop, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
 import {
@@ -113,6 +114,7 @@ export type GameReviewsSheetProps = {
  */
 export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviewsSheetProps) {
   const theme = useTheme();
+  const selectable = useSelectable();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
 
   const [sort, setSort] = useState<ReviewSort>('popular');
@@ -159,6 +161,7 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
 
   const activeFilters =
     (family ? 1 : 0) + (score !== 'any' ? 1 : 0) + (progress ? 1 : 0) + (play ? 1 : 0);
+  const filterLook = selectable(activeFilters > 0);
 
   function clearFilters() {
     setFamily(null);
@@ -233,19 +236,18 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
           accessibilityLabel={activeFilters > 0 ? `Filters, ${activeFilters} active` : 'Filters'}
           onPress={() => setFiltersOpen((open) => !open)}
           scaleTo={0.96}
-          style={StyleSheet.flatten([
-            styles.filterButton,
-            {
-              backgroundColor: activeFilters > 0 ? theme.surfaceSelected : theme.surfaceElevated,
-              borderColor: activeFilters > 0 ? theme.borderStrong : theme.border,
-            },
-          ])}>
+          hitSlop={SmallControlSlop}
+          /* Lit while any filter is on, so a narrowed list says so even with
+             the panel folded away. */
+          pressedColor={filterLook.pressedColor}
+          focusRing={filterLook.focusRing}
+          style={StyleSheet.flatten([styles.filterButton, filterLook.style])}>
           <Ionicons
             name="options-outline"
-            size={17}
+            size={16}
             color={activeFilters > 0 ? theme.text : theme.textSecondary}
           />
-          <Text variant="caption" color={activeFilters > 0 ? 'text' : 'textSecondary'}>
+          <Text variant="bodySmall" color={filterLook.label}>
             {activeFilters > 0 ? `Filters · ${activeFilters}` : 'Filters'}
           </Text>
           <Ionicons
@@ -544,16 +546,18 @@ const styles = StyleSheet.create({
   },
   criticText: { flex: 1, gap: 2 },
   controls: { gap: Spacing.x8, marginTop: Spacing.x16 },
+  /* A filter pill like the sort pills above it, drawn at 36 and touched at
+     the floor. */
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: Spacing.x8,
-    paddingVertical: Spacing.x8,
-    paddingHorizontal: Spacing.x12,
-    minHeight: TapTarget - Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.x4,
+    paddingHorizontal: Spacing.x20,
+    minHeight: ControlHeight.small,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
   },
   filters: { gap: Spacing.x16, marginTop: Spacing.x8 },
   filterGroup: { gap: Spacing.x8 },

@@ -232,6 +232,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: Spacing.x8,
     paddingVertical: 2,
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
   },
 });

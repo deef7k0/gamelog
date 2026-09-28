@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRef } from 'react';
 import {
   InputAccessoryView,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { Checkbox } from '@/components/ui/selection-marks';
 import { Text } from '@/components/ui/text';
 import { MAX_SCORE, clampScore, scoreColor } from '@/constants/score';
 import {
@@ -115,15 +115,11 @@ export function ReviewMetricsEditor({
         accessibilityLabel="Advanced review metrics"
         onPress={() => onToggleEnabled(!enabled)}
         style={styles.tickRow}>
-        <View
-          style={[
-            styles.tick,
-            {
-              backgroundColor: enabled ? theme.primary : 'transparent',
-              borderColor: enabled ? theme.primary : theme.borderStrong,
-            },
-          ]}>
-          {enabled && <Ionicons name="checkmark" size={15} color={theme.onPrimary} />}
+        {/* The shared box, so it takes the screen's accent — on the log form
+            that is the game's colour, where a hard-coded house fill was the
+            one control on the page in a different hue. */}
+        <View style={styles.tick}>
+          <Checkbox checked={enabled} />
         </View>
 
         <View style={styles.tickText}>
@@ -251,7 +247,7 @@ function MetricRow({
         style={[
           styles.box,
           {
-            backgroundColor: filled ? withAlpha(tint, 0.1) : theme.background,
+            backgroundColor: filled ? withAlpha(tint, 0.1) : theme.input,
             borderColor: filled ? tint : theme.border,
             color: tint,
           },
@@ -321,15 +317,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.x4,
     minHeight: TapTarget,
   },
-  tick: {
-    width: 22,
-    height: 22,
-    borderRadius: Radius.control,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-  },
+  /* Nudged onto the first line's optical centre. */
+  tick: { marginTop: 1 },
   tickText: { flex: 1, gap: Spacing.x4 },
 
   panel: { paddingTop: Spacing.x16, gap: Spacing.x12, borderTopWidth: StyleSheet.hairlineWidth },
@@ -350,11 +339,13 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.x8,
   },
   rowLabel: { flex: 1 },
+  /* A field, so a field's corner and 1px edge — the score's own colour takes
+     the edge once it holds a number, because the number is data. */
   box: {
     width: 62,
     height: 42,
-    borderRadius: Radius.image,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.input,
+    borderWidth: 1,
     textAlign: 'center',
     /* `h2`'s size, not a loose 17: this is the one number on the row and it has
        to out-weigh the label beside it. No `lineHeight` — on Android that clips

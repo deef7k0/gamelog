@@ -153,11 +153,12 @@ const styles = StyleSheet.create({
   body: { flex: 1, gap: 2 },
   track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.x4 },
   fill: { height: '100%', borderRadius: Radius.pill },
+  /* A round transport key, like every glyph-only control. */
   play: {
     width: 44,
     height: 44,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 22,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

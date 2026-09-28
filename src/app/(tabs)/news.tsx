@@ -11,6 +11,7 @@ import { Dock, DockItem } from '@/components/ui/dock';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getGameEvents,
@@ -50,6 +51,7 @@ const CHART_GAP = Spacing.x12;
  */
 export default function NewsScreen() {
   const theme = useTheme();
+  const accent = useAccent();
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<NewsTab>('news');
 
@@ -236,7 +238,7 @@ export default function NewsScreen() {
               <Ionicons
                 name={entry.icon}
                 size={19}
-                color={tab === entry.key ? theme.text : theme.textMuted}
+                color={tab === entry.key ? accent.onSurface : theme.textMuted}
               />
             </DockItem>
           ))}

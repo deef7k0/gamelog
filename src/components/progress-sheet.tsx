@@ -5,6 +5,8 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
+import { RadioMark } from '@/components/ui/selection-marks';
 import { SelectField } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import {
@@ -17,6 +19,7 @@ import {
 } from '@/constants/progress';
 import { statusColor } from '@/constants/status';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import {
   deleteLog,
@@ -76,6 +79,8 @@ export type ProgressSheetProps = {
  */
 export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: ProgressSheetProps) {
   const theme = useTheme();
+  const accent = useAccent();
+  const selectable = useSelectable();
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id) ?? null;
   const current = progressChoiceFor(log);
@@ -184,6 +189,7 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
         {PROGRESS_CHOICES.map((choice) => {
           const selected = current === choice.key;
           const tint = statusColor(choice.status, theme);
+          const look = selectable(selected);
           return (
             <PressableScale
               key={choice.key}
@@ -194,29 +200,29 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
               disabled={choose.isPending}
               onPress={() => (selected ? onClose() : choose.mutate(choice.key))}
               scaleTo={0.98}
+              pressedColor={selected ? look.pressedColor : theme.pressed}
+              focusRing={look.focusRing}
               style={StyleSheet.flatten([
                 styles.choice,
-                {
-                  backgroundColor: selected ? theme.surfaceSelected : 'transparent',
-                  borderColor: selected ? theme.borderStrong : 'transparent',
-                },
+                /* Flat until chosen: seven outlined rows would be a grid of
+                   boxes. The chosen one takes the app's selected state. */
+                selected
+                  ? look.style
+                  : { backgroundColor: 'transparent', borderColor: 'transparent' },
               ])}>
               {/* Glyph and word as well as hue: three of the seven share the
                   "played" blue, and hue alone is never the carrier here. */}
               <Ionicons name={selected ? choice.icon : choice.outline} size={22} color={tint} />
               <View style={styles.choiceText}>
-                <Text variant="h5" color={selected ? 'text' : 'textSecondary'}>
+                <Text variant="h5" color={look.label}>
                   {choice.label}
                 </Text>
-                <Text variant="caption" color="textMuted">
+                {/* Up a step when chosen: `textMuted` is under AA on the wash. */}
+                <Text variant="caption" color={selected ? 'textSecondary' : 'textMuted'}>
                   {choice.hint}
                 </Text>
               </View>
-              <Ionicons
-                name={selected ? 'radio-button-on' : 'radio-button-off'}
-                size={20}
-                color={selected ? theme.text : theme.textMuted}
-              />
+              <RadioMark on={selected} />
             </PressableScale>
           );
         })}
@@ -235,6 +241,7 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
               <View style={styles.segments} accessibilityRole="radiogroup">
                 {(['story', 'main'] as const).map((level) => {
                   const selected = log.completion === level;
+                  const look = selectable(selected);
                   return (
                     <PressableScale
                       key={level}
@@ -243,14 +250,10 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
                       accessibilityHint={COMPLETION_HINT[level]}
                       onPress={() => details.mutate({ completion: level })}
                       scaleTo={0.97}
-                      style={StyleSheet.flatten([
-                        styles.segment,
-                        {
-                          backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
-                          borderColor: selected ? theme.borderStrong : theme.border,
-                        },
-                      ])}>
-                      <Text variant="bodySmall" color={selected ? 'text' : 'textSecondary'}>
+                      pressedColor={look.pressedColor}
+                      focusRing={look.focusRing}
+                      style={StyleSheet.flatten([styles.segment, look.style])}>
+                      <Text variant="bodySmall" color={look.label}>
                         {COMPLETION_LABEL[level]}
                       </Text>
                     </PressableScale>
@@ -288,6 +291,8 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
             }
             onPress={onOpenPlaythroughs}
             scaleTo={0.98}
+            pressedColor={theme.surfaceSelected}
+            focusRing={accent.ring}
             style={StyleSheet.flatten([
               styles.linkRow,
               { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
@@ -398,16 +403,17 @@ const styles = StyleSheet.create({
   choices: { gap: Spacing.x4 },
   /* A row, not a chip: the hint is what lets seven choices be told apart without
      reading all seven labels, and it needs the width. Transparent until chosen,
-     then one surface step up — the app's selection rule. */
+     then the app's selected state (`useSelectable`). `Radius.card` — a choice
+     row is a selection card, the same shape as a report reason. */
   choice: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
     minHeight: TapTarget + Spacing.x8,
-    paddingHorizontal: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
     paddingVertical: Spacing.x8,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   choiceText: { flex: 1, gap: 1 },
   details: { gap: Spacing.x16, paddingTop: Spacing.x16, borderTopWidth: StyleSheet.hairlineWidth },
@@ -419,7 +425,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: TapTarget,
     borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16 },
   percent: { minWidth: 64, textAlign: 'center' },
@@ -428,9 +434,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.x12,
     minHeight: TapTarget + Spacing.x8,
-    paddingHorizontal: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: Spacing.x16,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   remove: { alignSelf: 'flex-start', minHeight: TapTarget, justifyContent: 'center' },
 });

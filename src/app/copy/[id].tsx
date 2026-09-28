@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.x8,
     padding: Spacing.x12,
-    borderRadius: Radius.control,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
   },
   /* One surface holding the facts rather than a card each: they are one

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, type PressableProps, type ViewStyle } from 'react-native';
 import Animated, {
+  interpolateColor,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -16,15 +17,37 @@ export type PressableScaleProps = Omit<PressableProps, 'style' | 'children'> & {
   style?: ViewStyle | ViewStyle[];
   /** How far to shrink while held. Lower = more pronounced. */
   scaleTo?: number;
+  /**
+   * The fill while held, eased in from the style's own `backgroundColor`.
+   *
+   * The press state the music-app controls ask for — a *deeper* surface, not
+   * only a smaller one. It rides the same `progress` as the sink, on the UI
+   * thread, so the two can never drift apart; and unlike the sink it is not
+   * motion, so it runs unchanged under Reduce Motion.
+   */
+  pressedColor?: string;
+  /**
+   * Draw a focus ring in this colour while the control has keyboard focus —
+   * `accent.ring`, as a rule.
+   *
+   * A 3dp outline outside the control's own edge, so it never changes the
+   * control's size and never hides behind its border. Touch does not focus a
+   * view on iOS or Android, so on a phone this appears only for a keyboard or
+   * switch-access user, which is exactly who it is for.
+   */
+  focusRing?: string;
 };
+
+/** The focus ring's width, outside the control's edge. */
+const RING_WIDTH = 3;
 
 /**
  * How far the control dims while held, when it may not move.
  *
  * The reduced-motion substitute for the sink. Deep enough to be unmistakable on
  * a near-black page, shallow enough that a held button still reads as a button
- * rather than as a disabled one — `Button` already uses 0.45 for disabled, so
- * this deliberately stops short of it.
+ * rather than as a disabled one — several controls dim to around 0.45 when
+ * disabled, so this deliberately stops short of that.
  */
 const PRESSED_OPACITY = 0.62;
 
@@ -53,11 +76,16 @@ export function PressableScale({
   children,
   style,
   scaleTo = Motion.pressScale,
+  pressedColor,
+  focusRing,
   onPressIn,
   onPressOut,
+  onFocus,
+  onBlur,
   ...rest
 }: PressableScaleProps) {
   const reduceMotion = useReducedMotion();
+  const [focused, setFocused] = useState(false);
 
   /* One value, two materials. `progress` is 0 at rest and 1 while held, so the
      press timing is identical whichever property expresses it — and switching
@@ -67,10 +95,10 @@ export function PressableScale({
   /*
    * The caller's own opacity, composed rather than overwritten.
    *
-   * `opacity` is not a free channel on this component: `<Button>` and
-   * `<IconButton>` both express *disabled* by flattening `{ opacity: 0.45 }`
-   * into the style they hand down, and the game page's action row dims the same
-   * way while a write is in flight. An animated `opacity` on the root wins over
+   * `opacity` is not a free channel on this component: `<IconButton>` and a
+   * dozen screen-local controls express *disabled* partly by flattening an
+   * opacity into the style they hand down, and the game page's action row dims
+   * the same way while a write is in flight. An animated `opacity` on the root wins over
    * every one of them, so writing a bare `1` here at rest would have made every
    * disabled control in the app look enabled — but only for the people who
    * asked for reduced motion, which is the worst possible audience for it.
@@ -79,21 +107,43 @@ export function PressableScale({
    * worklet. A disabled control therefore rests at the caller's value and still
    * dims further if it is somehow pressed.
    */
-  const baseOpacity = StyleSheet.flatten(style)?.opacity ?? 1;
+  const flat = StyleSheet.flatten(style);
+  const baseOpacity = flat?.opacity ?? 1;
+
+  /* Same reasoning as the opacity above: the resting fill is the caller's, read
+     from the style it passed, so the animated value starts exactly where the
+     static one was. Only a plain colour string can be interpolated. */
+  const restingColor = typeof flat?.backgroundColor === 'string' ? flat.backgroundColor : null;
+  const fillFrom = pressedColor && restingColor ? restingColor : null;
 
   // `.get()`/`.set()` rather than `.value` — the React Compiler lint rules treat
   // assigning to `.value` as mutating a captured binding. Reanimated added these
   // accessors for exactly this reason; they behave identically.
   const animatedStyle = useAnimatedStyle(() => {
     const held = progress.get();
+    const fill =
+      fillFrom && pressedColor
+        ? { backgroundColor: interpolateColor(held, [0, 1], [fillFrom, pressedColor]) }
+        : null;
     return reduceMotion
-      ? { opacity: Number(baseOpacity) * (1 - held * (1 - PRESSED_OPACITY)) }
-      : { transform: [{ scale: 1 - held * (1 - scaleTo) }] };
+      ? { ...fill, opacity: Number(baseOpacity) * (1 - held * (1 - PRESSED_OPACITY)) }
+      : { ...fill, transform: [{ scale: 1 - held * (1 - scaleTo) }] };
   });
 
   return (
     <AnimatedPressable
-      style={[style, animatedStyle]}
+      style={[
+        style,
+        focusRing && focused
+          ? {
+              outlineColor: focusRing,
+              outlineWidth: RING_WIDTH,
+              outlineStyle: 'solid',
+              outlineOffset: 0,
+            }
+          : null,
+        animatedStyle,
+      ]}
       onPressIn={(event) => {
         progress.set(withTiming(1, { duration: Motion.fast }));
         onPressIn?.(event);
@@ -101,6 +151,14 @@ export function PressableScale({
       onPressOut={(event) => {
         progress.set(withTiming(0, { duration: Motion.normal }));
         onPressOut?.(event);
+      }}
+      onFocus={(event) => {
+        if (focusRing) setFocused(true);
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        if (focusRing) setFocused(false);
+        onBlur?.(event);
       }}
       {...rest}>
       {children}

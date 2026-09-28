@@ -512,13 +512,14 @@ function Action({
 
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.x12 },
+  /* Notices, not controls, so a card's corner. */
   unreleased: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
     paddingVertical: Spacing.x12,
     paddingHorizontal: Spacing.x16,
-    borderRadius: Radius.control,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
   },
   unreleasedText: { gap: 1 },
@@ -528,7 +529,7 @@ const styles = StyleSheet.create({
     gap: Spacing.x8,
     paddingVertical: Spacing.x8,
     paddingHorizontal: Spacing.x12,
-    borderRadius: Radius.control,
+    borderRadius: Radius.card,
   },
   errorText: { flex: 1 },
   /* A real gap now that the keys are wide pills rather than centred glyph-and-

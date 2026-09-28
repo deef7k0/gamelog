@@ -12,15 +12,15 @@ export const ROUND_ACTION = 48;
 /**
  * A round control beside the title of the one game a screen is about.
  *
- * Not `<IconButton>`: that primitive is a `Radius.control` rounded rectangle
- * with a hairline edge, which is the app's shape for a control in a toolbar or a
- * form. These are transport keys for the artwork above them — the same argument
- * `<Button shape="pill">` makes on the game page — and the circle is what says
- * so.
+ * Not `<IconButton>`: that primitive is the toolbar circle — 40dp, the house
+ * control surface and a 1px edge. These are Material 3 tonal transport keys for
+ * the artwork above them, filled from the game's own palette at 48dp — the same
+ * argument `<Button shape="pill">` makes on the game page.
  *
  * **Two screens have them, in pairs, and nowhere else**: Surprise Me (bookmark
  * and skip) and a review (like and share). Both are one game's square art with
- * its title underneath; a circle anywhere else would be a fourth control shape.
+ * its title underneath. They kept their Material 3 treatment through the
+ * control migration, as the game page's action row did.
  */
 export function RoundAction({
   icon,
@@ -69,9 +69,8 @@ export function RoundAction({
 }
 
 const styles = StyleSheet.create({
-  /* Circular, and the one shape in the app allowed to be: these are the
-     transport controls for the card above them, not form buttons, and the round
-     key is what the reference — and every music player — uses to say so. */
+  /* Circular: these are the transport controls for the card above them, not
+     form buttons, and the round key is what every music player uses to say so. */
   round: {
     width: ROUND_ACTION,
     height: ROUND_ACTION,

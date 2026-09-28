@@ -4,8 +4,10 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
 import { Text } from '@/components/ui/text';
-import { Elevation, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
+import { ControlHeight, Elevation, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
 export type SelectOption = {
@@ -45,8 +47,13 @@ export type SelectFieldProps = {
  * A sheet rather than the app's usual row of pills for one reason: this control
  * lives in a two-column row beside "Hours played", where a wrapping pill row
  * would blow the column apart, and it has to hold up to seven platforms plus a
- * legacy value. Selection still follows the house rule — one surface step
- * lighter, a stronger edge and brighter ink, never a colour.
+ * legacy value.
+ *
+ * The field is a `<TextField>`'s twin — same label, same recessed well, same
+ * edge and corner — with a chevron where the typing would be, so a form reads
+ * as one set of fields whichever kind each one is. The sheet is the app's menu
+ * surface: rounded top, hairline edge, rows that light in the accent (wash,
+ * edge and a check) when chosen.
  */
 export function SelectField({
   label,
@@ -59,6 +66,8 @@ export function SelectField({
   clearable = true,
 }: SelectFieldProps) {
   const theme = useTheme();
+  const accent = useAccent();
+  const selectable = useSelectable();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
@@ -71,11 +80,7 @@ export function SelectField({
 
   return (
     <View style={styles.wrapper}>
-      {label && (
-        <Text variant="bodySmall" color="textSecondary">
-          {label}
-        </Text>
-      )}
+      {label && <Text variant="fieldLabel">{label}</Text>}
 
       <PressableScale
         accessibilityRole="button"
@@ -83,21 +88,24 @@ export function SelectField({
         accessibilityHint="Opens a list of choices"
         onPress={() => setOpen(true)}
         scaleTo={0.98}
+        pressedColor={theme.surface}
+        focusRing={accent.ring}
         style={StyleSheet.flatten([
           styles.shell,
-          Elevation.card,
-          { backgroundColor: theme.input },
+          /* The sheet is this field's focus: while it is open, the edge says
+             which field it belongs to. */
+          { backgroundColor: theme.input, borderColor: open ? accent.edge : theme.border },
         ])}>
         {selected?.icon && (
           <Ionicons name={selected.icon} size={16} color={selected.tint ?? theme.textSecondary} />
         )}
         <Text
-          variant="body"
+          variant="fieldText"
           numberOfLines={1}
           style={[styles.value, { color: selected ? theme.text : theme.textMuted }]}>
           {selected?.label ?? placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={16} color={theme.textMuted} />
+        <Ionicons name="chevron-down" size={16} color={theme.textSecondary} />
       </PressableScale>
 
       {hint && (
@@ -127,6 +135,7 @@ export function SelectField({
             Elevation.overlay,
             {
               backgroundColor: theme.surface,
+              borderColor: theme.border,
               paddingBottom: insets.bottom + Spacing.x16,
             },
           ]}>
@@ -142,19 +151,17 @@ export function SelectField({
             showsVerticalScrollIndicator={false}>
             {options.map((option) => {
               const isSelected = option.value === value;
+              const look = selectable(isSelected);
               return (
-                <Pressable
+                <PressableScale
                   key={option.value}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: isSelected }}
                   onPress={() => choose(option.value)}
-                  style={[
-                    styles.option,
-                    {
-                      backgroundColor: isSelected ? theme.surfaceSelected : theme.surfaceElevated,
-                      borderColor: isSelected ? theme.borderStrong : theme.border,
-                    },
-                  ]}>
+                  scaleTo={0.99}
+                  pressedColor={look.pressedColor}
+                  focusRing={look.focusRing}
+                  style={StyleSheet.flatten([styles.option, look.style])}>
                   {option.icon && (
                     <Ionicons
                       name={option.icon}
@@ -164,11 +171,9 @@ export function SelectField({
                   )}
                   <Text
                     variant="body"
+                    color={look.label}
                     numberOfLines={1}
-                    style={[
-                      styles.optionLabel,
-                      { color: isSelected ? theme.text : theme.textSecondary },
-                    ]}>
+                    style={styles.optionLabel}>
                     {option.label}
                   </Text>
 
@@ -176,26 +181,33 @@ export function SelectField({
                       Kept and marked rather than dropped: silently deleting
                       what someone typed is the one outcome worse than a typo. */}
                   {option.foreign && (
-                    <Text variant="caption" color="textMuted">
+                    <Text variant="caption" color="textSecondary">
                       SAVED
                     </Text>
                   )}
 
-                  {isSelected && <Ionicons name="checkmark" size={18} color={theme.text} />}
-                </Pressable>
+                  {isSelected && <Ionicons name="checkmark" size={18} color={accent.onSurface} />}
+                </PressableScale>
               );
             })}
 
             {clearable && value !== '' && (
-              <Pressable
+              <PressableScale
                 accessibilityRole="button"
                 onPress={() => choose('')}
-                style={[styles.option, styles.clear, { borderColor: theme.border }]}>
+                scaleTo={0.99}
+                pressedColor={theme.pressed}
+                focusRing={accent.ring}
+                style={StyleSheet.flatten([
+                  styles.option,
+                  styles.clear,
+                  { borderColor: theme.border },
+                ])}>
                 <Ionicons name="close" size={18} color={theme.textMuted} />
                 <Text variant="body" color="textMuted" style={styles.optionLabel}>
                   Clear
                 </Text>
-              </Pressable>
+              </PressableScale>
             )}
           </ScrollView>
         </View>
@@ -205,26 +217,33 @@ export function SelectField({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { gap: Spacing.x8 },
+  /* The same rhythm as `<TextField>`, so the two sit in one row without their
+     labels or their wells disagreeing by a pixel. */
+  wrapper: { gap: Spacing.x12 },
   shell: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    minHeight: TapTarget,
-    paddingHorizontal: Spacing.x16,
+    minHeight: ControlHeight.medium,
+    paddingHorizontal: Spacing.x24,
     paddingVertical: Spacing.x12,
     borderRadius: Radius.input,
+    borderWidth: 1,
   },
   value: { flex: 1 },
 
   scrim: { flex: 1 },
+  /* The menu surface: rounded top, hairline edge on the three sides that meet
+     the page. */
   sheet: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
     paddingHorizontal: Spacing.x16,
     paddingTop: Spacing.x12,
     gap: Spacing.x12,
@@ -246,10 +265,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.x12,
     minHeight: TapTarget,
-    paddingHorizontal: Spacing.x16,
+    paddingHorizontal: Spacing.x24,
     paddingVertical: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   optionLabel: { flex: 1 },
   clear: { backgroundColor: 'transparent' },

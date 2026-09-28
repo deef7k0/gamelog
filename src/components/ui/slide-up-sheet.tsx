@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -14,7 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { PressableScale } from '@/components/ui/pressable-scale';
+import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -185,7 +184,7 @@ export function SlideUpSheet({
           maxHeightRatio
             ? { height: height * maxHeightRatio, top: 'auto' as const }
             : { paddingTop: insets.top },
-          { backgroundColor: theme.background },
+          { backgroundColor: theme.background, borderColor: theme.border },
           sheetStyle,
         ]}>
         <GestureDetector gesture={drag}>
@@ -201,14 +200,16 @@ export function SlideUpSheet({
               </Text>
             )}
 
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              onPress={dismiss}
-              scaleTo={0.9}
-              style={styles.close}>
-              <Ionicons name="chevron-down" size={22} color={theme.textSecondary} />
-            </PressableScale>
+            {/* A round key, like every other close in the app. The box around it
+                keeps the old 44/48 footprint at the row's edge. */}
+            <View style={styles.close}>
+              <IconButton
+                icon="chevron-down"
+                accessibilityLabel="Close"
+                size="small"
+                onPress={dismiss}
+              />
+            </View>
           </View>
         </GestureDetector>
 
@@ -228,8 +229,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
+    /* `Radius.sheet`: the roundest interface shape, because it holds
+       everything else. A hairline on the three sides that meet the page draws
+       the rounded top against the dimmed screen behind it. */
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
     overflow: 'hidden',
   },
   grabRow: {

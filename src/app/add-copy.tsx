@@ -11,6 +11,8 @@ import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PartialDateField } from '@/components/ui/partial-date-field';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { useSelectable } from '@/components/ui/selectable';
+import { RadioMark } from '@/components/ui/selection-marks';
 import { SelectField } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -431,7 +433,7 @@ function ReleaseRow({
   selected: boolean;
   onPress: () => void;
 }) {
-  const theme = useTheme();
+  const look = useSelectable()(selected);
   return (
     <PressableScale
       accessibilityRole="radio"
@@ -439,28 +441,21 @@ function ReleaseRow({
       accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
       onPress={onPress}
       scaleTo={0.98}
-      style={StyleSheet.flatten([
-        styles.releaseRow,
-        {
-          backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
-          borderColor: selected ? theme.borderStrong : theme.border,
-        },
-      ])}>
+      pressedColor={look.pressedColor}
+      focusRing={look.focusRing}
+      style={StyleSheet.flatten([styles.releaseRow, look.style])}>
       <View style={styles.flex}>
-        <Text variant="h5" color={selected ? 'text' : 'textSecondary'}>
+        <Text variant="h5" color={look.label}>
           {title}
         </Text>
         {subtitle && (
-          <Text variant="caption" color="textMuted">
+          /* Up a step when chosen: `textMuted` is under AA on the wash. */
+          <Text variant="caption" color={selected ? 'textSecondary' : 'textMuted'}>
             {subtitle}
           </Text>
         )}
       </View>
-      <Ionicons
-        name={selected ? 'radio-button-on' : 'radio-button-off'}
-        size={20}
-        color={selected ? theme.text : theme.textMuted}
-      />
+      <RadioMark on={selected} />
     </PressableScale>
   );
 }
@@ -476,10 +471,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.x12,
     minHeight: TapTarget + Spacing.x8,
-    paddingHorizontal: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
     paddingVertical: Spacing.x8,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   describe: { gap: Spacing.x16 },
   notice: {
@@ -487,7 +482,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.x8,
     padding: Spacing.x12,
-    borderRadius: Radius.control,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
   },
   centred: { textAlign: 'center' },

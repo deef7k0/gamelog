@@ -6,6 +6,7 @@ import { RefreshControl, SectionList, StyleSheet, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -143,15 +144,15 @@ export default function NotificationsScreen() {
         }
         ListHeaderComponent={
           hasUnread ? (
-            <PressableScale
-              accessibilityRole="button"
-              onPress={() => markRead.mutate()}
-              scaleTo={0.98}
-              style={StyleSheet.flatten([styles.markRead, { borderColor: theme.border }])}>
-              <Text variant="bodySmall" color="primaryText">
-                Mark all as read
-              </Text>
-            </PressableScale>
+            <View style={styles.markRead}>
+              <Button
+                title="Mark all as read"
+                variant="secondary"
+                size="small"
+                icon="checkmark-done"
+                onPress={() => markRead.mutate()}
+              />
+            </View>
           ) : null
         }
         renderSectionHeader={({ section }) => (
@@ -213,13 +214,8 @@ const styles = StyleSheet.create({
   sectionTitle: { marginTop: Spacing.x16, marginBottom: Spacing.x8 },
   /* Outlined, not filled: it is a button, and the fill it used to have is the
      one thing the de-bubble reserved for content that is *yours*. */
-  markRead: {
-    alignSelf: 'flex-start',
-    paddingVertical: Spacing.x8,
-    paddingHorizontal: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
+  /* Hugs its label rather than spanning the list. */
+  markRead: { alignSelf: 'flex-start' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

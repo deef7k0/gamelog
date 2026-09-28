@@ -4,11 +4,19 @@ import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
+import { Checkbox } from '@/components/ui/selection-marks';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { sortGenresByReach } from '@/constants/game-genres';
 import { SELECTABLE_PERSPECTIVES } from '@/constants/player-perspectives';
-import { Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
+import {
+  ControlHeight,
+  Radius,
+  SmallControlRowGap,
+  SmallControlSlop,
+  Spacing,
+} from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getGenres, getSurprisePoolSize, type SurprisePoolSize } from '@/lib/games';
@@ -101,6 +109,7 @@ export type SurpriseSettingsProps = {
 export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSettingsProps) {
   const theme = useTheme();
   const accent = useAccent();
+  const excludeLook = useSelectable()(prefs.excludePlayed);
 
   const gameOptions = canUseForYou ? [...GAME_OPTIONS, FORYOU_OPTION] : GAME_OPTIONS;
 
@@ -424,39 +433,29 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
 
       {/*
         A checkbox row, not a third SortBar: this is a toggle, and the on/off
-        state rides the same surface step every other selected control in the
-        app uses. The tick is the second carrier — colour is never the only one.
+        state is the app's one selected state (`useSelectable`) — plus the box
+        itself, the carrier that is not a colour.
       */}
       <PressableScale
         accessibilityRole="checkbox"
         accessibilityState={{ checked: prefs.excludePlayed }}
         accessibilityLabel="Exclude games I’ve played"
         scaleTo={0.98}
+        pressedColor={excludeLook.pressedColor}
+        focusRing={excludeLook.focusRing}
         onPress={() => onChange({ ...prefs, excludePlayed: !prefs.excludePlayed })}
-        style={StyleSheet.flatten([
-          styles.toggle,
-          {
-            backgroundColor: prefs.excludePlayed ? theme.surfaceSelected : theme.surfaceElevated,
-            borderColor: prefs.excludePlayed ? theme.borderStrong : theme.border,
-          },
-        ])}>
-        <Ionicons
-          name={prefs.excludePlayed ? 'checkbox' : 'square-outline'}
-          size={19}
-          color={prefs.excludePlayed ? accent.onSurface : theme.textMuted}
-        />
+        style={StyleSheet.flatten([styles.toggle, excludeLook.style])}>
+        <Checkbox checked={prefs.excludePlayed} />
         <View style={styles.toggleText}>
-          <Text variant="body" color={prefs.excludePlayed ? 'text' : 'textSecondary'}>
+          <Text variant="body" color={excludeLook.label}>
             Exclude games I’ve played
           </Text>
           {/*
             The ink moves with the row, and that is a contrast fix rather than a
-            flourish. `textMuted` measures **4.43:1** on `surfaceSelected` — under
-            AA by 0.07 — and this caption on a ticked row was the one place in the
-            app that pairing was actually reachable. Stepping it to
-            `textSecondary` when the row lights up puts it at ~6:1 and keeps the
-            pair's own hierarchy intact in both states, since the label above it
-            moves `textSecondary` → `text` at the same moment.
+            flourish. `textMuted` measures 4.32:1 on the accent's wash — under
+            AA — so when the row lights up the caption steps to `textSecondary`
+            (6.9:1), keeping the pair's own hierarchy intact in both states, since
+            the label above it moves `textSecondary` → `text` at the same moment.
           */}
           <Text variant="bodySmall" color={prefs.excludePlayed ? 'textSecondary' : 'textMuted'}>
             Skips anything you logged as played or dropped. Backlog stays in.
@@ -557,7 +556,8 @@ type FilterChipsProps = {
  * control unusable, which is the repair that looks right and is not.
  */
 function FilterChips({ options, selected, onToggle, accessibilityLabel }: FilterChipsProps) {
-  const theme = useTheme();
+  const accent = useAccent();
+  const selectable = useSelectable();
 
   if (options.length === 0) return null;
 
@@ -565,6 +565,7 @@ function FilterChips({ options, selected, onToggle, accessibilityLabel }: Filter
     <View style={styles.chipRow} accessibilityLabel={accessibilityLabel}>
       {options.map((option) => {
         const active = selected.includes(option.id);
+        const look = selectable(active);
         return (
           <PressableScale
             key={option.id}
@@ -573,15 +574,12 @@ function FilterChips({ options, selected, onToggle, accessibilityLabel }: Filter
             accessibilityLabel={option.label}
             onPress={() => onToggle(option.id)}
             scaleTo={0.94}
-            style={StyleSheet.flatten([
-              styles.chip,
-              {
-                backgroundColor: active ? theme.surfaceSelected : theme.surfaceElevated,
-                borderColor: active ? theme.borderStrong : theme.border,
-              },
-            ])}>
-            {active && <Ionicons name="checkmark" size={13} color={theme.text} />}
-            <Text variant="caption" color={active ? 'text' : 'textSecondary'}>
+            hitSlop={SmallControlSlop}
+            pressedColor={look.pressedColor}
+            focusRing={look.focusRing}
+            style={StyleSheet.flatten([styles.chip, look.style])}>
+            {active && <Ionicons name="checkmark" size={13} color={accent.onSurface} />}
+            <Text variant="bodySmall" color={look.label}>
               {option.label}
             </Text>
           </PressableScale>
@@ -631,48 +629,42 @@ const styles = StyleSheet.create({
      interval `toggleText` uses for the same relationship. */
   captioned: { gap: 2 },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  /* `x12` (8), not `x8` (6). This row wraps to six lines of genres, so the gap
-     is the separation between two *different* filters in both axes, and Material
-     puts the floor for that at 8dp. `<SortBar>` carries the same note. */
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x12 },
+  /* Columns `x12` (8): the separation between two *different* filters, and
+     Material puts the floor for that at 8dp. Rows `SmallControlRowGap`. */
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: Spacing.x12,
+    rowGap: SmallControlRowGap,
+  },
   chip: {
-    ...Elevation.control,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x4,
     /*
-     * The tap floor, from the token. See the longer note in `<SortBar>`, which
-     * had the identical defect: content-sized at 25.67dp against a 44/48
-     * requirement.
+     * Drawn at 36 and touched at the floor, like every filter pill.
      *
-     * A wrapping grid is the one shape where `hitSlop` is the wrong fix. Slop
-     * expands the touch rectangle without moving the box, so at a 6dp gap the
-     * expanded rectangles of two chips in adjacent *rows* overlap, and React
+     * This grid used to be the one place slop was refused: at a 6dp gap the
+     * expanded rectangles of two chips in adjacent *rows* overlapped, and React
      * Native resolves an overlap by view order rather than by proximity — a tap
-     * between two rows would land on whichever chip mounted later. Real height
-     * plus a real gap is the only version that does not trade a small target
-     * for an ambiguous one.
+     * between two rows would land on whichever chip mounted later. The row gap
+     * is now exactly the two slops that meet across it (`SmallControlRowGap`),
+     * so the touch boxes tile and never overlap, and the pills can be drawn
+     * light without trading a small target for an ambiguous one.
      */
-    minHeight: TapTarget,
-    paddingVertical: Spacing.x8,
-    /* `x16` (10), up from `x12` (8), and it is the tap floor's doing. At 25dp
-       tall these were wider than they were high whatever the padding; at 44 the
-       four short labels — Sport, Music, Indie, MOBA — came out square, which
-       reads as a button someone forgot to put an icon in. Ten each side is the
-       smallest step that keeps them reading as words. */
-    paddingHorizontal: Spacing.x16,
-    /* `control`, not `pill`, and for the reason `<SortBar>` records: these are
-       buttons, and every button in the app is the same rounded rectangle. The
-       pill belongs to metadata chips, which these are not. */
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: ControlHeight.small,
+    paddingVertical: Spacing.x4,
+    paddingHorizontal: Spacing.x20,
+    /* A pill: these filter, and filters are the pill family. */
+    borderRadius: Radius.pill,
+    borderWidth: 1,
   },
   note: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.x8,
     padding: Spacing.x12,
-    borderRadius: Radius.control,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
   },
   noteText: { flex: 1 },
@@ -684,14 +676,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.x12,
   },
+  /* A selection card, like a report reason: `Radius.card`, a 1px edge, no
+     shadow. */
   toggle: {
-    ...Elevation.control,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.x16,
+    paddingVertical: Spacing.x16,
+    paddingHorizontal: Spacing.x20,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   toggleText: { flex: 1, gap: 2 },
 });

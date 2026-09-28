@@ -88,6 +88,8 @@ export default function AddToListScreen() {
         <TextField
           value={input}
           onChangeText={setInput}
+          icon="search"
+          variant="search"
           placeholder="Search games…"
           autoCapitalize="none"
           autoCorrect={false}

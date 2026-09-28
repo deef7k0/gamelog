@@ -248,6 +248,8 @@ export default function SearchScreen() {
           value={input}
           onChangeText={setInput}
           icon="search"
+          /* The pill: here the field *is* the screen's primary control. */
+          variant="search"
           placeholder={scope === 'games' ? 'Search games…' : 'Search people…'}
           autoCapitalize="none"
           autoCorrect={false}

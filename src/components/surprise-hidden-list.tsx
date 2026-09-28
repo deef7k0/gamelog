@@ -106,6 +106,9 @@ export function SurpriseHiddenList({ userId }: SurpriseHiddenListProps) {
             : 'Hidden from Surprise Me, none'
         }
         scaleTo={0.98}
+        /* Open is a disclosure, not a choice, so it takes the neutral pressed
+           step rather than the accent's selected state. */
+        pressedColor={theme.surfaceSelected}
         onPress={() => setOpen((value) => !value)}
         style={StyleSheet.flatten([
           styles.row,
@@ -190,9 +193,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   rowText: { flex: 1, gap: 2 },
   panel: { paddingHorizontal: Spacing.x4 },

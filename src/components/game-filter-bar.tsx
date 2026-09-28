@@ -4,10 +4,13 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { ControlHeight, Elevation, Radius, SmallControlSlop, Spacing } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { EARLIEST_IGDB_YEAR, getGenres, getPlatforms, type GameFilters } from '@/lib/games';
 
@@ -199,16 +202,12 @@ function FilterPill({
 }) {
   const theme = useTheme();
   const set = !!selection;
+  const look = useSelectable()(set);
 
+  /* One pill with two hit areas: the body opens the picker, the × clears it.
+     The pill carries the selected state; the halves only press. */
   return (
-    <View
-      style={[
-        styles.pill,
-        {
-          backgroundColor: set ? theme.surfaceSelected : theme.surfaceElevated,
-          borderColor: set ? theme.borderStrong : theme.border,
-        },
-      ]}>
+    <View style={[styles.pill, look.style]}>
       <PressableScale
         accessibilityRole="button"
         accessibilityLabel={
@@ -216,11 +215,13 @@ function FilterPill({
         }
         onPress={onPress}
         scaleTo={0.97}
+        hitSlop={SmallControlSlop}
+        focusRing={look.focusRing}
         style={styles.pillBody}>
-        <Text variant="bodySmall" color={set ? 'text' : 'textSecondary'} numberOfLines={1}>
+        <Text variant="bodySmall" color={look.label} numberOfLines={1}>
           {selection ?? label}
         </Text>
-        {!onClear && <Ionicons name="chevron-down" size={13} color={theme.textMuted} />}
+        {!onClear && <Ionicons name="chevron-down" size={13} color={theme.textSecondary} />}
       </PressableScale>
 
       {!!onClear && (
@@ -229,6 +230,8 @@ function FilterPill({
           accessibilityLabel={`Clear ${label.toLowerCase()} filter`}
           onPress={onClear}
           scaleTo={0.9}
+          hitSlop={SmallControlSlop}
+          focusRing={look.focusRing}
           style={styles.pillClear}>
           <Ionicons name="close" size={14} color={theme.textSecondary} />
         </PressableScale>
@@ -417,17 +420,15 @@ function Sheet({
           panel below can stop the press from reaching it. */}
       <Pressable style={[styles.scrim, { backgroundColor: theme.scrim }]} onPress={onClose} />
 
-      <View style={[styles.panel, { backgroundColor: theme.surface }, Elevation.overlay]}>
+      <View
+        style={[
+          styles.panel,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+          Elevation.overlay,
+        ]}>
         <View style={[styles.panelHead, { borderBottomColor: theme.border }]}>
           <Text variant="h3">{title}</Text>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-            onPress={onClose}
-            scaleTo={0.9}
-            style={styles.panelClose}>
-            <Ionicons name="close" size={22} color={theme.text} />
-          </PressableScale>
+          <IconButton icon="close" accessibilityLabel="Close" size="small" onPress={onClose} />
         </View>
 
         {children}
@@ -446,43 +447,59 @@ function SheetRow({
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const accent = useAccent();
+  const look = useSelectable()(active);
 
+  /* A long list, so the rows are flat until chosen — thirty outlined rows would
+     be a grid — and the chosen one takes the app's selected state, inset from
+     the sheet's edges so its rounded ends show. */
   return (
     <PressableScale
       accessibilityRole="radio"
       accessibilityState={{ selected: active }}
       onPress={onPress}
       scaleTo={0.99}
+      pressedColor={active ? look.pressedColor : theme.pressed}
+      focusRing={look.focusRing}
       style={StyleSheet.flatten([
         styles.sheetRow,
-        active && { backgroundColor: theme.surfaceSelected },
+        active ? look.style : { backgroundColor: 'transparent', borderColor: 'transparent' },
       ])}>
-      <Text variant="body" color={active ? 'text' : 'textSecondary'} numberOfLines={1}>
+      <Text variant="body" color={look.label} numberOfLines={1}>
         {label}
       </Text>
-      {active && <Ionicons name="checkmark" size={17} color={theme.text} />}
+      {active && <Ionicons name="checkmark" size={17} color={accent.onSurface} />}
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   row: { gap: Spacing.x8, paddingHorizontal: Spacing.x16, paddingVertical: Spacing.x8 },
+  /* A filter pill: `ControlHeight.small`, fully round, 1px edge. The halves
+     inside reach the tap floor through `SmallControlSlop` — this row scrolls
+     sideways and never wraps, so vertical slop overlaps nothing. */
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: ControlHeight.small,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   pillBody: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'stretch',
     gap: Spacing.x4,
-    paddingHorizontal: Spacing.x12,
-    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x20,
     maxWidth: 180,
   },
-  pillClear: { paddingRight: Spacing.x8, paddingLeft: Spacing.x4, paddingVertical: Spacing.x8 },
+  pillClear: {
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    paddingRight: Spacing.x16,
+    paddingLeft: Spacing.x4,
+  },
   clearAll: { justifyContent: 'center', paddingHorizontal: Spacing.x8 },
 
   scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
@@ -494,8 +511,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     maxHeight: '75%',
-    borderTopLeftRadius: Radius.lg,
-    borderTopRightRadius: Radius.lg,
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
     overflow: 'hidden',
   },
   panelHead: {
@@ -505,7 +524,6 @@ const styles = StyleSheet.create({
     padding: Spacing.x16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  panelClose: { padding: Spacing.x4 },
   sheetList: { paddingBottom: Spacing.x32 },
   sheetEmpty: { padding: Spacing.x16 },
   sheetForm: { padding: Spacing.x16, gap: Spacing.x12 },
@@ -514,8 +532,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.x8,
+    marginHorizontal: Spacing.x8,
     paddingHorizontal: Spacing.x16,
     paddingVertical: Spacing.x12,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   yearBody: { maxHeight: 460 },
   yearColumns: { flexDirection: 'row', height: 300 },

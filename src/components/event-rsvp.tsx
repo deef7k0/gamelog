@@ -4,8 +4,16 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
+import {
+  ControlHeight,
+  Radius,
+  SmallControlRowGap,
+  SmallControlSlop,
+  Spacing,
+} from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { cancelAttendance, getEventAttendance, setAttendance, setReminder } from '@/lib/api';
 import type { AttendanceMode } from '@/lib/database.types';
@@ -193,6 +201,8 @@ function ModeButton({
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const accent = useAccent();
+  const look = useSelectable()(active);
 
   return (
     <PressableScale
@@ -201,15 +211,12 @@ function ModeButton({
       accessibilityState={{ selected: active }}
       onPress={onPress}
       scaleTo={0.94}
-      style={StyleSheet.flatten([
-        styles.mode,
-        {
-          backgroundColor: active ? theme.surfaceSelected : theme.surfaceElevated,
-          borderColor: active ? theme.borderStrong : theme.border,
-        },
-      ])}>
-      <Ionicons name={icon} size={15} color={active ? theme.text : theme.textMuted} />
-      <Text variant="caption" color={active ? 'text' : 'textMuted'}>
+      hitSlop={SmallControlSlop}
+      pressedColor={look.pressedColor}
+      focusRing={look.focusRing}
+      style={StyleSheet.flatten([styles.mode, look.style])}>
+      <Ionicons name={icon} size={15} color={active ? accent.onSurface : theme.textSecondary} />
+      <Text variant="bodySmall" color={look.label}>
         {label}
       </Text>
     </PressableScale>
@@ -218,15 +225,22 @@ function ModeButton({
 
 const styles = StyleSheet.create({
   wrapper: { gap: Spacing.x8, marginTop: Spacing.x4 },
-  modes: { flexDirection: 'row', gap: Spacing.x8, flexWrap: 'wrap' },
+  modes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: Spacing.x8,
+    rowGap: SmallControlRowGap,
+  },
+  /* A toggle pill: `ControlHeight.small`, lit in the app's selected state. */
   mode: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x4 + 2,
-    paddingVertical: Spacing.x8,
-    paddingHorizontal: Spacing.x12,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: ControlHeight.small,
+    paddingVertical: Spacing.x4,
+    paddingHorizontal: Spacing.x16,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
   },
   attendanceLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 });

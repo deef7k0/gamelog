@@ -6,17 +6,18 @@ import { Palette, withAlpha } from '@/constants/theme';
 /*
  * The browser's copy of `ambient-light.tsx`, as a CSS radial gradient — Skia on
  * the web needs CanvasKit, a multi-megabyte download, for one background (see
- * CLAUDE.md, and `soft-glow.web.tsx`, which does the same). Same centre, same
- * radii, same eleven-stop falloff, so the two platforms light the page alike.
+ * CLAUDE.md, and `soft-glow.web.tsx`, which does the same). Same top-left
+ * centre, same radii, same eleven-stop falloff, so the two platforms light the
+ * page alike.
  *
  * The constants are restated rather than imported: importing the native file
  * would pull Skia into the web bundle, which is the whole thing this avoids.
  */
-const CENTER_X = 0.5;
-const CENTER_Y = 0.18;
-const RADIUS_X = 0.9;
-const RADIUS_Y = 0.55;
-const PEAK = 0.16;
+const CENTER_X = 0.2;
+const CENTER_Y = 0.05;
+const RADIUS_X = 0.78;
+const RADIUS_Y = 0.5;
+const PEAK = 0.18;
 
 const STOPS = Array.from({ length: 11 }, (_, index) => index / 10);
 

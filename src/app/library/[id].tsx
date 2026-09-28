@@ -263,6 +263,8 @@ export default function LibraryScreen() {
                 <TextField
                   value={search}
                   onChangeText={setSearch}
+                  icon="search"
+                  variant="search"
                   placeholder="Search this library"
                   autoCapitalize="none"
                   autoCorrect={false}

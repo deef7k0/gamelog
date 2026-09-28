@@ -8,7 +8,6 @@ import {
   BackHandler,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -18,6 +17,7 @@ import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
 import { GameCaseDisplay } from '@/components/game-case-display';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
 import {
   ReviewMetricsEditor,
   draftFromMetrics,
@@ -235,6 +235,7 @@ function tap(run: () => Promise<void>) {
 
 function LogForm({ game, existing, draft, userId }: LogFormProps) {
   const theme = useTheme();
+  const selectable = useSelectable();
   const router = useRouter();
   const navigation = useNavigation();
   const queryClient = useQueryClient();
@@ -652,19 +653,26 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
                 const selected = progress === option.key;
                 const tint = statusColor(option.status, theme);
                 return (
-                  <Pressable
+                  /* The status's own colour, not the accent: which of the seven
+                     you are is data (CLAUDE.md, "Meaning"), so the chosen pill
+                     fills with it. Only the shape and the edge are the shared
+                     control language. */
+                  <PressableScale
                     key={option.key}
                     onPress={() => setProgress(option.key)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected }}
                     accessibilityHint={option.hint}
-                    style={[
+                    scaleTo={0.96}
+                    pressedColor={selected ? tint : theme.surfaceSelected}
+                    focusRing={withAlpha(tint, 0.3)}
+                    style={StyleSheet.flatten([
                       styles.status,
                       {
-                        backgroundColor: selected ? tint : 'transparent',
+                        backgroundColor: selected ? tint : theme.surfaceElevated,
                         borderColor: selected ? tint : theme.border,
                       },
-                    ]}>
+                    ])}>
                     {/* Glyph as well as fill: the three "played" choices share
                         a hue, and states told apart by colour alone are exactly
                         where a red/green confusion costs someone the answer. */}
@@ -678,7 +686,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
                       style={{ color: selected ? readableInk(tint) : theme.textSecondary }}>
                       {option.label}
                     </Text>
-                  </Pressable>
+                  </PressableScale>
                 );
               })}
             </View>
@@ -690,23 +698,21 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
               <View style={styles.levels} accessibilityRole="radiogroup">
                 {(['story', 'main'] as const).map((option) => {
                   const selected = level === option;
+                  const look = selectable(selected);
                   return (
-                    <Pressable
+                    <PressableScale
                       key={option}
                       onPress={() => setLevel(option)}
                       accessibilityRole="radio"
                       accessibilityState={{ selected }}
-                      style={[
-                        styles.level,
-                        {
-                          backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
-                          borderColor: selected ? theme.borderStrong : theme.border,
-                        },
-                      ]}>
-                      <Text variant="bodySmall" color={selected ? 'text' : 'textSecondary'}>
+                      scaleTo={0.97}
+                      pressedColor={look.pressedColor}
+                      focusRing={look.focusRing}
+                      style={StyleSheet.flatten([styles.level, look.style])}>
+                      <Text variant="bodySmall" color={look.label}>
                         {COMPLETION_LABEL[option]}
                       </Text>
-                    </Pressable>
+                    </PressableScale>
                   );
                 })}
               </View>
@@ -1040,20 +1046,25 @@ function Toggle({
   const theme = useTheme();
 
   return (
+    /* On in the toggle's own meaning colour — platinum, or the spoiler
+       warning's red — rather than the accent: the colour says *what* is on. The
+       shape, the edge and the press are the shared control language. */
     <PressableScale
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
       scaleTo={0.97}
-      style={[
+      pressedColor={value ? withAlpha(tint, 0.22) : theme.surfaceSelected}
+      focusRing={withAlpha(tint, 0.3)}
+      style={StyleSheet.flatten([
         styles.toggle,
         {
-          backgroundColor: value ? withAlpha(tint, 0.13) : 'transparent',
+          backgroundColor: value ? withAlpha(tint, 0.13) : theme.surfaceElevated,
           borderColor: value ? tint : theme.border,
           opacity: disabled ? 0.6 : 1,
         },
-      ]}>
+      ])}>
       <Ionicons name={icon} size={18} color={value ? tint : theme.textMuted} />
       <Text variant="bodySmall" style={{ color: value ? tint : theme.textSecondary }}>
         {label}
@@ -1094,7 +1105,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: TapTarget,
     borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   status: {
     flexDirection: 'row',
@@ -1107,7 +1118,7 @@ const styles = StyleSheet.create({
        targets 6dp apart was a row a thumb could not resolve. */
     minHeight: TapTarget,
     borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   reviewTitle: { ...Type.h3 },
   // Tall by default: a short box invites a short review.
@@ -1122,7 +1133,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x16,
     minHeight: TapTarget,
     borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   row: { flexDirection: 'row', gap: Spacing.x12 },
   rowItem: { flex: 1 },

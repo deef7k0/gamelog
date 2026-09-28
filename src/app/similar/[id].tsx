@@ -12,6 +12,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { useSelectable } from '@/components/ui/selectable';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
 import { Card } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
@@ -410,7 +411,10 @@ function sortSuggestions(
   }
 }
 
-/** Agree or disagree — on/off by surface step and glyph, never by hue. */
+/**
+ * Agree or disagree — on/off in the app's selected state, and by glyph: the
+ * thumb fills when it is yours, which is the carrier that is not a colour.
+ */
 function VoteButton({
   icon,
   label,
@@ -425,6 +429,7 @@ function VoteButton({
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const look = useSelectable()(active);
   return (
     <PressableScale
       accessibilityRole="button"
@@ -433,19 +438,15 @@ function VoteButton({
       disabled={disabled}
       onPress={onPress}
       scaleTo={0.95}
-      style={StyleSheet.flatten([
-        styles.voteButton,
-        {
-          backgroundColor: active ? theme.surfaceSelected : theme.surfaceElevated,
-          borderColor: active ? theme.borderStrong : theme.border,
-        },
-      ])}>
+      pressedColor={look.pressedColor}
+      focusRing={look.focusRing}
+      style={StyleSheet.flatten([styles.voteButton, look.style])}>
       <Ionicons
         name={active ? icon : `${icon}-outline`}
         size={16}
         color={active ? theme.text : theme.textSecondary}
       />
-      <Text variant="bodySmall" color={active ? 'text' : 'textSecondary'}>
+      <Text variant="bodySmall" color={look.label}>
         {label}
       </Text>
     </PressableScale>
@@ -669,7 +670,7 @@ const styles = StyleSheet.create({
     minHeight: TapTarget,
     paddingHorizontal: Spacing.x12,
     borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
   },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x4 },
   tag: {

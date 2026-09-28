@@ -58,9 +58,9 @@ export function PartialDateField({ label, value, onChange }: PartialDateFieldPro
 
   return (
     <View style={styles.field}>
-      <Text variant="label" color="textMuted">
-        {label}
-      </Text>
+      {/* The field-label voice, so this reads as one field among the form's
+          others rather than as a section heading over two of them. */}
+      <Text variant="fieldLabel">{label}</Text>
       <View style={styles.row}>
         <View style={styles.part}>
           <SelectField
@@ -88,7 +88,7 @@ export function PartialDateField({ label, value, onChange }: PartialDateFieldPro
 }
 
 const styles = StyleSheet.create({
-  field: { gap: Spacing.x8 },
+  field: { gap: Spacing.x12 },
   row: { flexDirection: 'row', gap: Spacing.x8 },
   part: { flex: 1 },
 });

@@ -60,6 +60,7 @@ export function SpoilerNotice({
       accessibilityHint={hint}
       onPress={onPress}
       scaleTo={0.99}
+      pressedColor={theme.surfaceSelected}
       style={StyleSheet.flatten([
         styles.box,
         { minHeight, borderColor: theme.border, backgroundColor: theme.surfaceElevated },
@@ -85,8 +86,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.x8,
     padding: Spacing.x16,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   label: { textAlign: 'center' },
 });

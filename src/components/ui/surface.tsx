@@ -53,19 +53,17 @@ export type CardProps = {
 /**
  * A modular block of content: filled, rounded, no border.
  *
- * Lifted by a surface step *and* a shadow, and the balance between the two has
- * shifted. `surface` (#1C1C1C) against `background` (#14171b) measures
- * **1.055:1** — it used to be 1.100:1 against the old neutral floor — so the
- * step alone is now a *soft* boundary and `Elevation.card` is doing more of the
- * work than the note here used to claim.
+ * Lifted by a surface step *and* a light shadow. `surface` (#141317) against
+ * `background` (#0B0A0D) measures 1.068:1 — a soft boundary, so
+ * `Elevation.card` still does part of the work.
  *
- * Still no border. Two signals for one job is enough, and the answer to a card
- * that does not read is the next `Elevation` tier, not an outline: an edge would
- * put a third signal on a block that already has two and would look like a
- * different component beside every other card in the app.
+ * No border, and that is now the line between a card and a control: every
+ * pressable control in the app carries a 1px edge, and a block of content does
+ * not. An edge here would make a review card read as one big button.
  *
- * 6px corners and 16px of padding, both fixed. A card that needs different
- * numbers is a different component.
+ * `Radius.card` corners (16, large and soft like the controls it holds) and
+ * `x16` padding, both fixed. A card that needs different numbers is a
+ * different component.
  */
 export function Card({
   children,
@@ -144,12 +142,11 @@ export type ChipProps = {
  * rounded, on `surfaceSelected`.
  *
  * They are not buttons. Nothing here has a press state unless a caller wraps it
- * in one, and the fully-round shape is what says so — every actual control in
- * the app is a 6px rounded rectangle.
+ * in one, and the missing edge is what says so: a filter pill is the same shape
+ * with a 1px border, because a filter can be pressed and a fact cannot.
  *
- * A chip carries `Elevation.control` even though it is not pressable: it is a
- * discrete object sitting on whatever is behind it, and a flat capsule on a
- * lifted card reads as a hole rather than a tag.
+ * No shadow. It is one surface step lighter than any card it sits on, which is
+ * enough to read as a tag rather than a hole.
  */
 export function Chip({ label, tone = 'neutral', icon, color }: ChipProps) {
   const theme = useTheme();
@@ -161,12 +158,7 @@ export function Chip({ label, tone = 'neutral', icon, color }: ChipProps) {
   const ink = color ?? (active ? accent.onSurface : theme.textSecondary);
 
   return (
-    <View
-      style={[
-        styles.chip,
-        Elevation.control,
-        { backgroundColor: active ? accent.wash : theme.surfaceSelected },
-      ]}>
+    <View style={[styles.chip, { backgroundColor: active ? accent.wash : theme.surfaceSelected }]}>
       {icon}
       <Text variant="bodySmall" style={{ color: ink }} numberOfLines={1}>
         {label}

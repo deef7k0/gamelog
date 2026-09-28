@@ -11,6 +11,7 @@ import Animated, {
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Elevation, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -54,6 +55,7 @@ export interface DockProps {
 
 export function Dock({ children, size = 44 }: DockProps) {
   const theme = useTheme();
+  const accent = useAccent();
   const scheme = useColorScheme();
   const reduceMotion = useReducedMotion();
 
@@ -109,9 +111,15 @@ export function Dock({ children, size = 44 }: DockProps) {
           />
 
           <View style={styles.row}>
+            {/* The selection is the accent's wash and edge — the app's one
+                selected state — sliding between the items. */}
             <Animated.View
               pointerEvents="none"
-              style={[styles.pill, { backgroundColor: theme.surfaceSelected }, pillStyle]}
+              style={[
+                styles.pill,
+                { backgroundColor: accent.wash, borderColor: accent.edge },
+                pillStyle,
+              ]}
             />
             {children}
           </View>
@@ -184,10 +192,11 @@ export function DockSeparator() {
 }
 
 const styles = StyleSheet.create({
-  lift: { alignSelf: 'center', borderRadius: Radius.card },
+  /* A capsule: a segmented control is a pill of pills. */
+  lift: { alignSelf: 'center', borderRadius: Radius.pill },
   shell: {
     alignSelf: 'center',
-    borderRadius: Radius.card,
+    borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
@@ -202,7 +211,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Spacing.x4,
     bottom: Spacing.x4,
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
   },
   item: { alignItems: 'center', justifyContent: 'center' },
   separator: { width: StyleSheet.hairlineWidth, height: 22, marginHorizontal: Spacing.x4 },

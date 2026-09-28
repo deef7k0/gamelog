@@ -167,8 +167,8 @@ src/
                      collection-mosaic  a collection's artwork: its first four
                                         IGDB covers 2x2, or the owner's one cover
                                         (0033), cropped — never SteamGridDB
-                     ui/ambient-light   Home's faint top-of-screen light (Skia,
-                                        + .web.tsx CSS fallback)
+                     ui/ambient-light   Home's soft light in the top-left
+                                        corner (Skia, + .web.tsx CSS fallback)
                      surprise-deck / -bloom / -sheen / -page-wash
                                         the dealt card's deck, its light, its
                                         gloss and the page's colour transition.
@@ -179,6 +179,11 @@ src/
                                         shared by Surprise Me and a review
                      ui/stats-strip     a row of figures with rules between;
                                         the game page's strip and a review's
+                     ui/selectable      `useSelectable()`: the one selected
+                                        state (accent wash + edge + label) for
+                                        any control that draws its own shape
+                     ui/selection-marks <Checkbox> and <RadioMark>, the drawn
+                                        state inside a checkbox or radio row
                      ui/score-meter     a score's readout and bar, shared by the
                                         review page and the log form's input
                      progress-sheet     the seven progress choices + details
@@ -403,10 +408,11 @@ into one call and persists the result for 7 days.
   palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`
   returns `Colors[APP_SCHEME]`. This app is a dark room by design and a light
   counterpart would be a second product.
-- **The room is dark; the light comes from the games in it.** The chrome is
-  still greyscale — surfaces, rules, body copy, every control that is not the
-  primary one — and separation is still by surface step (`background` →
-  `surface` → `surfaceElevated` → `surfaceSelected`) plus a hairline `border`.
+- **The room is dark; the light comes from the games in it.** The chrome is a
+  near-black and grey — surfaces, rules, body copy — and every control
+  rests on it neutral; the house accent appears only on what is selected,
+  focused or primary. Separation is by surface step (`background` → `surface` →
+  `surfaceElevated` → `surfaceSelected`), plus a 1px `border` on every control.
   Colour enters from *content*, in exactly three ways. A colour that is none of
   these three is decoration and does not belong:
   1. **Identity — read from the box art.** `lib/artwork-color.ts` fetches the
@@ -430,10 +436,17 @@ into one call and persists the result for 7 days.
      A gradient has no edges; that is the whole argument. **Never put an image
      behind a page again to get colour out of it.**
 - **`primary` is the house colour and `primaryText` is its legible twin.**
-  `#0070CC` is 3.74:1 on the page — correct under white on a filled button,
-  below AA the moment it becomes a word. Blue *fills* use `primary`; blue *type*
-  uses `primaryText`. The same split is computed for any hue by `accentRoles()`,
-  which returns `color` (fill) and `onSurface` (type).
+  PlayStation blue `#0070CC` is 3.94:1 on the page — correct under white on a
+  filled button (5.01:1), below AA the moment it becomes a word. Blue *fills*
+  use `primary`; blue *type* uses `primaryText` (`#2E93E8`, 6.07:1). Lavender
+  was the house colour for one pass of the control migration and the owner took
+  it back to blue; nothing else from that pass was reverted. `accentRoles()`
+  computes the whole set for any hue — `color` (fill), `onSurface` (type),
+  `ink`, and the state roles `wash` (selected fill), `edge` (selected/focused
+  edge), `ring` (focus ring) and `pressed` (a held fill, deeper). **On the house
+  accent the state roles are built from `primaryText`, not the fill:** a 14%
+  wash of `#0070CC` over near-black is *darker* than a resting control, which
+  would make a selected pill the dimmest one in its row. See `HOUSE_STATES`.
 - **Accent shifts by screen, through context, never by prop.** `useAccent()`
   returns the accent in force and defaults to the house blue, so a shared
   primitive reads it unconditionally. `<AccentProvider genres={…}>` wraps the
@@ -460,30 +473,36 @@ into one call and persists the result for 7 days.
 - **Colour is never the only carrier.** Every status, rarity and score ships its
   word or its glyph beside the hue (`STATUS_ICON`, `RARITY_BANDS.label`,
   `labelFor`). `statusBacklog` is deliberately pale because the dusty violet it
-  replaced collapsed into `statusPlayed` under simulated protanopia.
+  replaced collapsed into `statusPlayed` under simulated protanopia. A
+  *selected control* carries two non-hue signals too — its wash is lighter than
+  the resting fill and its edge far brighter than the resting edge.
 - **In-page tabs are pills, and there is one implementation.** `<TabBar>` is a
-  scrollable row of uppercase pills — the selected one takes a 14% white wash,
-  everything else is bare `textMuted` type on the page. No underline and no
+  scrollable row of uppercase pills — the selected one takes the accent's wash
+  with its label in the accent, everything else is bare `textMuted` type on the
+  page. The News tab's dock is the same idea as a segmented capsule. No underline and no
   container hairline: a rule needs an edge to sit on, which read as a divider
   wherever the bar sat over artwork, and two pixels of it disappeared into a
   busy screenshot. Counts are **inline and neutral** (`ALL GAMES 135`); the red
   badge is opt-in via `alert`, for things genuinely unseen. The profile used to
   carry its own copy of this row and the two drifted the moment one was
   restyled — if a screen needs tabs, it uses `<TabBar>`.
-- **Selection is one step lighter, never a colour.** Any control with an on/off
-  state goes `surfaceElevated` → `surfaceSelected` for the fill, `border` →
-  `borderStrong` for the edge, and `textSecondary`/`textMuted` → `text` for the
-  label. `<SortBar>`, the search mode switch, tag pickers and RSVP buttons all
-  follow it; a new one should too. Two sets of exceptions, both on screens that
-  already run on a game's own colour: `<TabBar>` and the bottom nav, which answer
-  "where am I" rather than "what is set"; and the game page's action row
-  (Favourite / Wishlist / Progress / Collect), which is **solid accent in
-  both states**, matching the primary button below it — a grey strip above a
-  coloured button read as disabled. With no fill left to change, those four carry
-  on/off on the **glyph** (outline vs solid) and the **label** (`textSecondary` →
-  `text`). Two carriers, neither of them hue.
-- **Metadata chips stay grey.** Platform and genre chips are deliberately
-  uncoloured: they were tinted once and it read as confetti under artwork that is
+- **Selection is the accent's wash, edge and a brighter label — from
+  `useSelectable()`.** Any control with an on/off state rests on
+  `surfaceElevated` with a 1px `border` and a `textSecondary` label, and when
+  selected takes `accent.wash` inside, `accent.edge` around and a `text` label.
+  `<SortBar>`, `<ChoiceChips>`, `<SelectField>`'s rows, the RSVP pills, vote
+  buttons, segments and every screen-local toggle read it from the hook rather
+  than restating it; a new one must too. Inside a selected control `textMuted`
+  steps up to `textSecondary` (4.32:1 on the wash). The exceptions are
+  deliberate: a **log status** fills with the status's own colour and the
+  **platinum / spoiler toggles** light in theirs, because the colour is the
+  datum; an **open disclosure** (a collapsible row) takes the neutral pressed
+  step, because "open" is not a choice; and the game page's action row
+  (Favourite / Wishlist / Progress / Collect) keeps its Material 3 tonal keys,
+  on/off by `primaryContainer` fill, **glyph** and label.
+- **Metadata chips stay grey, and have no edge.** A filter pill is the same
+  shape with a 1px border, because a filter can be pressed and a fact cannot.
+  Platform and genre chips are deliberately uncoloured: they were tinted once and it read as confetti under artwork that is
   already the loudest thing on the page. `<Chip color={…}>` exists for the cases
   where the colour *is* the datum — a rarity band, a status — and tints the label
   only, never the fill. A run of filled colour capsules reads as a row of buttons
@@ -501,15 +520,34 @@ into one call and persists the result for 7 days.
   side: one glow per screen is atmosphere, eight is a lava lamp. `<Poster>`
   deliberately has no coloured-shadow prop — it was added, it looked like a
   sticker, it was removed.
-- **Buttons are `<Button>` and `<IconButton>`.** Every interactive rectangle is
-  `Radius.control` — that shared shape is most of what makes them a family, so
-  `Radius.pill` is reserved for progress tracks, badges, avatar rings and
-  `<Chip>`. A chip staying a pill is deliberate: shape is the only thing left
-  distinguishing metadata from a control. `<Button>` is **filled and never
-  outlined** (three styles: primary, secondary, ghost — plus a danger *label*,
-  not a red slab); an outline would be a fourth signal in a system that already
-  separates by surface step. `<IconButton>` is the one exception and carries a
-  `StyleSheet.hairlineWidth` edge in `border`, except in its `plain` tone.
+- **Controls speak the music-app language, through the primitives.** Dark
+  surfaces, large rounded shapes, a 1px edge on everything pressable, 48dp
+  height, the accent only where something is selected, focused or primary, no
+  shadows. DESIGN.md § 9 is the full statement. In short:
+  - `<Button>` — `Radius.control` (20: a soft stadium at 48dp, a pill at 36).
+    Primary is the accent fill with its ink; secondary is `surfaceElevated` with
+    a 1px edge; ghost has neither; danger is a subtle red wash, edge and label,
+    never a red slab. No default shadow — `elevation` exists for the game page's
+    review button alone.
+  - **States are drawn, not faded.** `PressableScale` takes `pressedColor` (a
+    deeper fill eased in on the UI thread with the sink) and `focusRing` (a 3dp
+    `accent.ring` outline for keyboard focus). Disabled drops to the resting
+    surface with `textMuted` type rather than leaning on opacity alone.
+  - `<IconButton>` is a **circle**, drawn at 40/32 and touched at the floor
+    through vertical slop. Every glyph-only key in the app is round.
+  - Fields: a `fieldLabel` above, an `input` well with a 1px edge,
+    `Radius.input` (16; `inputArea` 20 for text areas), `fieldText` (14);
+    focus lights the edge and draws the ring. Search fields are the pill.
+  - Filters, tabs and chips are pills. Small controls are drawn at
+    `ControlHeight.small` with `SmallControlSlop`, and wrapped rows of them use
+    `SmallControlRowGap` as their `rowGap` so the slop tiles and never overlaps.
+  - Sheets, dialogs and menus: `Radius.sheet` (24), a hairline edge, a round
+    close key.
+  **What kept its own treatment:** the game page's Material 3 cluster (the vivid
+  pill review button, the connected tonal action keys, platform keys),
+  `<RoundAction>`, `<TopBarDisc>`'s frosted glass, the collection header's
+  playlist-hero pill, the sign-in brand buttons, meaning colours, and the
+  physical objects. Do not "fix" them toward the rest.
 - **Ratings** are an integer 0-100 on `logs.rating`; `constants/score.ts` maps
   that to a verdict band ("Excellent", "Mixed") and a colour.
 - **`logs.rating` is the only score anything reads.** A reviewer can score by
@@ -534,12 +572,14 @@ into one call and persists the result for 7 days.
   custom font, so `fontWeight: '700'` on Inter silently renders regular.
   `proseInk` is the serif's ink: quieter than `textSecondary`, because a thousand
   words at interface brightness is a wall.
-- **The fixed-colour surface ladder is on the page's hue.** `surface`
-  (`#181C1F`), `surfaceElevated`, `surfaceSelected`, `input` and `skeleton` were
-  neutral greys on a cool near-black page; they now share its hue at their own
-  original lightness, so the ladder's *spacing* is untouched and only its
-  temperature moved. Nothing on a game's own screens uses any of it — those
-  derive their surfaces from the artwork through `accentRoles`.
+- **The fixed-colour surface ladder is on the page's faint cool trace.** The page is
+  `#0B0A0D` — darker than the cool `#14171b` it replaced and not black — and
+  `surface` (`#141317`), `surfaceElevated` (`#1B1A20`, the resting fill of every
+  control), `surfaceSelected`, `input` and `skeleton` share its hue with slightly
+  wider steps than before. The three text inks stayed neutral on purpose: the
+  protected game case's back is set in them. Nothing on a game's own screens
+  uses the ladder for surfaces — those derive them from the artwork through
+  `accentRoles`.
 - **Typography** goes through `<Text variant="…">` from `components/ui/text`,
   not raw `<Text>`. `Type` in `constants/theme.ts` and DESIGN.md's `typography:`
   frontmatter now agree, so either is safe to read and neither needs migrating.
@@ -553,7 +593,10 @@ into one call and persists the result for 7 days.
   form's 35px score showed only the middle band of each digit, and
   `<ScorePill size="large">` did the same at 25px. `<ScoreNumber>` and
   `<ScoreReadout>` set one now; anything else drawn larger than `Type` must too.
-- **Elevation, not borders.** Reach for `Elevation.card` before a `borderWidth`.
+- **Controls take an edge, content takes a shadow.** A pressable control is drawn
+  by its fill and a 1px `border` and never casts; a card of content takes
+  `Elevation.card` and never an edge — the edge is what says "you can press
+  this", and a review card with one reads as a single huge button.
 - **`<Card style>` cannot lay out the card's contents.** It lands on the outer
   view (fill and shadow), whose only child is the inner view holding
   `children` — so padding works there and `flexDirection`, `gap` and
@@ -572,7 +615,10 @@ into one call and persists the result for 7 days.
   of `display` through `body`, never out of the floor. `Spacing.x4`/`x8` held for
   the same kind of reason — they are the intervals *inside* a pair, where there
   was no air to reclaim. **Artwork did not move**: see the next bullet, which is
-  the whole point of art not riding the ladder.
+  the whole point of art not riding the ladder. The *controls* later grew back
+  on purpose, and only they: 48dp buttons and fields, `button` at 13 and
+  `fieldText` at 14 — a 48dp control around a 12px word read as a slab with a
+  caption. Body copy, headings and spacing stayed zoomed out.
 - **Artwork does not ride the ladder.** Cover, poster and case sizes are fixed dp
   in their components (`BOX_ART_WIDTH`, `POSTER_WIDTH`, `RAIL_POSTER`, the case's
   `WIDTHS`) precisely so retuning `Spacing` or `Type` moves the interface and
@@ -676,8 +722,8 @@ into one call and persists the result for 7 days.
   `award-game` are the worked examples. `title`, `subtitle`,
   `revealTitleOnScroll` and `hideOnScroll` no longer exist as props — do not
   reintroduce them. Right-hand controls go through the exported `<TopBarDisc>`
-  so both ends of the row are the same object; an `<IconButton>` there would be a
-  rounded rectangle on a fill beside a circle of glass.
+  so both ends of the row are the same object; an `<IconButton>` there would be an
+  opaque circle beside one of frosted glass.
   **Two screens carry no bar at all**: both profiles' owner tab and Home. Home
   instead opens with an *in-flow* masthead row — wordmark, greeting, notification
   bell, settings — which scrolls away with the content because a root tab has
@@ -700,9 +746,10 @@ into one call and persists the result for 7 days.
   starts below the status bar and must not be inset again; see `useTopBarInset`.
 - **Nothing hides on scroll any more.** The disc is small enough to stay put, and
   a back affordance that slides out of reach is a trap rather than a saving.
-  `useTopBarScroll()` survives as a general-purpose UI-thread scroll offset —
-  Home's ambient glow fades against it — but the bar does not read it, and
-  roughly a dozen screens still call it and use nothing from it. That is an inert
+  `useTopBarScroll()` survives as a general-purpose UI-thread scroll offset,
+  but the bar does not read it — nor does Home any more, since its corner glow
+  (the one thing that faded against it) was removed — and roughly a dozen
+  screens still call it and use nothing from it. That is an inert
   worklet write per frame: harmless, dead, and worth deleting the next time you
   are in one of those files.
 - **Gradients end on `withAlpha(colour, 0)`, never `'transparent'`.**
@@ -736,9 +783,9 @@ into one call and persists the result for 7 days.
   **The masthead's selected states are `primaryContainer`, not `primary`**: the
   review button is the one filled `primary` on the screen, and a lit action key
   or platform key wearing the same tone would be a second primary action.
-  `tonal: false` is the **house blue** and is unchanged — `primary` is a chosen
-  brand colour on a fixed grey `background`, not a measurement, so the forty
-  screens off a game page move not at all.
+  `tonal: false` is the **house blue** — `primary` is a chosen brand colour
+  on a fixed `background`, not a measurement, so the forty screens off a game
+  page never move with any game.
   `npm test` asserts every role is a valid hex and that every ink/surface pair
   clears 4.5:1, across six seeds and both modes. Run it after touching `ROLES`.
 - **`react-native-image-colors` must never be imported statically.** Its entry is
@@ -758,16 +805,23 @@ into one call and persists the result for 7 days.
   every control there was competing with a backdrop made of its own hue — which
   is why so many notes in those files read "this measures 2.02:1 on the
   brightest stop". A flat page is a known quantity and gives the accent seven
-  tone steps of headroom. Do not reintroduce it there; `<SoftGlow>` on Home is
-  unaffected.
+  tone steps of headroom. Do not reintroduce it there. Home's light is
+  `<AmbientLight>` alone — a very soft field in the **top-left corner**, fixed
+  to the viewport, lighting the left of the screen and gone before the right
+  quarter. That is the owner's brief and the position of the stronger corner
+  `<SoftGlow>` it replaced; that glow was removed because it read as a lit
+  corner rather than as light, and the soft light was briefly centred, which
+  lit both sides. Keep it in the corner. `<SoftGlow>` itself survives for
+  Surprise Me's bloom and swipe edge.
 - **The game page's Overview tab is cards, and `<InfoCard>` is the one
   implementation.** Every section on it — About, Studios, Reviews, the insight
   widgets, Where to buy, Editions, Franchise, Achievements — is
   an `<InfoCard>` (read) or an `<InfoCardButton>` (a door), each stating its own
   subject in an `h6` title. **Screenshots is the deliberate exception**: the art
   is the content and a frame around a frame is a box in a box. `Radius.cardLarge`
-  (18) is theirs alone and is deliberately far from `Radius.control` (6) — a
-  container must not share the corner of the buttons inside it.
+  (18) is theirs alone and was preserved through the control migration; what
+  separates a panel from the buttons inside it now is the fill step, not the
+  corner.
 - **A hidden game is a promise, not a preference.** Double-tapping a cover in
   Surprise Me writes it to `lib/surprise-hidden.ts` and it never comes up again.
   **The card does not change when you hide it** — the gesture means "not in

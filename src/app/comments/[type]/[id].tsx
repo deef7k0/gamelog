@@ -10,7 +10,8 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { ControlHeight, FontFamily, Spacing } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import {
   addComment,
@@ -27,6 +28,7 @@ type Thread = { comment: CommentWithAuthor; replies: CommentWithAuthor[] };
 
 export default function CommentsScreen() {
   const theme = useTheme();
+  const accent = useAccent();
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ type: string; id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
@@ -190,22 +192,26 @@ export default function CommentsScreen() {
                 style={styles.input}
               />
             </View>
+            {/* A round key, lit in the accent once there is something to
+                send and the resting control until then. */}
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel="Send"
               disabled={!draft.trim() || send.isPending}
               onPress={() => send.mutate()}
               scaleTo={0.9}
+              pressedColor={accent.pressed}
+              focusRing={accent.ring}
               style={StyleSheet.flatten([
                 styles.send,
-                {
-                  backgroundColor: draft.trim() ? theme.primary : theme.surfaceElevated,
-                },
+                draft.trim()
+                  ? { backgroundColor: accent.color, borderColor: 'transparent' }
+                  : { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
               ])}>
               <Ionicons
                 name="arrow-up"
                 size={20}
-                color={draft.trim() ? theme.onPrimary : theme.textMuted}
+                color={draft.trim() ? accent.ink : theme.textMuted}
               />
             </PressableScale>
           </View>
@@ -277,6 +283,9 @@ function CommentRow({
   );
 }
 
+/** The send key's edge: the composer field's own height, so the two align. */
+const SEND = ControlHeight.medium;
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: Spacing.x16, paddingBottom: Spacing.x24 },
@@ -297,11 +306,14 @@ const styles = StyleSheet.create({
   replyingTo: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   composerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.x8 },
   composerField: { flex: 1 },
-  input: { minHeight: 44, maxHeight: 120 },
+  /* One line tall to start — the field's 2dp of edge make it exactly the send
+     key's height — growing to about five lines before it scrolls. */
+  input: { minHeight: ControlHeight.medium - 2, maxHeight: 120 },
   send: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.control,
+    width: SEND,
+    height: SEND,
+    borderRadius: SEND / 2,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

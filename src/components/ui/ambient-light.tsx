@@ -7,27 +7,43 @@ import { Palette } from '@/constants/theme';
 /**
  * The light's centre and reach, as fractions of the viewport.
  *
- * Centre at half the width and 18% of the height — near the top, never the
- * middle. Radii of 90% of the width and 55% of the height, so the field is
- * wider than it is tall (about 180% × 110% of the screen) and runs out a little
- * past the middle of the display. Fractions rather than dp, so a 360dp phone and
- * a tall 20:9 one are lit the same way.
+ * **In the top-left corner, where Home's corner glow used to be** — a fifth of
+ * the way across and 5% down, about (78, 42) on a 390 × 844 phone, against that
+ * glow's (80, 20). The owner's brief: the left of the screen lit, the right not
+ * reached. It was centred at half the width for one pass, and lit both sides
+ * evenly.
+ *
+ * A horizontal reach of 78% of the width is what keeps the right side dark: at
+ * the centre's own height the light reaches zero just short of the right edge,
+ * and with the falloff below it is under a quarter strength past two thirds of
+ * the way across — the right quarter of the screen is effectively unlit. Half
+ * the height downward, so it pools down the left side and is gone by about
+ * 40% of the display. Fractions rather than dp, so a 360dp phone and a wide one
+ * are lit the same way.
  */
 const AMBIENT_LIGHT = {
-  centerX: 0.5,
-  centerY: 0.18,
-  radiusX: 0.9,
-  radiusY: 0.55,
+  centerX: 0.2,
+  centerY: 0.05,
+  radiusX: 0.78,
+  radiusY: 0.5,
 } as const;
 
 /**
  * Brightest point, as an alpha of `Palette.glowCore` over the page.
  *
- * Composited over `background` (#14171b) this peaks at about #22202F — 1.12:1
- * against the page, which is "the top feels lit" rather than "there is a
- * gradient". `textMuted` still clears 4.9:1 on the brightest pixel.
+ * Composited over `background` (#0B0A0D) this peaks at about #1C1626 — 1.12:1
+ * against the page, which is "the corner feels lit" rather than "there is a
+ * gradient". `textMuted` still clears 5.45:1 and `primaryText` 5.41:1 on the
+ * brightest pixel.
+ *
+ * 0.18 rather than the 0.16 it ran at when centred: with the centre this close
+ * to the top, part of the light falls above the screen and most of the rest
+ * under the status bar, so the same peak reads dimmer. This is also why it is
+ * not the old corner glow's 0.62 — that one was a `<SoftGlow>` reaching 1.7:1,
+ * a lit corner rather than light, and this keeps the ambient light's softness
+ * in the old glow's place.
  */
-const PEAK = 0.16;
+const PEAK = 0.18;
 
 /**
  * The falloff: `(1 - t²)³`, sampled at eleven stops.
@@ -47,8 +63,8 @@ const COLORS = AMBIENT_FALLOFF.map((strength, index) =>
 );
 
 /**
- * A very large, very soft light above the top of a screen — felt before it is
- * seen. Home's background, and nothing else.
+ * A very large, very soft light in the top-left corner of a screen — felt
+ * before it is seen. Home's background, and nothing else.
  *
  * One rect the size of the viewport, filled with an elliptical radial gradient:
  * a circle of radius `radiusX`, squashed vertically by the gradient's own

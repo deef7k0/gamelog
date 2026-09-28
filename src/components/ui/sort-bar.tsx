@@ -1,9 +1,15 @@
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
 import { Text } from '@/components/ui/text';
-import { Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import {
+  ControlHeight,
+  Radius,
+  SmallControlRowGap,
+  SmallControlSlop,
+  Spacing,
+} from '@/constants/theme';
 
 export type SortOption<T extends string> = { key: T; label: string };
 
@@ -16,12 +22,18 @@ export type SortBarProps<T extends string> = {
 };
 
 /**
- * A row of sort pills, one selected.
+ * A row of sort or filter pills, one selected.
  *
  * Wraps rather than scrolls horizontally. Every option stays on screen, so the
  * set of ways a list can be ordered is visible without discovering that the row
  * scrolls — and with four or five short labels it almost always fits on one
  * line anyway.
+ *
+ * The selected pill takes the app's one selected state (`useSelectable`) — the
+ * accent's wash, the accent's edge, the label at full strength — so it is
+ * blue on the Search tab and the game's own colour on its reviews sheet.
+ * Unselected pills are the resting control surface, quiet enough that five of
+ * them never out-shout the grid of cover art they are sorting.
  *
  * `accessibilityRole="radio"` because that is what this is: a single choice
  * from a fixed set, not a set of toggles. Screen readers then read "selected"
@@ -33,12 +45,13 @@ export function SortBar<T extends string>({
   onChange,
   accessibilityLabel = 'Sort',
 }: SortBarProps<T>) {
-  const theme = useTheme();
+  const selectable = useSelectable();
 
   return (
     <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel}>
       {options.map((option) => {
         const active = option.key === value;
+        const look = selectable(active);
         return (
           <PressableScale
             key={option.key}
@@ -47,20 +60,11 @@ export function SortBar<T extends string>({
             accessibilityLabel={option.label}
             onPress={() => onChange(option.key)}
             scaleTo={0.94}
-            style={StyleSheet.flatten([
-              styles.pill,
-              {
-                /*
-                 * Selection is a step up in lightness, not a change of colour:
-                 * one fill lighter, one border brighter, full-strength label.
-                 * Five pills in a row all wearing an accent would out-shout the
-                 * grid of cover art they are sorting.
-                 */
-                backgroundColor: active ? theme.surfaceSelected : theme.surfaceElevated,
-                borderColor: active ? theme.borderStrong : theme.border,
-              },
-            ])}>
-            <Text variant="caption" color={active ? 'text' : 'textSecondary'}>
+            hitSlop={SmallControlSlop}
+            pressedColor={look.pressedColor}
+            focusRing={look.focusRing}
+            style={StyleSheet.flatten([styles.pill, look.style])}>
+            <Text variant="bodySmall" color={look.label}>
               {option.label}
             </Text>
           </PressableScale>
@@ -71,42 +75,32 @@ export function SortBar<T extends string>({
 }
 
 const styles = StyleSheet.create({
-  /* `x12` (8), not `x8` (6): Material asks for 8dp between adjacent touch
-     targets, and this row wraps — two rows of pills at 6dp put the gap below
-     the floor in the one axis where a mis-tap picks a different sort order
-     rather than a neighbouring one. */
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x12 },
+  /* Columns `x12` (8): Material asks for 8dp between adjacent touch targets.
+     Rows `SmallControlRowGap` — exactly the two slops that meet across the gap,
+     so when the row wraps, the touch boxes of two rows tile rather than
+     overlap, and a tap between them can never pick the wrong sort order. */
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: Spacing.x12,
+    rowGap: SmallControlRowGap,
+  },
   pill: {
-    ...Elevation.control,
     /*
-     * The floor, read from the token rather than restated.
+     * Drawn at `ControlHeight.small` (36) and touched at the platform floor.
      *
-     * These pills used to be exactly their content: `Spacing.x8` (6) twice plus
-     * `Type.caption`'s 13dp line box, which is **25.67dp** — 58% of the iOS
-     * floor and 53% of Android's. `theme.ts` warns that a hard-coded 44 in a
-     * component is the bug `TapTarget` exists to prevent; this was the same bug
-     * one rung lower, a primitive that never read the constant at all, and six
-     * screens inherited it.
-     *
-     * `minHeight`, not `height`: a long label at a large system font size still
-     * has to be allowed to grow. The padding stays for that case — it is what
-     * sizes the pill once the text outgrows the floor.
-     *
-     * Vertical centring is already `alignItems` on the row's children by way of
-     * the text being the only child; `justifyContent` centres it in the taller
-     * box now that the box is taller than the text.
+     * These pills were once exactly their content — 25.67dp, 58% of the iOS
+     * floor — and then grew to the full floor, which made a filter row a stack
+     * of 48dp slabs around 10px words. `SmallControlSlop` is the third answer:
+     * the drawn pill stays light and the touch box still reaches 44/48.
+     * `minHeight`, not `height`, so a large system font can still grow it.
      */
-    minHeight: TapTarget,
+    minHeight: ControlHeight.small,
     justifyContent: 'center',
-    paddingVertical: Spacing.x8,
-    /* `x16` (10), up from `x12` (8). Same reason the chips moved: at 25dp tall
-       a short label like "Any" or "90+" was still wider than high, and at 44 it
-       is not. Ten each side keeps the four rating pills reading as a row of
-       words rather than a row of squares. */
-    paddingHorizontal: Spacing.x16,
-    // `control`, not `pill` — these are buttons, and every button in the app is
-    // the same rounded rectangle.
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: Spacing.x4,
+    paddingHorizontal: Spacing.x20,
+    /* A pill: this filters, and filters are the pill family (DESIGN.md § 9). */
+    borderRadius: Radius.pill,
+    borderWidth: 1,
   },
 });

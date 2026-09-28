@@ -1,17 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 
+import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
-import { PressableScale } from '@/components/ui/pressable-scale';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { RICH_TEXT_HINT } from '@/components/ui/rich-text';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/constants/theme';
 import { createAwardsList, createList, type ListKind } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 
@@ -36,8 +35,14 @@ const SHAPES: Shape[] = [
   },
 ];
 
+/** The shapes as choices, keyed by their index — two share a `kind`. */
+const SHAPE_CHOICES = SHAPES.map((shape, index) => ({
+  value: String(index),
+  label: shape.label,
+  hint: shape.hint,
+}));
+
 export default function NewListScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id);
@@ -106,38 +111,17 @@ export default function NewListScreen() {
             style={styles.about}
           />
 
-          <View style={styles.section}>
-            <Text variant="bodySmall" color="textSecondary">
-              Type
-            </Text>
-            <View style={styles.shapes}>
-              {SHAPES.map((shape, index) => {
-                const selected = shapeIndex === index;
-                return (
-                  <PressableScale
-                    key={shape.label}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    onPress={() => setShapeIndex(index)}
-                    scaleTo={0.97}
-                    style={StyleSheet.flatten([
-                      styles.shape,
-                      {
-                        backgroundColor: selected ? theme.surfaceSelected : theme.surfaceElevated,
-                        borderColor: selected ? theme.borderStrong : theme.border,
-                      },
-                    ])}>
-                    <Text variant="h5" color={selected ? 'text' : 'textSecondary'}>
-                      {shape.label}
-                    </Text>
-                    <Text variant="caption" color="textMuted">
-                      {shape.hint}
-                    </Text>
-                  </PressableScale>
-                );
-              })}
-            </View>
-          </View>
+          {/* The app's selection cards, the same object as a report's reasons:
+              a name, what it means, and a radio. Not clearable — a collection
+              is always one of these. */}
+          <ChoiceChips
+            label="Type"
+            choices={SHAPE_CHOICES}
+            value={String(shapeIndex)}
+            onChange={(next) => next !== null && setShapeIndex(Number(next))}
+            clearable={false}
+            withHints
+          />
 
           {create.isError && (
             <Text variant="bodySmall" color="danger">
@@ -162,12 +146,4 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { gap: Spacing.x16, paddingVertical: Spacing.x24 },
   about: { minHeight: 120, maxHeight: 260 },
-  section: { gap: Spacing.x8 },
-  shapes: { gap: Spacing.x8 },
-  shape: {
-    padding: Spacing.x16,
-    borderRadius: Radius.image,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 2,
-  },
 });

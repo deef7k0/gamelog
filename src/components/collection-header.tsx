@@ -463,7 +463,10 @@ function OwnerMenu({
         accessibilityLabel="Close"
         onPress={onClose}>
         <Pressable
-          style={[styles.sheet, { backgroundColor: theme.surfaceElevated }]}
+          style={[
+            styles.sheet,
+            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+          ]}
           /* Swallows the tap so pressing the sheet itself does not dismiss it. */
           onPress={() => {}}>
           {onEditDetails && (
@@ -524,13 +527,16 @@ function MenuRow({
   const theme = useTheme();
   const ink = danger ? theme.danger : theme.text;
 
+  /* A menu row: flat until pressed, then a soft inset fill — the rounded ends
+     show because the row sits inset from the sheet's edges. */
   return (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       scaleTo={0.98}
-      style={StyleSheet.flatten(styles.menuRow)}>
+      pressedColor={danger ? withAlpha(theme.danger, 0.12) : theme.pressed}
+      style={StyleSheet.flatten([styles.menuRow, { backgroundColor: 'transparent' }])}>
       <Ionicons name={icon} size={20} color={ink} />
       <Text variant="h5" style={{ color: ink }}>
         {label}
@@ -639,16 +645,22 @@ const styles = StyleSheet.create({
   about: { alignSelf: 'stretch', gap: Spacing.x4 },
 
   backdrop: { flex: 1, justifyContent: 'flex-end' },
+  /* The menu surface: `Radius.sheet` and a hairline on the three sides that
+     meet the scrim. */
   sheet: {
-    borderTopLeftRadius: Radius.card,
-    borderTopRightRadius: Radius.card,
-    paddingVertical: Spacing.x12,
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
+    paddingVertical: Spacing.x16,
+    paddingHorizontal: Spacing.x8,
   },
   menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x16,
-    minHeight: TapTarget,
-    paddingHorizontal: Spacing.x24,
+    minHeight: TapTarget + Spacing.x4,
+    paddingHorizontal: Spacing.x16,
+    borderRadius: Radius.card,
   },
 });

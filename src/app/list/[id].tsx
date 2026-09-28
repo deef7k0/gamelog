@@ -310,7 +310,11 @@ export default function ListDetailScreen() {
           that *enters* it is the masthead's image button. */}
       {pickingCover && (
         <View style={styles.controls}>
-          <View style={[styles.coverHint, { backgroundColor: theme.surfaceElevated }]}>
+          <View
+            style={[
+              styles.coverHint,
+              { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+            ]}>
             <Text variant="bodySmall" color="textSecondary" style={styles.coverHintText}>
               Tap a game to use its cover as this collection&rsquo;s artwork.
             </Text>
@@ -767,14 +771,17 @@ const styles = StyleSheet.create({
   },
 
   rowBody: { flex: 1, gap: Spacing.x4 },
+  /* A notice with its one way out: a card's corner and edge, not a button's. */
   coverHint: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    paddingLeft: Spacing.x12,
+    paddingLeft: Spacing.x16,
     paddingRight: Spacing.x4,
-    borderRadius: Radius.control,
+    paddingVertical: Spacing.x4,
+    borderRadius: Radius.card,
+    borderWidth: 1,
   },
   coverHintText: { flex: 1 },
   /* Sits where the rank pill would, so the two never overlap — the rank is

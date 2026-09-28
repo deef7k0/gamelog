@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Elevation, Spacing, Type } from '@/constants/theme';
+import { Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -13,18 +14,18 @@ import { useTheme } from '@/hooks/use-theme';
  * the guessing entirely. Five is the ceiling — a sixth destination means
  * something belongs one level down, not that the bar should get denser.
  *
- * Selection is the accent blue, on both the glyph and the label. That is the
- * single loudest use of colour in the app and it is deliberate: where you are
- * is the one thing the chrome should always be shouting.
+ * Selection is the house blue, on both the glyph and the label. That is
+ * the single loudest use of colour in the chrome and it is deliberate: where
+ * you are is the one thing the chrome should always be shouting.
  *
  * **The bar never takes a game's colour.** Everything else in the app can shift
- * to the identity hue of whatever you are looking at; this stays the house blue
- * on every screen, because it is the one fixed thing you navigate by. A bottom
- * bar that changed colour with the content above it would be the app losing its
- * own identity rather than expressing the game's.
+ * to the identity hue of whatever you are looking at; this stays the house
+ * blue on every screen, because it is the one fixed thing you navigate by.
+ * A bottom bar that changed colour with the content above it would be the app
+ * losing its own identity rather than expressing the game's.
  *
- * `primaryText`, not `primary`: the label is 10px and #0070CC measures 3.40:1
- * against the bar's surface, which is under AA for text at any size.
+ * `primaryText`, not `primary`: the label is 10px, and the fill blue measures
+ * 3.69:1 against the bar's surface where its type twin measures 5.69.
  *
  * Notifications used to live here; it now opens from an icon in Home's header
  * instead, freeing the slot for News.
@@ -68,12 +69,15 @@ export default function TabsLayout() {
         tabBarLabelStyle: { ...Type.caption, marginTop: 2 },
         tabBarItemStyle: { paddingVertical: Spacing.x4 },
         tabBarStyle: {
-          // The bar is a *surface*, one step up from the page, rather than the
-          // page colour with a line drawn on it — and it floats above the
-          // content it scrolls over, so it takes the overlay tier.
-          ...Elevation.overlay,
+          // The bar is a *surface*, one step up from the page, with a hairline
+          // along its top edge. Tone and edge rather than a cast shadow: the
+          // control language keeps depth to those two, and a shadow the full
+          // width of the screen read as a grey band over whatever scrolled
+          // under it. `elevation: 0` because React Navigation sets its own.
           backgroundColor: theme.surface,
-          borderTopWidth: 0,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.border,
+          elevation: 0,
           // Down from 68 with the rest of the chrome. The glyph is still 24 and
           // the row still clears `TapTarget`; what went is the air around them.
           // Plus the navigation-bar inset — see `insets` above.

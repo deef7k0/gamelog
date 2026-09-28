@@ -2,7 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Elevation, Radius, withAlpha } from '@/constants/theme';
+import { TapTarget, withAlpha } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
 export type IconButtonProps = {
@@ -23,17 +24,19 @@ const SIZES = {
 } as const;
 
 /**
- * A square button holding one glyph.
-
- * The same rectangle as `<Button>` — same radius, same fill, same hairline —
- * with equal sides, so an overflow "…" or an "add" sitting at the end of a row
- * of labelled buttons reads as one of them rather than as a loose icon. It is
- * square rather than round on purpose: a circle would be a third control shape
- * and the family only has one.
+ * A round button holding one glyph — close, more, add, remove, up, down.
  *
- * `plain` exists for icons inside an already-bordered container — a row's
- * up/down/remove controls — where a second outline around each glyph would turn
- * a tidy row into a grid of boxes.
+ * A circle, because a glyph with no word beside it is the music player's
+ * transport key rather than a form button: the same resting surface and 1px edge
+ * as a secondary `<Button>`, with equal sides and no corners. Drawn at 40 or 32
+ * and touched at the platform floor's height — the slop makes up the
+ * difference, so a row of these stays light without a thumb missing one.
+ *
+ * `active` lights it in the accent — wash, edge and glyph — the same three
+ * carriers every selected control in the app uses. `plain` exists for icons
+ * inside an already-bordered container — a row's up/down/remove controls —
+ * where a second outline around each glyph would turn a tidy row into a grid of
+ * circles.
  */
 export function IconButton({
   icon,
@@ -45,11 +48,34 @@ export function IconButton({
   disabled = false,
 }: IconButtonProps) {
   const theme = useTheme();
+  const accent = useAccent();
   const { box, glyph } = SIZES[size];
+  /* Vertical only. These sit in rows — up, down, remove — and sideways slop
+     would overlap a neighbour and hand its tap to whichever was drawn last. */
+  const slop = Math.max(0, (TapTarget - box) / 2);
+  const hitSlop = { top: slop, bottom: slop };
 
   const plain = tone === 'plain';
+  const danger = tone === 'danger';
 
-  const color = tone === 'danger' ? theme.danger : active ? theme.text : theme.textSecondary;
+  const color = disabled
+    ? theme.textMuted
+    : danger
+      ? theme.danger
+      : active
+        ? accent.onSurface
+        : plain
+          ? theme.textSecondary
+          : theme.text;
+
+  const fill = plain ? 'transparent' : active ? accent.wash : theme.surfaceElevated;
+  const edge = plain
+    ? 'transparent'
+    : danger
+      ? withAlpha(theme.danger, 0.3)
+      : active
+        ? accent.edge
+        : theme.border;
 
   return (
     <PressableScale
@@ -58,19 +84,14 @@ export function IconButton({
       accessibilityState={{ disabled, selected: active }}
       onPress={onPress}
       disabled={disabled}
+      hitSlop={hitSlop}
       scaleTo={0.9}
+      pressedColor={plain ? theme.pressed : active ? accent.ring : theme.surfaceSelected}
+      focusRing={accent.ring}
       style={StyleSheet.flatten([
         styles.base,
-        { width: box, height: box },
-        /* `plain` drops the fill, so it drops the shadow with it. */
-        plain ? Elevation.none : Elevation.control,
-        plain
-          ? styles.plain
-          : {
-              backgroundColor: active ? theme.surfaceSelected : theme.surfaceElevated,
-              borderColor: tone === 'danger' ? withAlpha(theme.danger, 0.33) : theme.border,
-              borderWidth: StyleSheet.hairlineWidth,
-            },
+        { width: box, height: box, borderRadius: box / 2 },
+        { backgroundColor: fill, borderColor: edge },
         disabled && styles.inert,
       ])}>
       <Ionicons name={icon} size={glyph} color={color} />
@@ -82,8 +103,9 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.control,
+    borderWidth: 1,
   },
-  plain: { backgroundColor: 'transparent', borderWidth: 0 },
-  inert: { opacity: 0.35 },
+  /* The glyph goes to `textMuted` as well, so a disabled key is not told apart
+     by opacity alone. */
+  inert: { opacity: 0.6 },
 });

@@ -1,9 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
+import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSelectable } from '@/components/ui/selectable';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, TapTarget } from '@/constants/theme';
+import { Spacing, TapTarget } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import type { GameSort } from '@/lib/games';
 
@@ -65,6 +68,8 @@ export function CollectionToolbar({
   showSort = true,
 }: CollectionToolbarProps) {
   const theme = useTheme();
+  const accent = useAccent();
+  const selectable = useSelectable();
 
   return (
     <View style={styles.bar}>
@@ -77,6 +82,7 @@ export function CollectionToolbar({
           <View style={styles.sorts}>
             {SORTS.map((option) => {
               const active = option.value === sort;
+              const look = selectable(active);
               return (
                 <PressableScale
                   key={option.value}
@@ -85,17 +91,14 @@ export function CollectionToolbar({
                   accessibilityLabel={option.label}
                   onPress={() => onSort(option.value)}
                   scaleTo={0.9}
-                  style={StyleSheet.flatten([
-                    styles.chip,
-                    {
-                      backgroundColor: active ? theme.surfaceSelected : 'transparent',
-                      borderColor: active ? theme.borderStrong : theme.border,
-                    },
-                  ])}>
+                  hitSlop={KEY_SLOP}
+                  pressedColor={look.pressedColor}
+                  focusRing={look.focusRing}
+                  style={StyleSheet.flatten([styles.key, look.style])}>
                   <Ionicons
                     name={option.icon}
                     size={16}
-                    color={active ? theme.text : theme.textMuted}
+                    color={active ? accent.onSurface : theme.textSecondary}
                   />
                 </PressableScale>
               );
@@ -109,21 +112,20 @@ export function CollectionToolbar({
       {/* Shows the layout you would *get*, not the one you are in. A toggle
           labelled with its current state reads as a status line and people tap
           it expecting nothing to happen. */}
-      <PressableScale
-        accessibilityRole="button"
+      <IconButton
+        icon={layout === 'grid' ? 'list' : 'grid'}
         accessibilityLabel={layout === 'grid' ? 'Show as a list' : 'Show as a grid'}
+        size="small"
         onPress={() => onLayout(layout === 'grid' ? 'rows' : 'grid')}
-        scaleTo={0.9}
-        style={StyleSheet.flatten([styles.chip, { borderColor: theme.border }])}>
-        <Ionicons
-          name={layout === 'grid' ? 'list' : 'grid'}
-          size={16}
-          color={theme.textSecondary}
-        />
-      </PressableScale>
+      />
     </View>
   );
 }
+
+/** The sort keys' edge — `<IconButton size="small">`'s, so the row is one size. */
+const KEY = 32;
+/** Vertical only: the keys sit in a row, and sideways slop would overlap. */
+const KEY_SLOP = { top: (TapTarget - KEY) / 2, bottom: (TapTarget - KEY) / 2 };
 
 const styles = StyleSheet.create({
   bar: {
@@ -134,14 +136,14 @@ const styles = StyleSheet.create({
   },
   sorts: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
   spacer: { flex: 1 },
-  /* Square rather than a pill: these hold a glyph, and a fully-round chip is the
-     app's shape for *metadata*. Every control in the system is a 6px rounded
-     rectangle, and these are controls. */
-  chip: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
+  /* Round keys, `<IconButton>`'s small size: a glyph with no word is a
+     transport key in this language. Radios rather than `<IconButton>`s because
+     five of them choose one order between them. */
+  key: {
+    width: KEY,
+    height: KEY,
+    borderRadius: KEY / 2,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

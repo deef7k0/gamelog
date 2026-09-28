@@ -22,6 +22,7 @@ import {
 } from '@/constants/reports';
 import { REPORT_REASON_LABEL, SIMILARITY_REASON_LABEL } from '@/constants/similarity';
 import { Spacing } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getLogById,
@@ -392,12 +393,16 @@ function ReportForm<R extends string>({
 
 /** Sent — now, or on an earlier visit. Either way there is nothing left to do. */
 function Reported({ kind, report }: { kind: ReportKind; report: MyReport }) {
-  const theme = useTheme();
+  const accent = useAccent();
   const router = useRouter();
 
   return (
     <View style={styles.done}>
-      <Ionicons name="checkmark-circle-outline" size={40} color={theme.textSecondary} />
+      {/* A lit disc rather than a bare glyph: the one thing on this screen,
+          and the answer to the question the form asked. */}
+      <View style={[styles.doneMark, { backgroundColor: accent.wash, borderColor: accent.edge }]}>
+        <Ionicons name="checkmark" size={30} color={accent.onSurface} />
+      </View>
       <Text variant="h2" style={styles.centred} accessibilityRole="header">
         Reported
       </Text>
@@ -419,13 +424,23 @@ function Reported({ kind, report }: { kind: ReportKind; report: MyReport }) {
   );
 }
 
+const DONE_MARK = 64;
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centred: { textAlign: 'center' },
-  content: { padding: Spacing.x16, gap: Spacing.x24, paddingBottom: Spacing.x48 },
+  /* Roomier than a list screen: `x24` at the sides and `x32` between the four
+     parts (what, why, a note, send). A report is read before it is sent, and a
+     form packed to list density reads as a formality to click through. */
+  content: {
+    paddingHorizontal: Spacing.x24,
+    paddingTop: Spacing.x16,
+    gap: Spacing.x32,
+    paddingBottom: Spacing.x48,
+  },
   head: { gap: Spacing.x8 },
   quote: { borderLeftWidth: 2, paddingLeft: Spacing.x12, marginTop: Spacing.x4 },
-  send: { gap: Spacing.x12 },
+  send: { gap: Spacing.x16 },
   done: {
     flex: 1,
     alignItems: 'center',
@@ -433,5 +448,14 @@ const styles = StyleSheet.create({
     gap: Spacing.x12,
     paddingHorizontal: Spacing.x32,
   },
-  doneAction: { alignSelf: 'stretch', marginTop: Spacing.x12 },
+  doneMark: {
+    width: DONE_MARK,
+    height: DONE_MARK,
+    borderRadius: DONE_MARK / 2,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.x8,
+  },
+  doneAction: { alignSelf: 'stretch', marginTop: Spacing.x24 },
 });

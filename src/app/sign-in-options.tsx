@@ -8,6 +8,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { signInWithProvider, type OAuthProvider } from '@/lib/oauth';
 
@@ -89,13 +90,14 @@ export default function SignInOptionsScreen() {
           />
 
           {/*
-            Ours, so it is the outlined one — and it is a route rather than a
-            provider call: email sign-in is a form, and the form already exists.
+            Ours, so it is the app's own secondary control rather than a brand's
+            slab — and it is a route rather than a provider call: email sign-in
+            is a form, and the form already exists.
           */}
           <ProviderButton
             icon="mail-outline"
             label="Continue with email"
-            fill="transparent"
+            fill={theme.surfaceElevated}
             ink={theme.text}
             outline
             disabled={busy !== null}
@@ -132,8 +134,9 @@ const FOOTER_SLOP = { top: 16, bottom: 16, left: 24, right: 24 };
 /**
  * One way in.
  *
- * A filled slab carrying somebody else's mark, or — for the one option that is
- * ours — an outlined one carrying no brand at all. The glyph sits at the leading
+ * A filled slab carrying somebody else's mark in that brand's own colours, or —
+ * for the one option that is ours — the app's secondary control, carrying no
+ * brand at all. All three take the control shape, so they read as one set. The glyph sits at the leading
  * edge and the label centres in the button, which is the shape every platform's
  * sign-in row uses and therefore the shape a reader recognises before reading it.
  *
@@ -160,6 +163,7 @@ function ProviderButton({
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const accent = useAccent();
 
   return (
     <PressableScale
@@ -169,10 +173,12 @@ function ProviderButton({
       disabled={disabled}
       onPress={onPress}
       scaleTo={0.98}
+      pressedColor={outline ? theme.surfaceSelected : undefined}
+      focusRing={accent.ring}
       style={StyleSheet.flatten([
         styles.provider,
         { backgroundColor: fill },
-        outline && { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.borderStrong },
+        outline && { borderWidth: 1, borderColor: theme.border },
         /* Dimmed as a set while any one of them is working, so it is visible
            that the screen is busy rather than that one button is broken. */
         disabled && !busy && styles.dimmed,

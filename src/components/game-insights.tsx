@@ -6,6 +6,8 @@ import { Linking, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { InfoCard } from '@/components/ui/info-card';
+import { ArtRail, Section } from '@/components/ui/section';
+import { StatsStrip } from '@/components/ui/stats-strip';
 import { Text } from '@/components/ui/text';
 import { ACCLAIM_THRESHOLD, ratingVerdict, scoreColor } from '@/constants/score';
 import { Radius, Spacing, withAlpha } from '@/constants/theme';
@@ -15,9 +17,6 @@ import { getRatingBreakdown } from '@/lib/api';
 import { getCriticReviews } from '@/lib/games/critics';
 import { getGameEvents, getTimeToBeat, type GameEvent } from '@/lib/games/igdb';
 import { parseGameId } from '@/lib/games';
-
-/** The event thumbnail. Wide enough to recognise a logo, small enough to be a mark. */
-const EVENT_ART = 64;
 
 /**
  * Height of the tallest bar in the rating graph, in dp.
@@ -243,7 +242,6 @@ function describe(data: { buckets: number[]; total: number; average: number }): 
  * minutes would be worse, since a 60-hour RPG becomes 3,600 of them.
  */
 export function TimeToBeatWidget({ gameId }: { gameId: string }) {
-  const accent = useAccent();
   const parsed = parseGameId(gameId);
   const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
 
@@ -266,18 +264,19 @@ export function TimeToBeatWidget({ gameId }: { gameId: string }) {
 
   if (lengths.length === 0) return null;
 
+  /* The three lengths as the app's row of figures — a bold figure over a quiet
+     word, rules between. They were three filled tiles, which inside the card
+     were cards inside a card. */
   return (
     <InfoCard title="Time to beat">
-      <View style={styles.times}>
-        {lengths.map((entry) => (
-          <View key={entry.label} style={[styles.time, { backgroundColor: accent.elevated }]}>
-            <Text variant="body" color="textSecondary">
-              {entry.label}
-            </Text>
-            <Text variant="h2">{hoursFor(entry.seconds!)}</Text>
-          </View>
-        ))}
-      </View>
+      <StatsStrip
+        cells={lengths.map((entry) => ({
+          key: entry.label,
+          value: hoursFor(entry.seconds!),
+          label: entry.label,
+          a11y: `${entry.label}: ${hoursFor(entry.seconds!).replace(' h', ' hours')}`,
+        }))}
+      />
 
       <Text variant="caption" color="textMuted">
         Based on {data.count} {data.count === 1 ? 'submission' : 'submissions'}
@@ -330,97 +329,64 @@ export function GameEventsWidget({ gameId }: { gameId: string }) {
   const data = events.data ?? [];
   if (data.length === 0) return null;
 
+  /* Pictures, so a heading over a rail of them and no card — SimpMusic's
+     "Featured on", with the event's banner where the playlist's cover is. They
+     were rows in a card, with the art cut to a 64dp mark. */
   return (
-    <InfoCard
-      title="Featured in"
-      action={
-        <Text variant="body" color="textMuted">
-          {data.length}
-        </Text>
-      }>
-      {/*
-        A stacked list of rows, not a carousel of cards.
-
-        Each event used to be its own filled, rounded card with a 16:9 banner,
-        paged horizontally — a card inside a card, and the most elaborate one on
-        the tab for a section most games do not have at all. As rows with a small
-        thumbnail they cost a fraction of the height, need no paging hint, and
-        stop competing with the panels around them. The art shrinks from a
-        full-width banner to a 64dp thumb, which is the right size for something
-        that is a label rather than a picture you are meant to look at.
-      */}
-      <View style={styles.events}>
-        {data.map((event) => (
-          <EventRow key={event.id} event={event} />
-        ))}
-      </View>
-    </InfoCard>
+    <Section title="Featured in">
+      <ArtRail
+        data={data}
+        keyOf={(event) => String(event.id)}
+        shape="wide"
+        renderArt={(event, size) => <EventArt event={event} size={size} />}
+        titleOf={(event) => event.name}
+        subtitleOf={(event) => (event.startTime === null ? null : formatEventDate(event.startTime))}
+        labelOf={(event) => (event.liveStreamUrl ? `${event.name}. Opens the event.` : event.name)}
+        onPressItem={(event) => {
+          if (!event.liveStreamUrl) return;
+          Linking.openURL(event.liveStreamUrl).catch(() => {
+            // No handler for the scheme; nothing useful to say about it.
+          });
+        }}
+      />
+    </Section>
   );
 }
 
 /**
- * One event: its art, its name, its date.
+ * An event's banner, at the rail's size.
  *
  * The artwork falls back twice — IGDB's `event_logo`, then a frame of the stream
  * it links to (see `youtubeThumbnail`), then a flat panel carrying the event's
- * initial. The third rung matters: a card with a hole where a picture should be
+ * initial. The third rung matters: a rail with a hole where a picture should be
  * looks broken, where a lettered panel looks like a thing without a picture.
  */
-function EventRow({ event }: { event: GameEvent }) {
+function EventArt({ event, size }: { event: GameEvent; size: { width: number; height: number } }) {
   const accent = useAccent();
 
-  const body = (
-    <View style={styles.event}>
-      {event.logoUrl ? (
-        <Image
-          source={{ uri: event.logoUrl }}
-          style={styles.eventArt}
-          contentFit="cover"
-          transition={220}
-          accessibilityIgnoresInvertColors
-        />
-      ) : (
-        <View
-          style={[
-            styles.eventArt,
-            styles.eventFallback,
-            { backgroundColor: accent.m3.surfaceContainerHigh },
-          ]}>
-          <Text variant="h2" color="textMuted">
-            {event.name.trim().charAt(0).toUpperCase()}
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.eventText}>
-        <Text variant="body" numberOfLines={2}>
-          {event.name}
-        </Text>
-        {event.startTime !== null && (
-          <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
-            {formatEventDate(event.startTime)}
-          </Text>
-        )}
-      </View>
-    </View>
-  );
-
-  /* Only the ones with somewhere to go are pressable. A tappable row that does
-     nothing is worse than a flat one. */
-  if (!event.liveStreamUrl) return body;
-
+  if (event.logoUrl) {
+    return (
+      <Image
+        source={{ uri: event.logoUrl }}
+        style={[size, styles.eventArt]}
+        contentFit="cover"
+        transition={220}
+        accessibilityIgnoresInvertColors
+      />
+    );
+  }
   return (
-    <PressableScale
-      accessibilityRole="link"
-      accessibilityLabel={`${event.name}. Opens the event.`}
-      scaleTo={0.98}
-      onPress={() => {
-        Linking.openURL(event.liveStreamUrl!).catch(() => {
-          // No handler for the scheme; nothing useful to say about it.
-        });
-      }}>
-      {body}
-    </PressableScale>
+    <View
+      style={[
+        size,
+        styles.eventArt,
+        styles.eventFallback,
+        { backgroundColor: accent.m3.surfaceContainerHigh },
+      ]}>
+      <Text variant="h1" color="textMuted">
+        {event.name.trim().charAt(0).toUpperCase()}
+      </Text>
+    </View>
   );
 }
 
@@ -457,22 +423,7 @@ const styles = StyleSheet.create({
   criticTrack: { height: 4, borderRadius: Radius.pill, overflow: 'hidden' },
   criticFill: { height: '100%', borderRadius: Radius.pill },
 
-  times: { flexDirection: 'row', gap: Spacing.x8 },
-  time: {
-    flex: 1,
-    alignItems: 'center',
-    gap: Spacing.x4,
-    paddingVertical: Spacing.x12,
-    borderRadius: Radius.image,
-  },
-
-  events: { gap: Spacing.x12 },
-  /* A row with no fill of its own — the `<InfoCard>` around it is the surface. */
-  event: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   eventFallback: { alignItems: 'center', justifyContent: 'center' },
-  /* 16:9 still — event art is a landscape banner — but at thumbnail scale. A
-     fixed dp width rather than a share of the row, per the rule that artwork does
-     not ride the spacing ladder. */
-  eventArt: { width: EVENT_ART, aspectRatio: 16 / 9, borderRadius: Radius.image },
-  eventText: { flex: 1, gap: 1 },
+  /* The app's box-art corner: the rail is SimpMusic's, the art is this app's. */
+  eventArt: { borderRadius: Radius.image },
 });

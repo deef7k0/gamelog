@@ -55,11 +55,9 @@ export type TopReviewCardProps = {
   /**
    * Rendered at the bottom of the card, inside it.
    *
-   * The game page's "See all reviews" lives here. It was a separate
-   * `<PressableScale>` in its own panel directly under this one — two cards, one
-   * subject, and the second of them holding a single row. A slot keeps the
-   * caller in charge of where that goes while the card stays in charge of the
-   * box it goes in.
+   * A slot keeps the caller in charge of what goes there while the card stays in
+   * charge of the box it goes in. The game page's "See all reviews" lived here
+   * until its sections became SimpMusic's; it is the Reviews heading's More now.
    */
   footer?: React.ReactNode;
   /**

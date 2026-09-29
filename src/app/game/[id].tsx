@@ -18,7 +18,7 @@ import { GameEventsWidget, TimeToBeatWidget } from '@/components/game-insights';
 import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
 import { GameListsSheet } from '@/components/game-lists-sheet';
-import { GamePosterRail } from '@/components/game-rail';
+import { GameCoverRail } from '@/components/game-rail';
 import { CommunitySimilarCard, CommunitySimilarSheet } from '@/components/community-similar';
 import { GameStatsStrip } from '@/components/game-stats-strip';
 import { ProgressSheet } from '@/components/progress-sheet';
@@ -33,7 +33,9 @@ import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { ExpandableText } from '@/components/ui/expandable-text';
 import { InfoCard, InfoCardButton } from '@/components/ui/info-card';
+import { ArtRail, Section, SectionInsetProvider, useSectionMetrics } from '@/components/ui/section';
 import { ScoreBadge } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
@@ -41,7 +43,7 @@ import { editionLabel } from '@/constants/game-editions';
 import { copyStateLine, releaseLine } from '@/constants/physical';
 import { scoreColor } from '@/constants/score';
 import { platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
-import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getTopGameReview, setLiked } from '@/lib/api';
@@ -78,14 +80,12 @@ const TABS = [
  * composition read as two different designs on a phone and a tablet.
  */
 /**
- * Lines of synopsis shown before "Read more".
- *
- * Six is where an IGDB summary stops being a paragraph and starts being the
- * page. The character threshold below is deliberately generous — it only has to
- * separate "there is more" from "there is not".
+ * Lines of synopsis before its More: the reference's description card shows
+ * five (`limitLine = 5`). IGDB summaries run 500–2000 characters — twenty-odd
+ * lines — and at the top of the tab the whole of one would push every other
+ * section below a second screenful.
  */
-const SYNOPSIS_LINES = 6;
-const SYNOPSIS_CLAMP_ABOVE = 320;
+const SYNOPSIS_LINES = 5;
 
 /*
  * How much of the viewport the case takes, and the ceiling on a wide one.
@@ -217,16 +217,9 @@ export default function GameDetailScreen() {
    */
   const [platform, setPlatform] = useState<PlatformKey | null>(null);
 
-  /*
-   * The synopsis is collapsed until asked for.
-   *
-   * IGDB summaries run 500–2000 characters; at 13/19 in a 366dp column that is
-   * roughly 27 lines — about 513dp of unbroken body text, which now sits at the
-   * *top* of the tab and would push the storefronts, the reviews, Studios,
-   * Franchise, Screenshots and Achievements below a second screenful.
-   * Six lines is enough to know whether you want the rest.
-   */
-  const [synopsisOpen, setSynopsisOpen] = useState(false);
+  /* The Overview's sections, sized as SimpMusic's artist page is on this
+     display — see `useSectionMetrics`. */
+  const sections = useSectionMetrics();
 
   const caseWidth = Math.min(CASE_MAX_WIDTH, Math.round(width * CASE_WIDTH_RATIO));
   // Also swallows the header's group gap, so the overlap is measured from the
@@ -452,6 +445,13 @@ export default function GameDetailScreen() {
 
   const unlockedCount = (achievements.data ?? []).filter((entry) => entry.unlocked_at).length;
   const achievementTotal = achievements.data?.length ?? 0;
+
+  /* Ten at most, each announced as "Screenshot 3 of 8" rather than as eight
+     unlabelled images in a row. */
+  const screenshots = data.screenshots.slice(0, 10).map((url, index, shown) => ({
+    url,
+    label: `Screenshot ${index + 1} of ${shown.length} from ${data.title}`,
+  }));
 
   /** The masthead, rendered above every tab. */
   const header = (
@@ -804,406 +804,279 @@ export default function GameDetailScreen() {
         );
 
       default:
+        /*
+          SimpMusic's artist page, section for section (see `<InfoCard>`): every
+          heading stands on the page, a section that is pictures is a rail of
+          them under its heading, and a section that is words sits in a card
+          under its heading. Sizes are the reference's, as fractions of the
+          display (`useSectionMetrics`), and nothing here pads itself sideways —
+          the inset is handed down, so the rails can run edge to edge and still
+          start in line with the headings.
+        */
         return (
-          <View style={styles.tabBody}>
-            {/*
-              Screenshots, first, and with no heading at all.
-
-              They were the seventh thing on this tab, below About, Studios,
-              Reviews, the insight widgets and the franchise rail — which put the
-              only *moving pictures of the game* below five blocks of type about
-              it. Somebody arriving on a page they have not played is asking what
-              it looks like before they ask what anybody thought, and a
-              horizontally scrolling strip answers that in one glance without
-              costing the tab a screenful.
-
-              The double exception to the `<InfoCard>` rule (CLAUDE.md): the art
-              is the content, so there is no frame around it — and now no title
-              above it either. A row of screenshots of a game, on that game's own
-              page, under its own key art, does not need a word telling you what
-              it is; every other section on this tab states its subject because
-              its subject is not visible from its contents. This one's is.
-            */}
-            {data.screenshots.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.shots}>
-                {data.screenshots.slice(0, 10).map((url, index) => (
-                  <Image
-                    key={url}
-                    source={{ uri: url }}
-                    style={[styles.shot, { backgroundColor: theme.surfaceElevated }]}
-                    contentFit="cover"
-                    transition={200}
-                    /* Announced as "Screenshot 3 of 8" rather than as eight
-                       unlabelled images in a row. */
-                    accessible
-                    accessibilityRole="image"
-                    accessibilityLabel={`Screenshot ${index + 1} of ${Math.min(data.screenshots.length, 10)} from ${data.title}`}
-                    accessibilityIgnoresInvertColors
+          <SectionInsetProvider inset={sections.inset}>
+            <View style={[styles.overview, { gap: sections.sectionGap }]}>
+              {/*
+                Screenshots first: somebody arriving on a page they have not
+                played is asking what it looks like before they ask what anybody
+                thought. At the reference's video size, which is the size of the
+                pictures on its artist page that are not album art.
+              */}
+              {screenshots.length > 0 && (
+                <Section title="Screenshots">
+                  <ArtRail
+                    data={screenshots}
+                    keyOf={(shot) => shot.url}
+                    shape="wide"
+                    renderArt={(shot, size) => (
+                      <Image
+                        source={{ uri: shot.url }}
+                        style={[size, styles.shot, { backgroundColor: theme.surfaceElevated }]}
+                        contentFit="cover"
+                        transition={200}
+                        accessible
+                        accessibilityRole="image"
+                        accessibilityLabel={shot.label}
+                        accessibilityIgnoresInvertColors
+                      />
+                    )}
                   />
-                ))}
-              </ScrollView>
-            )}
+                </Section>
+              )}
 
-            {/*
-              About leads the tab.
-
-              It used to sit seventh, under the storefronts, the reviews and
-              two insight widgets — so the first thing a reader met
-              on a page about a game was a row of prices, and the sentence saying
-              what the game *is* was below the fold on every phone. What a thing
-              is comes before what anyone thought of it and before what it costs;
-              everything below this card answers a question you can only have
-              once you know that.
-
-              "More information" is its footer rather than the card that used to
-              follow it. The synopsis and the full IGDB record are one subject at
-              two depths, and as separate panels they were two boxes in a row
-              both offering to tell you about this game. Shaped exactly like "See
-              all reviews" below, which is the same move out of a summary.
-            */}
-            {data.description ? (
-              <InfoCard title="About">
-                <Text
-                  variant="body"
-                  color="textSecondary"
-                  numberOfLines={synopsisOpen ? undefined : SYNOPSIS_LINES}>
-                  {data.description}
-                </Text>
-                {/* Only offered when there is plausibly something behind the
-                    clamp — a two-line summary with a "Read more" under it is a
-                    control that does nothing. Measured in characters rather
-                    than lines because the line count is not knowable until
-                    layout, and `onTextLayout` would put a setState on the
-                    render path of the longest block on the page. */}
-                {data.description.length > SYNOPSIS_CLAMP_ABOVE && (
-                  <PressableScale
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: synopsisOpen }}
-                    accessibilityLabel={
-                      synopsisOpen ? 'Collapse the description' : 'Read the full description'
-                    }
-                    onPress={() => setSynopsisOpen((open) => !open)}
-                    scaleTo={0.98}
-                    style={styles.synopsisToggle}>
-                    <Text variant="h5" style={{ color: accent.onSurface }}>
-                      {synopsisOpen ? 'Show less' : 'Read more'}
-                    </Text>
-                    <Ionicons
-                      name={synopsisOpen ? 'chevron-up' : 'chevron-down'}
-                      size={16}
-                      color={accent.onSurface}
-                    />
-                  </PressableScale>
-                )}
-
-                <GameDetailsSheet gameId={data.id} trigger="row" />
-              </InfoCard>
-            ) : (
-              /* No synopsis to host the footer, so the record keeps its own
-                 panel. Renders nothing at all on a non-IGDB row. */
-              <GameDetailsSheet gameId={data.id} />
-            )}
-
-            {/*
-              The platform and genre chip rows are gone.
-              
-              Both restated something the page already said louder. The platform
-              switcher directly above the tabs *is* the platform list, and it is
-              a control rather than a caption. Genres are printed in full inside
-              "More information" — now the footer of the About card above —
-              alongside themes, modes and perspectives, which is where somebody
-              looking for that kind of fact goes, and it is the only place the
-              four appear together.
-
-              What the two rows cost was the top of the Overview tab: two
-              wrapping rows of grey capsules above the first real section, on
-              the screen's most valuable strip.
-            */}
-
-            {/* Below About, not above it. This sat first for a while on the
-                argument that "where do I get this" comes before the synopsis —
-                which is true only of a reader who has already decided, and the
-                synopsis is how anyone else decides. A page about a game opens on
-                what the game is; the price is the next question, not the first. */}
-            <StorePrices gameId={data.id} title={data.title} steamAppId={data.steamAppId} />
-
-            {/*
-              Your copy, directly under where to buy one — the two answers to
-              "how do I get this" and "I already have it".
-
-              Only when you own one. For anybody who does not collect boxes a
-              card inviting them to add a copy would be a permanent fixture asking
-              for something they never do; the way in is "I own a copy" on the
-              Collect key, where the intent to *have* a game already lives. The
-              card is the quick view only — the release and the copy's state, one
-              line each — and the detail is behind it.
-            */}
-            {(myCopies.data?.length ?? 0) > 0 && userId && (
-              <InfoCardButton
-                title={myCopies.data!.length === 1 ? 'Your copy' : 'Your copies'}
-                accessibilityLabel={
-                  myCopies.data!.length === 1
-                    ? `Your copy: ${releaseLine(myCopies.data![0]) || 'release not recorded'}. Open it.`
-                    : `You own ${myCopies.data!.length} copies. Open them.`
-                }
-                onPress={() =>
-                  myCopies.data!.length === 1
-                    ? router.push({ pathname: '/copy/[id]', params: { id: myCopies.data![0].id } })
-                    : router.push({
-                        pathname: '/copies/[user]',
-                        params: { user: userId, game: data.id },
-                      })
-                }
-                action={<Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}>
-                <View style={styles.copyLines}>
-                  <Text variant="h4">
-                    {releaseLine(myCopies.data![0]) || 'Release not recorded'}
-                  </Text>
-                  {copyStateLine(myCopies.data![0]) && (
-                    <Text variant="body" color="textSecondary">
-                      {copyStateLine(myCopies.data![0])}
-                    </Text>
-                  )}
-                  {myCopies.data!.length > 1 && (
-                    <Text variant="caption" color="textMuted">
-                      {`and ${myCopies.data!.length - 1} more`}
-                    </Text>
-                  )}
-                </View>
-              </InfoCardButton>
-            )}
-
-            {/*
-              Three widgets, in the order the questions get asked.
-
-              **What did people here think** first, because it is the only score
-              on the page that belongs to this app — the masthead's `COMMUNITY`
-              is IGDB's, and a distribution says something a mean cannot: whether
-              a 74 is agreement or an argument.
-
-              **How long is it** second: the question between deciding you are
-              interested and deciding to start.
-
-              **Where has it been** last, because most games have no events at
-              all and the widget renders nothing when so.
-
-              All three sit below About now. They used to argue their way above
-              it — an appearance at The Game Awards is a fact where a synopsis is
-              a marketing summary — and that argument lost to a simpler one: the
-              synopsis is the only thing on this tab that says what the game *is*,
-              and none of these three mean anything to a reader who does not yet
-              know that.
-            */}
-            {/*
-              What one person wrote, then the way to everything anybody wrote.
-              Directly under the distribution, because the graph says *how the
-              room voted* and this says *what somebody actually thought* — the
-              second question, in the order it gets asked.
-            */}
-            <InfoCard title="Reviews">
-              <TopReviewCard
-                /* `bare`: the card is already here. */
-                bare
-                /* Five, against the default three. This tab scrolls and this is
-                   the only review on it, so the clamp can afford to be a real
-                   sample rather than a taste — the three exists for Surprise Me,
-                   where the same card sits on a screen that must not scroll. */
-                lines={5}
-                review={topReview.data ?? null}
-                loading={topReview.isPending}
-                liked={topReview.data?.likedByViewer ?? false}
-                onToggleLike={() => {
-                  if (topReview.data && userId) likeReview.mutate(!topReview.data.likedByViewer);
-                }}
-                onOpenReview={() => {
-                  if (topReview.data) {
-                    router.push({
-                      pathname: '/review/[id]',
-                      params: { id: topReview.data.log.id },
-                    });
-                  }
-                }}
-                onWriteReview={() =>
-                  router.push({ pathname: '/log/[id]', params: { id: data.id } })
-                }
-                /*
-                  Inside the review, not in a panel below it.
-
-                  This was its own `<InfoCard>`-sized row under the reviews card —
-                  two stacked boxes about one subject, the lower one holding a
-                  single line of text. As a footer it reads as what it is: the way
-                  out of the excerpt you have just read.
-                */
-                footer={
-                  <PressableScale
-                    accessibilityRole="button"
-                    accessibilityLabel={`See all reviews of ${data.title}`}
-                    onPress={openReviews}
-                    scaleTo={0.98}
-                    style={StyleSheet.flatten([
-                      styles.seeAll,
-                      { backgroundColor: accent.m3.surfaceContainerHigh },
-                    ])}>
-                    <Text variant="body">See all reviews</Text>
-                    <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-                  </PressableScale>
-                }
-              />
-            </InfoCard>
-
-            <TimeToBeatWidget gameId={data.id} />
-            <GameEventsWidget gameId={data.id} />
-
-            {/*
-              Studios. **One card, one name per line, and nothing else.**
-
-              This was a card *per* company, each with a role line and a "see
-              everything they have made" subtitle — five panels to carry five
-              proper nouns, and the subtitle told you what tapping a name does,
-              which a name in a list already implies. The card's own title says
-              what these are; the names say who they are; tapping one opens their
-              catalogue.
-
-              Tappable only for IGDB titles — company ids come from IGDB and
-              Steam/RAWG/itch have no equivalent, so a Steam-sourced game shows
-              the name as plain text rather than a dead link.
-            */}
-            {(extras.data?.companies.length ?? 0) > 0 && (
-              <InfoCard title="Developers">
-                <View style={styles.studios}>
-                  {extras.data!.companies.map((company) => (
-                    <PressableScale
-                      key={company.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${company.name}, ${
-                        company.role === 'developer' ? 'developer' : 'publisher'
-                      }. See their games.`}
-                      hitSlop={STUDIO_SLOP}
-                      scaleTo={0.98}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/studio/[id]',
-                          params: { id: String(company.id), name: company.name },
-                        })
-                      }
-                      style={StyleSheet.flatten(styles.studioRow)}>
-                      {/* The name at full width — IGDB's run long ("Kabushiki
-                          Gaisha Nintendo Entaateinmento Puranningu &
-                          Debelopumento") and a row can wrap where a chip could
-                          only truncate. */}
-                      <Text variant="body" style={styles.studioName}>
-                        {company.name}
-                      </Text>
-                    </PressableScale>
-                  ))}
-                </View>
-              </InfoCard>
-            )}
-
-            {/*
-              Additional information — awards, cast and the people who made the
-              game, from Wikidata — under the studios: the companies, then the
-              people.
-
-              A door, like Achievements, not a panel: it is a screen of its own
-              and nothing is fetched until it is opened. The line under the title
-              says what is behind it, which is also what keeps it from reading as
-              a second "More information" — that one, at the foot of About, is
-              IGDB's record. Offered only when the game carries an id Wikidata
-              can be searched by (`wikidataLookupFor`); without one the screen
-              could only ever say it found nothing.
-            */}
-            {wikidataLookupFor(data) && (
-              <InfoCardButton
-                title="Additional information"
-                accessibilityLabel="View additional game information: awards, cast and credits"
-                onPress={() =>
-                  router.push({ pathname: '/game-info/[id]', params: { id: data.id } })
-                }
-                action={<Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}>
-                <Text variant="body" color="textSecondary">
-                  Awards, cast and crew, from Wikidata.
-                </Text>
-              </InfoCardButton>
-            )}
-
-            {/*
-              Series and lineage, and which one you get depends on what this
-              game *is*.
-
-              A remake, remaster, DLC or edition shows the game it came from and
-              no franchise rail: on Mafia: Definitive Edition the useful question
-              is "what is this a version of", and a rail of six Mafia games
-              answers a question nobody asked while burying the one that matters.
-              An original shows the series it belongs to — filtered to originals,
-              see `ORIGINALS_ONLY` — and then its own versions underneath.
-            */}
-            {data.edition && data.parentId ? (
-              <OriginalGame parentId={data.parentId} edition={data.edition} />
-            ) : (
-              <GameEditions gameId={data.id} />
-            )}
-
-            {/* Franchise. IGDB models a numbered series as `collection` and the
-                wider brand as `franchises`; the collection is the more useful of
-                the two, so it wins when both exist. Hidden on a derivative —
-                the row above already places it. */}
-            {!data.edition && franchiseGames.data && franchiseGames.data.length > 1 && (
+              {/*
+                About: what the game is, before what anybody thought of it or
+                what it costs. The reference's own description card — five lines,
+                then More, and the card opens in place (`<ExpandableText>`). The
+                full IGDB record is the heading's Details. With no synopsis the
+                card says so, as the reference's does, and Details still opens
+                the record.
+              */}
               <InfoCard
-                title={extras.data?.collection?.name ?? 'Franchise'}
-                action={
-                  <Text variant="bodySmall" color="textMuted">
-                    {franchiseGames.data.length}
+                title="About"
+                moreSlot={<GameDetailsSheet gameId={data.id} trigger="more" />}>
+                {data.description ? (
+                  <ExpandableText lines={SYNOPSIS_LINES} subject="the description">
+                    {data.description}
+                  </ExpandableText>
+                ) : (
+                  <Text variant="body" color="textSecondary">
+                    No description
                   </Text>
-                }>
-                <GamePosterRail
-                  games={franchiseGames.data.filter((entry) => entry.id !== data.id)}
+                )}
+              </InfoCard>
+
+              {/* Below About, not above it: the price is the next question for
+                  a reader who has decided, and the synopsis is how anyone else
+                  decides. */}
+              <StorePrices gameId={data.id} title={data.title} steamAppId={data.steamAppId} />
+
+              {/*
+                Your copy, directly under where to buy one — the two answers to
+                "how do I get this" and "I already have it". Only when you own
+                one; the way in otherwise is "I own a copy" on the Collect key.
+              */}
+              {(myCopies.data?.length ?? 0) > 0 && userId && (
+                <InfoCardButton
+                  title={myCopies.data!.length === 1 ? 'Your copy' : 'Your copies'}
+                  accessibilityLabel={
+                    myCopies.data!.length === 1
+                      ? `Your copy: ${releaseLine(myCopies.data![0]) || 'release not recorded'}. Open it.`
+                      : `You own ${myCopies.data!.length} copies. Open them.`
+                  }
+                  onPress={() =>
+                    myCopies.data!.length === 1
+                      ? router.push({
+                          pathname: '/copy/[id]',
+                          params: { id: myCopies.data![0].id },
+                        })
+                      : router.push({
+                          pathname: '/copies/[user]',
+                          params: { user: userId, game: data.id },
+                        })
+                  }>
+                  <View style={styles.copyLines}>
+                    <Text variant="h4">
+                      {releaseLine(myCopies.data![0]) || 'Release not recorded'}
+                    </Text>
+                    {copyStateLine(myCopies.data![0]) && (
+                      <Text variant="body" color="textSecondary">
+                        {copyStateLine(myCopies.data![0])}
+                      </Text>
+                    )}
+                    {myCopies.data!.length > 1 && (
+                      <Text variant="caption" color="textMuted">
+                        {`and ${myCopies.data!.length - 1} more`}
+                      </Text>
+                    )}
+                  </View>
+                </InfoCardButton>
+              )}
+
+              {/*
+                What one person wrote. The way to everything anybody wrote is the
+                heading's More — it was a "See all reviews" row at the foot of
+                this card, which is the reference's More in the wrong place.
+              */}
+              <InfoCard
+                title="Reviews"
+                more={{
+                  accessibilityLabel: `See all reviews of ${data.title}`,
+                  onPress: openReviews,
+                }}>
+                <TopReviewCard
+                  /* `bare`: the card is already here. */
+                  bare
+                  /* Five, against the default three. This tab scrolls and this is
+                     the only review on it, so the clamp can afford to be a real
+                     sample rather than a taste — the three exists for Surprise Me,
+                     where the same card sits on a screen that must not scroll. */
+                  lines={5}
+                  review={topReview.data ?? null}
+                  loading={topReview.isPending}
+                  liked={topReview.data?.likedByViewer ?? false}
+                  onToggleLike={() => {
+                    if (topReview.data && userId) likeReview.mutate(!topReview.data.likedByViewer);
+                  }}
+                  onOpenReview={() => {
+                    if (topReview.data) {
+                      router.push({
+                        pathname: '/review/[id]',
+                        params: { id: topReview.data.log.id },
+                      });
+                    }
+                  }}
+                  onWriteReview={() =>
+                    router.push({ pathname: '/log/[id]', params: { id: data.id } })
+                  }
                 />
               </InfoCard>
-            )}
 
-            {/* A failed fetch used to leave `achievementTotal` at 0 and take the
-                whole section with it — silently, and identically to a game that
-                genuinely tracks none. The count is the section's own claim, so
-                it cannot be rendered from a number the app never received. */}
-            {achievements.isError ? (
-              <InfoCard title="Achievements">
-                <Text variant="body" color="textSecondary">
-                  Could not load achievements. Pull to refresh, or try again later.
-                </Text>
-              </InfoCard>
-            ) : (
-              achievementTotal > 0 && (
+              <TimeToBeatWidget gameId={data.id} />
+              <GameEventsWidget gameId={data.id} />
+
+              {/*
+                The companies, one name per line; tapping one opens their
+                catalogue. Tappable only for IGDB titles — company ids come from
+                IGDB, so a Steam-sourced game shows the names as plain text.
+              */}
+              {(extras.data?.companies.length ?? 0) > 0 && (
+                <InfoCard title="Developers">
+                  <View style={styles.studios}>
+                    {extras.data!.companies.map((company) => (
+                      <PressableScale
+                        key={company.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${company.name}, ${
+                          company.role === 'developer' ? 'developer' : 'publisher'
+                        }. See their games.`}
+                        hitSlop={STUDIO_SLOP}
+                        scaleTo={0.98}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/studio/[id]',
+                            params: { id: String(company.id), name: company.name },
+                          })
+                        }
+                        style={StyleSheet.flatten(styles.studioRow)}>
+                        {/* The name at full width — IGDB's run long ("Kabushiki
+                            Gaisha Nintendo Entaateinmento Puranningu &
+                            Debelopumento") and a row can wrap where a chip could
+                            only truncate. */}
+                        <Text variant="body" style={styles.studioName}>
+                          {company.name}
+                        </Text>
+                      </PressableScale>
+                    ))}
+                  </View>
+                </InfoCard>
+              )}
+
+              {/*
+                Additional information — awards, cast and the people who made the
+                game, from Wikidata — under the companies: the companies, then the
+                people. A door: a screen of its own, fetched only when opened, and
+                offered only when the game carries an id Wikidata can be searched
+                by (`wikidataLookupFor`).
+              */}
+              {wikidataLookupFor(data) && (
                 <InfoCardButton
-                  title="Achievements"
-                  accessibilityLabel={`All ${achievementTotal} achievements`}
+                  title="Additional information"
+                  accessibilityLabel="View additional game information: awards, cast and credits"
                   onPress={() =>
-                    router.push({ pathname: '/achievements/[id]', params: { id: data.id } })
-                  }
-                  action={<Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}>
+                    router.push({ pathname: '/game-info/[id]', params: { id: data.id } })
+                  }>
                   <Text variant="body" color="textSecondary">
-                    <Text variant="h4">
-                      {unlockedCount}/{achievementTotal}
-                    </Text>
-                    {' unlocked. Tap to see every one.'}
+                    Awards, cast and crew, from Wikidata.
                   </Text>
                 </InfoCardButton>
-              )
-            )}
+              )}
 
-            {data.storeUrl && (
-              <ExternalLink
-                href={data.storeUrl as Href & string}
-                label={`Open ${data.title} on ${data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}`}>
-                <Text variant="h5" style={{ color: accent.onSurface }}>
-                  Open on {data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}
-                </Text>
-              </ExternalLink>
-            )}
-          </View>
+              {/*
+                Series and lineage, and which one you get depends on what this
+                game *is*. A remake, remaster, DLC or edition shows the game it
+                came from and no franchise rail; an original shows its series —
+                originals only, see `ORIGINALS_ONLY` — and its own versions.
+              */}
+              {data.edition && data.parentId ? (
+                <OriginalGame parentId={data.parentId} edition={data.edition} />
+              ) : (
+                <GameEditions gameId={data.id} />
+              )}
+
+              {/* Franchise. IGDB models a numbered series as `collection` and the
+                  wider brand as `franchises`; the collection is the more useful
+                  of the two, so it wins when both exist. Hidden on a derivative —
+                  the section above already places it. */}
+              {!data.edition && franchiseGames.data && franchiseGames.data.length > 1 && (
+                <Section title={extras.data?.collection?.name ?? 'Franchise'}>
+                  <GameCoverRail
+                    games={franchiseGames.data.filter((entry) => entry.id !== data.id)}
+                  />
+                </Section>
+              )}
+
+              {/* A failed fetch used to leave `achievementTotal` at 0 and take the
+                  whole section with it — silently, and identically to a game that
+                  genuinely tracks none. The count is the section's own claim, so
+                  it cannot be rendered from a number the app never received. */}
+              {achievements.isError ? (
+                <InfoCard title="Achievements">
+                  <Text variant="body" color="textSecondary">
+                    Could not load achievements. Pull to refresh, or try again later.
+                  </Text>
+                </InfoCard>
+              ) : (
+                achievementTotal > 0 && (
+                  <InfoCardButton
+                    title="Achievements"
+                    accessibilityLabel={`All ${achievementTotal} achievements`}
+                    onPress={() =>
+                      router.push({ pathname: '/achievements/[id]', params: { id: data.id } })
+                    }>
+                    <Text variant="body" color="textSecondary">
+                      <Text variant="h4">
+                        {unlockedCount}/{achievementTotal}
+                      </Text>
+                      {' unlocked. Tap to see every one.'}
+                    </Text>
+                  </InfoCardButton>
+                )
+              )}
+
+              {data.storeUrl && (
+                <View style={{ paddingHorizontal: sections.inset }}>
+                  <ExternalLink
+                    href={data.storeUrl as Href & string}
+                    label={`Open ${data.title} on ${data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}`}>
+                    <Text variant="h5" style={{ color: accent.onSurface }}>
+                      Open on {data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}
+                    </Text>
+                  </ExternalLink>
+                </View>
+              )}
+            </View>
+          </SectionInsetProvider>
         );
     }
   }
@@ -1379,13 +1252,6 @@ const styles = StyleSheet.create({
   studios: { gap: Spacing.x4 },
   studioRow: { paddingVertical: Spacing.x4 },
   studioName: { flexShrink: 1 },
-  synopsisToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: Spacing.x4,
-    minHeight: TapTarget,
-  },
   /*
    * `five` between groups, not `four` between every child.
    *
@@ -1440,21 +1306,15 @@ const styles = StyleSheet.create({
     gap: Spacing.x8,
   },
   tabBody: { padding: Spacing.x16, gap: Spacing.x16 },
+  /* No sideways padding: every section takes the inset it is handed, so a
+     rail can run edge to edge. The gap between sections is set inline. */
+  overview: { paddingTop: Spacing.x8, paddingBottom: Spacing.x16 },
   copyLines: { gap: 2 },
   /* A step more than the tab's own rhythm between the community's list and
      IGDB's, so they read as two sections rather than one list with a break. */
   similarSection: { gap: Spacing.x12, marginTop: Spacing.x24 },
   similarHead: { gap: 2 },
   reviewRow: { marginBottom: Spacing.x12 },
-  seeAll: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.x16,
-    minHeight: TapTarget,
-    borderRadius: Radius.control,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  shots: { gap: Spacing.x12, paddingRight: Spacing.x16 },
-  shot: { width: 260, aspectRatio: HeroAspectRatio, borderRadius: Radius.image },
+  /* The size comes from the rail; the corner is the app's box-art corner. */
+  shot: { borderRadius: Radius.image },
 });

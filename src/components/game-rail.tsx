@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
@@ -9,6 +9,7 @@ import Animated, {
 
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { ArtRail } from '@/components/ui/section';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { useRailDrift, type RailGeometry } from '@/hooks/use-rail-drift';
@@ -86,6 +87,57 @@ export function GamePosterRail({
       initialNumToRender={RAIL_FIRST}
       windowSize={3}
       renderItem={({ item, index }) => <RailPoster game={item} index={index} scrollX={driver} />}
+    />
+  );
+}
+
+/** What a cover rail needs of a game — a search result or a full record. */
+export type CoverRailGame = Pick<
+  GameSearchResult,
+  'id' | 'title' | 'coverUrl' | 'heroUrl' | 'edition' | 'releaseYear'
+>;
+
+/**
+ * Games as a game page's section draws them: SimpMusic's "Singles" and
+ * "Albums" rails with box art in place of album squares — each cover at the
+ * albums' height (`<ArtRail>`, shape `cover`), its title under it and one quiet
+ * line under that, the release year unless the caller says otherwise.
+ *
+ * The rail for the sections of a game's own page. Home, the studio page and
+ * the other bands keep `<GamePosterRail>`: they are lists of many games, where
+ * art this size would show two at a time.
+ */
+export function GameCoverRail({
+  games,
+  subtitleOf = (game) => (game.releaseYear === null ? null : String(game.releaseYear)),
+  labelOf,
+}: {
+  games: readonly CoverRailGame[];
+  subtitleOf?: (game: CoverRailGame) => string | null;
+  /** What a screen reader says for a cover, when its title alone is not enough. */
+  labelOf?: (game: CoverRailGame) => string;
+}) {
+  const router = useRouter();
+
+  return (
+    <ArtRail
+      data={games}
+      keyOf={(game) => game.id}
+      shape="cover"
+      renderArt={(game, size) => (
+        <Poster
+          coverUrl={game.coverUrl}
+          heroUrl={game.heroUrl}
+          title={game.title}
+          edition={game.edition}
+          width={size.width}
+          rounded="image"
+        />
+      )}
+      titleOf={(game) => game.title}
+      subtitleOf={subtitleOf}
+      labelOf={labelOf}
+      onPressItem={(game) => router.push({ pathname: '/game/[id]', params: { id: game.id } })}
     />
   );
 }

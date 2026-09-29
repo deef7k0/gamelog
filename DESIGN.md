@@ -322,7 +322,8 @@ rounded:
   control: "20px"
   # Cards, notices, selection cards (the reference's Server options are 16).
   card: "16px"
-  # The game page's Material 3 panels (<InfoCard>). Preserved.
+  # The Card `panel` variant and the welcome screen. It was the game page's
+  # <InfoCard> panels until those became SimpMusic's description card (§ 14).
   cardLarge: "18px"
   # Every field — text, text area, select, search: the reference's 18. Squarer
   # than a button's full pill, so a field and its button read as two objects.
@@ -891,7 +892,8 @@ the studio page, the game page's stats and cards, the collection rows.
   `bodySmall` line under them — a game in a collection, a collection in a list,
   a search result.
 - **Sections breathe.** ~32dp between sections, ~16dp from a heading to what it
-  heads (`<HomeSection>`: `x24`), ~15dp inside a card (`<InfoCard>`: `x24`).
+  heads (`<HomeSection>`: `x24`), ~15dp inside a card. The game page's sections
+  are measured from the reference's artist page instead (§ 14).
 - **A header over artwork** puts the title first, then a row: the subject on the
   left (a bold figure over a quiet line) and one measurement on the right,
   right-aligned (label over value). The studio page is the worked example: its
@@ -1335,7 +1337,7 @@ Named for **what they wrap**, not for how big they are.
 | `Radius.pill`      |   999 | Every button, filter, tab, chip and the search pill      |
 | `Radius.control`   |    20 | Pressable controls that are not buttons: toggles, segments|
 | `Radius.card`      |    16 | Cards, notices, list tiles, selection cards, menu rows  |
-| `Radius.cardLarge` |    18 | The game page's `<InfoCard>` panels — preserved          |
+| `Radius.cardLarge` |    18 | The `Card` panel variant, the welcome screen             |
 | `Radius.input`     |    18 | Every field: text, text area, select, search            |
 | `Radius.sheet`     |    24 | Bottom sheets (top corners), dialogs, menus             |
 
@@ -1636,6 +1638,42 @@ screenshots follow in tabs.
 │  tabs: soundtrack / achievements / …     │
 └──────────────────────────────────────────┘
 ```
+
+## 14.1 The Overview tab — SimpMusic's artist page
+
+Below the tabs the page is the reference's artist page, section for section
+(`ArtistScreen.kt`): a bold heading on the page, and under it either a **rail of
+art** — screenshots, events, the original game, editions, the franchise, as its
+"Singles" and "Albums" are — or a **card** of words and figures, as its
+"Description" is. A heading may end in the reference's **More**, one quiet word
+that goes to the rest of the section.
+
+```text
+Screenshots
+[ 16:9 ][ 16:9 ][ 16…                      ← the reference's video height
+About                               Details
+┌──────────────────────────────────────┐
+│ Five lines of synopsis…              │    ← the description card
+│ More                                 │    ← opens in place, animated
+└──────────────────────────────────────┘
+Editions & extras
+[cover][cover][cover][co…                  ← 2:3 at the album height
+Title   Title   Title
+2019    2020    2021
+```
+
+- **Sizes are fractions of the display**: the reference's dp over the 360dp
+  phone it was measured on, where its 180dp album art is half the width
+  (`useSectionMetrics`). Inset 20, heading row 40, items 20 apart, card 8 in the
+  corner and 16 in. Type stays on the scale — `h2` headings, `itemTitle` over
+  `bodySmall` under the art, `body` in a card.
+- **The card** is filled with the game's `primaryContainer` at half brightness —
+  the reference halves Palette's dark-vibrant swatch — with `Elevation.card`.
+  Every ink on it clears AA: `textSecondary` 6.4:1, `controlInk` 10.5:1.
+- **Opening in place** animates the height of a window onto the whole text,
+  250ms on FastOutSlowIn (`<ExpandableText>`), never the line clamp.
+- **The art keeps the app's corner** (`Radius.image`): the layout is the
+  reference's, the boxes are this app's.
 
 ---
 

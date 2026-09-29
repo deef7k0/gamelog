@@ -1,88 +1,73 @@
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import type { ReactNode } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 
-import { PressableScale } from '@/components/ui/pressable-scale';
-import { Text } from '@/components/ui/text';
-import { Radius, Spacing } from '@/constants/theme';
-import { useAccent } from '@/hooks/use-accent';
+import { Section, SectionCard, type SectionMoreProps } from '@/components/ui/section';
 
 export type InfoCardProps = {
   /**
-   * What the panel is about, in one or two words.
+   * What the section is about, in one or two words.
    *
-   * Required, and that is the point of the component. Every panel on the game
+   * Required, and that is the point of the component. Every section of the game
    * page states its own subject, so the tab reads as a set of answers rather
    * than as a scroll of blocks you have to identify from their contents.
    */
   title: string;
-  /** Right-hand furniture on the title row — a count, a chevron, a small link. */
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  /** A quiet fact at the right end of the heading — a count, a starting price. */
+  action?: ReactNode;
+  /** The heading's way onward: the reference's More. */
+  more?: SectionMoreProps;
+  /** A More that owns what it opens, such as a sheet's trigger. See `<SectionHeader>`. */
+  moreSlot?: ReactNode;
+  children: ReactNode;
   style?: StyleProp<ViewStyle>;
-  /** Drops the inner padding, for a card whose content reaches its own edges. */
+  /** Drops the card's inner padding, for content that reaches its own edges. */
   padded?: boolean;
 };
 
 /**
- * One panel of the game page: a titled card lit by the game's own hue.
+ * One section of a game's page that is words and figures rather than pictures:
+ * a heading, and under it a card holding what the heading names.
  *
- * ## Why it is lighter than the page, not darker
+ * ## SimpMusic's artist page, where this came from
  *
- * The Overview tab runs `<ScrollAmbience>` at full strength, so the page behind
- * these is already the game's colour. Every other grouped surface in this app
- * goes *down* from the page — `surface`, then `surfaceElevated` — because the
- * page is near-black and down is the only direction with room. Here it is the
- * other way round: the card has to lift off a lit backdrop, so it takes
- * `accent.card`, the lightest tinted step, carrying the most hue of the three.
+ * The owner's reference ends on "Description" — a bold white heading over an
+ * `ElevatedCard` holding the text — and that is the shape of every section here
+ * that has no artwork: the heading stands on the page and the card sits under
+ * it (see `<Section>` and `<SectionCard>` for the measurements). A section that
+ * *is* artwork — screenshots, a series, the events — has no card at all: its
+ * heading sits over a rail of the art (`<ArtRail>`), as "Singles" and "Albums"
+ * do. The title used to be inside a `cardLarge` panel of the page's own tone;
+ * the heading moved out and the card took the reference's corner and colour.
  *
- * That is the opposite of the game page's action keys directly above it, which
- * are `accent.elevated` and read as recessed *into* the page. The two are not
- * inconsistent — a control you press sits down, a panel you read sits up — and
- * the contrast between them is most of what stops the masthead and the tab body
- * reading as one undifferentiated column.
- *
- * ## Why the corner is `cardLarge` and not `card`
- *
- * See `Radius.cardLarge`. The short version: these are panels, not list rows,
- * and a container must not share the corner of the buttons inside it.
- *
- * ## No border, no shadow
- *
- * `Elevation.card` casts against a near-black page and is close to invisible on
- * a lit one; a hairline would be a second edge on a surface that already has a
- * four-step luminance jump to the page. The fill *is* the edge, which is the
- * Material 3 argument for tonal surfaces and the reason the tint has to be as
- * strong as it is.
+ * Every screen that uses this is about one game — its page, its additional
+ * information, its Similar tab — so all of them changed together.
  */
-export function InfoCard({ title, action, children, style, padded = true }: InfoCardProps) {
-  const accent = useAccent();
-
+export function InfoCard({
+  title,
+  action,
+  more,
+  moreSlot,
+  children,
+  style,
+  padded = true,
+}: InfoCardProps) {
   return (
-    <View style={[styles.card, { backgroundColor: accent.card }, padded && styles.padded, style]}>
-      <View style={[styles.head, !padded && styles.headInset]}>
-        {/* `h4`, not the `h6` this started at. Small, white and bold is the
-            brief, and `h6` is 11px with letter-spacing — a form-field caption,
-            not a title, and unreadable as the name of a panel you are meant to
-            scan past at arm's length. 14px bold is still the smallest heading in
-            the scale that reads as a heading. Not `label` for the same reason:
-            an all-caps tracked micro-line is a field label. */}
-        <Text variant="h4" accessibilityRole="header" style={styles.title}>
-          {title}
-        </Text>
-        {action}
-      </View>
-      {children}
-    </View>
+    <Section title={title} action={action} more={more} moreSlot={moreSlot}>
+      <SectionCard padded={padded} style={style}>
+        {children}
+      </SectionCard>
+    </Section>
   );
 }
 
 /**
- * The same panel, as one big button.
+ * The same section when it is a way *somewhere*: your copy, the additional
+ * information, the achievements, the community's picks.
  *
- * For the cards that are a way *somewhere* rather than a thing to read — the
- * studio catalogues, "More information", "View all achievements". It is a
- * separate component rather than an `onPress` prop on `<InfoCard>` so a reader
- * of either one can tell at a glance whether it is pressable, and so the
- * accessible role is never conditional.
+ * The heading carries the reference's More, and the card — which says what is
+ * there — is the same door, so either is the way in. A separate component
+ * rather than a prop so a reader can tell at a glance whether a section opens
+ * something, and the accessible role is never conditional.
  */
 export function InfoCardButton({
   title,
@@ -91,53 +76,18 @@ export function InfoCardButton({
   style,
   accessibilityLabel,
   onPress,
-}: Omit<InfoCardProps, 'padded'> & {
+  moreLabel,
+}: Omit<InfoCardProps, 'padded' | 'more' | 'moreSlot'> & {
   accessibilityLabel: string;
   onPress: () => void;
+  /** The More's word, when the way onward has a name of its own. */
+  moreLabel?: string;
 }) {
-  const accent = useAccent();
-
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      scaleTo={0.98}
-      style={StyleSheet.flatten([
-        styles.card,
-        styles.padded,
-        { backgroundColor: accent.card },
-        style,
-      ])}>
-      <View style={styles.head}>
-        <Text variant="h4" style={styles.title}>
-          {title}
-        </Text>
-        {action}
-      </View>
-      {children}
-    </PressableScale>
+    <Section title={title} action={action} more={{ label: moreLabel, accessibilityLabel, onPress }}>
+      <SectionCard onPress={onPress} accessibilityLabel={accessibilityLabel} style={style}>
+        {children}
+      </SectionCard>
+    </Section>
   );
 }
-
-const styles = StyleSheet.create({
-  /* The owner's reference cards breathe: 14 of inset and a clear step between
-     a title and what it titles. `x24` (15) and `x16` (10), up from 10 and 8. */
-  card: {
-    borderRadius: Radius.cardLarge,
-    gap: Spacing.x16,
-    overflow: 'hidden',
-  },
-  padded: { padding: Spacing.x24 },
-  head: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.x8,
-  },
-  /* An unpadded card still needs its title inset — the padding was dropped for
-     the *content* (a rail that runs to the edge), not for the heading. */
-  headInset: { paddingHorizontal: Spacing.x24, paddingTop: Spacing.x24 },
-  /* Shrinks rather than pushing a count or a chevron off the row. */
-  title: { flexShrink: 1 },
-});

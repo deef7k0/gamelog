@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { InfoCardButton } from '@/components/ui/info-card';
+import { SectionMore } from '@/components/ui/section';
 import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
@@ -38,27 +39,28 @@ import { parseGameId } from '@/lib/games';
  * warning a game page has, and whether a game is playable in your language is a
  * purchase decision rather than trivia.
  *
- * ## Two triggers, and why the card one is no longer the default
+ * ## Three triggers
  *
- * `trigger="row"` is what the game page uses: a single control at the foot of
- * the **About** card, shaped exactly like "See all reviews" at the foot of the
- * Reviews card. That is where it belongs — the synopsis and the full record are
- * the same subject at two depths, and as its own panel it was a second box
- * saying "there is more about this game" directly under the box that *was* more
- * about this game. It also drops the description line: a footer under a
- * paragraph does not need to list what is behind it, and the row is the way out
- * of the paragraph rather than an advertisement for another page.
+ * `trigger="more"` is what the game page uses: the **About** heading's way
+ * onward, the reference's More at the end of the heading row, named "Details" —
+ * the synopsis and the full record are one subject at two depths, so the record
+ * belongs to the synopsis's heading rather than to a second section. The card
+ * under that heading has a More of its own, which opens the synopsis in place.
  *
- * `trigger="card"` keeps the standalone `<InfoCardButton>` for any caller that
- * has no card to sit inside.
+ * `trigger="row"` is a control at the foot of another card, which is where the
+ * page had it before the sections became SimpMusic's. `trigger="card"` is a
+ * section of its own, for a caller with neither a heading nor a card to lend.
  */
 export function GameDetailsSheet({
   gameId,
   trigger = 'card',
 }: {
   gameId: string;
-  /** `row` for a footer inside another card; `card` for a panel of its own. */
-  trigger?: 'card' | 'row';
+  /**
+   * `more` for a heading's way onward, `row` for a footer inside another card,
+   * `card` for a section of its own.
+   */
+  trigger?: 'card' | 'row' | 'more';
 }) {
   const theme = useTheme();
   const accent = useAccent();
@@ -81,8 +83,14 @@ export function GameDetailsSheet({
   if (!igdbId) return null;
 
   return (
-    <View style={trigger === 'row' ? undefined : styles.wrap}>
-      {trigger === 'row' ? (
+    <View style={trigger === 'card' ? styles.wrap : undefined}>
+      {trigger === 'more' ? (
+        <SectionMore
+          label="Details"
+          accessibilityLabel="More information about this game"
+          onPress={() => setOpen(true)}
+        />
+      ) : trigger === 'row' ? (
         /* The footer of the card it sits in. Deliberately identical to "See all
            reviews" on the Reviews card — same fill, same height, same chevron —
            because the two answer the same shape of question and a second footer
@@ -106,8 +114,7 @@ export function GameDetailsSheet({
         <InfoCardButton
           title="More information"
           accessibilityLabel="More information about this game"
-          onPress={() => setOpen(true)}
-          action={<Ionicons name="chevron-forward" size={18} color={accent.quietInk} />}>
+          onPress={() => setOpen(true)}>
           <Text variant="body" color="textSecondary">
             Genres, themes, modes, perspectives, engines, age ratings and languages.
           </Text>

@@ -7,8 +7,8 @@ import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-n
 
 import { CollectionMosaic } from '@/components/collection-mosaic';
 import { Avatar } from '@/components/ui/avatar';
+import { ExpandableText } from '@/components/ui/expandable-text';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { RichText } from '@/components/ui/rich-text';
 import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Text } from '@/components/ui/text';
 import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
@@ -136,7 +136,6 @@ export function CollectionHeader({
 }: CollectionHeaderProps) {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
-  const [expanded, setExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const items = collection.items ?? [];
@@ -310,29 +309,15 @@ export function CollectionHeader({
           list itself on the first screenful.
         */}
         {description ? (
+          /* SimpMusic's description, opening in place: the text's window grows
+             to the whole of it rather than the clamp jumping (see
+             `<ExpandableText>`). Its More shows until the text is measured and
+             goes if the description already fits — never a More that opens
+             three lines you had already read. */
           <View style={styles.about}>
-            <RichText
-              variant="body"
-              color="textSecondary"
-              numberOfLines={expanded ? undefined : DESCRIPTION_LINES}>
+            <ExpandableText rich lines={DESCRIPTION_LINES} subject="the description">
               {description}
-            </RichText>
-
-            {/* Shown unconditionally rather than measured. `onTextLayout` would
-                tell us whether the clamp actually bit, but it costs a render
-                pass on every description and gets it wrong on the first frame;
-                a "See more" that opens three lines you had already read is a far
-                smaller cost than a truncated argument with no way in. */}
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={expanded ? 'Show less' : 'Show the full description'}
-              onPress={() => setExpanded((open) => !open)}
-              hitSlop={Spacing.x8}
-              scaleTo={0.98}>
-              <Text variant="h5" color="textSecondary">
-                {expanded ? 'Less' : 'More'}
-              </Text>
-            </PressableScale>
+            </ExpandableText>
           </View>
         ) : (
           <Text variant="body" color="textMuted">

@@ -7,6 +7,7 @@ import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import { ReportFlag, reportHref } from '@/components/report-flag';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { ExpandableText } from '@/components/ui/expandable-text';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
@@ -466,10 +467,12 @@ const UPVOTE_SLOP = { top: 12, bottom: 12, left: 8, right: 4 };
  * One person's suggestion: who and when, what they wrote, then the reasons they
  * ticked, its upvotes and a flag to report it.
  *
- * The text stops at five lines with an ellipsis; tapping the card opens it in
- * place, and tapping again closes it. In place rather than on another screen,
- * because a suggestion is a paragraph, not an article — and only when there is
- * more to show, so a short one is not a button that does nothing.
+ * The text stops at five lines, with More under it; tapping the card opens it
+ * in place — the card growing, the way SimpMusic's description card does (see
+ * `<ExpandableText>`) — and tapping again closes it. In place rather than on
+ * another screen, because a suggestion is a paragraph, not an article — and
+ * only when there is more to show, so a short one is not a button that does
+ * nothing.
  */
 function SuggestionCard({
   pairId,
@@ -494,8 +497,8 @@ function SuggestionCard({
   const name = displayNameFor(entry);
   const text = entry.comment?.trim() ?? '';
   const [expanded, setExpanded] = useState(false);
-  /* Known once the text has been laid out at the clamp: iOS reports every line,
-     Android the visible ones, so "reached the clamp" is the test both agree on. */
+  /* Known once the text has been laid out — the whole of it, so both
+     platforms report every line. */
   const [clamped, setClamped] = useState(false);
 
   /* The padding and the rhythm on a view inside the card, not on the card:
@@ -523,15 +526,9 @@ function SuggestionCard({
         </View>
 
         {!!text && (
-          <Text
-            variant="body"
-            color="textSecondary"
-            numberOfLines={expanded ? undefined : CLAMP}
-            onTextLayout={(event) => {
-              if (!expanded && event.nativeEvent.lines.length >= CLAMP) setClamped(true);
-            }}>
+          <ExpandableText lines={CLAMP} expanded={expanded} onOverflowChange={setClamped}>
             {text}
-          </Text>
+          </ExpandableText>
         )}
 
         <View style={styles.cardFoot}>

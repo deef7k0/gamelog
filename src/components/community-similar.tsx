@@ -7,6 +7,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { InfoCardButton } from '@/components/ui/info-card';
+import { useSectionMetrics } from '@/components/ui/section';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
@@ -61,6 +62,7 @@ export function CommunitySimilarCard({
 }) {
   const theme = useTheme();
   const router = useRouter();
+  const sections = useSectionMetrics();
   const userId = useAuth((state) => state.session?.user.id) ?? null;
 
   const picks = useQuery({
@@ -75,7 +77,8 @@ export function CommunitySimilarCard({
   if (picks.isLoading) {
     return (
       <View style={styles.card} accessibilityLabel="Loading community picks">
-        <Skeleton width="100%" height={112} radius={Radius.cardLarge} />
+        {/* The card's own corner, which is the section card's now. */}
+        <Skeleton width="100%" height={112} radius={sections.cardRadius} />
       </View>
     );
   }
@@ -116,8 +119,7 @@ export function CommunitySimilarCard({
       <InfoCardButton
         title="From the community"
         accessibilityLabel={`${count} ${count === 1 ? 'game' : 'games'} players say are like ${gameTitle}. See them all.`}
-        onPress={onOpen}
-        action={<Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}>
+        onPress={onOpen}>
         <View style={styles.preview}>
           {/* Stacked like the profile's shelf: the most agreed-with in front,
               each card a hairline and a short cast so two dark covers never

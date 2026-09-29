@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { ExpandableText } from '@/components/ui/expandable-text';
 import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -336,31 +337,16 @@ function AwardNote({ note, ruleColor }: { note: string; ruleColor: string }) {
       onPress={overflows ? () => setOpen((value) => !value) : undefined}
       scaleTo={overflows ? 0.99 : 1}
       style={StyleSheet.flatten([styles.note, { borderLeftColor: ruleColor }])}>
-      {/* No padding on this wrapper, so the measuring copy's `left: 0, right: 0`
-          is exactly the visible text's width. Measured inside the note's own
-          padding box instead, it would be laid out wider than the text it
-          stands in for, and would report fewer lines than there are. */}
-      <View>
-        <Text
-          variant="bodySmall"
-          color="textSecondary"
-          numberOfLines={open ? undefined : NOTE_LINES}
-          ellipsizeMode="tail">
-          {note}
-        </Text>
-
-        <View
-          pointerEvents="none"
-          style={styles.measure}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants">
-          <Text
-            variant="bodySmall"
-            onTextLayout={(event) => setOverflows(event.nativeEvent.lines.length > NOTE_LINES)}>
-            {note}
-          </Text>
-        </View>
-      </View>
+      {/* Opens in place, the note growing rather than its clamp jumping — the
+          text measures itself, so there is no hidden copy to lay out beside it
+          (see `<ExpandableText>`). */}
+      <ExpandableText
+        variant="bodySmall"
+        lines={NOTE_LINES}
+        expanded={open}
+        onOverflowChange={setOverflows}>
+        {note}
+      </ExpandableText>
     </PressableScale>
   );
 }
@@ -456,8 +442,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   note: { borderLeftWidth: 2, paddingLeft: Spacing.x12, marginTop: Spacing.x4 },
-  /* The note's invisible, unclamped twin. See `AwardNote`. */
-  measure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
   addNote: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4, marginTop: Spacing.x4 },
   /* A rule above the controls rather than a second surface step: the tools are
      part of this card, and another fill would read as a nested block. */

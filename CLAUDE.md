@@ -224,6 +224,13 @@ src/
                                         its place; see § Immersive pages
                      ui/smooth-scrim    SimpMusic's artworkScrimBrush: artwork
                                         melting into a page colour
+                     ui/section         SimpMusic's artist-page sections: the
+                                        heading + More, the description card,
+                                        the art rail, and `useSectionMetrics`
+                                        (its sizes as fractions of the display)
+                     ui/expandable-text text in a card that opens in place, the
+                                        window's height animating (the
+                                        reference's DescriptionView)
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
@@ -732,13 +739,17 @@ Commons — only ever a verified public-domain or CC0 file:
   tracked micro-labels on a stat strip, a masthead fact or a notice. A row or a
   card in a list titles itself in `itemTitle` (13 semibold) with a `bodySmall`
   line under it. Sections sit ~32dp apart with ~16dp from heading to content
-  (`<HomeSection>` uses `x24`); a card's inset is ~15dp (`<InfoCard>` uses
-  `x24`). The studio page's banner is the worked example: the name, then the
+  (`<HomeSection>` uses `x24`); a card's inset is ~15dp. The game page's
+  sections are measured from SimpMusic's artist page instead, as fractions of
+  the display — see the Overview bullet below. The studio page's banner is the worked example: the name, then the
   subject on the left (a bold figure over a quiet line) and one measurement on
   the right (label over value). **The reference's 24dp side margin was not
   adopted** — this app's 10dp margin is shared by every screen and its rails
   bleed off the left edge; widening one screen would misalign it with its own
-  rails, and widening all of them is its own decision.
+  rails, and widening all of them is its own decision. **The game page's
+  Overview tab is that decision, taken for one tab**: its sections sit at the
+  artist page's 20 (to scale), rails included, so nothing inside it misaligns —
+  the step is at the tab bar, between the masthead's 10 and the sections.
 - **Ratings** are an integer 0-100 on `logs.rating`; `constants/score.ts` maps
   that to a verdict band ("Excellent", "Mixed") and a colour.
 - **`logs.rating` is the only score anything reads.** A reviewer can score by
@@ -1011,15 +1022,44 @@ Commons — only ever a verified public-domain or CC0 file:
   its brightest pixels, so Home's greeting there is `textSecondary`; anything
   muted placed in that corner later needs the same step. `<SoftGlow>` itself
   survives for Surprise Me's bloom and swipe edge.
-- **The game page's Overview tab is cards, and `<InfoCard>` is the one
-  implementation.** Every section on it — About, Studios, Reviews, the insight
-  widgets, Where to buy, Editions, Franchise, Achievements — is
-  an `<InfoCard>` (read) or an `<InfoCardButton>` (a door), each stating its own
-  subject in an `h6` title. **Screenshots is the deliberate exception**: the art
-  is the content and a frame around a frame is a box in a box. `Radius.cardLarge`
-  (18) is theirs alone and was preserved through the control migration; what
-  separates a panel from the buttons inside it now is the fill step, not the
-  corner.
+- **The game page's Overview tab is SimpMusic's artist page, section for
+  section** — read from `ArtistScreen.kt`, `AdapterItems.kt` and
+  `DescriptionView.kt`, at the owner's direction. Every section is a heading on
+  the page (`h2`, the reference's 16sp bold) with its content under it, and
+  what the content is decides its shape:
+  - **Pictures → a rail, no card.** Screenshots, Featured in (events), Original
+    game, Editions & extras and the franchise are `<Section>` + `<ArtRail>`
+    (covers through `<GameCoverRail>`): the art, a two-line title always held
+    open, one quiet line — the reference's "Singles" / "Albums". Covers are 2:3
+    at the albums' height; 16:9 art is at its videos' height. The art keeps the
+    app's `Radius.image`: the rails are SimpMusic's, the boxes are this app's.
+  - **Words and figures → a card.** About, Where to buy, Your copy, Reviews,
+    Time to beat, Developers, Additional information and Achievements are
+    `<InfoCard>` (read) or `<InfoCardButton>` (a door, whose heading carries the
+    reference's More and whose card is the same door). The card is the
+    reference's description card: 8 in the corner, 16 in, filled with
+    `primaryContainer` at half brightness — SimpMusic halves Palette's
+    dark-vibrant swatch, and that is the tone the dynamic scheme holds.
+  - **A heading's More** (`<SectionMore>`) is the reference's `TextButton`: one
+    quiet word at the end of the heading row — all reviews, the copies, the
+    Wikidata screen, the achievements. About's is "Details", the full IGDB
+    record; its card has a More of its own that opens the synopsis in place.
+  - **Sizes are fractions of the display** (`useSectionMetrics`): the
+    reference's dp values over the 360dp phone it was measured on, where its
+    180dp album art is exactly half the width. Type stays on `Type`. The
+    Overview pads nothing sideways; `<SectionInsetProvider>` hands every
+    heading, card and rail the reference's inset, so a rail runs edge to edge
+    and still starts in line with its heading. Screens that pad themselves (the
+    additional-information screen, the Similar tab) leave the inset at 0.
+  - **A card that opens in place animates** (`<ExpandableText>`): the whole
+    text is laid out and the *height of its window* moves, 250ms on
+    FastOutSlowIn, the reference's own method — the clamp itself never
+    changes, which is what stops the text being cut before the box catches
+    up. Used by About, a collection's description, a similar pick's suggestion
+    and an award's note. Lists that grow ("Show all 24") are not text and still
+    step.
+  Nothing here is `Radius.cardLarge` any more; the token survives for the
+  `Card` panel variant and the welcome screen.
 - **A hidden game is a promise, not a preference.** Double-tapping a cover in
   Surprise Me writes it to `lib/surprise-hidden.ts` and it never comes up again.
   **The card does not change when you hide it** — the gesture means "not in

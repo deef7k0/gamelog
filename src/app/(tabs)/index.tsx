@@ -343,14 +343,17 @@ export default function HomeScreen() {
         <View style={styles.masthead}>
           <View style={styles.mastheadTitles}>
             <Text variant="h2">GameLog</Text>
-            <Text variant="bodySmall" color="textMuted">
+            {/* `textSecondary`, not `textMuted`: this line sits on the corner
+                light's brightest pixels, where the muted grey is under AA. */}
+            <Text variant="bodySmall" color="textSecondary">
               {greetingFor()}
             </Text>
           </View>
 
           <View style={styles.mastheadActions}>
-            {/* Round keys, as every icon-only control in the app now is. Not
-                `<IconButton>`, which has nowhere to hang the unread badge. */}
+            {/* Round keys in the action grey, as every icon-only control in the
+                app is. Not `<IconButton>`, which has nowhere to hang the unread
+                badge. */}
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={
@@ -358,12 +361,9 @@ export default function HomeScreen() {
               }
               onPress={() => router.push('/notifications')}
               scaleTo={0.92}
-              pressedColor={theme.surfaceSelected}
+              pressedColor={theme.controlPressed}
               focusRing={accent.ring}
-              style={StyleSheet.flatten([
-                styles.key,
-                { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-              ])}>
+              style={StyleSheet.flatten([styles.key, { backgroundColor: theme.controlFill }])}>
               <Ionicons name="notifications-outline" size={20} color={theme.text} />
               {unreadCount > 0 && (
                 /* Ringed in the page colour so the badge reads as sitting on
@@ -385,12 +385,9 @@ export default function HomeScreen() {
               accessibilityLabel="Settings"
               onPress={() => router.push('/settings')}
               scaleTo={0.92}
-              pressedColor={theme.surfaceSelected}
+              pressedColor={theme.controlPressed}
               focusRing={accent.ring}
-              style={StyleSheet.flatten([
-                styles.key,
-                { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-              ])}>
+              style={StyleSheet.flatten([styles.key, { backgroundColor: theme.controlFill }])}>
               <Ionicons name="settings-outline" size={19} color={theme.text} />
             </PressableScale>
           </View>
@@ -655,7 +652,6 @@ const styles = StyleSheet.create({
     width: TapTarget,
     height: TapTarget,
     borderRadius: TapTarget / 2,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

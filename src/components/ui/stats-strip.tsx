@@ -169,23 +169,24 @@ function StatCell({ cell }: { cell: StatsCell }) {
       */}
       {cell.empty ? (
         /*
-         * A sentence, not a unit — so sentence case, regular weight, two lines.
+         * A sentence, not a unit — so the caption step and two lines.
          *
-         * These were uppercase `h6` like the units above real numbers, and at 10px
-         * bold with tracking "LENGTH UNAVAILABLE" is about 117dp against the
-         * ~84dp a cell has on a 390dp phone, so every one of them truncated. The
-         * type floor is 10px and this stays on it; what makes it read smaller is
-         * the case. Lowercase sets on the x-height, roughly two thirds of a
-         * capital, so the same 10px is visibly quieter — the right register for
-         * an explanation sitting under an "N/A". Two lines because a sentence
-         * wraps where a unit may not; the fixed value row above is what stops
-         * the wrap from misaligning the strip.
+         * These were uppercase `h6`, and at 10px bold with tracking "LENGTH
+         * UNAVAILABLE" is about 117dp against the ~84dp a cell has on a 390dp
+         * phone, so every one of them truncated. The type floor is 10px and this
+         * stays on it, a step under the units' `bodySmall` — the right register
+         * for an explanation sitting under an "N/A". Two lines because a
+         * sentence wraps where a unit may not; the fixed value row above is what
+         * stops the wrap from misaligning the strip.
          */
         <Text variant="caption" numberOfLines={2} style={[styles.sentence, { color: labelColor }]}>
           {cell.label}
         </Text>
       ) : (
-        <Text variant="h6" numberOfLines={1} style={{ color: labelColor }}>
+        /* Sentence case, regular weight — the owner's reference sets a figure
+           over a quiet line ("53" / "Songs played"), and bold is kept for the
+           figure. These were uppercase `h6`, bold and tracked. */
+        <Text variant="bodySmall" numberOfLines={1} style={{ color: labelColor }}>
           {cell.label}
         </Text>
       )}
@@ -249,5 +250,5 @@ const styles = StyleSheet.create({
      values arrive. Read off `Type` rather than written as numbers: retuning the
      scale must move both together. */
   ghostValue: { width: 30, height: Type.h2.lineHeight, borderRadius: Radius.xs },
-  ghostLabel: { width: 50, height: Type.h6.lineHeight, borderRadius: Radius.xs },
+  ghostLabel: { width: 50, height: Type.bodySmall.lineHeight, borderRadius: Radius.xs },
 });

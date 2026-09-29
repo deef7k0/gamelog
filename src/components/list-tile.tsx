@@ -129,7 +129,7 @@ export const ListTile = memo(function ListTile({ list, engagement }: ListTilePro
                 style={styles.kindGlyph}
               />
             )}
-            <Text variant="h5" numberOfLines={2} style={styles.title}>
+            <Text variant="itemTitle" numberOfLines={2} style={styles.title}>
               {list.title}
             </Text>
           </View>

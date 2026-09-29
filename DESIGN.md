@@ -13,14 +13,23 @@ colors:
   # through `accentRoles`.
   background: "#0B0A0D"
   surface: "#141317"
-  # The resting fill of a control: a secondary button, an icon button, an
-  # unselected chip or pill. The reference's "interactive surface".
+  # Nested blocks and wells.
   surfaceElevated: "#1B1A20"
   surfaceSelected: "#24222A"
-  input: "#111014"
+  # The owner's reference, SimpMusic, measured from its code: a field's well is
+  # its onSurfaceVariant at 8% (#0F0F0F on black), an action's fill at 12%
+  # (#181818 on black). Translucent, so the lift is the same on every floor.
+  input: "rgba(255,255,255,0.06)"
+  controlFill: "rgba(255,255,255,0.094)"
+  controlPressed: "rgba(255,255,255,0.15)"
+  # The soft label on an action button (#D6D4D9 measured). 12.4:1 on its fill.
+  controlInk: "#D6D6D6"
+  # The resting edge of a choice — a selection card, a filter pill. Choices are
+  # outlined; actions are filled.
+  outline: "rgba(255,255,255,0.16)"
   hover: "rgba(255,255,255,0.04)"
   pressed: "rgba(255,255,255,0.07)"
-  # The 1px edge every resting control carries, and dividers. 1.15:1 on the page.
+  # Dividers. 1.15:1 on the page.
   border: "rgba(255,255,255,0.07)"
   # Unchanged: the protected game case's PC-cover frame is drawn in it.
   borderStrong: "rgba(255,255,255,0.12)"
@@ -173,27 +182,40 @@ typography:
     lineHeight: "13px"
     letterSpacing: "0.8px"
     textTransform: "uppercase"
-  # 13, up from 12, with the controls: a 48dp button with a 12px word read as
-  # a slab with a caption on it.
+  # 13 semibold, the reference's titleSmall: the small label in a 52dp pill.
   button:
     fontFamily: "Inter_600SemiBold"
     fontSize: "13px"
     fontWeight: 600
     lineHeight: "18px"
     letterSpacing: "0"
-  # A form field's label, set above the field at full-strength ink.
+  # A form field's label, small and medium weight, above the field.
   fieldLabel:
-    fontFamily: "Inter_600SemiBold"
-    fontSize: "13px"
-    fontWeight: 600
-    lineHeight: "18px"
+    fontFamily: "Inter_500Medium"
+    fontSize: "12px"
+    fontWeight: 500
+    lineHeight: "16px"
     letterSpacing: "0"
   # What is typed into a field. No lineHeight on purpose: on Android a
   # lineHeight on a TextInput clips descenders.
   fieldText:
     fontFamily: "Inter_400Regular"
-    fontSize: "14px"
+    fontSize: "13px"
     fontWeight: 400
+    letterSpacing: "0"
+  # The name on a selection card.
+  optionTitle:
+    fontFamily: "Inter_500Medium"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: "18px"
+    letterSpacing: "0"
+  # The title of a row or a card in a list — the reference's titleSmall.
+  itemTitle:
+    fontFamily: "Inter_600SemiBold"
+    fontSize: "13px"
+    fontWeight: 600
+    lineHeight: "18px"
     letterSpacing: "0"
   # Preserved — the game case keeps its own type. See § 2.3. Do not use elsewhere
   # and do not fold these into the scale above.
@@ -287,16 +309,16 @@ rounded:
   pill: "999px"
   # Role aliases.
   image: "4px"
-  # Every button and pressable control. A soft stadium at 48dp, a true pill at
-  # 40dp and under. Icon buttons are circles: size / 2, not a token.
+  # Pressable controls that are not buttons — toggles, segments. Buttons are
+  # full pills (`pill`); icon buttons are circles: size / 2, not a token.
   control: "20px"
+  # Cards, notices, selection cards (the reference's Server options are 16).
   card: "16px"
   # The game page's Material 3 panels (<InfoCard>). Preserved.
   cardLarge: "18px"
-  # Text and select fields: squarer than `control`, so a field and the button
-  # that submits it read as two objects. The search bar takes `pill`.
-  input: "16px"
-  inputArea: "20px"
+  # Every field — text, text area, select, search: the reference's 18. Squarer
+  # than a button's full pill, so a field and its button read as two objects.
+  input: "18px"
   # Bottom sheets (top corners), dialogs and menus.
   sheet: "24px"
   # Preserved — the game case keeps its own radii. See § 4.1. Do not fold these
@@ -336,7 +358,8 @@ layout:
   # `small` reaches the tap floor through vertical slop, and wrapped rows of
   # small controls are spaced by exactly the two slops (`SmallControlRowGap`)
   # so their touch boxes tile rather than overlap.
-  controlHeight: { small: "36px", medium: "48px", large: "60px" }
+  # The reference's: a button is 52 and a field 54.
+  controlHeight: { small: "36px", medium: "52px", field: "54px", large: "60px" }
   posterAspectRatio: "2:3"
   heroAspectRatio: "16:9"
   heroHeightRatio: 0.38
@@ -363,92 +386,99 @@ components:
     backgroundColor: "{colors.primaryMuted}"
     textColor: "{colors.primaryText}"
   # The app's one selected state (`useSelectable`), for every pressable control
-  # with an on/off: sort and filter pills, choice cards, segments, toggles.
+  # with an on/off: sort and filter pills, selection cards, segments, toggles.
+  # Choices are outlined at rest; actions are filled.
   selectable:
-    backgroundColor: "{colors.surfaceElevated}"
-    border: "1px {colors.border}"
+    backgroundColor: "transparent"
+    border: "1px {colors.outline}"
     textColor: "{colors.textSecondary}"
   selectable-selected:
-    backgroundColor: "accent wash (14%)"
-    border: "1px accent edge (45%)"
+    backgroundColor: "accent wash"
+    border: "1px accent edge"
     textColor: "{colors.text}"
   filter-pill:
     rounded: "{rounded.pill}"
     height: "{layout.controlHeight.small}"
     padding: "0 13px"
-  choice-card:
+  # The reference's Server option, from its code.
+  selection-card:
     rounded: "{rounded.card}"
-    padding: "10px 15px"
-    trailing: "radio mark"
-  button-primary:
-    backgroundColor: "accent (the house blue on house screens)"
-    textColor: "accent ink ({colors.onPrimary} on the house blue)"
-    pressedColor: "accent pressed (14% deeper)"
-    rounded: "{rounded.control}"
+    padding: "15px"
+    gap: "13px"
+    leading: "radio, 34px"
+    title: "{typography.optionTitle}"
+    hint: "{typography.bodySmall}, {colors.textSecondary}"
+  radio:
+    size: "34px (26px on a compact picker row)"
+    border: "1px text at 22%"
+    selected: "accent (legible) at 18% fill, accent check"
+  # Every action: the reference's "Create room".
+  button:
+    backgroundColor: "{colors.controlFill}"
+    pressedColor: "{colors.controlPressed}"
+    textColor: "{colors.controlInk}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
     height: "{layout.controlHeight.medium}"
     padding: "0 20px"
     border: none
-  button-secondary:
-    backgroundColor: "{colors.surfaceElevated}"
-    pressedColor: "{colors.surfaceSelected}"
-    textColor: "{colors.text}"
-    border: "1px {colors.border}"
-    rounded: "{rounded.control}"
-  button-ghost:
-    backgroundColor: "transparent"
-    pressedColor: "{colors.pressed}"
+    shadow: none
+  button-primary:
+    extends: button
     textColor: "{colors.text}"
   button-danger:
-    backgroundColor: "danger at 10%"
-    border: "1px danger at 30%"
+    extends: button
     textColor: "{colors.danger}"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "{colors.text}"
+  # The reference's disabled "Join room".
   button-disabled:
-    backgroundColor: "{colors.surfaceElevated}"
-    border: "1px {colors.border}"
+    backgroundColor: "transparent"
+    border: "1px {colors.borderStrong}"
     textColor: "{colors.textMuted}"
+  # The game page's review button only; its Material 3 treatment is preserved.
+  button-vivid:
+    backgroundColor: "accent, saturation lifted"
+    textColor: "readable ink"
   button-small:
     height: "{layout.controlHeight.small}"
     padding: "0 13px"
   button-large:
     height: "{layout.controlHeight.large}"
   icon-button:
-    backgroundColor: "{colors.surfaceElevated}"
+    backgroundColor: "{colors.controlFill}"
     rounded: "50%"
     size: "40px (32px small), touched at the tap floor"
-    border: "1px {colors.border}"
+    border: none
   focus-ring:
-    outline: "3px accent at 22%, outside the control's edge"
+    outline: "3px accent ring, outside the control"
+  # The reference's name field, from its code.
   input:
     backgroundColor: "{colors.input}"
-    border: "1px {colors.border}"
-    borderFocused: "1px accent edge + focus ring"
-    borderError: "1px {colors.danger}"
+    border: none
+    borderFocused: "1.5px accent (legible)"
+    borderError: "1.5px {colors.danger}"
     rounded: "{rounded.input}"
-    height: "{layout.controlHeight.medium}"
+    height: "{layout.controlHeight.field}"
     padding: "0 15px"
     typography: "{typography.fieldText}"
-    label: "{typography.fieldLabel}, above the field"
+    label: "{typography.fieldLabel}, above, 8px gap"
   textarea:
-    rounded: "{rounded.inputArea}"
+    extends: input
     minHeight: "120px"
   select:
     extends: input
     trailing: "chevron-down"
     menu: "{components.sheet}"
   search-bar:
-    backgroundColor: "{colors.input}"
-    rounded: "{rounded.pill}"
-    height: "{layout.controlHeight.medium}"
+    extends: input
     iconPosition: "leading"
   checkbox:
     size: "20px"
     rounded: "{rounded.md}"
     border: "1.5px {colors.borderStrong}"
     checked: "accent fill, accent ink check"
-  radio:
-    size: "20px"
-    border: "1.5px {colors.borderStrong}"
-    selected: "accent ring, accent dot"
   sheet:
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.sheet} (top corners)"
@@ -579,8 +609,9 @@ defined in the frontmatter, which is normative where this prose disagrees:
 
 - Dark only, and never true black. `#0B0A0D` is the floor — a near-black with
   a faint cool trace, darker than the blue-grey it replaced.
-- Depth is a *surface step* plus an edge, not a shadow: background → surface →
-  elevated, and a 1px `border` on every control.
+- Depth is a *surface step*, not a shadow: background → surface → elevated.
+  **Actions are filled** (a translucent grey pill) and **choices are outlined**
+  (an edge, no fill, until chosen).
 - One accent — **PlayStation blue** `#0070CC`, with `#2E93E8` for type — on
   selected nav, primary actions, selected and focused controls, and links. It
   is an accent, not a theme: most of any screen is black, near-black, grey and
@@ -592,10 +623,10 @@ defined in the frontmatter, which is normative where this prose disagrees:
   and cards at 16, sheets at 24, a pill for anything that filters or tags, a
   circle for a glyph on its own. Artwork keeps its small, square-ish corners.
 
-**The control language is a premium music player's.** Dark surfaces, large
-rounded controls, subtle 1px edges, generous height (48dp), the accent only where
-something is selected, focused or primary, soft pressed states, and next to no
-shadow. See § 9.
+**The control language is a premium music player's — specifically the owner's
+reference, SimpMusic, read from its source.** Grey pills for actions, soft wells
+for fields, outlined cards with a leading circle for choices, the accent only
+where something is selected, focused or primary, and next to no shadow. See § 9.
 
 The deliberate exceptions to all this restraint are the system's two **depicted
 physical objects** — the things that are drawn as objects rather than as
@@ -620,12 +651,15 @@ Six steps on one faint cool trace, and each one has a job.
   replaced the cool `#14171b` at the owner's request — darker, not bluer, not
   black.
 - **Surface** `#141317` — cards and the bottom bar. 1.068:1 against the page.
-- **Surface elevated** `#1B1A20` — a block inside a card, and the resting fill of
-  every control: a secondary button, an icon button, an unselected pill.
+- **Surface elevated** `#1B1A20` — a block inside a card, a thumbnail well.
 - **Surface selected** `#24222A` — the chip fill, and a control while pressed.
-- **Input** `#111014` — text fields and the search bar. Deliberately *darker*
-  than a card: an input is a well you type into, not an object sitting on the
-  page. Its 1px edge is what draws it on the page itself.
+- **Input** `rgba(255,255,255,0.06)` — every field's well, #0F0F0F on black:
+  the reference's name field. No border; the fill alone draws it.
+- **Control fill** `rgba(255,255,255,0.094)` — every action button and icon key,
+  #181818 on black: the reference's "Create room". A step lighter than a field,
+  so an action and the field it acts on are two objects. Its label is
+  `controlInk` `#D6D6D6`.
+- **Outline** `rgba(255,255,255,0.16)` — the resting edge of a choice.
 - **Hover** `rgba(255,255,255,0.04)` / **Pressed** `rgba(255,255,255,0.07)` —
   layered *over* a surface, never replacing it.
 - **Border** `rgba(255,255,255,0.07)` — dividers, and the 1px edge every resting
@@ -674,7 +708,10 @@ control, muted steps up to secondary: it is 4.32:1 on the accent's wash.
 | `surface`          | `#141317`                | Cards, tab bar, sheets                        |
 | `surfaceElevated`  | `#1B1A20`                | Nested block, every control's resting fill    |
 | `surfaceSelected`  | `#24222A`                | Chips, a control while pressed                |
-| `input`            | `#111014`                | Text fields, search bar                       |
+| `input`            | `rgba(255,255,255,.06)`  | Every field's well                            |
+| `controlFill`      | `rgba(255,255,255,.094)` | Every action button and icon key              |
+| `controlInk`       | `#D6D6D6`                | The label on an action button                 |
+| `outline`          | `rgba(255,255,255,.16)`  | A choice's resting edge                       |
 | `text`             | `#F5F5F5`                | Titles, headings, primary copy                |
 | `textSecondary`    | `#A8A8A8`                | Supporting copy                               |
 | `textMuted`        | `#8F8F8F`                | Metadata, timestamps, counts                  |
@@ -825,6 +862,39 @@ badge enough to truncate it on the 108dp case.
 > hand-drawn app type, in a different face and a different colour, flush against
 > a template PNG that is already finished artwork; the object read as a case
 > with something stuck to its edge. The template is the whole object.
+
+## 2.4 The reference's rhythm — bold for figures, quiet for everything else
+
+Taken from the owner's reference, SimpMusic's Analytics screen
+(`AnalyticsScreen.kt`), and applied where this app has the same kind of page —
+the studio page, the game page's stats and cards, the collection rows.
+
+- **Bold is for titles and figures only.** Everything that explains them is
+  regular, a step smaller and quieter. The reference sets its page title at 25
+  bold, its section headers and values at 16 bold, and every label, caption and
+  secondary line at 11–13 regular in a muted grey.
+- **A fact is a quiet label over a bold value** ("Total listened time" /
+  **2 h 19 min**), or a bold figure over a quiet line (**53** / "Songs played").
+  Label and value sit 2–4dp apart and read as one object.
+- **Sentence case, no tracking.** No uppercase micro-labels on a stat strip, a
+  masthead fact or a notice: "To beat", "Collections", "Planned release",
+  "Community". Acronyms stay acronyms (PEGI, ESRB).
+- **Rows and cards title themselves in `itemTitle`** (13 semibold) with a
+  `bodySmall` line under them — a game in a collection, a collection in a list,
+  a search result.
+- **Sections breathe.** ~32dp between sections, ~16dp from a heading to what it
+  heads (`<HomeSection>`: `x24`), ~15dp inside a card (`<InfoCard>`: `x24`).
+- **A header over artwork** puts the title first, then a row: the subject on the
+  left (a bold figure over a quiet line) and one measurement on the right,
+  right-aligned (label over value). The studio page is the worked example: its
+  name, then "*N* games" over its years, and "Average rating" over the score.
+- **The accent is not a number's colour.** The reference tints its secondary
+  figures ("13 min", "+15%") in its seed colour; here a *score* keeps its own
+  ramp (`scoreColor`), because a blue 55 reads as endorsed.
+
+The reference's 24dp side margin was **not** adopted: this app's 10dp margin is
+shared by every screen and its rails bleed off the left edge, so widening one
+screen would misalign it with its own rails.
 
 ---
 
@@ -1254,16 +1324,17 @@ Named for **what they wrap**, not for how big they are.
 | Alias              | Value | Wraps                                                   |
 | ------------------ | ----: | ------------------------------------------------------- |
 | `Radius.image`     |     4 | Covers, screenshots, thumbnails                          |
-| `Radius.control`   |    20 | Every button and pressable control                       |
-| `Radius.card`      |    16 | Cards, notices, list tiles, choice cards, menu rows     |
+| `Radius.pill`      |   999 | Every button, filter, tab, chip and the search pill      |
+| `Radius.control`   |    20 | Pressable controls that are not buttons: toggles, segments|
+| `Radius.card`      |    16 | Cards, notices, list tiles, selection cards, menu rows  |
 | `Radius.cardLarge` |    18 | The game page's `<InfoCard>` panels — preserved          |
-| `Radius.input`     |    16 | Text and select fields                                   |
-| `Radius.inputArea` |    20 | Multi-line text areas                                    |
+| `Radius.input`     |    18 | Every field: text, text area, select, search            |
 | `Radius.sheet`     |    24 | Bottom sheets (top corners), dialogs, menus             |
 
-A radius larger than half a control's side clamps to a pill, so `control` is a
-soft stadium on a 48dp button and a true pill on anything 40dp or shorter.
-Icon-only buttons are circles — `size / 2`, not a token.
+Buttons are full pills, as the reference's are. A radius larger than half a
+control's side clamps to a pill, so `control` is a soft stadium on a 48dp toggle
+and a true pill on anything 40dp or shorter. Icon-only buttons are circles —
+`size / 2`, not a token.
 
 **No one radius for everything.** A field is squarer than the button that
 submits it, and a sheet is rounder than the rows in it, so each reads as a
@@ -1392,84 +1463,89 @@ Five is the ceiling. A sixth destination means something belongs one level down.
 
 # 9. Buttons & Controls
 
-**The language of a premium music player.** Dark surfaces, large rounded
-controls, a subtle 1px edge on everything you can press, generous height,
-the accent only where something is selected, focused or primary, soft pressed
-states and next to no shadow. Controls are built from the primitives in
-`components/ui/`; a screen that draws its own control reads its colours from
-`useSelectable()` rather than restating them.
+**Read from the owner's reference, not traced from it.** SimpMusic is open source
+(`maxrave-dev/SimpMusic`), and every measurement below comes from its Compose
+code: `ListenTogetherScreen.kt` (the name field, "Create room", the disabled
+"Join room"), `ListenTogetherSettingsScreen.kt` (the Server options) and
+`AnalyticsScreen.kt` (§ 2.4). Go back to those files before changing a control.
+
+**Three families, told apart by fill.** Actions are **filled** grey pills.
+Fields are **soft wells**. Choices are **outlined** until chosen. The accent
+appears only on what is selected, focused, or — on a game's own page — the one
+vivid review button.
 
 **What kept its own treatment.** The game page's Material 3 cluster — the vivid
-pill "Write a review", the connected row of tonal action keys, the platform keys
-— and `<RoundAction>` on Surprise Me and a review are deliberate M3 designs and
-did not move. So did the collection header's white "Like" pill and round keys
-(a playlist hero), the sign-in providers' brand colours, and every *meaning*
+"Write a review" (`tone="vivid"`), the connected row of tonal action keys, the
+platform keys — and `<RoundAction>` on Surprise Me and a review. So did the
+collection header's white "Like" pill and round keys (a playlist hero), the
+sign-in providers' brand colours (on the shared pill shape), and every *meaning*
 colour: a log status fills with the status's hue, a platinum or spoiler toggle
-lights in its own colour. The physical game case and the dealt card are objects,
-not controls, and are untouched.
+lights in its own colour, a tier chip fills with its tier. The physical game
+case and the dealt card are objects, not controls, and are untouched.
 
-## 9.1 Buttons
+## 9.1 Buttons — every action is the same grey pill
 
-Four variants, one family. `Radius.control`, 48dp tall (36 small, touched at the
-floor through slop; 60 large), `button` type (13/18 semibold).
+The reference's "Create room": **52dp, fully round, filled `controlFill`**
+(#181818 on black), a small semibold label (`button`, 13) in the middle. One
+object for every action; the variants change the label, not the object:
 
-- **Primary** — filled with the accent in force (the house blue with white ink;
-  a game's own colour, with its own measured ink, on its screens). At most one
-  per screen. Held, it deepens to `accent.pressed`.
-- **Secondary** — `surfaceElevated` with a 1px `border`, `text` label. The
-  default. Held, `surfaceSelected`.
-- **Ghost** — no fill, no edge; a faint `pressed` fill while held. For an action
-  that must not draw the eye.
-- **Danger** — a subtle red: `danger` at 10% inside, 30% on the edge, a red
-  label. Destructive must not look safe, and must not outshout the artwork either.
+- **Primary** — the label a step brighter (`text`). At most one per screen.
+- **Secondary** — the label in `controlInk`, the reference's soft grey.
+- **Danger** — the same pill with a red label.
+- **Ghost** — no fill at all: a text action, like the reference's "Connect".
+- **Disabled** — the reference's disabled "Join room": no fill, a faint
+  `borderStrong` edge, a dimmed label. Told apart by shape as well as by
+  brightness, never by opacity alone.
 
-**Every state is drawn, not faded.** Pressed is a deeper fill plus a 3% sink
-(`PressableScale`'s `pressedColor`, eased on the UI thread, 150/200ms). Focused
-from a keyboard, a 3dp ring in `accent.ring` outside the edge. Disabled drops to
-the resting control surface with `textMuted` type — readable, and told apart
-without leaning on opacity. Loading keeps the button's colours and swaps the
-label for a spinner without resizing.
+36dp when small (touched at the floor through slop), 60dp when large. Held, the
+fill brightens to `controlPressed` and the pill sinks 3% (`PressableScale`'s
+`pressedColor`, eased on the UI thread). Focused from a keyboard, a 3dp ring in
+`accent.ring`. Loading keeps the pill and swaps the label for a spinner without
+resizing. No shadow.
 
 ## 9.2 Icon buttons
 
-Circles: 40dp (32 small) on `surfaceElevated` with a 1px edge, touched at the
-platform floor through vertical slop. `active` lights wash, edge and glyph in
-the accent; `danger` tints glyph and edge; `plain` drops fill and edge for rows
-that already have a container. The floating back/close disc (`<TopBarDisc>`) is
-a circle of frosted glass and stays glass.
+The round sibling: a circle in `controlFill` with no edge — the reference's
+glyph keys — drawn at 40dp (32 small) and touched at the platform floor through
+vertical slop. `active` lights wash, edge and glyph in the accent; `danger`
+reddens the glyph; `plain` drops the fill, for rows that already have a
+container. The floating back/close disc (`<TopBarDisc>`) is frosted glass and
+stays glass.
 
 ## 9.3 Fields
 
-A label above in `fieldLabel` (13 semibold, full-strength ink), then a recessed
-well: `input` fill, 1px `border`, `Radius.input`, 48dp, `fieldText` (14). Text
-areas take `Radius.inputArea` and start at 120dp. **Focus** lights the edge in
-`accent.edge` and draws the ring outside it; an **error** keeps the edge red
-until it is fixed, with the message under the field. `<SelectField>` is the same
-well with a chevron, opening a sheet; the search bar is the same well as a pill.
+The reference's name field: a label above in `fieldLabel` (12, medium), then a
+**soft well** — `input` (#0F0F0F on black), **no border**, `Radius.input` (18),
+54dp (`ControlHeight.field`), `fieldText` (13) with 15dp of side padding — and a
+hint or error under it, 8dp apart. **Focus** draws the accent's edge (1.5dp, in
+`accent.onSurface`), as the reference outlines the code box you are typing in;
+an **error** keeps the edge red until it is fixed. Text areas, `<SelectField>`
+(a chevron where the typing would be; its open sheet wears the same edge) and
+every search field are the same object.
 
-## 9.4 Selection
+## 9.4 Selection — choices are outlined
 
-**One selected state, everywhere** (`useSelectable()`): the accent's `wash`
-inside, its `edge` around, and the label up from `textSecondary` to `text`.
-Three carriers, only one of them a hue — the wash is lighter than the resting
-fill and the edge brighter than the resting edge, so a choice survives colour
-blindness and greyscale. It is used by sort and filter pills, choice cards,
-segments, toggles, the reviews filter button and the select sheet's rows.
+**One selected state, everywhere** (`useSelectable()`): at rest a choice has no
+fill and a 1px `outline`; chosen, the accent's `wash` inside, its `edge` around,
+and the label up from `textSecondary` to `text`. Three carriers, only one of them
+a hue — the wash is lighter than the bare page and the edge far brighter than
+the resting one, so a choice survives colour blindness and greyscale.
 
-- **Filter and sort pills** — `ControlHeight.small`, `Radius.pill`, 1px edge.
+- **Selection cards** (`<SelectionCard>`) — the reference's Server options:
+  `Radius.card` (16), 15dp padding, 13dp between parts, **a 34dp circle on the
+  leading edge**, then the name (`optionTitle`, 13 medium) and its hint
+  (`bodySmall`). The circle is an empty ring at rest; chosen, it fills with the
+  accent at 18% and holds a check. A report's reasons, a copy's condition, a
+  collection's type, the seven progress choices, a release, a select field's
+  options (`compact`, a 26dp circle) and the filter pickers (`frame="row"`,
+  bare until chosen) all use it.
+- **Filter and sort pills** — `ControlHeight.small`, `Radius.pill`, outlined.
   Wrapped rows are spaced by `SmallControlRowGap`, exactly the two slops that
   meet across the gap, so touch boxes tile and never overlap.
-- **Choice cards** — `<ChoiceChips withHints>`: one per row, name and hint and a
-  radio, `Radius.card`. A report's reasons, a copy's condition, a collection's
-  type.
-- **Checkbox and radio marks** — `<Checkbox>` and `<RadioMark>`, 20dp. Unchecked
-  is a ring in `borderStrong`; checked fills with the accent and holds its ink's
-  check; a chosen radio holds an accent dot. The row around them is the control.
+- **Checkboxes** — `<Checkbox>`, 20dp: an empty rounded square in `borderStrong`,
+  or the accent's fill with its ink's check. The row around it is the control.
 - **Tabs** — pills; the selected one takes the accent's wash and its label goes
   to the accent. `<TabBar>` and the News dock (a segmented capsule) both.
-
-There is no on/off switch in the app; boolean settings are checkbox rows or
-toggle pills, and a new one should be the same.
 
 ## 9.5 Sheets, dialogs and menus
 
@@ -1483,9 +1559,9 @@ platform's own dialog and is not ours to restyle.
 
 # 10. Search Bar
 
-A pill: `input` fill, 1px edge, 48dp, magnifier leading, the accent's edge and ring
-on focus. Every field that searches — the Search tab, the game pickers, a
-library's search — is this shape.
+A field like every other (§ 9.3) with a magnifier leading: the `input` well,
+no border, 18dp corners, 54dp, the accent's edge while focused. Every field that
+searches — the Search tab, the game pickers, a library's search — is this shape.
 
 ---
 
@@ -1504,8 +1580,8 @@ The metadata capsule, and the main reason this app is dense without being
 cramped: `📅 Played` · `⏱ 45h` · `🏁 Completed`.
 
 34 tall, `Radius.pill`, on `surfaceSelected`, **no edge and no shadow**. A filter
-pill is the same shape *with* a 1px edge, because a filter can be pressed and a
-fact cannot. Active chips take the accent's wash with accent text.
+pill is the same shape *outlined* and unfilled, because a filter is a choice and
+a fact is not. Active chips take the accent's wash with accent text.
 
 ---
 
@@ -1910,6 +1986,12 @@ physical objects kept theirs (§ 9).
 | Fields: `bodySmall` label, no edge, card shadow | `fieldLabel` above, 1px edge, accent focus ring |
 | Filter pills 44/48 tall, 6px corners | 36 tall pills touched at the floor, rows gapped by the slop |
 | Home's strong corner glow + a centred ambient light | The soft ambient light alone, moved into the corner glow's place |
+| **The reference pass** (SimpMusic's own code) | |
+| Buttons: accent-filled primary, grey-with-edge secondary, 48dp | Every action one grey pill: `controlFill`, 52dp, full round, small label; disabled outlined |
+| Fields: `input` #111014 + 1px edge, 16 radius, 48dp | A soft well: `input` 6% white, no border, 18 radius, 54dp; focus draws the accent's edge |
+| Choices: resting fill + edge; radio on the trailing edge, 20dp | Outlined, no fill; `<SelectionCard>` with a 34dp circle on the leading edge and a check |
+| Stat labels: uppercase `h6` (`TO BEAT`) | Sentence case `bodySmall` ("To beat"); rows title in `itemTitle` |
+| Home's light at 0.18 | 0.42, near the reference's own top light |
 
 The case came through this one unchanged too: its files were not touched, and
 the three text inks and `borderStrong` it reads were deliberately left at their

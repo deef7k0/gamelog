@@ -6,7 +6,7 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { useSelectable } from '@/components/ui/selectable';
-import { RadioMark } from '@/components/ui/selection-marks';
+import { SelectionCard } from '@/components/ui/selection-card';
 import { SelectField } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import {
@@ -189,41 +189,22 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
         {PROGRESS_CHOICES.map((choice) => {
           const selected = current === choice.key;
           const tint = statusColor(choice.status, theme);
-          const look = selectable(selected);
           return (
-            <PressableScale
+            <SelectionCard
               key={choice.key}
-              accessibilityRole="radio"
-              accessibilityState={{ selected, busy: choose.isPending }}
-              accessibilityLabel={choice.label}
-              accessibilityHint={choice.hint}
+              title={choice.label}
+              hint={choice.hint}
+              selected={selected}
               disabled={choose.isPending}
               onPress={() => (selected ? onClose() : choose.mutate(choice.key))}
-              scaleTo={0.98}
-              pressedColor={selected ? look.pressedColor : theme.pressed}
-              focusRing={look.focusRing}
-              style={StyleSheet.flatten([
-                styles.choice,
-                /* Flat until chosen: seven outlined rows would be a grid of
-                   boxes. The chosen one takes the app's selected state. */
-                selected
-                  ? look.style
-                  : { backgroundColor: 'transparent', borderColor: 'transparent' },
-              ])}>
-              {/* Glyph and word as well as hue: three of the seven share the
-                  "played" blue, and hue alone is never the carrier here. */}
-              <Ionicons name={selected ? choice.icon : choice.outline} size={22} color={tint} />
-              <View style={styles.choiceText}>
-                <Text variant="h5" color={look.label}>
-                  {choice.label}
-                </Text>
-                {/* Up a step when chosen: `textMuted` is under AA on the wash. */}
-                <Text variant="caption" color={selected ? 'textSecondary' : 'textMuted'}>
-                  {choice.hint}
-                </Text>
-              </View>
-              <RadioMark on={selected} />
-            </PressableScale>
+              /* Glyph and word as well as hue: three of the seven share the
+                 "played" blue, and hue alone is never the carrier here. The
+                 glyph rides with the name; the circle before it says which
+                 one is chosen. */
+              leading={
+                <Ionicons name={selected ? choice.icon : choice.outline} size={17} color={tint} />
+              }
+            />
           );
         })}
       </View>
@@ -291,16 +272,18 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
             }
             onPress={onOpenPlaythroughs}
             scaleTo={0.98}
-            pressedColor={theme.surfaceSelected}
+            pressedColor={theme.controlPressed}
             focusRing={accent.ring}
+            /* An action, so the action fill — grey, no edge — not a choice's
+               outline. */
             style={StyleSheet.flatten([
               styles.linkRow,
-              { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+              { backgroundColor: theme.controlFill, borderColor: 'transparent' },
             ])}>
             <Ionicons name="repeat" size={18} color={theme.textSecondary} />
             <View style={styles.choiceText}>
-              <Text variant="h5">Playthroughs</Text>
-              <Text variant="caption" color="textMuted">
+              <Text variant="itemTitle">Playthroughs</Text>
+              <Text variant="caption" color="textSecondary">
                 {runs > 0
                   ? `${runs} ${runs === 1 ? 'run' : 'runs'} — platform, dates, how far`
                   : 'Played it more than once? Log each run.'}
@@ -400,21 +383,8 @@ function PercentStepper({
 
 const styles = StyleSheet.create({
   body: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: Spacing.x16 },
-  choices: { gap: Spacing.x4 },
-  /* A row, not a chip: the hint is what lets seven choices be told apart without
-     reading all seven labels, and it needs the width. Transparent until chosen,
-     then the app's selected state (`useSelectable`). `Radius.card` — a choice
-     row is a selection card, the same shape as a report reason. */
-  choice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    minHeight: TapTarget + Spacing.x8,
-    paddingHorizontal: Spacing.x16,
-    paddingVertical: Spacing.x8,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-  },
+  /* The reference's rhythm between options. */
+  choices: { gap: Spacing.x12 },
   choiceText: { flex: 1, gap: 1 },
   details: { gap: Spacing.x16, paddingTop: Spacing.x16, borderTopWidth: StyleSheet.hairlineWidth },
   detail: { gap: Spacing.x8 },

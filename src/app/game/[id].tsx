@@ -48,6 +48,7 @@ import { getAchievementsForGame, getCopies, getMyLog, getTopGameReview, setLiked
 import type { GameLog } from '@/lib/database.types';
 import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
 import { getCollectionGames, getFranchiseGames, getGameExtras } from '@/lib/games/igdb';
+import { wikidataLookupFor } from '@/lib/wikidata';
 import { useAuth } from '@/store/auth';
 
 type GameTab = 'overview' | 'soundtrack' | 'similar';
@@ -572,8 +573,10 @@ export default function GameDetailScreen() {
           {data.score !== null && (
             <View style={styles.scoreRow}>
               <ScoreBadge score={data.score} size="small" />
-              <Text variant="h6" style={{ color: accent.quietInk }}>
-                COMMUNITY
+              {/* A quiet sentence-case label beside a bold figure — the owner's
+                  reference sets numbers that way, and keeps caps for nothing. */}
+              <Text variant="bodySmall" style={{ color: accent.quietInk }}>
+                Community
               </Text>
             </View>
           )}
@@ -1098,6 +1101,33 @@ export default function GameDetailScreen() {
                   ))}
                 </View>
               </InfoCard>
+            )}
+
+            {/*
+              Additional information — awards, cast and the people who made the
+              game, from Wikidata — under the studios: the companies, then the
+              people.
+
+              A door, like Achievements, not a panel: it is a screen of its own
+              and nothing is fetched until it is opened. The line under the title
+              says what is behind it, which is also what keeps it from reading as
+              a second "More information" — that one, at the foot of About, is
+              IGDB's record. Offered only when the game carries an id Wikidata
+              can be searched by (`wikidataLookupFor`); without one the screen
+              could only ever say it found nothing.
+            */}
+            {wikidataLookupFor(data) && (
+              <InfoCardButton
+                title="Additional information"
+                accessibilityLabel="View additional game information: awards, cast and credits"
+                onPress={() =>
+                  router.push({ pathname: '/game-info/[id]', params: { id: data.id } })
+                }
+                action={<Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}>
+                <Text variant="body" color="textSecondary">
+                  Awards, cast and crew, from Wikidata.
+                </Text>
+              </InfoCardButton>
             )}
 
             {/*

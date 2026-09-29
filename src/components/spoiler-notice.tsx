@@ -60,11 +60,8 @@ export function SpoilerNotice({
       accessibilityHint={hint}
       onPress={onPress}
       scaleTo={0.99}
-      pressedColor={theme.surfaceSelected}
-      style={StyleSheet.flatten([
-        styles.box,
-        { minHeight, borderColor: theme.border, backgroundColor: theme.surfaceElevated },
-      ])}>
+      pressedColor={theme.controlPressed}
+      style={StyleSheet.flatten([styles.box, { minHeight, backgroundColor: theme.controlFill }])}>
       <Ionicons name="eye-off-outline" size={22} color={theme.danger} />
       <Text variant="bodySmall" color="textSecondary" style={styles.label}>
         {label}
@@ -87,7 +84,6 @@ const styles = StyleSheet.create({
     gap: Spacing.x8,
     padding: Spacing.x16,
     borderRadius: Radius.card,
-    borderWidth: 1,
   },
   label: { textAlign: 'center' },
 });

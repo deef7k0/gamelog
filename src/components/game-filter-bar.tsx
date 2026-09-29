@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { useSelectable } from '@/components/ui/selectable';
+import { SelectionCard } from '@/components/ui/selection-card';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { ControlHeight, Elevation, Radius, SmallControlSlop, Spacing } from '@/constants/theme';
-import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { EARLIEST_IGDB_YEAR, getGenres, getPlatforms, type GameFilters } from '@/lib/games';
 
@@ -446,30 +446,13 @@ function SheetRow({
   active: boolean;
   onPress: () => void;
 }) {
-  const theme = useTheme();
-  const accent = useAccent();
-  const look = useSelectable()(active);
-
-  /* A long list, so the rows are flat until chosen — thirty outlined rows would
-     be a grid — and the chosen one takes the app's selected state, inset from
-     the sheet's edges so its rounded ends show. */
+  /* A long picker, so the rows are bare until chosen — thirty outlined cards
+     would be a wall of boxes around the words — with the circle on the leading
+     edge like every choice in the app. */
   return (
-    <PressableScale
-      accessibilityRole="radio"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      scaleTo={0.99}
-      pressedColor={active ? look.pressedColor : theme.pressed}
-      focusRing={look.focusRing}
-      style={StyleSheet.flatten([
-        styles.sheetRow,
-        active ? look.style : { backgroundColor: 'transparent', borderColor: 'transparent' },
-      ])}>
-      <Text variant="body" color={look.label} numberOfLines={1}>
-        {label}
-      </Text>
-      {active && <Ionicons name="checkmark" size={17} color={accent.onSurface} />}
-    </PressableScale>
+    <View style={styles.sheetRow}>
+      <SelectionCard title={label} selected={active} onPress={onPress} frame="row" compact />
+    </View>
   );
 }
 
@@ -527,17 +510,8 @@ const styles = StyleSheet.create({
   sheetList: { paddingBottom: Spacing.x32 },
   sheetEmpty: { padding: Spacing.x16 },
   sheetForm: { padding: Spacing.x16, gap: Spacing.x12 },
-  sheetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.x8,
-    marginHorizontal: Spacing.x8,
-    paddingHorizontal: Spacing.x16,
-    paddingVertical: Spacing.x12,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-  },
+  /* Inset from the sheet's edges so a chosen row's rounded ends show. */
+  sheetRow: { marginHorizontal: Spacing.x8 },
   yearBody: { maxHeight: 460 },
   yearColumns: { flexDirection: 'row', height: 300 },
   yearColumn: { flex: 1 },

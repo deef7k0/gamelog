@@ -122,7 +122,7 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
         </View>
 
         {playable && (
-          <View style={[styles.play, { borderColor: theme.border }]}>
+          <View style={[styles.play, { backgroundColor: theme.controlFill }]}>
             <Ionicons name={status.playing ? 'pause' : 'play'} size={18} color={theme.text} />
           </View>
         )}
@@ -158,7 +158,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

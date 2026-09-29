@@ -26,30 +26,32 @@ export type TextFieldProps = TextInputProps & {
    */
   trailing?: ReactNode;
   /**
-   * `search` is the pill: fully rounded ends, the same 48dp as a field. Used
-   * where the field *is* the screen's primary control rather than one row of a
-   * form.
+   * `search` centres a single line on the field's midline. Same shape and fill
+   * as every other field — a search bar is a field you type into.
    */
   variant?: 'field' | 'search';
 };
 
-/** The focus ring's width, outside the field's own edge — `PressableScale`'s. */
-const RING_WIDTH = 3;
+/**
+ * The edge a field wears while focused or in error, and the width it is always
+ * drawn at — transparent at rest, so focusing a field changes its colour and
+ * never its size.
+ */
+const EDGE = 1.5;
 
 /**
- * A text field: a label above, and a recessed well with a 1px edge.
+ * A text field: a label above, a hint or error below, and between them a soft
+ * grey well with no border.
  *
- * The fill is `input`, *darker* than a card — a field is a well you type into,
- * not an object sitting on the page — and on the page itself, where the two
- * fills are nearly the same, the edge is what draws it. The corner is
- * `Radius.input`, squarer than a button's, so a field and the button that
- * submits it read as two kinds of object; a text area takes the rounder
- * `inputArea` because it is taller, and the search bar is a pill.
+ * **The owner's reference, measured.** SimpMusic's "Display name" field: 54dp
+ * tall, 18dp corners, a fill of its `onSurfaceVariant` at 8% (#0F0F0F on black)
+ * and nothing drawn around it — the fill alone is the field. Text areas and the
+ * search bar are the same object; a multi-line field just grows.
  *
- * **Focus is lit in the accent**: the edge goes to `accent.edge` and a 3dp ring
- * in `accent.ring` appears outside it, so the field you are typing into is
- * never in doubt. An error wins over focus — the edge stays red while you fix
- * it, because the message under the field is still true until you have.
+ * **Focus is the accent's edge**, as the reference marks the box you are typing
+ * into, drawn in `accent.onSurface` so it holds on any page. An error wins over
+ * focus — the edge stays red while you fix it, because the message under the
+ * field is still true until you have.
  */
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
   {
@@ -74,7 +76,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   const search = variant === 'search';
   const disabled = editable === false;
 
-  const edge = error ? theme.danger : focused ? accent.edge : theme.border;
+  const edge = error ? theme.danger : focused ? accent.onSurface : 'transparent';
 
   /*
    * The visible `label` is a *sibling* `<Text>`, and React Native has no
@@ -124,20 +126,8 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       <View
         style={[
           styles.shell,
-          search && styles.shellSearch,
           multiline && styles.shellArea,
-          {
-            backgroundColor: theme.input,
-            borderColor: edge,
-          },
-          focused && !error
-            ? {
-                outlineColor: accent.ring,
-                outlineWidth: RING_WIDTH,
-                outlineStyle: 'solid',
-                outlineOffset: 0,
-              }
-            : null,
+          { backgroundColor: theme.input, borderColor: edge },
         ]}>
         {icon && <Ionicons name={icon} size={18} color={theme.textMuted} style={styles.icon} />}
         {field}
@@ -145,7 +135,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       </View>
 
       {(error || hint) && (
-        <Text variant="bodySmall" color={error ? 'danger' : 'textMuted'}>
+        <Text variant="bodySmall" color={error ? 'danger' : 'textSecondary'}>
           {error ?? hint}
         </Text>
       )}
@@ -154,20 +144,17 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 });
 
 const styles = StyleSheet.create({
-  /* `x12` (8) between the label, the well and the hint: close enough that the
-     three read as one field, far enough that the label is not the well's lid. */
+  /* 8 between the label, the well and the hint — the reference's spacing. */
   wrapper: { gap: Spacing.x12 },
-  /* No shadow: an input is a recess, and a recess does not cast. The 1px edge
-     is always drawn — transparent is never used — so focusing a field changes
-     its colour and never its size. */
+  /* No shadow and no resting border: the fill is the whole field. The edge is
+     always there at `EDGE` and only its colour changes. */
   shell: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: Radius.input,
-    borderWidth: 1,
+    borderWidth: EDGE,
   },
-  shellSearch: { borderRadius: Radius.pill, minHeight: ControlHeight.medium },
-  shellArea: { borderRadius: Radius.inputArea, alignItems: 'stretch' },
+  shellArea: { alignItems: 'stretch' },
   icon: { paddingLeft: Spacing.x24 },
   /* Sized to the floor even though its contents are a 20dp glyph: whatever the
      caller puts here is tappable often enough that it must not be the one
@@ -184,19 +171,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.x12,
     /* `fieldText` carries no `lineHeight`, deliberately: on Android a
        lineHeight on a TextInput clips descenders and fights the vertical
-       centring the min-height is doing. The border's 2dp come off the floor so
-       the whole field is `ControlHeight.medium`, not two more. */
+       centring the min-height is doing. The edge's two widths come off the
+       floor so the whole field is `ControlHeight.field`, not three more. */
     ...Type.fieldText,
-    minHeight: ControlHeight.medium - 2,
+    minHeight: ControlHeight.field - EDGE * 2,
   },
-  /* Vertically centred rather than top-padded: a pill with a single line of
-     text in it should have that line on its midline. */
+  /* Vertically centred rather than top-padded: a single line of text should
+     sit on the field's midline. */
   search: { paddingVertical: 0 },
   withIcon: { paddingLeft: Spacing.x12 },
   multiline: {
     minHeight: 120,
     textAlignVertical: 'top',
-    paddingTop: Spacing.x16,
-    paddingBottom: Spacing.x16,
+    paddingTop: Spacing.x20,
+    paddingBottom: Spacing.x20,
   },
 });

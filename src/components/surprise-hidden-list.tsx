@@ -106,15 +106,14 @@ export function SurpriseHiddenList({ userId }: SurpriseHiddenListProps) {
             : 'Hidden from Surprise Me, none'
         }
         scaleTo={0.98}
-        /* Open is a disclosure, not a choice, so it takes the neutral pressed
-           step rather than the accent's selected state. */
-        pressedColor={theme.surfaceSelected}
+        /* Open is a disclosure, not a choice, so it takes a brighter step of
+           the action grey rather than the accent's selected state. */
+        pressedColor={theme.controlPressed}
         onPress={() => setOpen((value) => !value)}
         style={StyleSheet.flatten([
           styles.row,
           {
-            backgroundColor: open ? theme.surfaceSelected : theme.surfaceElevated,
-            borderColor: open ? theme.borderStrong : theme.border,
+            backgroundColor: open ? theme.controlPressed : theme.controlFill,
           },
         ])}>
         <Ionicons name="eye-off-outline" size={20} color={theme.textSecondary} />
@@ -196,7 +195,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.x12,
     paddingHorizontal: Spacing.x16,
     borderRadius: Radius.card,
-    borderWidth: 1,
   },
   rowText: { flex: 1, gap: 2 },
   panel: { paddingHorizontal: Spacing.x4 },

@@ -197,10 +197,12 @@ export const GameActions = memo(function GameActions({
         <View style={[styles.unreleased, { borderColor: theme.border }]}>
           <Ionicons name="calendar-outline" size={16} color={accent.quietInk} />
           <View style={styles.unreleasedText}>
-            <Text variant="label" style={{ color: accent.quietInk }}>
-              PLANNED RELEASE
+            {/* Label over value, as the owner's reference sets a fact: the
+                label small and quiet, the value the bold line. */}
+            <Text variant="bodySmall" style={{ color: accent.quietInk }}>
+              Planned release
             </Text>
-            <Text variant="h5">{formatReleaseDate(game.releaseDate)}</Text>
+            <Text variant="itemTitle">{formatReleaseDate(game.releaseDate)}</Text>
           </View>
         </View>
       )}
@@ -226,9 +228,8 @@ export const GameActions = memo(function GameActions({
               edge had nothing to be an edge against — see the note on
               `ButtonProps.elevation`.
 
-              `pill` + `large`: the shape and weight of a transport control's
-              primary key. See the note on `ButtonProps.shape` for why this is
-              allowed to leave the app's shared `Radius.control`.
+              `large`: the weight of a transport control's primary key, closed
+              into the same full pill every button is.
 
               `tone="vivid"`: the fill carries the game's own colour at full
               strength rather than at the tone the accent uses everywhere else.
@@ -241,7 +242,6 @@ export const GameActions = memo(function GameActions({
             title={log ? 'Edit your review' : 'Write a review'}
             icon="create-outline"
             size="large"
-            shape="pill"
             tone="vivid"
             elevation="raised"
             fullWidth
@@ -337,8 +337,8 @@ const ACTION_ARRIVAL_STEP = 38;
  * as capsules parked next to each other. The outer ends keep the pill, so the
  * group still closes on itself — that contrast between a hard seam and a round
  * end is what says "one object, divided" rather than "five buttons". It is part
- * of the same narrow Material-3 exception the primary button's `shape="pill"`
- * documents — see `ButtonProps.shape` — and belongs to this cluster and nothing
+ * of the same narrow Material-3 exception the vivid review button documents —
+ * see `ButtonProps.tone` — and belongs to this cluster and nothing
  * else.
  */
 const GROUP_END = Radius.pill;

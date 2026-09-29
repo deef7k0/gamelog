@@ -181,7 +181,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
       ? {
           key: 'score',
           value: String(ratings.average),
-          label: ratings.total === 1 ? '1 RATING' : `${ratings.total} RATINGS`,
+          label: ratings.total === 1 ? '1 rating' : `${ratings.total} ratings`,
           tint: scoreColor(ratings.average, theme),
           onPress: onOpenReviews,
           a11y: `Rated ${ratings.average} out of 100 from ${ratings.total} ${
@@ -204,7 +204,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
       ? {
           key: 'lists',
           value: String(listCount),
-          label: listCount === 1 ? 'COLLECTION' : 'COLLECTIONS',
+          label: listCount === 1 ? 'Collection' : 'Collections',
           onPress: onOpenLists,
           a11y: `In ${listCount} ${listCount === 1 ? 'collection' : 'collections'}. Opens them.`,
         }
@@ -215,7 +215,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
              beside it, where an absence may be IGDB's silence rather than a fact.
              Inert, because the sheet behind it would open on an empty list. */
           value: '0',
-          label: 'COLLECTIONS',
+          label: 'Collections',
           a11y: 'Not in any collections yet.',
         },
 
@@ -306,11 +306,11 @@ function lengthOf(
 
   const pick =
     times.normally !== null
-      ? { seconds: times.normally, label: 'TO BEAT', spoken: 'to beat' }
+      ? { seconds: times.normally, label: 'To beat', spoken: 'to beat' }
       : times.hastily !== null
-        ? { seconds: times.hastily, label: 'RUSHED', spoken: 'rushing straight through' }
+        ? { seconds: times.hastily, label: 'Rushed', spoken: 'rushing straight through' }
         : times.completely !== null
-          ? { seconds: times.completely, label: 'TO 100%', spoken: 'to complete everything' }
+          ? { seconds: times.completely, label: 'To 100%', spoken: 'to complete everything' }
           : null;
 
   if (!pick) return null;

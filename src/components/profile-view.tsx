@@ -942,7 +942,7 @@ function Count({ value, label, href }: { value?: number; label: string; href?: H
   const body = (
     <>
       <Text variant="h4">{shown}</Text>
-      <Text variant="caption" color="textMuted" numberOfLines={1}>
+      <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
         {label}
       </Text>
     </>

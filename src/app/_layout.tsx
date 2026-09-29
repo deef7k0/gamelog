@@ -178,6 +178,7 @@ export default function RootLayout() {
                 <Stack.Screen name="game/[id]" />
                 <Stack.Screen name="profile/[id]" />
                 <Stack.Screen name="achievements/[id]" />
+                <Stack.Screen name="game-info/[id]" />
                 <Stack.Screen name="library/[id]" />
                 <Stack.Screen name="game-stats/[user]/[game]" />
                 <Stack.Screen name="playthroughs/[game]" />

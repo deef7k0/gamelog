@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { useSelectable } from '@/components/ui/selectable';
+import { SelectionCard } from '@/components/ui/selection-card';
 import { Text } from '@/components/ui/text';
-import { ControlHeight, Elevation, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
+import { ControlHeight, Elevation, Radius, Spacing, Type } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -67,7 +68,6 @@ export function SelectField({
 }: SelectFieldProps) {
   const theme = useTheme();
   const accent = useAccent();
-  const selectable = useSelectable();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
@@ -88,13 +88,13 @@ export function SelectField({
         accessibilityHint="Opens a list of choices"
         onPress={() => setOpen(true)}
         scaleTo={0.98}
-        pressedColor={theme.surface}
+        pressedColor={theme.controlFill}
         focusRing={accent.ring}
         style={StyleSheet.flatten([
           styles.shell,
-          /* The sheet is this field's focus: while it is open, the edge says
-             which field it belongs to. */
-          { backgroundColor: theme.input, borderColor: open ? accent.edge : theme.border },
+          /* The sheet is this field's focus: while it is open, the field wears
+             the accent's edge, as a text field does while you type in it. */
+          { backgroundColor: theme.input, borderColor: open ? accent.onSurface : 'transparent' },
         ])}>
         {selected?.icon && (
           <Ionicons name={selected.icon} size={16} color={selected.tint ?? theme.textSecondary} />
@@ -151,63 +151,45 @@ export function SelectField({
             showsVerticalScrollIndicator={false}>
             {options.map((option) => {
               const isSelected = option.value === value;
-              const look = selectable(isSelected);
               return (
-                <PressableScale
+                <SelectionCard
                   key={option.value}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: isSelected }}
+                  title={option.label}
+                  selected={isSelected}
+                  compact
                   onPress={() => choose(option.value)}
-                  scaleTo={0.99}
-                  pressedColor={look.pressedColor}
-                  focusRing={look.focusRing}
-                  style={StyleSheet.flatten([styles.option, look.style])}>
-                  {option.icon && (
-                    <Ionicons
-                      name={option.icon}
-                      size={18}
-                      color={option.tint ?? (isSelected ? theme.text : theme.textSecondary)}
-                    />
-                  )}
-                  <Text
-                    variant="body"
-                    color={look.label}
-                    numberOfLines={1}
-                    style={styles.optionLabel}>
-                    {option.label}
-                  </Text>
-
-                  {/* A value carried in from an older, unconstrained record.
-                      Kept and marked rather than dropped: silently deleting
-                      what someone typed is the one outcome worse than a typo. */}
-                  {option.foreign && (
-                    <Text variant="caption" color="textSecondary">
-                      SAVED
-                    </Text>
-                  )}
-
-                  {isSelected && <Ionicons name="checkmark" size={18} color={accent.onSurface} />}
-                </PressableScale>
+                  leading={
+                    option.icon ? (
+                      <Ionicons
+                        name={option.icon}
+                        size={16}
+                        color={option.tint ?? (isSelected ? theme.text : theme.textSecondary)}
+                      />
+                    ) : undefined
+                  }
+                  trailing={
+                    /* A value carried in from an older, unconstrained record.
+                       Kept and marked rather than dropped: silently deleting
+                       what someone typed is the one outcome worse than a typo. */
+                    option.foreign ? (
+                      <Text variant="caption" color="textSecondary">
+                        SAVED
+                      </Text>
+                    ) : undefined
+                  }
+                />
               );
             })}
 
+            {/* An action, not one of the choices, so it is drawn as one. */}
             {clearable && value !== '' && (
-              <PressableScale
-                accessibilityRole="button"
+              <Button
+                title="Clear"
+                icon="close"
+                variant="secondary"
+                fullWidth
                 onPress={() => choose('')}
-                scaleTo={0.99}
-                pressedColor={theme.pressed}
-                focusRing={accent.ring}
-                style={StyleSheet.flatten([
-                  styles.option,
-                  styles.clear,
-                  { borderColor: theme.border },
-                ])}>
-                <Ionicons name="close" size={18} color={theme.textMuted} />
-                <Text variant="body" color="textMuted" style={styles.optionLabel}>
-                  Clear
-                </Text>
-              </PressableScale>
+              />
             )}
           </ScrollView>
         </View>
@@ -220,15 +202,17 @@ const styles = StyleSheet.create({
   /* The same rhythm as `<TextField>`, so the two sit in one row without their
      labels or their wells disagreeing by a pixel. */
   wrapper: { gap: Spacing.x12 },
+  /* The text field's well exactly: 54 tall, 18 round, no resting border —
+     the 1.5 edge is always there and only its colour changes. */
   shell: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    minHeight: ControlHeight.medium,
+    minHeight: ControlHeight.field,
     paddingHorizontal: Spacing.x24,
     paddingVertical: Spacing.x12,
     borderRadius: Radius.input,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   value: { flex: 1 },
 
@@ -259,17 +243,5 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { ...Type.h4 },
   list: { flexGrow: 0 },
-  listContent: { gap: Spacing.x8, paddingBottom: Spacing.x8 },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    minHeight: TapTarget,
-    paddingHorizontal: Spacing.x24,
-    paddingVertical: Spacing.x12,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-  },
-  optionLabel: { flex: 1 },
-  clear: { backgroundColor: 'transparent' },
+  listContent: { gap: Spacing.x12, paddingBottom: Spacing.x8 },
 });

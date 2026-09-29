@@ -22,11 +22,14 @@ export type SelectableLook = {
  * selected control looks the same wherever it is, and changing what "selected"
  * means is an edit here rather than in thirty files.
  *
- * **Selected** is an accent wash inside, the accent's edge around, and the
- * label at full strength. **Resting** is the control surface with the subtle
- * edge and the label a step down. Three carriers, only one of them a hue — the
- * wash is lighter than the resting fill and the edge is brighter than the
- * resting edge, so the difference survives colour blindness and greyscale.
+ * **Choices are outlined; actions are filled.** The owner's reference is
+ * SimpMusic's Server options: at rest a choice is only an `outline` around the
+ * page (no fill), where every action button is a filled grey pill — so the two
+ * never read as the same kind of thing. **Selected** is an accent wash inside,
+ * the accent's edge around, and the label at full strength. Three carriers,
+ * only one of them a hue — the wash is lighter than the bare page and the edge
+ * far brighter than the resting one, so the difference survives colour
+ * blindness and greyscale.
  *
  * The accent is whichever is in force (`useAccent()`): the house blue on the
  * house screens, the game's own colour on its screens.
@@ -44,8 +47,9 @@ export function useSelectable(): (selected: boolean) => SelectableLook {
           label: 'text',
         }
       : {
-          style: { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-          pressedColor: theme.surfaceSelected,
+          /* `transparent`, not omitted: it is what the press fill eases in from. */
+          style: { backgroundColor: 'transparent', borderColor: theme.outline },
+          pressedColor: theme.pressed,
           focusRing: accent.ring,
           label: 'textSecondary',
         };

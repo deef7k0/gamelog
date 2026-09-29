@@ -642,12 +642,14 @@ export default function ListDetailScreen() {
               </Link>
             )}
 
+            {/* The reference's row: a semibold title over a quiet regular
+                line, 2 apart. */}
             <View style={styles.rowBody}>
-              <Text variant="h5" numberOfLines={2}>
+              <Text variant="itemTitle" numberOfLines={2}>
                 {item.game?.title ?? 'Unknown game'}
               </Text>
               {item.game?.release_year && (
-                <Text variant="caption" color="textMuted">
+                <Text variant="bodySmall" color="textMuted">
                   {item.game.release_year}
                 </Text>
               )}
@@ -663,12 +665,13 @@ export default function ListDetailScreen() {
                         setTier.mutate({ item, tier: item.tier === tier ? null : tier })
                       }
                       scaleTo={0.88}
+                      /* A choice: outlined at rest, filled with the tier's own
+                         colour once it is this row's tier. */
                       style={StyleSheet.flatten([
                         styles.tierChip,
-                        {
-                          backgroundColor:
-                            item.tier === tier ? tierColor(tier, theme) : theme.surfaceElevated,
-                        },
+                        item.tier === tier
+                          ? { backgroundColor: tierColor(tier, theme), borderColor: 'transparent' }
+                          : { backgroundColor: 'transparent', borderColor: theme.outline },
                       ])}>
                       <Text
                         variant="caption"
@@ -770,7 +773,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  rowBody: { flex: 1, gap: Spacing.x4 },
+  rowBody: { flex: 1, gap: 2 },
   /* A notice with its one way out: a card's corner and edge, not a button's. */
   coverHint: {
     flex: 1,
@@ -801,6 +804,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: Radius.image,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

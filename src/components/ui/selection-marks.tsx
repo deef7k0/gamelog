@@ -1,12 +1,18 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
-import { Radius } from '@/constants/theme';
+import { Radius, withAlpha } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
-/** Both marks' edge, so a checkbox and a radio in one form are the same size. */
-const MARK = 20;
+/** The checkbox's edge. */
+const BOX = 20;
+
+/**
+ * The radio's diameter — the reference's 34dp, on a selection card. Dense
+ * lists pass a smaller `size`; the check scales with it.
+ */
+export const RADIO_SIZE = 34;
 
 /**
  * The box on a checkbox row. Not pressable on its own: the *row* is the control
@@ -36,15 +42,29 @@ export function Checkbox({ checked, disabled = false }: { checked: boolean; disa
 }
 
 /**
- * The dot on a single-choice row or card — a ring in the strong edge, or the
- * accent's ring holding the accent's dot. Like `<Checkbox>`, a drawing of the
- * state; the row it sits in is the control.
+ * The circle at the **leading** edge of a single-choice card or row — the
+ * owner's reference, SimpMusic's Server options, measured.
  *
- * Drawn in `onSurface`, the accent's legible form, rather than its fill: a thin
- * ring and a 10dp dot are closer to type than to a fill, and the house blue's
- * fill is only 3.29:1 on a selected card where its type twin is 5.07.
+ * 34dp. Unchosen, it is an empty ring in the page's own light grey at 22%.
+ * Chosen, the ring fills with the accent at 18% and holds a check in the
+ * accent — a check rather than a dot, because a dot in a ring is the platform
+ * radio and this is a larger, softer mark that reads at arm's length.
+ *
+ * Drawn in `onSurface`, the accent's legible form, rather than its fill: a
+ * check is closer to type than to a fill, and the house blue's fill is only
+ * 3.29:1 on a selected card where its type twin is 5.07.
+ *
+ * Like `<Checkbox>`, a drawing of the state; the row it sits in is the control.
  */
-export function RadioMark({ on, disabled = false }: { on: boolean; disabled?: boolean }) {
+export function RadioMark({
+  on,
+  disabled = false,
+  size = RADIO_SIZE,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  size?: number;
+}) {
   const theme = useTheme();
   const accent = useAccent();
 
@@ -52,10 +72,13 @@ export function RadioMark({ on, disabled = false }: { on: boolean; disabled?: bo
     <View
       style={[
         styles.radio,
-        { borderColor: on ? accent.onSurface : theme.borderStrong },
+        { width: size, height: size, borderRadius: size / 2 },
+        on
+          ? { backgroundColor: withAlpha(accent.onSurface, 0.18), borderColor: 'transparent' }
+          : { backgroundColor: 'transparent', borderColor: withAlpha(theme.text, 0.22) },
         disabled && styles.disabled,
       ]}>
-      {on && <View style={[styles.dot, { backgroundColor: accent.onSurface }]} />}
+      {on && <Ionicons name="checkmark" size={Math.round(size * 0.47)} color={accent.onSurface} />}
     </View>
   );
 }
@@ -64,21 +87,17 @@ const styles = StyleSheet.create({
   /* `md`: visibly soft on a 20dp box without drifting toward a circle, which is
      the radio's shape — the two marks must not be mistaken for each other. */
   box: {
-    width: MARK,
-    height: MARK,
+    width: BOX,
+    height: BOX,
     borderRadius: Radius.md,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radio: {
-    width: MARK,
-    height: MARK,
-    borderRadius: MARK / 2,
-    borderWidth: 1.5,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dot: { width: MARK / 2, height: MARK / 2, borderRadius: MARK / 4 },
   disabled: { opacity: 0.5 },
 });

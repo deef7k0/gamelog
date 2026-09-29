@@ -17,7 +17,6 @@ import { mix, readableInk, saturate } from '@/lib/color';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'large' | 'medium' | 'small';
-type Shape = 'control' | 'pill';
 type Tone = 'default' | 'vivid';
 
 /**
@@ -53,30 +52,14 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   variant?: Variant;
   size?: Size;
   /**
-   * `control` — `Radius.control`, the shared shape every button takes: a soft
-   * stadium at the medium height, a true pill at the small one.
-   * `pill` — fully rounded ends at every height.
+   * `default` is the grey pill every button is.
    *
-   * It exists for the game page's action cluster, which is a deliberate
-   * Material-3-shaped transport control: one wide filled action with a row of
-   * tonal icon buttons under it. At `large` (60dp) `control` would draw a
-   * rounded rectangle, and the cluster's primary key has to close into a true
-   * pill to match the ends of the keys under it. Reach for it only where the
-   * whole cluster is shaped that way.
-   */
-  shape?: Shape;
-  /**
-   * How loud a `primary` fill is allowed to be. Ignored by every other variant.
-   *
-   * `default` is `accent.color` — M3's `primary`, which is tuned to be usable
-   * wherever the accent appears.
-   *
-   * `vivid` lifts that fill's saturation to `VIVID_FLOOR`. **For the one button
-   * a screen exists for, and nothing else.** The game page's "Write a review" is
-   * the case it was added for: it sits above a row of tonal keys built from the
-   * same palette, on a page filled with the same palette's darkest tone, and at
-   * the shared primary it was the loudest thing on the page by a margin too
-   * small to be obvious. A second vivid button anywhere would spend the one
+   * `vivid` fills the pill with the accent in force, its saturation lifted to
+   * `VIVID_FLOOR`. **For the game page's "Write a review", and nothing else** —
+   * the one button whose Material 3 treatment was kept through the move to the
+   * grey pill: it sits above a row of tonal keys built from the same palette,
+   * on a page filled with that palette's darkest tone, and it is the button the
+   * whole screen exists for. A second vivid button anywhere would spend the one
    * signal this has.
    */
   tone?: Tone;
@@ -111,39 +94,41 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 };
 
 /**
- * The app's button. Four variants, one family.
+ * The app's button. Four variants, one object.
  *
- *  - `primary`   filled with **the screen's accent** — the house blue on the
- *                house screens, the game's own colour on a game's. The one thing on a
- *                screen you are most likely to want. At most one per screen.
- *  - `secondary` the dark surface with a 1px edge. The default for everything
- *                else: "Cancel", "Retry", "Change settings".
- *  - `ghost`     no fill and no edge. For an action that must not draw the eye —
- *                a tertiary link. It gains a faint fill only while held.
- *  - `danger`    a subtle red: a red wash, a red edge, a red label. Destructive
- *                actions must not look like safe ones, and must not outshout the
- *                artwork beside them either — so a tint, never a red slab.
+ * **Every action is the same grey pill** — the owner's reference, SimpMusic's
+ * "Create room", measured: 52dp, fully round, filled `controlFill` (#181818 on
+ * black), a small semibold label in the middle. The variants change the label,
+ * not the object:
  *
- * **Every state is drawn, not faded.** Held, a fill goes one step *deeper*
- * (`accent.pressed`, `surfaceSelected`) and the button sinks 3%. Focused from a
- * keyboard, it wears the accent's ring. Disabled, it drops to the resting
- * control surface with muted type — distinguishable from enabled without
- * relying on opacity, and still readable enough to say why it is there.
+ *  - `primary`   the label a step brighter (`text`). The one thing on a screen
+ *                you are most likely to want; at most one per screen.
+ *  - `secondary` the label in `controlInk`, the reference's soft grey.
+ *  - `ghost`     no fill at all — a text action, like the reference's
+ *                "Connect". It gains a faint fill only while held.
+ *  - `danger`    the same pill with a red label. Destructive must not look safe,
+ *                and must not outshout the artwork beside it either.
  *
- * **`primary` is the accent, not a fixed colour.** On a game's own screens the
- * accent is that game's Material 3 `primary`, so "Log this game" on a DOOM page
- * is red — the single loudest element on the screen, carrying the colour of the
- * thing the screen is about. The label follows: `accent.ink` is measured
- * against the fill.
+ * Choices are never drawn like this: a selectable control is outlined
+ * (`useSelectable`, `<SelectionCard>`), so an action and a choice cannot be
+ * mistaken for each other.
  *
- * 48dp tall (60 when large, 36 when small — lifted to the tap floor by slop),
- * `Radius.control`.
+ * **The one exception is `tone="vivid"`**, the game page's "Write a review":
+ * the Material 3 cluster there keeps its own treatment, a pill filled with the
+ * game's colour.
+ *
+ * **Every state is drawn, not faded.** Held, the fill brightens a step
+ * (`controlPressed`) and the button sinks 3%. Focused from a keyboard, it wears
+ * the accent's ring. Disabled, it is the reference's disabled "Join room": no
+ * fill, a faint edge and a dimmed label — told apart by shape as well as by
+ * brightness, and still readable enough to say why it is there.
+ *
+ * 52dp tall (60 when large, 36 when small — lifted to the tap floor by slop).
  */
 export function Button({
   title,
   variant = 'primary',
   size = 'medium',
-  shape = 'control',
   tone = 'default',
   loading = false,
   fullWidth = false,
@@ -167,45 +152,62 @@ export function Button({
      a vivid lift moves the fill and `accent.ink` was chosen for the unlifted
      one. See `VIVID_FLOOR`. */
   const vivid = tone === 'vivid';
-  const primaryFill = vivid ? saturate(accent.color, VIVID_FLOOR) : accent.color;
-  const primaryInk = vivid ? readableInk(primaryFill) : accent.ink;
+  const primaryFill = saturate(accent.color, VIVID_FLOOR);
+  const primaryInk = readableInk(primaryFill);
 
+  /*
+   * One look for every action, the owner's reference measured: SimpMusic's
+   * "Create room" — a grey pill (`controlFill`, #181818 on black) with a small
+   * soft label. Variants change the *label*, not the object: `primary` is a
+   * step brighter, `danger` is red. The only fill that is not grey is the game
+   * page's vivid review button, whose Material 3 treatment is preserved.
+   */
   const look = unavailable
     ? {
-        background: variant === 'ghost' ? 'transparent' : theme.surfaceElevated,
-        edge: variant === 'ghost' ? 'transparent' : theme.border,
+        /* The reference's disabled "Join room": no fill, a faint edge, and the
+           label dimmed — told apart from an enabled button by shape as well as
+           by brightness, never by opacity alone. */
+        background: 'transparent',
+        edge: variant === 'ghost' ? 'transparent' : theme.borderStrong,
         foreground: theme.textMuted,
         pressed: undefined,
       }
-    : {
-        primary: {
+    : vivid
+      ? {
           background: primaryFill,
           /* Transparent rather than the fill: the background paints under the
              border, so the edge deepens with the fill while held instead of
              staying behind as a lighter 1px ring. */
           edge: 'transparent',
           foreground: primaryInk,
-          pressed: vivid ? mix(primaryFill, primaryInk, VIVID_PRESSED_DEPTH) : accent.pressed,
-        },
-        secondary: {
-          background: theme.surfaceElevated,
-          edge: theme.border,
-          foreground: theme.text,
-          pressed: theme.surfaceSelected,
-        },
-        ghost: {
-          background: 'transparent',
-          edge: 'transparent',
-          foreground: theme.text,
-          pressed: theme.pressed,
-        },
-        danger: {
-          background: withAlpha(theme.danger, 0.1),
-          edge: withAlpha(theme.danger, 0.3),
-          foreground: theme.danger,
-          pressed: withAlpha(theme.danger, 0.18),
-        },
-      }[variant];
+          pressed: mix(primaryFill, primaryInk, VIVID_PRESSED_DEPTH),
+        }
+      : {
+          primary: {
+            background: theme.controlFill,
+            edge: 'transparent',
+            foreground: theme.text,
+            pressed: theme.controlPressed,
+          },
+          secondary: {
+            background: theme.controlFill,
+            edge: 'transparent',
+            foreground: theme.controlInk,
+            pressed: theme.controlPressed,
+          },
+          ghost: {
+            background: 'transparent',
+            edge: 'transparent',
+            foreground: theme.text,
+            pressed: theme.pressed,
+          },
+          danger: {
+            background: theme.controlFill,
+            edge: 'transparent',
+            foreground: theme.danger,
+            pressed: theme.controlPressed,
+          },
+        }[variant];
 
   return (
     <PressableScale
@@ -221,7 +223,6 @@ export function Button({
       style={StyleSheet.flatten([
         styles.base,
         small ? styles.small : large ? styles.large : styles.medium,
-        shape === 'pill' && styles.pill,
         /* Ghost has no fill, so it stays flat — Android's elevation needs an
            opaque background to draw against, and a floating transparent
            rectangle would read as a bug rather than as depth. */
@@ -258,14 +259,9 @@ export function Button({
             style={[
               styles.count,
               {
-                // On a filled primary the recess has to go *darker*; everywhere
-                // else it goes lighter. Same idea, opposite direction — and the
-                // ink is what decides which, since a light accent needs a dark
-                // recess where a dark fill needs a pale one.
-                backgroundColor:
-                  variant === 'primary' && !unavailable
-                    ? withAlpha(look.foreground, 0.14)
-                    : theme.surfaceSelected,
+                // A recess in the label's own ink, so it reads on the grey
+                // pill and on the vivid fill alike.
+                backgroundColor: withAlpha(look.foreground, 0.12),
               },
             ]}>
             <Text style={[styles.countLabel, { color: look.foreground }]}>{count}</Text>
@@ -277,23 +273,23 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
-  /* A 1px edge on every variant, transparent where the variant has none, so
-     switching variant or state never moves the label by a pixel. */
+  /* A full pill at every size, as the reference's buttons are. A 1px edge on
+     every variant, transparent where the variant has none, so switching to the
+     outlined disabled look never moves the label by a pixel. */
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
     borderWidth: 1,
   },
-  /* 48 on both platforms — past iOS's 44 and exactly Android's 48, so the
-     drawn height and the touch floor are the same number. */
+  /* 52, the reference's — past both platforms' floors on its own. */
   medium: {
     paddingVertical: Spacing.x12,
     paddingHorizontal: Spacing.x32,
     minHeight: ControlHeight.medium,
   },
   /* 36 drawn, the tap floor through `SmallControlSlop`. `small` is for a button
-     inside a row or a card, where a 48dp slab would outweigh what it acts on. */
+     inside a row or a card, where a 52dp pill would outweigh what it acts on. */
   small: {
     paddingVertical: Spacing.x4,
     paddingHorizontal: Spacing.x20,
@@ -308,7 +304,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x32,
     minHeight: ControlHeight.large,
   },
-  pill: { borderRadius: Radius.pill },
   fullWidth: { alignSelf: 'stretch' },
   content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   label: { ...Type.button },

@@ -31,19 +31,19 @@ const AMBIENT_LIGHT = {
 /**
  * Brightest point, as an alpha of `Palette.glowCore` over the page.
  *
- * Composited over `background` (#0B0A0D) this peaks at about #1C1626 — 1.12:1
- * against the page, which is "the corner feels lit" rather than "there is a
- * gradient". `textMuted` still clears 5.45:1 and `primaryText` 5.41:1 on the
- * brightest pixel.
+ * 0.42, raised from 0.18 at the owner's request: the corner should read as lit,
+ * not merely warmer. It lands close to the brightness of the reference's own
+ * top light (SimpMusic's Listen Together, #3D384C at its brightest) —
+ * composited over Home's `#14171c` floor this peaks at #392D51, 1.43:1 against
+ * the page, and over black at #2D2041.
  *
- * 0.18 rather than the 0.16 it ran at when centred: with the centre this close
- * to the top, part of the light falls above the screen and most of the rest
- * under the status bar, so the same peak reads dimmer. This is also why it is
- * not the old corner glow's 0.62 — that one was a `<SoftGlow>` reaching 1.7:1,
- * a lit corner rather than light, and this keeps the ambient light's softness
- * in the old glow's place.
+ * **What this costs, stated plainly:** `textMuted` falls to 3.89:1 on the very
+ * brightest pixel, under AA. The one muted line that sits there — Home's
+ * greeting — was stepped up to `textSecondary` for it (5.29:1); `text` holds at
+ * 11.55:1. Anything muted placed in Home's top-left corner later needs the
+ * same step.
  */
-const PEAK = 0.18;
+const PEAK = 0.42;
 
 /**
  * The falloff: `(1 - t²)³`, sampled at eleven stops.

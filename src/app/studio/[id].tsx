@@ -14,7 +14,9 @@ import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
+import { scoreColor } from '@/constants/score';
 import { HeroAspectRatio, Radius, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { gameSortOptions, sortGames, type GameSearchResult, type GameSort } from '@/lib/games';
 import { getCompanyGames } from '@/lib/games/igdb';
 
@@ -119,6 +121,12 @@ function shelves(games: readonly GameSearchResult[]) {
        type explaining a picture the reader is about to see again. */
     banner: best[0] ?? catalogue[0] ?? null,
     span: yearsOf(catalogue),
+    /* Over the same rated originals and behind the same floor as the "Best"
+       rail: an average of two scores is two games, not a studio's standing. */
+    average:
+      rated.length >= BEST_FLOOR
+        ? Math.round(rated.reduce((sum, game) => sum + (game.score ?? 0), 0) / rated.length)
+        : null,
   };
 }
 
@@ -166,6 +174,7 @@ function yearsOf(games: readonly GameSearchResult[]): string | null {
  * has an equivalent, so studio names are only tappable on IGDB titles.
  */
 export default function StudioScreen() {
+  const theme = useTheme();
   const { width, height } = useWindowDimensions();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const companyId = Number(id);
@@ -178,7 +187,7 @@ export default function StudioScreen() {
     staleTime: 30 * 60_000,
   });
 
-  const { catalogue, repackaged, redone, best, banner, span } = useMemo(
+  const { catalogue, repackaged, redone, best, banner, span, average } = useMemo(
     () => shelves(games.data ?? []),
     [games.data]
   );
@@ -268,11 +277,39 @@ export default function StudioScreen() {
                     {name}
                   </Text>
                 )}
+                {/*
+                  The owner's reference, SimpMusic's Analytics header: under the
+                  title, a row with the subject on the left — a bold figure over
+                  a quiet line — and one measurement on the right, its label
+                  over its value. Bold for the figures, regular and quieter for
+                  everything that explains them; no caps, no tracking.
+                */}
                 {games.data && (
-                  <Text variant="h6" color="textMuted">
-                    {`${catalogue.length} ${catalogue.length === 1 ? 'GAME' : 'GAMES'}`}
-                    {span ? ` · ${span}` : ''}
-                  </Text>
+                  <View style={styles.facts}>
+                    <View style={styles.fact}>
+                      <Text variant="h3">
+                        {`${catalogue.length} ${catalogue.length === 1 ? 'game' : 'games'}`}
+                      </Text>
+                      {span && (
+                        <Text variant="body" color="textSecondary">
+                          {span}
+                        </Text>
+                      )}
+                    </View>
+                    {average !== null && (
+                      <View
+                        style={[styles.fact, styles.factEnd]}
+                        accessible
+                        accessibilityLabel={`Average rating ${average} out of 100`}>
+                        <Text variant="body">Average rating</Text>
+                        {/* The score's own ramp, never the accent: a blue 55
+                            would read as endorsed (CLAUDE.md, "One score ramp"). */}
+                        <Text variant="h2" style={{ color: scoreColor(average, theme) }}>
+                          {average}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 )}
               </View>
             </View>
@@ -359,11 +396,11 @@ export default function StudioScreen() {
 const styles = StyleSheet.create({
   grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
-  /* `x32` between the bands and `x16` inside the header's own blocks: the rails
-     are separate subjects and the identity block is one. Not `x64` (Home's
-     interval) — that page is a stack of unrelated things, and every band here is
-     about the same studio. */
-  header: { gap: Spacing.x32, paddingBottom: Spacing.x16 },
+  /* `x48` (30) between the bands — the reference's 32 between sections — and
+     tighter inside the header's own blocks: the rails are separate subjects and
+     the identity block is one. Not `x64` (Home's interval) — that page is a
+     stack of unrelated things, and every band here is about the same studio. */
+  header: { gap: Spacing.x48, paddingBottom: Spacing.x16 },
   /* Cancels the grid's horizontal padding so the art reaches both edges. */
   banner: { marginHorizontal: -Spacing.x16 },
   /* Puts the inset back for the text, since the container above cancelled it. */
@@ -371,9 +408,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: Spacing.x16,
     right: Spacing.x16,
-    bottom: Spacing.x16,
-    gap: Spacing.x4,
+    bottom: Spacing.x24,
+    gap: Spacing.x12,
   },
+  /* The subject on the left, the measurement on the right, bottoms aligned. */
+  facts: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: Spacing.x16,
+  },
+  /* Label and value 2 apart: one fact, read as a pair. */
+  fact: { gap: 2, flexShrink: 1 },
+  factEnd: { alignItems: 'flex-end' },
   /* `<HomeSection>` insets its own heading but leaves its children to bleed, for
      the rails. The sort row is not a rail and needs the inset back. */
   sort: { paddingHorizontal: Spacing.x16 },

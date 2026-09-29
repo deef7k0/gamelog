@@ -121,12 +121,14 @@ export function InfoCardButton({
 }
 
 const styles = StyleSheet.create({
+  /* The owner's reference cards breathe: 14 of inset and a clear step between
+     a title and what it titles. `x24` (15) and `x16` (10), up from 10 and 8. */
   card: {
     borderRadius: Radius.cardLarge,
-    gap: Spacing.x12,
+    gap: Spacing.x16,
     overflow: 'hidden',
   },
-  padded: { padding: Spacing.x16 },
+  padded: { padding: Spacing.x24 },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -135,7 +137,7 @@ const styles = StyleSheet.create({
   },
   /* An unpadded card still needs its title inset — the padding was dropped for
      the *content* (a rail that runs to the edge), not for the heading. */
-  headInset: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x16 },
+  headInset: { paddingHorizontal: Spacing.x24, paddingTop: Spacing.x24 },
   /* Shrinks rather than pushing a count or a chevron off the row. */
   title: { flexShrink: 1 },
 });

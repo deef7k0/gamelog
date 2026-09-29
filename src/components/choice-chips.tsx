@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { useSelectable } from '@/components/ui/selectable';
-import { RadioMark } from '@/components/ui/selection-marks';
+import { SelectionCard } from '@/components/ui/selection-card';
 import { Text } from '@/components/ui/text';
 import {
   ControlHeight,
@@ -31,10 +31,10 @@ export type ChoiceChipsProps<T extends string> = {
   /**
    * Print each hint under its label — for scales whose words need defining.
    *
-   * The choices become **selection cards**, one per row: the name, the hint
-   * under it, and a radio on the trailing edge. A report reason or a copy's
-   * condition is a decision with a sentence behind it, and a card gives the
-   * sentence room to be read before the tap rather than after.
+   * The choices become **selection cards** (`<SelectionCard>`), one per row:
+   * the circle on the leading edge, the name, the hint under it. A report
+   * reason or a copy's condition is a decision with a sentence behind it, and
+   * a card gives the sentence room to be read before the tap rather than after.
    */
   withHints?: boolean;
 };
@@ -47,11 +47,11 @@ export type ChoiceChipsProps<T extends string> = {
  * would hide the options behind a tap.
  *
  * **Two shapes.** Bare choices are pills in a wrapping row, the filter shape;
- * choices with hints are full-width selection cards. Both select the same way,
- * which is the app's one selected state (`useSelectable`): an accent wash
- * inside, the accent's edge around, and the label up to full strength — three
- * carriers, only one of them a hue, so the choice survives colour blindness.
- * The cards add a fourth, the filled radio.
+ * choices with hints are full-width selection cards. Both are outlined at rest
+ * and select the same way, which is the app's one selected state
+ * (`useSelectable`): an accent wash inside, the accent's edge around, and the
+ * label up to full strength — three carriers, only one of them a hue, so the
+ * choice survives colour blindness. The cards add a fourth, the checked circle.
  */
 export function ChoiceChips<T extends string>({
   label,
@@ -71,6 +71,20 @@ export function ChoiceChips<T extends string>({
       <View style={withHints ? styles.cards : styles.row} accessibilityRole="radiogroup">
         {choices.map((choice) => {
           const selected = value === choice.value;
+          const choose = () => onChange(selected && clearable ? null : choice.value);
+
+          if (withHints) {
+            return (
+              <SelectionCard
+                key={choice.value}
+                title={choice.label}
+                hint={choice.hint}
+                selected={selected}
+                onPress={choose}
+              />
+            );
+          }
+
           const look = selectable(selected);
           return (
             <PressableScale
@@ -79,34 +93,15 @@ export function ChoiceChips<T extends string>({
               accessibilityState={{ selected }}
               accessibilityLabel={choice.label}
               accessibilityHint={choice.hint}
-              onPress={() => onChange(selected && clearable ? null : choice.value)}
-              scaleTo={withHints ? 0.985 : 0.96}
-              hitSlop={withHints ? undefined : SmallControlSlop}
+              onPress={choose}
+              scaleTo={0.96}
+              hitSlop={SmallControlSlop}
               pressedColor={look.pressedColor}
               focusRing={look.focusRing}
-              style={StyleSheet.flatten([withHints ? styles.card : styles.chip, look.style])}>
-              {withHints ? (
-                <>
-                  <View style={styles.cardText}>
-                    <Text variant="fieldLabel" color={look.label}>
-                      {choice.label}
-                    </Text>
-                    {choice.hint && (
-                      /* `textSecondary`, never `textMuted`: the quiet step is
-                         4.32:1 on an accent-washed card and this has to be
-                         read to be chosen. */
-                      <Text variant="bodySmall" color="textSecondary">
-                        {choice.hint}
-                      </Text>
-                    )}
-                  </View>
-                  <RadioMark on={selected} />
-                </>
-              ) : (
-                <Text variant="body" color={look.label}>
-                  {choice.label}
-                </Text>
-              )}
+              style={StyleSheet.flatten([styles.chip, look.style])}>
+              <Text variant="body" color={look.label}>
+                {choice.label}
+              </Text>
             </PressableScale>
           );
         })}
@@ -126,7 +121,8 @@ const styles = StyleSheet.create({
     columnGap: Spacing.x12,
     rowGap: SmallControlRowGap,
   },
-  cards: { gap: Spacing.x8 },
+  /* The reference's 14 between options (`x20`, 13). */
+  cards: { gap: Spacing.x20 },
   /* Drawn at 36 and touched at the floor through `SmallControlSlop`. */
   chip: {
     flexDirection: 'row',
@@ -139,17 +135,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: 1,
   },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x16,
-    minHeight: ControlHeight.medium + Spacing.x16,
-    paddingVertical: Spacing.x16,
-    paddingHorizontal: Spacing.x24,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-  },
-  cardText: { flex: 1, gap: 2 },
   unavailable: { opacity: 0.45 },
 });
 

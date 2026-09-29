@@ -91,7 +91,10 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
 }
 
 const styles = StyleSheet.create({
-  section: { gap: Spacing.x12 },
+  /* `x24` (15) between the heading and what it heads — the owner's reference,
+     SimpMusic's Analytics, puts 16 there. At 8 the heading read as a caption
+     glued to the rail rather than as the title of a section. */
+  section: { gap: Spacing.x24 },
   head: {
     flexDirection: 'row',
     alignItems: 'center',

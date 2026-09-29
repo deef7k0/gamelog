@@ -41,7 +41,8 @@ npx eslint src     # lint
 npx prettier --write "src/**/*.{ts,tsx}"
 npm test           # node:test — pure modules only: the M3 scheme generator, the
                    # genre reach order, barcodes, progress choices, review filters,
-                   # and the report reasons against 0031's CHECKs
+                   # the report reasons against 0031's CHECKs, and the Wikidata
+                   # claim parsing and game lookup (lib/wikidata)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -119,6 +120,9 @@ src/
     game/[id]        game detail + reviews + action row
     log/[id]         create/edit a log (modal)
     achievements/[id]  per-game achievement list
+    game-info/[id]   Additional information: awards, nominations, cast, budget
+                     and the people behind a game, from Wikidata. Opened from
+                     the Overview tab; see § Wikidata
     list/[id]        a list / tier list / award show
     add-to-list/[id]   pick a game to add to that list (modal)
     award-game/[id]    pick the winner of one award (modal)
@@ -184,6 +188,10 @@ src/
                                         any control that draws its own shape
                      ui/selection-marks <Checkbox> and <RadioMark>, the drawn
                                         state inside a checkbox or radio row
+                     ui/selection-card  <SelectionCard>: one choice as the
+                                        owner's reference draws it — the 34dp
+                                        circle first, name, hint. Every
+                                        single-choice list with words uses it
                      ui/score-meter     a score's readout and bar, shared by the
                                         review page and the log form's input
                      progress-sheet     the seven progress choices + details
@@ -198,6 +206,8 @@ src/
                      cd-disc            a game's art printed on game_cd.png
                      copy-showcase / copy-case-back  a copy's case, disc and back
                      library-stats      the head of a library (0028)
+                     game-info-sections the Wikidata screen's cards — awards,
+                                        cast, budget, credits, people
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
@@ -205,7 +215,8 @@ src/
                      progress choices), physical.ts (region / completeness /
                      condition words), platform-media.ts (disc, cartridge…),
                      similarity.ts (the twelve reasons), reports.ts (what a
-                     report can say, per kind)
+                     report can say, per kind), wikidata.ts (every Wikidata
+                     property the additional-information screen reads)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -219,6 +230,8 @@ src/
                         target, modal flag) + `useTopBarScroll()`
     use-header-height   how much space the floating back disc occupies
     use-steam-artwork   Steam CDN URLs + the hashed-path fallback, cached 7 days
+    use-wikidata-game-info  one query per game: its Wikidata item, claims and
+                        labels, cached a day. Null means "nothing found"
     use-square-cover    a game's 1:1 cover from SteamGridDB, persisted to
                         AsyncStorage. Returns `resolved` — do not draw the IGDB
                         cover before it is true; that is the swap it prevents
@@ -232,6 +245,10 @@ src/
                      itad.ts for storefront prices,
                      steamgriddb.ts for square (1:1) and per-platform cover
                      art — artwork only, never a catalogue; see the note below
+    wikidata/        the additional-information screen's data: finding a game's
+                     item by exact id (lookup.ts), reading claims (claims.ts,
+                     normalize.ts — pure, under `npm test`), and the Action API
+                     (client.ts). See § Wikidata
     barcode.ts       GTIN check digits, UPC-E expansion, normalising to GTIN-14
     review-facets.ts what the review list filters and tallies by. Pure
     postgrest.ts     `inList()`, the safe `in` filter for strings people typed
@@ -390,6 +407,51 @@ one round trip per game per week, versus fifty probes to discover that
 forty-eight were already right. `hooks/use-steam-artwork` batches those failures
 into one call and persists the result for 7 days.
 
+## Wikidata
+
+The game page's **Additional information** door opens `game-info/[id]`:
+awards (P166), nominations (P1411), cast with their characters (P161/P725,
+characters from *that statement's* P453/P4633 qualifiers), budget (P2130), and
+producers, composers, designers, screenwriters and a deduplicated People
+section. Every property id is in `constants/wikidata.ts`. All verified against
+the live Action API:
+
+- **A game is found by exact identifier, never by title.** The IGDB slug — the
+  last segment of `storeUrl`, which is IGDB's `url` — through
+  `haswbstatement:P5794=<slug>`, then the Steam appid through P1733. A search
+  must return exactly one item; two is narrowed once by the IGDB numeric id
+  (`P5794=<slug>[P9043=<id>]`, a qualifier search Wikidata does index) and is
+  otherwise given up. A found item whose own P5794 record names a *different*
+  IGDB game is rejected (`itemMatchesGame`). No match is `null` — "no
+  additional information" — never a guess.
+- **`steamAppId` is null on every IGDB game today.** IGDB renamed
+  `external_games.category` to `external_game_source` (same numbers; Witcher 3's
+  appid 292030 comes back as `external_game_source: 1`), and `GAME_FIELDS` still
+  requests `category`, so `steamAppIdOf` never matches. The Wikidata lookup
+  does not need it — the slug covers the catalogue — but the Steam CDN artwork
+  preference above has been inert for IGDB games for the same reason. Fixing
+  the field changes covers app-wide, so it is its own decision.
+- **Labels are requested as `en|mul`.** Wikidata now keeps one `mul` label for
+  names spelled the same in every language and removes the `en` copy: Doom and
+  Overwatch have no `en` label at all. English-only drops them silently.
+- **Anonymous traffic is rate-limited per IP, and it bites.** A burst of test
+  calls got `429 text/plain` with `retry-after: 25`. The client runs its three
+  or four requests in series, the query is cached for a day, and a 429 is
+  surfaced, not retried. Space out anything you script against it.
+- **API errors are HTTP 200 with an `error` object**, and a missing entity is
+  `{"missing": ""}`, not an error. `wbgetentities` takes 50 ids per request
+  anonymously. A merged item answers under the id you asked for with the
+  survivor's labels and `redirects.to`, so identity is the returned `id`.
+- **Who is a person is asked of search, not of claims:**
+  `haswbstatement:P31=Q5 pageid:<a>|<b>` returns the humans among those pages in
+  one small response, where reading each P31 means fetching every claim (43 KB
+  for Nintendo). **`pageid:` with an empty list is ignored and returns every
+  human on Wikidata** — never send an empty batch, and only read back pages you
+  asked about.
+- `origin=*` is what makes the API answer CORS, so the same requests work on
+  `npm run web`; browsers cannot set `User-Agent`, so the client also sends
+  `Api-User-Agent`, which the preflight allows.
+
 ## Conventions
 
 - **State**: server data → TanStack Query; auth session → the zustand store.
@@ -412,7 +474,8 @@ into one call and persists the result for 7 days.
   near-black and grey — surfaces, rules, body copy — and every control
   rests on it neutral; the house accent appears only on what is selected,
   focused or primary. Separation is by surface step (`background` → `surface` →
-  `surfaceElevated` → `surfaceSelected`), plus a 1px `border` on every control.
+  `surfaceElevated` → `surfaceSelected`); controls are the translucent action
+  grey (`controlFill`) or, when they are choices, an `outline`.
   Colour enters from *content*, in exactly three ways. A colour that is none of
   these three is decoration and does not belong:
   1. **Identity — read from the box art.** `lib/artwork-color.ts` fetches the
@@ -486,18 +549,23 @@ into one call and persists the result for 7 days.
   badge is opt-in via `alert`, for things genuinely unseen. The profile used to
   carry its own copy of this row and the two drifted the moment one was
   restyled — if a screen needs tabs, it uses `<TabBar>`.
-- **Selection is the accent's wash, edge and a brighter label — from
-  `useSelectable()`.** Any control with an on/off state rests on
-  `surfaceElevated` with a 1px `border` and a `textSecondary` label, and when
-  selected takes `accent.wash` inside, `accent.edge` around and a `text` label.
-  `<SortBar>`, `<ChoiceChips>`, `<SelectField>`'s rows, the RSVP pills, vote
-  buttons, segments and every screen-local toggle read it from the hook rather
-  than restating it; a new one must too. Inside a selected control `textMuted`
+- **Choices are outlined; actions are filled. Selection comes from
+  `useSelectable()`.** Any control with an on/off state rests with no fill and a
+  1px `outline` (16% white) and a `textSecondary` label, and when selected takes
+  `accent.wash` inside, `accent.edge` around and a `text` label. Every action —
+  a button, an icon key, a row that opens something — is the filled grey pill
+  instead, so the two never read as the same kind of thing. `<SortBar>`,
+  `<ChoiceChips>`, `<SelectionCard>`, the RSVP pills, vote buttons, segments and
+  every screen-local toggle read the hook rather than restating it; a new one
+  must too. **A single-choice list with words is a `<SelectionCard>`**: the
+  owner's reference (SimpMusic's Server options), a 34dp circle on the
+  *leading* edge that fills with the accent at 18% and holds a check when
+  chosen, then the name (`optionTitle`) and its hint. Inside a selected control `textMuted`
   steps up to `textSecondary` (4.32:1 on the wash). The exceptions are
   deliberate: a **log status** fills with the status's own colour and the
   **platinum / spoiler toggles** light in theirs, because the colour is the
-  datum; an **open disclosure** (a collapsible row) takes the neutral pressed
-  step, because "open" is not a choice; and the game page's action row
+  datum; an **open disclosure** (a collapsible row) is an action, so it is
+  grey-filled and brightens a step when open; and the game page's action row
   (Favourite / Wishlist / Progress / Collect) keeps its Material 3 tonal keys,
   on/off by `primaryContainer` fill, **glyph** and label.
 - **Metadata chips stay grey, and have no edge.** A filter pill is the same
@@ -520,34 +588,54 @@ into one call and persists the result for 7 days.
   side: one glow per screen is atmosphere, eight is a lava lamp. `<Poster>`
   deliberately has no coloured-shadow prop — it was added, it looked like a
   sticker, it was removed.
-- **Controls speak the music-app language, through the primitives.** Dark
-  surfaces, large rounded shapes, a 1px edge on everything pressable, 48dp
-  height, the accent only where something is selected, focused or primary, no
-  shadows. DESIGN.md § 9 is the full statement. In short:
-  - `<Button>` — `Radius.control` (20: a soft stadium at 48dp, a pill at 36).
-    Primary is the accent fill with its ink; secondary is `surfaceElevated` with
-    a 1px edge; ghost has neither; danger is a subtle red wash, edge and label,
-    never a red slab. No default shadow — `elevation` exists for the game page's
-    review button alone.
+- **Controls follow the owner's reference, SimpMusic — read from its code, not
+  traced from screenshots.** `maxrave-dev/SimpMusic` is open source:
+  `ListenTogetherScreen.kt` (the name field, "Create room", the disabled "Join
+  room"), `ListenTogetherSettingsScreen.kt` (the Server options) and
+  `AnalyticsScreen.kt` (the typography and spacing). Go back to those files
+  before changing a control's measurements. DESIGN.md § 9 is the full statement.
+  In short:
+  - **Every action is the same grey pill** (`<Button>`): 52dp
+    (`ControlHeight.medium`), `Radius.pill`, filled `controlFill` (#181818 on
+    black), a small semibold label in `controlInk`. Variants change the label,
+    not the object — `primary` a step brighter, `danger` red, `ghost` a bare
+    text action. **Disabled** is the reference's disabled "Join room": no fill,
+    a faint edge, a dimmed label. No default shadow.
+  - `<IconButton>` is the round sibling: a circle in `controlFill`, no edge,
+    drawn at 40/32 and touched at the floor through vertical slop.
+  - **Fields** (`<TextField>`, `<SelectField>`, search, text areas) are one
+    object: a soft well in `input` (#0F0F0F on black), **no border**,
+    `Radius.input` (18), 54dp (`ControlHeight.field`), `fieldText` (13), a
+    small `fieldLabel` above. Focus draws the accent's edge (1.5dp, as the
+    reference's code boxes do); an error keeps it red.
   - **States are drawn, not faded.** `PressableScale` takes `pressedColor` (a
-    deeper fill eased in on the UI thread with the sink) and `focusRing` (a 3dp
-    `accent.ring` outline for keyboard focus). Disabled drops to the resting
-    surface with `textMuted` type rather than leaning on opacity alone.
-  - `<IconButton>` is a **circle**, drawn at 40/32 and touched at the floor
-    through vertical slop. Every glyph-only key in the app is round.
-  - Fields: a `fieldLabel` above, an `input` well with a 1px edge,
-    `Radius.input` (16; `inputArea` 20 for text areas), `fieldText` (14);
-    focus lights the edge and draws the ring. Search fields are the pill.
+    fill eased in on the UI thread with the sink) and `focusRing` (a 3dp
+    `accent.ring` outline for keyboard focus).
   - Filters, tabs and chips are pills. Small controls are drawn at
     `ControlHeight.small` with `SmallControlSlop`, and wrapped rows of them use
     `SmallControlRowGap` as their `rowGap` so the slop tiles and never overlaps.
   - Sheets, dialogs and menus: `Radius.sheet` (24), a hairline edge, a round
     close key.
   **What kept its own treatment:** the game page's Material 3 cluster (the vivid
-  pill review button, the connected tonal action keys, platform keys),
-  `<RoundAction>`, `<TopBarDisc>`'s frosted glass, the collection header's
-  playlist-hero pill, the sign-in brand buttons, meaning colours, and the
-  physical objects. Do not "fix" them toward the rest.
+  review button — `tone="vivid"`, the one `<Button>` that is not grey — the
+  connected tonal action keys, platform keys), `<RoundAction>`,
+  `<TopBarDisc>`'s frosted glass, the collection header's playlist-hero pill,
+  the sign-in brand buttons (same pill shape, brand colours), meaning colours,
+  and the physical objects. Do not "fix" them toward the rest.
+- **Type and spacing follow the reference's Analytics screen.** Bold is for
+  titles and figures only; everything that explains them is regular, smaller and
+  quieter. A fact is a **quiet label over a bold value** (or a bold figure over a
+  quiet line — "53" / "Songs played"), in **sentence case**: no uppercase,
+  tracked micro-labels on a stat strip, a masthead fact or a notice. A row or a
+  card in a list titles itself in `itemTitle` (13 semibold) with a `bodySmall`
+  line under it. Sections sit ~32dp apart with ~16dp from heading to content
+  (`<HomeSection>` uses `x24`); a card's inset is ~15dp (`<InfoCard>` uses
+  `x24`). The studio page's banner is the worked example: the name, then the
+  subject on the left (a bold figure over a quiet line) and one measurement on
+  the right (label over value). **The reference's 24dp side margin was not
+  adopted** — this app's 10dp margin is shared by every screen and its rails
+  bleed off the left edge; widening one screen would misalign it with its own
+  rails, and widening all of them is its own decision.
 - **Ratings** are an integer 0-100 on `logs.rating`; `constants/score.ts` maps
   that to a verdict band ("Excellent", "Mixed") and a colour.
 - **`logs.rating` is the only score anything reads.** A reviewer can score by
@@ -593,10 +681,11 @@ into one call and persists the result for 7 days.
   form's 35px score showed only the middle band of each digit, and
   `<ScorePill size="large">` did the same at 25px. `<ScoreNumber>` and
   `<ScoreReadout>` set one now; anything else drawn larger than `Type` must too.
-- **Controls take an edge, content takes a shadow.** A pressable control is drawn
-  by its fill and a 1px `border` and never casts; a card of content takes
-  `Elevation.card` and never an edge — the edge is what says "you can press
-  this", and a review card with one reads as a single huge button.
+- **Actions are filled, choices are outlined, content takes a shadow.** An action
+  is the grey `controlFill` with no edge; a choice is an `outline` with no fill
+  until chosen; neither casts. A card of content takes `Elevation.card` and never
+  an edge or the action grey — a review card that looked like either would read
+  as one huge control.
 - **`<Card style>` cannot lay out the card's contents.** It lands on the outer
   view (fill and shadow), whose only child is the inner view holding
   `children` — so padding works there and `flexDirection`, `gap` and
@@ -616,9 +705,9 @@ into one call and persists the result for 7 days.
   the same kind of reason — they are the intervals *inside* a pair, where there
   was no air to reclaim. **Artwork did not move**: see the next bullet, which is
   the whole point of art not riding the ladder. The *controls* later grew back
-  on purpose, and only they: 48dp buttons and fields, `button` at 13 and
-  `fieldText` at 14 — a 48dp control around a 12px word read as a slab with a
-  caption. Body copy, headings and spacing stayed zoomed out.
+  on purpose, and only they, to the reference's sizes: 52dp buttons, 54dp
+  fields, `button` and `fieldText` at 13. Body copy, headings and spacing stayed
+  zoomed out.
 - **Artwork does not ride the ladder.** Cover, poster and case sizes are fixed dp
   in their components (`BOX_ART_WIDTH`, `POSTER_WIDTH`, `RAIL_POSTER`, the case's
   `WIDTHS`) precisely so retuning `Spacing` or `Type` moves the interface and
@@ -811,8 +900,11 @@ into one call and persists the result for 7 days.
   quarter. That is the owner's brief and the position of the stronger corner
   `<SoftGlow>` it replaced; that glow was removed because it read as a lit
   corner rather than as light, and the soft light was briefly centred, which
-  lit both sides. Keep it in the corner. `<SoftGlow>` itself survives for
-  Surprise Me's bloom and swipe edge.
+  lit both sides. Keep it in the corner. It peaks at 0.42 of `glowCore` — about
+  as bright as the reference's own top light — which puts `textMuted` under AA on
+  its brightest pixels, so Home's greeting there is `textSecondary`; anything
+  muted placed in that corner later needs the same step. `<SoftGlow>` itself
+  survives for Surprise Me's bloom and swipe edge.
 - **The game page's Overview tab is cards, and `<InfoCard>` is the one
   implementation.** Every section on it — About, Studios, Reviews, the insight
   widgets, Where to buy, Editions, Franchise, Achievements — is

@@ -7,7 +7,7 @@ import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, TapTarget } from '@/constants/theme';
+import { ControlHeight, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { signInWithProvider, type OAuthProvider } from '@/lib/oauth';
@@ -17,20 +17,19 @@ import { signInWithProvider, type OAuthProvider } from '@/lib/oauth';
  *
  * ## Why these buttons are not `<Button>`
  *
- * `<Button>` is the app's control: three filled variants, never outlined, all on
- * the house palette. Every rule behind that holds — and none of it applies to a
- * row of *other companies' identity marks*. Google publishes brand guidance that
- * requires its own colours on its own button; Facebook does the same. Painting
- * both in `primary` would make them look like GameLog features rather than
- * doorways out to somebody else, which is the one thing a sign-in row has to be
- * unambiguous about.
+ * `<Button>` is the app's control: one grey pill for every action. Every rule
+ * behind that holds — and none of it applies to a row of *other companies'
+ * identity marks*. Google publishes brand guidance that requires its own
+ * colours on its own button; Facebook does the same. Painting both in the app's
+ * grey would make them look like GameLog features rather than doorways out to
+ * somebody else, which is the one thing a sign-in row has to be unambiguous
+ * about.
  *
  * So this screen renders a local `<ProviderButton>` and does not reach for the
  * shared one. That keeps the exception where it is argued rather than adding a
- * fourth variant to `<Button>` that every other screen would then be able to
- * use. The email option is outlined for the same reason inverted: it is the only
- * choice here that is *ours*, and an outline is what separates it from the three
- * brand slabs without giving it a fourth brand colour.
+ * brand variant to `<Button>` that every other screen would then be able to
+ * use. The shape is shared — the same 52dp pill — and the email option, the one
+ * choice here that is *ours*, is the app's own grey button.
  *
  * ## The providers are configuration, not code
  *
@@ -97,9 +96,8 @@ export default function SignInOptionsScreen() {
           <ProviderButton
             icon="mail-outline"
             label="Continue with email"
-            fill={theme.surfaceElevated}
-            ink={theme.text}
-            outline
+            fill={theme.controlFill}
+            ink={theme.controlInk}
             disabled={busy !== null}
             onPress={() => router.push('/sign-in')}
           />
@@ -134,9 +132,10 @@ const FOOTER_SLOP = { top: 16, bottom: 16, left: 24, right: 24 };
 /**
  * One way in.
  *
- * A filled slab carrying somebody else's mark in that brand's own colours, or —
- * for the one option that is ours — the app's secondary control, carrying no
- * brand at all. All three take the control shape, so they read as one set. The glyph sits at the leading
+ * A pill carrying somebody else's mark in that brand's own colours, or — for
+ * the one option that is ours — the app's own grey button, carrying no brand at
+ * all. All three take the button shape, so they read as one set; the brand
+ * colours stay because a sign-in button is recognised by them. The glyph sits at the leading
  * edge and the label centres in the button, which is the shape every platform's
  * sign-in row uses and therefore the shape a reader recognises before reading it.
  *
@@ -148,7 +147,6 @@ function ProviderButton({
   label,
   fill,
   ink,
-  outline = false,
   busy = false,
   disabled = false,
   onPress,
@@ -157,7 +155,6 @@ function ProviderButton({
   label: string;
   fill: string;
   ink: string;
-  outline?: boolean;
   busy?: boolean;
   disabled?: boolean;
   onPress: () => void;
@@ -173,12 +170,11 @@ function ProviderButton({
       disabled={disabled}
       onPress={onPress}
       scaleTo={0.98}
-      pressedColor={outline ? theme.surfaceSelected : undefined}
+      pressedColor={fill === theme.controlFill ? theme.controlPressed : undefined}
       focusRing={accent.ring}
       style={StyleSheet.flatten([
         styles.provider,
         { backgroundColor: fill },
-        outline && { borderWidth: 1, borderColor: theme.border },
         /* Dimmed as a set while any one of them is working, so it is visible
            that the screen is busy rather than that one button is broken. */
         disabled && !busy && styles.dimmed,
@@ -203,12 +199,14 @@ function ProviderButton({
 const styles = StyleSheet.create({
   root: { flex: 1, paddingTop: Spacing.x24, gap: Spacing.x24 },
   options: { gap: Spacing.x12 },
+  /* The app's button shape — a 52dp full pill — in each brand's own colours,
+     and the app's own grey for the one option that is ours. */
   provider: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: Math.max(TapTarget, 52),
-    paddingHorizontal: Spacing.x16,
-    borderRadius: Radius.control,
+    minHeight: ControlHeight.medium,
+    paddingHorizontal: Spacing.x20,
+    borderRadius: Radius.pill,
   },
   /* Fixed, and the same on both ends — see the spacer at the end of the row. */
   providerGlyph: { width: 24, alignItems: 'center', justifyContent: 'center' },

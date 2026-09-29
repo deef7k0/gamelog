@@ -192,26 +192,21 @@ export default function CommentsScreen() {
                 style={styles.input}
               />
             </View>
-            {/* A round key, lit in the accent once there is something to
-                send and the resting control until then. */}
+            {/* A round key in the action grey, like every button in the app;
+                the arrow brightens once there is something to send. */}
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel="Send"
               disabled={!draft.trim() || send.isPending}
               onPress={() => send.mutate()}
               scaleTo={0.9}
-              pressedColor={accent.pressed}
+              pressedColor={theme.controlPressed}
               focusRing={accent.ring}
-              style={StyleSheet.flatten([
-                styles.send,
-                draft.trim()
-                  ? { backgroundColor: accent.color, borderColor: 'transparent' }
-                  : { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-              ])}>
+              style={StyleSheet.flatten([styles.send, { backgroundColor: theme.controlFill }])}>
               <Ionicons
                 name="arrow-up"
                 size={20}
-                color={draft.trim() ? accent.ink : theme.textMuted}
+                color={draft.trim() ? theme.text : theme.textMuted}
               />
             </PressableScale>
           </View>
@@ -284,7 +279,7 @@ function CommentRow({
 }
 
 /** The send key's edge: the composer field's own height, so the two align. */
-const SEND = ControlHeight.medium;
+const SEND = ControlHeight.field;
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
@@ -308,12 +303,11 @@ const styles = StyleSheet.create({
   composerField: { flex: 1 },
   /* One line tall to start — the field's 2dp of edge make it exactly the send
      key's height — growing to about five lines before it scrolls. */
-  input: { minHeight: ControlHeight.medium - 2, maxHeight: 120 },
+  input: { minHeight: ControlHeight.field - 3, maxHeight: 120 },
   send: {
     width: SEND,
     height: SEND,
     borderRadius: SEND / 2,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

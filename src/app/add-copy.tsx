@@ -9,10 +9,8 @@ import { GamePicker } from '@/components/game-picker';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PartialDateField } from '@/components/ui/partial-date-field';
-import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
-import { useSelectable } from '@/components/ui/selectable';
-import { RadioMark } from '@/components/ui/selection-marks';
+import { SelectionCard } from '@/components/ui/selection-card';
 import { SelectField } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -30,7 +28,7 @@ import {
   releaseLine,
 } from '@/constants/physical';
 import { platformKeyForStored } from '@/constants/platform-family';
-import { Radius, Spacing, TapTarget } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   addCopy,
@@ -421,7 +419,7 @@ function CopyForm({
   );
 }
 
-/** One radio row in the release list. */
+/** One radio row in the release list — a selection card, like every choice. */
 function ReleaseRow({
   title,
   subtitle,
@@ -433,30 +431,14 @@ function ReleaseRow({
   selected: boolean;
   onPress: () => void;
 }) {
-  const look = useSelectable()(selected);
   return (
-    <PressableScale
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+    <SelectionCard
+      title={title}
+      hint={subtitle}
+      selected={selected}
       onPress={onPress}
-      scaleTo={0.98}
-      pressedColor={look.pressedColor}
-      focusRing={look.focusRing}
-      style={StyleSheet.flatten([styles.releaseRow, look.style])}>
-      <View style={styles.flex}>
-        <Text variant="h5" color={look.label}>
-          {title}
-        </Text>
-        {subtitle && (
-          /* Up a step when chosen: `textMuted` is under AA on the wash. */
-          <Text variant="caption" color={selected ? 'textSecondary' : 'textMuted'}>
-            {subtitle}
-          </Text>
-        )}
-      </View>
-      <RadioMark on={selected} />
-    </PressableScale>
+      accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
+    />
   );
 }
 
@@ -465,17 +447,7 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.x16, gap: Spacing.x24, paddingBottom: Spacing.x48 },
   head: { gap: Spacing.x4 },
   section: { gap: Spacing.x12 },
-  releases: { gap: Spacing.x8 },
-  releaseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    minHeight: TapTarget + Spacing.x8,
-    paddingHorizontal: Spacing.x16,
-    paddingVertical: Spacing.x8,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-  },
+  releases: { gap: Spacing.x12 },
   describe: { gap: Spacing.x16 },
   notice: {
     flexDirection: 'row',

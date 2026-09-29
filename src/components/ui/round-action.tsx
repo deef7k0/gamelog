@@ -15,7 +15,7 @@ export const ROUND_ACTION = 48;
  * Not `<IconButton>`: that primitive is the toolbar circle — 40dp, the house
  * control surface and a 1px edge. These are Material 3 tonal transport keys for
  * the artwork above them, filled from the game's own palette at 48dp — the same
- * argument `<Button shape="pill">` makes on the game page.
+ * argument the vivid review button makes on the game page.
  *
  * **Two screens have them, in pairs, and nowhere else**: Surprise Me (bookmark
  * and skip) and a review (like and share). Both are one game's square art with

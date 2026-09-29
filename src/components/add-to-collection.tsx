@@ -138,12 +138,12 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
             router.push({ pathname: '/add-copy', params: { game: game.id } });
           }}
           scaleTo={0.98}
-          pressedColor={theme.surfaceSelected}
+          pressedColor={theme.controlPressed}
           focusRing={accent.ring}
           style={StyleSheet.flatten([
             styles.row,
             styles.ownRow,
-            { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
+            { backgroundColor: theme.controlFill },
           ])}>
           <View style={[styles.copyGlyph, { backgroundColor: theme.surfaceSelected }]}>
             <Ionicons name="disc-outline" size={22} color={theme.text} />
@@ -193,12 +193,9 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
                 disabled={add.isPending}
                 onPress={() => add.mutate(list.id)}
                 scaleTo={0.98}
-                pressedColor={theme.surfaceElevated}
+                pressedColor={theme.controlPressed}
                 focusRing={accent.ring}
-                style={StyleSheet.flatten([
-                  styles.row,
-                  { backgroundColor: theme.surface, borderColor: theme.border },
-                ])}>
+                style={StyleSheet.flatten([styles.row, { backgroundColor: theme.controlFill }])}>
                 <CollectionMosaic
                   covers={list.mosaic}
                   display={list.cover_style ?? 'mosaic'}
@@ -239,15 +236,14 @@ const styles = StyleSheet.create({
   gutter: { paddingHorizontal: Spacing.x16 },
 
   rows: { paddingHorizontal: Spacing.x16, gap: Spacing.x8 },
-  /* Interactive rows: a card's corner, and the 1px edge every pressable thing
-     carries. */
+  /* Rows that act — add this game to that list — so the action grey and no
+     edge, the same object as every button. */
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
     padding: Spacing.x12,
     borderRadius: Radius.card,
-    borderWidth: 1,
   },
   rowText: { flex: 1, gap: 1 },
   /* Margin, not the `gutter` padding: the row is a surface, and it has to line

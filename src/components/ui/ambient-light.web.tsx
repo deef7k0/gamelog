@@ -17,7 +17,7 @@ const CENTER_X = 0.2;
 const CENTER_Y = 0.05;
 const RADIUS_X = 0.78;
 const RADIUS_Y = 0.5;
-const PEAK = 0.18;
+const PEAK = 0.42;
 
 const STOPS = Array.from({ length: 11 }, (_, index) => index / 10);
 

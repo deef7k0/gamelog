@@ -85,11 +85,8 @@ export default function SettingsScreen() {
                 accessibilityRole="link"
                 accessibilityLabel="Review community submissions"
                 scaleTo={0.98}
-                pressedColor={theme.surfaceSelected}
-                style={StyleSheet.flatten([
-                  styles.row,
-                  { backgroundColor: theme.surfaceElevated, borderColor: theme.border },
-                ])}>
+                pressedColor={theme.controlPressed}
+                style={StyleSheet.flatten([styles.row, { backgroundColor: theme.controlFill }])}>
                 <Ionicons name="shield-checkmark-outline" size={20} color={theme.textSecondary} />
                 <View style={styles.rowText}>
                   <Text variant="h5">Review queue</Text>
@@ -110,8 +107,8 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   content: { gap: Spacing.x32, paddingTop: Spacing.x24, paddingBottom: Spacing.x48 },
   group: { gap: Spacing.x8 },
-  /* The same row as the hidden-games one above it: a card's corner, the
-     resting control surface and its 1px edge. */
+  /* The same row as the hidden-games one above it: a card's corner and the
+     action grey — it opens something, so it is filled, not outlined. */
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -119,7 +116,6 @@ const styles = StyleSheet.create({
     minHeight: TapTarget + Spacing.x8,
     paddingHorizontal: Spacing.x16,
     borderRadius: Radius.card,
-    borderWidth: 1,
   },
   rowText: { flex: 1, gap: 1 },
 });

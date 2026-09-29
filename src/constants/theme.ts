@@ -109,18 +109,21 @@ export const Colors = {
      */
     homeBackground: '#14171c',
     /**
-     * Cards and the tab bar. One perceptible step off the page.
+     * Cards and the tab bar. One perceptible step off the page: 1.076:1 on
+     * `background` (#14171c). The owner's colour.
      *
-     * The whole ladder shares the page's cool trace, and the steps are
-     * slightly *wider* than on the old blue-grey ladder — card on page 1.068:1
-     * (was 1.048), elevated on card 1.070, selected on elevated 1.100 — because
-     * a darker floor needs a larger step to read as one.
+     * **Solid, and it has to be.** It was tried at 62% opacity (`#1b1e249f`),
+     * which broke three things quietly: `tint()` and `withAlpha()` read only a
+     * plain `#RRGGBB`, so the house accent's tinted card came back see-through
+     * and the News dock's 80% wash came back at 62%; and on Android a
+     * translucent view with `elevation` shows its own shadow through itself, a
+     * grey smudge inside every card. Keep it a six-digit hex.
      *
      * This is the fixed-colour ladder and nothing on a game's own screens uses
      * it for their surfaces: those run on `accentRoles`, which derives them from
      * the artwork. See CLAUDE.md, "The room is dark".
      */
-    surface: '#1b1e249f',
+    surface: '#1b1e24',
     /**
      * Nested surfaces, and the resting fill of a control — a secondary button,
      * an icon button, an unselected chip. The reference's "interactive surface".
@@ -128,10 +131,36 @@ export const Colors = {
     surfaceElevated: '#1B1A20',
     /** Pressed and neutral-selected fill: one step above a resting control. */
     surfaceSelected: '#24222A',
-    /** Text fields and the search bar: darker than a card, so an input reads as
-     *  a recess rather than as another card. Its 1px `border` is what draws it
-     *  on the page, where the two fills are 1.02:1 apart. */
-    input: '#111014',
+    /**
+     * The well of a text field, a select field and the search bar — the owner's
+     * reference, SimpMusic's name field: its `onSurfaceVariant` at 8%, which
+     * renders #0F0F0F on a black page. No border: the fill alone draws it.
+     *
+     * Translucent rather than a hex so the lift is the same over every floor it
+     * sits on — the page, Home's own `homeBackground`, a game's Material 3 page.
+     */
+    input: 'rgba(255, 255, 255, 0.06)',
+    /**
+     * The fill of every action button and icon button — the reference's
+     * "Create room": `onSurfaceVariant` at 12%, #181818 on black. A step
+     * lighter than a field's well, so an action and the field it acts on read
+     * as two different objects. Translucent for the same reason as `input`.
+     */
+    controlFill: 'rgba(255, 255, 255, 0.094)',
+    /** `controlFill` while held: a step brighter, eased in by `PressableScale`. */
+    controlPressed: 'rgba(255, 255, 255, 0.15)',
+    /**
+     * The label on an action button: a soft light grey rather than white, as the
+     * reference sets it (#D6D4D9 measured). 12.4:1 on `controlFill` over black.
+     */
+    controlInk: '#D6D6D6',
+    /**
+     * The resting edge of a *choice* — a selection card, a filter or sort pill,
+     * an unchosen segment: the reference's `onSurfaceVariant` at 20%. Choices
+     * are outlined and actions are filled; the edge is what says "one of
+     * these", where a filled grey pill says "do this".
+     */
+    outline: 'rgba(255, 255, 255, 0.16)',
 
     /** Overlays for touch feedback. Layered *over* a surface, never instead. */
     hover: 'rgba(255, 255, 255, 0.04)',
@@ -840,9 +869,11 @@ export const Radius = {
   /** Game covers, screenshots, thumbnails — anything rectangular and pictorial. */
   image: 4,
   /**
-   * Every button and every pressable control — toggles, segments, choice rows.
+   * Pressable controls that are not buttons — toggles, segments, the log
+   * form's status pills. Buttons themselves are full pills (`pill`), as the
+   * owner's reference draws them.
    *
-   * 20, which on a 48dp button resolves to a soft stadium and on anything 40dp
+   * 20, which on a 48dp control resolves to a soft stadium and on anything 40dp
    * or shorter to a true pill (React Native clamps a radius at half the side).
    * Icon buttons are circles and take no token: `size / 2`.
    */
@@ -865,13 +896,11 @@ export const Radius = {
    */
   cardLarge: 18,
   /**
-   * Text fields and select fields — squarer than `control`, so a field and the
-   * button that submits it read as two different objects. The search bar is
-   * the exception and takes `pill`: it is a control, not a form row.
+   * Every field — text, text area, select, search: the reference's 18dp.
+   * Squarer than a button's full pill, so a field and the button that submits
+   * it read as two different objects.
    */
-  input: 16,
-  /** A multi-line text area. Rounder than a field because it is taller. */
-  inputArea: 20,
+  input: 18,
   /**
    * The top corners of a bottom sheet, and the corners of a dialog or a menu —
    * anything that sits *above* the page. The roundest interface shape, because
@@ -949,23 +978,35 @@ export const Type = {
   },
 
   /*
-   * Control text. 13, up from 12, with the controls: a 48dp button carrying a
-   * 12px word read as a slab with a caption on it rather than as a button.
+   * Control text. 13 semibold — the reference's `titleSmall`, the small label in
+   * the middle of a 52dp pill.
    */
   button: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
   /**
-   * A form field's label, set *above* the field. Semibold at full-strength ink
-   * so the question reads before the answer box does — it used to be
-   * `bodySmall` in `textSecondary`, quieter than the placeholder under it.
+   * A form field's label, set *above* the field: small and medium weight, the
+   * reference's 11sp Poppins Medium translated to Inter at the 12 it needs to
+   * read the same. The field under it is the object; the label names it.
    */
-  fieldLabel: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
+  fieldLabel: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.medium },
   /**
    * What is typed into a field. **No `lineHeight`, on purpose**: on Android a
    * line height on a `TextInput` clips descenders and fights the vertical
-   * centring the field's min-height does. 14, a step above `body`, because a
-   * 48dp field is a larger object than a line of copy.
+   * centring the field's min-height does. 13, the reference's.
    */
-  fieldText: { fontSize: 14, fontFamily: FontFamily.regular },
+  fieldText: { fontSize: 13, fontFamily: FontFamily.regular },
+  /**
+   * The name on a selection card — the reference's Server option. Medium, not
+   * bold: a choice is read, not announced, and the circle beside it carries
+   * which one is on.
+   */
+  optionTitle: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.medium },
+  /**
+   * The title of a row or a card in a list — a game in a collection, a
+   * collection in a list of them. The reference's `titleSmall`: 13 semibold,
+   * with its supporting line in `bodySmall` under it. Bold is for titles and
+   * figures; everything around them is regular and quieter.
+   */
+  itemTitle: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
 
   /* -------------------------------------------------------------------------
    * Reviews, and nothing else in the app.
@@ -1157,15 +1198,17 @@ export const TapTarget = Platform.select({ android: 48, default: 44 }) as number
 /**
  * How tall a control is drawn, as distinct from how large it is to touch.
  *
- * Shared by buttons and fields so a text field and the button beside it are the
- * same height on both platforms. `medium` clears both platforms' floors on its
- * own; `small` is drawn shorter and reaches `TapTarget` through `hitSlop`,
- * which is what lets a row of filter pills stay light without a thumb missing
- * them; `large` is for the one action a screen exists for.
+ * The reference's numbers: a button is 52 and a field is 54, the field a hair
+ * taller because it holds a line you type rather than a word you tap. `medium`
+ * is every action button and clears both platforms' floors on its own; `small`
+ * is drawn shorter and reaches `TapTarget` through `hitSlop`, which is what
+ * lets a row of filter pills stay light without a thumb missing them; `large`
+ * is for the one action a screen exists for.
  */
 export const ControlHeight = {
   small: 36,
-  medium: 48,
+  medium: 52,
+  field: 54,
   large: 60,
 } as const;
 

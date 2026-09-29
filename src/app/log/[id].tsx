@@ -664,13 +664,14 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
                     accessibilityState={{ selected }}
                     accessibilityHint={option.hint}
                     scaleTo={0.96}
-                    pressedColor={selected ? tint : theme.surfaceSelected}
+                    pressedColor={selected ? tint : theme.pressed}
                     focusRing={withAlpha(tint, 0.3)}
                     style={StyleSheet.flatten([
                       styles.status,
                       {
-                        backgroundColor: selected ? tint : theme.surfaceElevated,
-                        borderColor: selected ? tint : theme.border,
+                        /* Outlined at rest, like every choice in the app. */
+                        backgroundColor: selected ? tint : 'transparent',
+                        borderColor: selected ? tint : theme.outline,
                       },
                     ])}>
                     {/* Glyph as well as fill: the three "played" choices share
@@ -1055,13 +1056,14 @@ function Toggle({
       disabled={disabled}
       onPress={onPress}
       scaleTo={0.97}
-      pressedColor={value ? withAlpha(tint, 0.22) : theme.surfaceSelected}
+      pressedColor={value ? withAlpha(tint, 0.22) : theme.pressed}
       focusRing={withAlpha(tint, 0.3)}
       style={StyleSheet.flatten([
         styles.toggle,
         {
-          backgroundColor: value ? withAlpha(tint, 0.13) : theme.surfaceElevated,
-          borderColor: value ? tint : theme.border,
+          /* Outlined at rest, like every choice in the app. */
+          backgroundColor: value ? withAlpha(tint, 0.13) : 'transparent',
+          borderColor: value ? tint : theme.outline,
           opacity: disabled ? 0.6 : 1,
         },
       ])}>

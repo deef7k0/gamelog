@@ -135,7 +135,9 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
       />
 
       <View style={styles.body}>
-        <Text variant="h5" numberOfLines={2}>
+        {/* The row title the owner's reference uses — semibold 13 — with the
+            facts under it regular and quieter. */}
+        <Text variant="itemTitle" numberOfLines={2}>
           {game.title}
         </Text>
 
@@ -176,13 +178,13 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
         {/* One fact per line, muted, in the order a reader asks for them:
             when, then who. */}
         {release && (
-          <Text variant="caption" color="textMuted">
+          <Text variant="bodySmall" color="textMuted">
             {release}
           </Text>
         )}
 
         {game.developer && (
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
+          <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
             {game.developer}
           </Text>
         )}

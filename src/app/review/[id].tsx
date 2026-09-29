@@ -414,11 +414,11 @@ const MAX_CELLS = 4;
 
 /** What each progress choice is called in a strip label — one word, where it can be. */
 const PROGRESS_CELL: Partial<Record<ProgressChoice, string>> = {
-  playing: 'PLAYING',
-  paused: 'PAUSED',
-  completed: 'COMPLETED',
+  playing: 'Playing',
+  paused: 'Paused',
+  completed: 'Completed',
   full: '100%',
-  dropped: 'DROPPED',
+  dropped: 'Dropped',
 };
 
 /**
@@ -456,7 +456,7 @@ function reviewCells(review: LogWithRelations, theme: ThemePalette): StatsCell[]
                writer's own word rather than dropped. */
             key: 'platform',
             value: review.played_on,
-            label: 'PLATFORM',
+            label: 'Platform',
             a11y: `Played on ${review.played_on}`,
           }
     );
@@ -472,7 +472,7 @@ function reviewCells(review: LogWithRelations, theme: ThemePalette): StatsCell[]
     cells.push({
       key: 'progress',
       value: 'Platinum',
-      label: 'PLATINUM',
+      label: 'Platinum',
       icon: { name: 'trophy', color: theme.platinum },
       a11y: 'Earned the platinum trophy',
     });
@@ -491,7 +491,7 @@ function reviewCells(review: LogWithRelations, theme: ThemePalette): StatsCell[]
     cells.push({
       key: 'hours',
       value: `${review.hours_played} h`,
-      label: 'PLAYED',
+      label: 'Played',
       a11y: `${review.hours_played} hours played`,
     });
   }
@@ -502,7 +502,7 @@ function reviewCells(review: LogWithRelations, theme: ThemePalette): StatsCell[]
     cells.push({
       key: 'percent',
       value: `${review.completion_percent}%`,
-      label: 'COMPLETE',
+      label: 'Complete',
       a11y: `${review.completion_percent}% complete`,
     });
   }
@@ -512,7 +512,7 @@ function reviewCells(review: LogWithRelations, theme: ThemePalette): StatsCell[]
     cells.push({
       key: 'coop',
       value: review.coop ? 'Co-op' : 'Solo',
-      label: review.coop ? (players ? `${players} PLAYERS` : 'CO-OP') : 'SOLO',
+      label: review.coop ? (players ? `${players} players` : 'Co-op') : 'Solo',
       icon: { name: review.coop ? 'people' : 'person', color: theme.text },
       a11y: review.coop
         ? players

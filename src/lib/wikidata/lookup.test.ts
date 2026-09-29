@@ -88,11 +88,21 @@ describe('wikidataLookupFor', () => {
 
   it('returns null when there is nothing exact to search by', () => {
     assert.equal(
-      wikidataLookupFor({ source: 'rawg', sourceId: 'celeste', storeUrl: 'https://rawg.io/games/celeste', steamAppId: null }),
+      wikidataLookupFor({
+        source: 'rawg',
+        sourceId: 'celeste',
+        storeUrl: 'https://rawg.io/games/celeste',
+        steamAppId: null,
+      }),
       null
     );
     assert.equal(
-      wikidataLookupFor({ source: 'igdb', sourceId: '1', storeUrl: null, steamAppId: 'not-an-appid' }),
+      wikidataLookupFor({
+        source: 'igdb',
+        sourceId: '1',
+        storeUrl: null,
+        steamAppId: 'not-an-appid',
+      }),
       null
     );
   });
@@ -118,16 +128,25 @@ describe('itemSearchesFor', () => {
 
 describe('itemMatchesGame', () => {
   it('accepts an item whose IGDB record names this game by numeric id', () => {
-    assert.equal(itemMatchesGame({ P5794: [igdbRecord('the-witcher-3-wild-hunt', '1942')] }, WITCHER), true);
+    assert.equal(
+      itemMatchesGame({ P5794: [igdbRecord('the-witcher-3-wild-hunt', '1942')] }, WITCHER),
+      true
+    );
   });
 
   it('accepts a matching slug when the record has no numeric id', () => {
-    assert.equal(itemMatchesGame({ P5794: [igdbRecord('the-witcher-3-wild-hunt')] }, WITCHER), true);
+    assert.equal(
+      itemMatchesGame({ P5794: [igdbRecord('the-witcher-3-wild-hunt')] }, WITCHER),
+      true
+    );
   });
 
   it('rejects an item whose record names another IGDB game, however it was found', () => {
     /* The slug matched, but IGDB's numeric id says it is somebody else's now. */
-    assert.equal(itemMatchesGame({ P5794: [igdbRecord('the-witcher-3-wild-hunt', '9999')] }, WITCHER), false);
+    assert.equal(
+      itemMatchesGame({ P5794: [igdbRecord('the-witcher-3-wild-hunt', '9999')] }, WITCHER),
+      false
+    );
     /* Found by Steam appid, but the item is the Complete Edition's. */
     assert.equal(
       itemMatchesGame({ P5794: [igdbRecord('the-witcher-3-wild-hunt-complete-edition')] }, WITCHER),
@@ -137,7 +156,10 @@ describe('itemMatchesGame', () => {
 
   it('accepts an item that records several IGDB games when one is this one', () => {
     const claims = {
-      P5794: [igdbRecord('the-witcher-3-goty', '11111'), igdbRecord('the-witcher-3-wild-hunt', '1942')],
+      P5794: [
+        igdbRecord('the-witcher-3-goty', '11111'),
+        igdbRecord('the-witcher-3-wild-hunt', '1942'),
+      ],
     };
     assert.equal(itemMatchesGame(claims, WITCHER), true);
   });

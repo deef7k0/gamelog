@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -6,23 +5,42 @@ import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { GamePosterRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
+import { LOGO_WIDTH_RATIO, StudioIdentity } from '@/components/studio-identity';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { HeroArt } from '@/components/ui/hero-art';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
+import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Skeleton } from '@/components/ui/surface';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { scoreColor } from '@/constants/score';
-import { HeroAspectRatio, Radius, Spacing } from '@/constants/theme';
+import { Palette, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { useImmersiveBackground } from '@/hooks/use-immersive-background';
+import { useStudioBanner } from '@/hooks/use-studio-banner';
+import { BANNER_MAX_ASPECT, useStudioCatalogue } from '@/hooks/use-studio-catalogue';
+import { useStudioLogo } from '@/hooks/use-studio-logo';
 import { useTheme } from '@/hooks/use-theme';
 import { gameSortOptions, sortGames, type GameSearchResult, type GameSort } from '@/lib/games';
-import { getCompanyGames } from '@/lib/games/igdb';
 
 /** Four across, matching the library and collection grids. */
 const COLUMNS = 4;
 const GAP = Spacing.x8;
+
+/**
+ * How much of the grid exists at once, in rows of four.
+ *
+ * The list defaults are built for text rows: ten rows up front and ten
+ * screens either side after that, which on a 200-game catalogue is every
+ * cover — two hundred downloads, most of them for games nobody scrolls to,
+ * all racing the banner. The grid starts under a screenful of banner and
+ * rails, so two rows are enough to be ready when it is reached, and one
+ * screen either side keeps ahead of a scroll.
+ */
+const GRID_FIRST_ROWS = 2;
+const GRID_BATCH_ROWS = 4;
+const GRID_WINDOW = 3;
 
 /**
  * How a catalogue can be ordered.
@@ -34,17 +52,20 @@ const GAP = Spacing.x8;
 const SORTS = gameSortOptions(['newest', 'oldest', 'rating', 'title']);
 
 /**
- * How tall the banner is: 16:9 of the width, but never more than this much of
- * the display.
- *
- * Deliberately shorter than the game page's hero, which is `HeroHeightRatio`
- * (38%). That screen's art *is* its subject — the game is what the page is about,
- * and the case stands in front of it. Here the art is context: it says "this is
- * the kind of thing they make" and the studio's name is the subject. 16:9 lands
- * at about 26% of a phone, which is a band rather than a screenful, and the cap
- * is what stops a short wide tablet drawing a 576dp header.
+ * The banner is square — SimpMusic's artist header on a phone (`aspectRatio(1f)`
+ * in `ArtistScreen.kt`) — but never taller than half the display, which is what
+ * stops a tablet or a landscape window drawing a screenful of it.
  */
-const BANNER_MAX_RATIO = 0.3;
+const FRAME_MAX_RATIO = 0.5;
+
+/** How much of the banner the scrim covers, from the bottom: the reference's `fillMaxHeight(0.7f)`. */
+const SCRIM_RATIO = 0.7;
+
+/** The reference's 5% black over the artwork, so a bright image sits back behind the name. */
+const VEIL = 0.05;
+
+/** The line under the name — "128 games · 1998–2024" — at the reference's 77% white. */
+const META_ALPHA = 0.77;
 
 /**
  * How many rated originals a studio needs before "Best from the studio" means
@@ -82,7 +103,7 @@ const REPACKAGED: readonly (GameSearchResult['edition'] & string)[] = ['edition'
  *
  * `catalogue` and `repackaged` are a genuine split: a "Definitive Edition" is the
  * same game as its parent, so leaving it in the grid puts three near-identical
- * covers in a row — the exact problem `getCompanyGames` used to solve by never
+ * covers in a row — the exact problem the catalogue query used to solve by never
  * fetching them. They come out of the grid and into their own rail.
  *
  * `best` and `redone` are *views* into the catalogue, not removals from it. A
@@ -118,8 +139,11 @@ function shelves(games: readonly GameSearchResult[]) {
     /* The banner is the studio's best-reviewed game, and it is deliberately
        uncredited: it is also the first poster in the rail directly below, so the
        association is made by adjacency. A caption naming it would be a line of
-       type explaining a picture the reader is about to see again. */
-    banner: best[0] ?? catalogue[0] ?? null,
+       type explaining a picture the reader is about to see again.
+
+       A list, in that order, of the games that have art at all — the screen
+       takes the first whose art it can use (see `BANNER_MAX_ASPECT`). */
+    bannerCandidates: [...new Set([...best, ...catalogue])].filter((game) => !!game.heroUrl),
     span: yearsOf(catalogue),
     /* Over the same rated originals and behind the same floor as the "Best"
        rail: an average of two scores is two games, not a studio's standing. */
@@ -162,13 +186,34 @@ function yearsOf(games: readonly GameSearchResult[]): string | null {
  * their games exist in more than one box. Every one of the three comes out of the
  * list already fetched; see `shelves`.
  *
- * ## No accent provider
+ * ## The page takes the banner's colour; the controls do not
  *
- * This page shows a hundred games, so it stays on the house blue. `<AccentProvider>`
- * wraps the four screens that are about *one* game, for the reason CLAUDE.md
- * gives: a hue identifies a game only when you are looking at that game, and a
- * catalogue lit by its best-reviewed title's box art would just be tinted for
- * reasons nobody could read. The banner is artwork; the chrome is the app's.
+ * The header is SimpMusic's artist page, read from `ArtistScreen.kt`: the
+ * artwork square and full width, melting into a page filled with the
+ * artwork's own darkened tone (`useImmersiveBackground`), and the studio's name
+ * set over the bottom — as its logo, when Wikimedia Commons has a public-domain
+ * one (`useStudioLogo`, `<StudioIdentity>`).
+ *
+ * The colour is the page's and nothing else's. There is still no
+ * `<AccentProvider>`: this page shows a hundred games, and a sort pill or a link
+ * in one title's hue would claim that game speaks for the catalogue. So the
+ * chrome stays the app's — neutral controls, the house blue on what is selected
+ * — and only the ground under it changes.
+ *
+ * ## What arrives, and when
+ *
+ * The name is on screen from the route. Everything else is two IGDB requests
+ * away — the company, then its games (`useStudioCatalogue`) — and then the
+ * banner and its colour, read from a 3 KB thumbnail of the banner art while the
+ * art itself downloads, so the colour lands first and the art on it. The
+ * banner downloads ahead of every cover (`priority`), and the grid exists only
+ * a screen either side of the scroll, so two hundred covers do not race it.
+ *
+ * A studio opened before skips the wait for the two that matter most: its
+ * banner is remembered (`useStudioBanner`), so the art comes from the disk
+ * cache and the colour from the colour store before IGDB has answered. The
+ * logo, when there is one, is a month-long answer on the device and costs no
+ * IGDB request of its own (`useStudioLogo`).
  *
  * IGDB-only. Company ids come from `getGameExtras` and nothing else in the app
  * has an equivalent, so studio names are only tappable on IGDB titles.
@@ -180,22 +225,37 @@ export default function StudioScreen() {
   const companyId = Number(id);
   const [sort, setSort] = useState<GameSort>('newest');
 
-  const games = useQuery({
-    queryKey: ['studio-games', id],
-    queryFn: ({ signal }) => getCompanyGames(companyId, signal),
-    enabled: Number.isFinite(companyId),
-    staleTime: 30 * 60_000,
-  });
+  const games = useStudioCatalogue(companyId);
 
-  const { catalogue, repackaged, redone, best, banner, span, average } = useMemo(
+  /* Banner games whose art loaded as a strip the square cannot show. Set from
+     the image's own load event, so it only ever grows by one per bad strip. */
+  const [strips, setStrips] = useState<readonly string[]>([]);
+
+  const { catalogue, repackaged, redone, best, bannerCandidates, span, average } = useMemo(
     () => shelves(games.data ?? []),
     [games.data]
   );
 
   const ordered = useMemo(() => sortGames(catalogue, sort), [catalogue, sort]);
 
+  const banner = bannerCandidates.find((game) => !strips.includes(game.id)) ?? null;
+
+  /* The art on screen: the catalogue's banner, and while the catalogue is
+     still on its way, the one this device showed last time — so a studio
+     opened before is never waiting on IGDB for its banner or its colour. */
+  const bannerUrl = useStudioBanner(companyId, games.data ? (banner?.heroUrl ?? null) : undefined);
+
+  /* The page's colour, from the banner it melts out of — null until there is
+     a banner and its colour is read, when the page stays the app's own. */
+  const pageColor = useImmersiveBackground(bannerUrl);
+  const page = pageColor ?? theme.background;
+
+  /* The logo, when Commons has a free one. The name is on screen from the
+     route in the meantime, and stays whenever there is none. */
+  const logo = useStudioLogo(companyId, name);
+
   const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
-  const bannerHeight = Math.round(Math.min(width / HeroAspectRatio, height * BANNER_MAX_RATIO));
+  const bannerHeight = Math.round(Math.min(width, height * FRAME_MAX_RATIO));
 
   if (!Number.isFinite(companyId)) {
     return (
@@ -207,8 +267,9 @@ export default function StudioScreen() {
 
   return (
     /* No `insetHeader`: the banner runs under the floating back disc, the way
-       every screen that opens on artwork does. The disc carries its own scrim. */
-    <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+       every screen that opens on artwork does. The disc carries its own scrim.
+       `background` is the banner's immersive colour, or the app's page. */
+    <Screen edges={['bottom']} background={pageColor ?? undefined} topBar={<FrostedTopBar back />}>
       <FlatList
         data={ordered}
         key={`grid-${COLUMNS}`}
@@ -217,6 +278,9 @@ export default function StudioScreen() {
         columnWrapperStyle={styles.column}
         contentContainerStyle={styles.grid}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={GRID_FIRST_ROWS}
+        maxToRenderPerBatch={GRID_BATCH_ROWS}
+        windowSize={GRID_WINDOW}
         renderItem={({ item }) => (
           <Link href={{ pathname: '/game/[id]', params: { id: item.id } }} asChild>
             <PressableScale
@@ -231,6 +295,9 @@ export default function StudioScreen() {
                   edition={item.edition}
                   width={tileWidth}
                   rounded="image"
+                  /* Behind the banner and the rails in the download queue:
+                     the grid starts below the first screen. */
+                  priority="low"
                 />
               </View>
             </PressableScale>
@@ -247,69 +314,77 @@ export default function StudioScreen() {
               game page: the name is already known from the route params and is on
               screen a whole round trip before the art it sits on.
             */}
-            <View style={styles.banner}>
+            <View style={[styles.banner, { height: bannerHeight }]}>
+              {/* No fade of its own: the scrim below is the fade, into this
+                  page's colour rather than the app's. `HeroArt` still dissolves
+                  a blurred copy of the art into its lower half, the reference's
+                  soft bottom.
+
+                  No `steamAppId`: the studio catalogue does not ask IGDB for
+                  store ids, so the banner is always the IGDB art its colour
+                  was read from. The strip check is a backstop now — the
+                  catalogue already passes over art it knows the size of — and
+                  only judges the catalogue's own choice, never remembered art. */}
               <HeroArt
-                uri={banner?.heroUrl}
-                steamAppId={banner?.steamAppId}
+                uri={bannerUrl}
                 height={bannerHeight}
+                onLoad={({ width: artWidth, height: artHeight }) => {
+                  if (
+                    banner &&
+                    banner.heroUrl === bannerUrl &&
+                    artHeight > 0 &&
+                    artWidth / artHeight > BANNER_MAX_ASPECT
+                  ) {
+                    setStrips((previous) => [...previous, banner.id]);
+                  }
+                }}
                 scrim
-                fade="color"
+                fade={false}
+              />
+              <View
+                style={[styles.fill, { backgroundColor: withAlpha(Palette.shadowInk, VEIL) }]}
+                pointerEvents="none"
+              />
+              <SmoothScrim
+                color={page}
+                style={[styles.scrim, { height: `${SCRIM_RATIO * 100}%` }]}
               />
 
-              {/* Over the bottom of the art, not under it — the same
-                  arrangement as the Top 10's headline, down to the inset.
-                  `HeroArt`'s fade has run the art to flat ink by its last third,
-                  so the name sits on something it cannot lose against, and the
-                  page gets the height of a title block back.
+              {/*
+                The name over the bottom of the art, centred — as the studio's
+                logo when Commons has a free one, as type when it has not — and
+                under it one line of what the studio has made, where the
+                reference prints subscribers and views.
 
-                  Absolutely positioned rather than pulled up with a negative
-                  margin: the name arrives from the route params a full round trip
-                  before the art does, and out of flow it cannot move anything
-                  below it when a long one wraps to a second line. */}
+                Absolutely positioned rather than pulled up with a negative
+                margin: the name arrives from the route params a full round trip
+                before the art does, and out of flow neither it nor a logo that
+                replaces it can move anything below.
+              */}
               <View style={styles.identity}>
-                {name && (
-                  /* `h1`, not the game page's `display`. A studio is not the
-                     subject of the app the way a game is, and IGDB's company
-                     names run long enough that the larger step would truncate
-                     them — "Kabushiki Gaisha Nintendo Entaateinmento Puranningu
-                     & Debelopumento" is a real row. */
-                  <Text variant="h1" numberOfLines={2}>
-                    {name}
-                  </Text>
-                )}
-                {/*
-                  The owner's reference, SimpMusic's Analytics header: under the
-                  title, a row with the subject on the left — a bold figure over
-                  a quiet line — and one measurement on the right, its label
-                  over its value. Bold for the figures, regular and quieter for
-                  everything that explains them; no caps, no tracking.
-                */}
+                <StudioIdentity
+                  name={name}
+                  logo={logo.data}
+                  pageColor={page}
+                  maxWidth={Math.round(width * LOGO_WIDTH_RATIO)}
+                />
                 {games.data && (
-                  <View style={styles.facts}>
-                    <View style={styles.fact}>
-                      <Text variant="h3">
-                        {`${catalogue.length} ${catalogue.length === 1 ? 'game' : 'games'}`}
-                      </Text>
-                      {span && (
-                        <Text variant="body" color="textSecondary">
-                          {span}
-                        </Text>
-                      )}
-                    </View>
+                  <Text
+                    variant="body"
+                    style={[styles.meta, { color: withAlpha(theme.text, META_ALPHA) }]}>
+                    {`${catalogue.length} ${catalogue.length === 1 ? 'game' : 'games'}`}
+                    {span ? ` · ${span}` : ''}
                     {average !== null && (
-                      <View
-                        style={[styles.fact, styles.factEnd]}
-                        accessible
-                        accessibilityLabel={`Average rating ${average} out of 100`}>
-                        <Text variant="body">Average rating</Text>
+                      <>
+                        {' · Average rating '}
                         {/* The score's own ramp, never the accent: a blue 55
                             would read as endorsed (CLAUDE.md, "One score ramp"). */}
-                        <Text variant="h2" style={{ color: scoreColor(average, theme) }}>
+                        <Text variant="h5" style={{ color: scoreColor(average, theme) }}>
                           {average}
                         </Text>
-                      </View>
+                      </>
                     )}
-                  </View>
+                  </Text>
                 )}
               </View>
             </View>
@@ -402,25 +477,21 @@ const styles = StyleSheet.create({
      stack of unrelated things, and every band here is about the same studio. */
   header: { gap: Spacing.x48, paddingBottom: Spacing.x16 },
   /* Cancels the grid's horizontal padding so the art reaches both edges. */
-  banner: { marginHorizontal: -Spacing.x16 },
-  /* Puts the inset back for the text, since the container above cancelled it. */
+  banner: { marginHorizontal: -Spacing.x16, overflow: 'hidden' },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /* `height` is supplied inline — `SCRIM_RATIO` of the banner, from the bottom. */
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  /* The reference's name block: centred, 20 in from each side, 16 up from the
+     edge (`x24`, the ladder's 15), and 4 between the name and the line under it. */
   identity: {
     position: 'absolute',
-    left: Spacing.x16,
-    right: Spacing.x16,
+    left: Spacing.x32,
+    right: Spacing.x32,
     bottom: Spacing.x24,
-    gap: Spacing.x12,
+    alignItems: 'center',
+    gap: Spacing.x4,
   },
-  /* The subject on the left, the measurement on the right, bottoms aligned. */
-  facts: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: Spacing.x16,
-  },
-  /* Label and value 2 apart: one fact, read as a pair. */
-  fact: { gap: 2, flexShrink: 1 },
-  factEnd: { alignItems: 'flex-end' },
+  meta: { textAlign: 'center' },
   /* `<HomeSection>` insets its own heading but leaves its children to bleed, for
      the rails. The sort row is not a rail and needs the inset back. */
   sort: { paddingHorizontal: Spacing.x16 },

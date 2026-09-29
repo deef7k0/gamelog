@@ -3,20 +3,21 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { formatReleaseDate } from '@/components/game-actions';
+import { ReportFlag, useCanReport } from '@/components/report-flag';
+import { reviewCells, type ReviewCellKey } from '@/components/review-cells';
+import { SpoilerNotice } from '@/components/spoiler-notice';
 import { Avatar } from '@/components/ui/avatar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { ReportFlag, useCanReport } from '@/components/report-flag';
-import { ReviewMarks, reviewMarkRow } from '@/components/review-marks';
-import { SpoilerNotice } from '@/components/spoiler-notice';
-import { ScoreChip } from '@/components/ui/score-tile';
+import { ScoreReadout } from '@/components/ui/score-meter';
+import { StatsStrip } from '@/components/ui/stats-strip';
 import { Card } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { labelFor } from '@/constants/score';
-/* `STATUS_ICON` left with the status line it belonged to: the top bar's tinted
-   verb is the card's only statement of state now, and it is a word. */
 import { STATUS_LABEL, STATUS_VERB, statusColor } from '@/constants/status';
-import { Spacing } from '@/constants/theme';
+import { FontFamily, Spacing, Type } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useTheme } from '@/hooks/use-theme';
 import type { Engagement } from '@/lib/api';
@@ -24,109 +25,130 @@ import type { LogWithRelations } from '@/lib/database.types';
 import { displayNameFor } from '@/lib/format';
 
 /**
- * Box art width. Its height is the 2:3 derivation, and nothing overrides it.
- *
- * 72, down from 84. The cover used to carry the score chip beneath it and had to
- * be wide enough to hold "91 EXCELLENT"; with the chip up in the masthead the
- * only thing setting this number is how much of the row the excerpt wants, and
- * the excerpt wants more. Still fixed dp — artwork does not ride the spacing
- * ladder (CLAUDE.md), so retuning `Spacing` never moves it.
+ * Box art width; its height is the 2:3 derivation — 99dp, the height the card's
+ * design gives the cover in its top-right corner. Fixed dp: artwork does not
+ * ride the spacing ladder (CLAUDE.md), so retuning `Spacing` never moves it.
  */
-const BOX_ART_WIDTH = 72;
+const BOX_ART_WIDTH = 66;
 
 /**
- * Lifts the heart under the cover to the platform floor.
- *
- * A 15px glyph beside a 13dp count is about 17dp, against 44 (iOS) and 48
- * (Android). Slop rather than padding: padding would push the cover's column
- * taller than the artwork and put a band of dead space at the foot of the card.
- * Weighted right, where there is nothing but the card's own margin.
+ * Source Serif 4's vertical metrics, in ems, read from the font file: its
+ * `hhea` ascender and descender, which its OS/2 typo metrics repeat and flag
+ * for use, so both platforms lay the headline out from these two numbers.
  */
-const HEART_SLOP = { top: 12, bottom: 12, left: 8, right: 20 };
+const SERIF_ASCENDER = 1.036;
+const SERIF_DESCENDER = 0.335;
 
 /**
- * The heart's reach when the report flag shares its row. The flag sits at the
- * column's far edge with 8dp of slop reaching back, so the heart's own reach to
- * the right shrinks to keep the two touch areas apart — up to a four-digit
- * count, a tap on the heart's side of the row is never a report.
+ * How far the headline's line box runs below its baseline: the font's descent,
+ * plus half of whatever leading the line height adds — React Native splits it
+ * evenly above and below, as CSS does. About 3.6dp at 11 on 15, where the
+ * leading is all but zero.
+ *
+ * The art stands this far above the head's bottom edge, which is what puts the
+ * headline's *baseline* on the art's bottom edge rather than the bottom of its
+ * line box, 3.6dp of air lower down.
  */
-const HEART_SLOP_BESIDE_FLAG = { top: 12, bottom: 12, left: 8, right: 4 };
+const HEADLINE = Type.reviewHeadlineSmall;
+const HEADLINE_DESCENT =
+  HEADLINE.fontSize * SERIF_DESCENDER +
+  (HEADLINE.lineHeight - HEADLINE.fontSize * (SERIF_ASCENDER + SERIF_DESCENDER)) / 2;
 
 /**
- * Lines of review printed on the card. There is no more.
- *
- * **Five, and it is a wall rather than a fold.** The card used to clamp at three
- * and offer "Read more", which expanded it in place — so a feed row could double
- * its height under the thumb, and the list you were scrolling reflowed beneath
- * you. Five lines with no expander is the trade: more of the writing up front,
- * and a row whose height is the same before and after you have read it.
- *
- * A reader who wants the rest taps through to the review, which is the screen
- * that exists to be read and where the measure and the room actually are. The
- * "see all reviews" sheet sits between the two at ten.
+ * Lines of review printed under the header. There is no more, and no "Read
+ * more" — the card is an index entry with a fixed height, and the review's own
+ * page is what opens. Three, from the design: with the score, the playthrough
+ * and the headline now in the header, the excerpt is a taste of the writing
+ * rather than the card's only content.
  */
-const REVIEW_LINES = 5;
+const REVIEW_LINES = 3;
 
 /**
- * The author line is a 20dp avatar beside two lines of small type — about 32dp,
- * against a 44 (iOS) / 48 (Android) floor.
- *
- * Slop rather than padding, and weighted upward: padding would push the whole
- * text column down beside artwork that is not moving, and the space above the
- * line is the card's own padding, where nothing else is competing for a tap.
+ * The excerpt's line: 10 on 15. The design sets it at ~10 on a 14.5 pitch —
+ * a preview of the writing, dense enough for three lines to carry a real
+ * sentence — and 10 is the type floor, so it goes no smaller. `caption`'s own
+ * 13 line and 0.2 tracking are for single-line labels; running text at this
+ * size needs the air between lines and no extra space between letters.
+ */
+const EXCERPT_LINE = 15;
+
+/**
+ * At most two playthrough facts beside the score, and platform then hours
+ * first — the two the design shows. The rest stand in, in the review page's
+ * order, when one of those was never recorded. The page itself shows up to four.
+ */
+const CARD_CELLS: readonly ReviewCellKey[] = ['platform', 'hours', 'progress', 'percent', 'coop'];
+const MAX_CARD_CELLS = 2;
+
+/**
+ * The author line is a 20dp avatar beside one line of small type — about 20dp,
+ * against a 44 (iOS) / 48 (Android) floor. Slop rather than padding, weighted
+ * upward into the card's own padding, so the header does not move.
  */
 const AUTHOR_SLOP = { top: 12, bottom: 4, left: 0, right: 0 };
+
+/**
+ * The like control is one 13dp line at the foot of the card. Its reach upward
+ * stops short of the excerpt — whose link ends 8dp above it — and runs down
+ * into the card's padding instead.
+ */
+const LIKE_SLOP = { top: 6, bottom: 14, left: 8, right: 8 };
+
+/** Between the like count and the date on the foot's one quiet line. */
+const META_SEPARATOR = ' · ';
 
 export type LogCardProps = {
   log: LogWithRelations;
   /** Hide the author row on a profile, where every card has the same author. */
   showAuthor?: boolean;
-  /** Omit to hide the like/comment row entirely (e.g. in a compact list). */
+  /** Omit to hide the like control entirely (e.g. in a compact list). */
   engagement?: Engagement;
 };
 
 /**
- * A review, everywhere it appears: the feed, a profile, a game's review list,
- * the popular-reviews tab.
+ * A review, everywhere it appears in a list: the feed, Home, a profile, the
+ * popular-reviews tab.
  *
  * ## The shape
  *
  * ```text
- *   (avatar) name reviewed          [91 EXCELL] (ps) (71h)
- *   ───────────────────────────────────────────────────────
- *   ┌──────┐  Game Title
- *   │ art  │  … five lines of the review …
- *   └──────┘
- *   ♥ 12
+ *   (av) name                                         ┌──────┐
+ *   A Long Game Tit…  2018                            │      │
+ *   95 OUTSTANDING  │ (ps) │  (⧗) │                   │ art  │
+ *                   │ PS4  │ 570h │                   │      │
+ *                                                     │      │
+ *   The writer's headline                             │      │
+ *   ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄└──────┘
+ *   … three lines of the review, across the whole card …
+ *   ♥ LIKED   12,109 likes · Reviewed August 10, 2020        ⚑
  * ```
  *
- * **The masthead runs the full width of the card**, and everything on it is
- * *about* the review: who wrote it, what they scored it, how they played it.
- * Under the rule is what the review *is* — the box art and the writing, side by
- * side. `<ReviewCard>` divides itself the same way on the surfaces where the
- * game is already known.
+ * **The top is a header**: who wrote it, what it is about, what they made of
+ * it and how they played it — the author, the game and its release year on one
+ * line, the score beside the playthrough strip, and the writer's headline —
+ * with the box art in the top-right corner, level with it. Under the header the
+ * writing runs the full width of the card, and under that the foot: the one
+ * thing a reader can do to a review from a list — like it — with the like
+ * count and the date on one quiet line beside it, and the report flag.
  *
- * That masthead spent a revision indented to the text column, sharing its ~200dp
- * with the byline, and the score had to be exiled to a chip under the cover to
- * fit. Full-bleed it holds all four without argument, and the rule reads as the
- * card's own division rather than one column's.
+ * **The headline stands on the art's bottom edge**, the dotted line above —
+ * an alignment, not a drawn rule. Its baseline sits on the line the cover's
+ * bottom makes across the card, however much or little the header holds above
+ * it: the title, score and strip hang from the top, the headline stands on the
+ * line, and the writing starts under it. When the header is taller than the
+ * art — a two-line headline — the art moves down to meet the headline, never
+ * the other way round.
  *
- * ## The artwork never gives way
- *
- * A fixed 2:3 block, `BOX_ART_WIDTH` wide, with no `fillHeight`. An earlier card
- * stretched the poster so the two columns ended level, which was elegant and
- * capped the excerpt at about four lines — past that the cover cropped, and at
- * 200% system text it showed roughly a third of itself. The art is the primary
- * content on this screen, so it cannot be the thing that compresses; the excerpt
- * clamps instead, at `REVIEW_LINES`.
+ * The score and the strip are the review page's own pieces at a card's size
+ * (`<ScoreReadout size="compact">`, `<StatsStrip size="compact">`, and the same
+ * `reviewCells`), so a card and the page it opens say the same thing the same
+ * way. The type sits at the 10dp floor wherever the design went below it.
  *
  * ## Three targets, and each goes where it looks like it goes
  *
- * The card used to be one link. Tapping box art — in an app whose whole premise
- * is box art — opened an essay, and the game title, rendered in the brightest
- * ink on the row, opened the *author's profile*. Now: the artwork opens the
- * game, the headline and prose open the review, and the author line opens the
- * person, which is what its words are about.
+ * The artwork opens the game, the header's text and the excerpt open the
+ * review, and the author line opens the person. A log with no writing has no
+ * review to open, so its header opens the game.
  */
 /**
  * Memoised: it is the tallest row in the app and it is always in a list.
@@ -137,6 +159,7 @@ export type LogCardProps = {
  */
 export const LogCard = memo(function LogCard({ log, showAuthor = true, engagement }: LogCardProps) {
   const theme = useTheme();
+  const accent = useAccent();
   const router = useRouter();
   const { game, profile } = log;
 
@@ -148,14 +171,12 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
   const headline = log.review_title?.trim() || null;
   const review = log.review?.trim() || null;
   const title = game?.title ?? 'Unknown game';
+  const year = game?.release_year ?? null;
 
   /*
-   * A review page is worth opening only when there is prose on it.
-   *
-   * A headline with no body used to route to `/review/[id]` anyway, so the card
-   * showed a review headline and opened a game page — content and destination
-   * contradicting each other. A titled log with no writing is still just a log:
-   * it keeps its headline as a one-line verdict and points at the game.
+   * A review page is worth opening only when there is prose on it. A titled log
+   * with no writing keeps its headline as a one-line verdict and points at the
+   * game.
    */
   const hasArticle = review !== null;
 
@@ -165,258 +186,224 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
   const gameHref = { pathname: '/game/[id]' as const, params: { id: log.game_id } };
   const reviewHref = { pathname: '/review/[id]' as const, params: { id: log.id } };
 
+  const cells = reviewCells(log, theme, { order: CARD_CELLS, max: MAX_CARD_CELLS });
+  const rating = log.rating === null ? null : Math.round(log.rating);
+  const dated = `${hasArticle ? 'Reviewed' : 'Logged'} ${formatReleaseDate(log.created_at)}`;
+
   /*
-   * "reviewed" only when there is something to read.
-   *
-   * `STATUS_VERB` is already the app's vocabulary for the other cases and is
-   * written as sentence fragments — "is playing", "wants to play" — precisely
-   * so it can be dropped into a line like this one.
+   * The name alone on a review — the card is plainly one — and the status verb
+   * after it on anything else, tinted: "Ada is playing" is the whole claim of a
+   * log with no writing, and the verb is the word that makes it.
    */
   const verb = hasArticle ? 'reviewed' : STATUS_VERB[log.status];
-
-  /*
-   * The verb carries the colour, not a dot or a pill.
-   *
-   * A feed is read as sentences — "Ada is playing Hollow Knight" — and the two
-   * words that say what happened are already the ones the eye lands on. Tinting
-   * them makes the column scannable by state at a glance without adding a
-   * single pixel of chrome to a row. "reviewed" is not a status, so it takes
-   * the house colour: it is the app's own event rather than one of the four.
-   */
   const statusTint = statusColor(log.status, theme);
-  const verbTint = hasArticle ? theme.primaryText : statusTint;
 
   /*
-   * Composed, not blanket.
-   *
-   * A single `accessibilityLabel` on the outer pressable used to override every
-   * descendant — `Pressable` defaults to `accessible`, which collapses the
-   * subtree — so the score and the entire review were silent, and
-   * `ScoreNumber`'s own carefully-worded label was built and then discarded.
-   * This says all of it, in reading order.
+   * The header is one link, so it says everything it shows, in reading order —
+   * a `Pressable` collapses its subtree, and the score's own label would
+   * otherwise be built and then discarded.
    */
-  const verdictLabel =
-    log.rating !== null
-      ? `Rated ${Math.round(log.rating)} out of 100 — ${labelFor(log.rating)}`
-      : STATUS_LABEL[log.status];
-  const headerLabel = [headline, verdictLabel].filter(Boolean).join('. ');
+  const headerLabel = [
+    title,
+    year,
+    rating !== null ? `Rated ${rating} out of 100 — ${labelFor(rating)}` : STATUS_LABEL[log.status],
+    ...cells.map((cell) => cell.a11y),
+    headline,
+  ]
+    .filter(Boolean)
+    .join('. ');
+
+  /* The foot's quiet line: how many liked it, then when it was written. The
+     count only where the like control is drawn — a compact list that opted out
+     of it has no count to show either. */
+  const likes =
+    engagement && likeCount > 0
+      ? `${likeCount.toLocaleString()} ${likeCount === 1 ? 'like' : 'likes'}`
+      : null;
+  const meta = [likes, dated].filter(Boolean);
 
   return (
     <Card>
-      {/* Three bands now — masthead, rule, content — so the card needs an
-          interval between them. `<Card>` has no gap of its own; it owns the
-          surface and the padding and leaves the rhythm to whatever it holds. */}
       <View style={styles.root}>
-        {/*
-        The masthead: everything *about* the review, on one line across the whole
-        card.
-
-        Who wrote it, what they scored it, and how they played it — avatar, name,
-        chip, platform, playtime — then a rule, and under the rule the two things
-        that *are* the review: the box art and the writing.
-
-        It spent one revision as a column beside the artwork, with this row
-        indented to the text column's left edge. That kept the card to a single
-        left margin, which was the argument for it, and it cost the masthead a
-        third of the card's width — a display name, a score chip and two marks
-        competing for ~200dp, with the score eventually pushed out under the
-        cover to make room. Running the row full-bleed gives all four their space
-        back and puts the rule where it belongs: across the whole card, dividing
-        the metadata from the content rather than dividing one column of it.
-
-        The artwork is smaller for the same reason. It no longer has to be tall
-        enough to carry a score chip beneath it, so it can be the size the
-        excerpt wants it to be.
-      */}
-        <View style={styles.topBar}>
-          {showAuthor && profile ? (
-            <Link href={{ pathname: '/profile/[id]', params: { id: profile.id } }} asChild>
-              <PressableScale
-                accessibilityRole="link"
-                accessibilityLabel={`${displayNameFor(profile)} ${verb} ${title}`}
-                hitSlop={AUTHOR_SLOP}
-                style={styles.authorRow}
-                scaleTo={0.99}>
-                <Avatar uri={profile.avatar_url} name={displayNameFor(profile)} size={20} />
-                <Text
-                  variant="bodySmall"
-                  color="textMuted"
-                  numberOfLines={1}
-                  style={styles.sentence}>
-                  <Text variant="reviewByline">{displayNameFor(profile)}</Text>
-                  <Text variant="bodySmall" style={{ color: verbTint }}>{` ${verb}`}</Text>
-                </Text>
-              </PressableScale>
-            </Link>
-          ) : (
-            <Text
-              variant="bodySmall"
-              numberOfLines={1}
-              style={StyleSheet.flatten([styles.sentence, { color: verbTint }])}>
-              {verb.charAt(0).toUpperCase() + verb.slice(1)}
-            </Text>
-          )}
-
-          {/*
-          The verdict and the marks, fixed at the right-hand end.
-
-          `authorRow` is `flex: 1, minWidth: 0` and this block is `flexShrink: 0`,
-          so a long display name truncates and the score and the two marks keep
-          their width. The reverse would compress a number, which is the one
-          thing on this row that cannot be read at a glance from a fragment.
-        */}
-          <View style={reviewMarkRow}>
-            {log.rating !== null && <ScoreChip score={log.rating} narrow />}
-            <ReviewMarks log={log} />
-          </View>
-        </View>
-
-        {/* The rule, now across the whole card rather than across one column of
-          it. A hairline, not a gap: it is what separates *who is talking* from
-          *what they are talking about*. */}
-        <View style={[styles.rule, { backgroundColor: theme.border }]} />
-
-        <View style={styles.card}>
-          {/*
-          The left column: the artwork, and the heart directly under it.
-
-          The heart used to be one of three glyphs in an `<EngagementBar>` across
-          the foot of the card — like, comment, share, all the same weight. That
-          row is right on a screen where the card is a *post*; in a feed of
-          reviews it was a strip of chrome closing every row, and two of its
-          three actions have better homes (the conversation is its own screen off
-          the review, and sharing is a disc in the top bar there).
-
-          Under the cover it costs no row at all: the artwork is the tallest
-          thing in the card and the space beneath it was already dead. Left edge
-          shared with the poster, so the column still has one margin.
-        */}
-          <View style={styles.artColumn}>
-            {/* The artwork opens the game. In an app built on box art this is the
-              one link that should never have needed arguing for. */}
-            <Link href={gameHref} asChild>
-              <PressableScale
-                accessibilityRole="link"
-                accessibilityLabel={`Open ${title}`}
-                style={styles.art}
-                scaleTo={0.97}>
-                <Poster
-                  coverUrl={game?.cover_url}
-                  heroUrl={game?.hero_url}
-                  title={game?.title}
-                  width={BOX_ART_WIDTH}
-                  rounded="image"
-                />
-              </PressableScale>
-            </Link>
-
-            {/* The heart, and the report flag at the far edge of the same
-                row — the two things you can do *to* a review, on the one line
-                under the cover that was dead space. */}
-            {(engagement || canReport) && (
-              <View style={styles.controls}>
-                {engagement && (
-                  <PressableScale
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: liked }}
-                    accessibilityLabel={liked ? 'Unlike this review' : 'Like this review'}
-                    onPress={toggleLike}
-                    hitSlop={canReport ? HEART_SLOP_BESIDE_FLAG : HEART_SLOP}
-                    scaleTo={0.92}
-                    style={StyleSheet.flatten(styles.heart)}>
-                    <Ionicons
-                      name={liked ? 'heart' : 'heart-outline'}
-                      size={15}
-                      /* `liked`, not `danger`: a like is an endorsement, and
-                       `danger` means something is about to be destroyed. See
-                       the token. */
-                      color={liked ? theme.liked : theme.textMuted}
-                    />
-                    {likeCount > 0 && (
-                      <Text variant="caption" color={liked ? 'text' : 'textMuted'}>
-                        {likeCount}
-                      </Text>
+        <View style={styles.head}>
+          <View style={styles.headText}>
+            {showAuthor && profile ? (
+              <Link href={{ pathname: '/profile/[id]', params: { id: profile.id } }} asChild>
+                <PressableScale
+                  accessibilityRole="link"
+                  accessibilityLabel={`${displayNameFor(profile)} ${verb} ${title}`}
+                  hitSlop={AUTHOR_SLOP}
+                  style={styles.authorRow}
+                  scaleTo={0.99}>
+                  <Avatar uri={profile.avatar_url} name={displayNameFor(profile)} size={20} />
+                  <Text
+                    variant="caption"
+                    color="textMuted"
+                    numberOfLines={1}
+                    style={styles.authorName}>
+                    {displayNameFor(profile)}
+                    {!hasArticle && (
+                      <Text variant="caption" style={{ color: statusTint }}>{` ${verb}`}</Text>
                     )}
-                  </PressableScale>
-                )}
-
-                {canReport && (
-                  <View style={styles.report}>
-                    <ReportFlag
-                      target={{ kind: 'review', logId: log.id }}
-                      authorId={log.user_id}
-                      label={
-                        profile
-                          ? `Report ${displayNameFor(profile)}’s review`
-                          : 'Report this review'
-                      }
-                    />
-                  </View>
-                )}
-              </View>
+                  </Text>
+                </PressableScale>
+              </Link>
+            ) : (
+              !hasArticle && (
+                <Text
+                  variant="caption"
+                  numberOfLines={1}
+                  style={StyleSheet.flatten([styles.statusLine, { color: statusTint }])}>
+                  {verb.charAt(0).toUpperCase() + verb.slice(1)}
+                </Text>
+              )
             )}
-          </View>
 
-          <View style={styles.column}>
+            {/* With a headline the link grows to the foot of the head, so the
+                headline can stand there; the space it grows across is inside
+                the header's own block, between the facts and the headline. */}
             <Link href={hasArticle ? reviewHref : gameHref} asChild>
               <PressableScale
                 accessibilityRole="link"
-                accessibilityLabel={headerLabel || title}
-                style={styles.verdict}
+                accessibilityLabel={headerLabel}
+                style={StyleSheet.flatten([styles.header, headline ? styles.headerToLine : null])}
                 scaleTo={0.99}>
-                {/*
-                The game's name, in the serif, and now the only thing above the
-                writing. The split between the sans line above the rule and this
-                one is what makes the card read as a review rather than a row.
+                {/* The title and its release year, always on one line and one
+                    baseline. The title gives way — it shrinks and ends in "…" —
+                    and the year never does: four digits cost almost nothing, and
+                    a year cut to "20…" says nothing at all. */}
+                <View style={styles.titleRow}>
+                  <Text variant="h4" numberOfLines={1} style={styles.title}>
+                    {title}
+                  </Text>
+                  {year !== null && (
+                    <Text variant="caption" style={{ color: accent.quietInk }}>
+                      {year}
+                    </Text>
+                  )}
+                </View>
 
-                The verdict line that used to follow it — score, platform,
-                playtime, trophy — is gone from here: the score is under the
-                artwork and the two marks are in the top bar. What is left below
-                the rule is the title and the review, which is the whole content
-                of the card and the reason somebody stopped scrolling.
+                {/* The score and the playthrough on one line — the review page's
+                    readout and strip at a card's size. When both do not fit the
+                    strip wraps under the score rather than squeezing either. */}
+                {(rating !== null || cells.length > 0) && (
+                  <View style={styles.scoreRow}>
+                    {rating !== null && (
+                      <View style={styles.readout}>
+                        <ScoreReadout score={rating} size="compact" />
+                      </View>
+                    )}
+                    {cells.length > 0 && <StatsStrip cells={cells} size="compact" />}
+                  </View>
+                )}
 
-                The status line went with it. It existed so a log with no rating
-                and no writing still had something under the title, and the top
-                bar already answers that — "Deef is playing" is the status, in
-                the tinted verb, in words.
-              */}
-                <Text variant="reviewTitleSmall" numberOfLines={2}>
-                  {title}
+                {headline && (
+                  <Text variant="reviewHeadlineSmall" numberOfLines={2} style={styles.headline}>
+                    {headline}
+                  </Text>
+                )}
+              </PressableScale>
+            </Link>
+          </View>
+
+          {/* The artwork opens the game. In an app built on box art this is the
+              one link that should never have needed arguing for. */}
+          <Link href={gameHref} asChild>
+            <PressableScale
+              accessibilityRole="link"
+              accessibilityLabel={`Open ${title}`}
+              style={StyleSheet.flatten([styles.art, headline ? styles.artOnLine : null])}
+              scaleTo={0.97}>
+              <Poster
+                coverUrl={game?.cover_url}
+                heroUrl={game?.hero_url}
+                title={game?.title}
+                width={BOX_ART_WIDTH}
+                rounded="image"
+              />
+            </PressableScale>
+          </Link>
+        </View>
+
+        {/*
+          The excerpt, under the header and across the whole card, clamped: a
+          wall rather than a fold, so a row never changes height under the thumb.
+          `proseInk`, the review's own quieter ink, in the interface's face at
+          this size — see `reviewHeadlineSmall` for why the serif is the
+          headline's here and not the excerpt's.
+        */}
+        {review &&
+          (log.spoilers ? (
+            /* The notice takes the excerpt's slot rather than sitting above it,
+               so a flagged card is the same object with its content covered.
+               `router.push` rather than a `<Link>`: the notice owns its own
+               button role and nesting it in a link would announce twice. */
+            <SpoilerNotice
+              onPress={() => router.push(reviewHref)}
+              minHeight={REVIEW_LINES * EXCERPT_LINE}
+            />
+          ) : (
+            <Link href={reviewHref} asChild>
+              <PressableScale accessibilityRole="link" style={styles.proseTap} scaleTo={0.995}>
+                <Text
+                  variant="caption"
+                  color="proseInk"
+                  numberOfLines={REVIEW_LINES}
+                  style={styles.excerpt}>
+                  {review}
                 </Text>
               </PressableScale>
             </Link>
+          ))}
 
-            {/* The excerpt, in the same column and in the review's own typeface.
-              `proseInk` rather than `textSecondary`: a serif set at reading
-              length wants to be quieter than the interface around it. */}
-            {/*
-            Five lines, and the card does not grow.
+        {/* The foot: the like, then its count and the date as one quiet line,
+            and at the far end the report flag — the two things a reader can do
+            *to* a review from a list, with when it was written between them.
+            Always drawn, since there is always a date. */}
+        <View style={styles.footer}>
+          {engagement && (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityState={{ selected: liked }}
+              accessibilityLabel={liked ? 'Unlike this review' : 'Like this review'}
+              onPress={toggleLike}
+              hitSlop={LIKE_SLOP}
+              scaleTo={0.94}
+              style={StyleSheet.flatten(styles.like)}>
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={12}
+                /* `liked`, not `danger`: a like is an endorsement, and
+                   `danger` means something is about to be destroyed. */
+                color={liked ? theme.liked : theme.textMuted}
+              />
+              <Text variant="label" color={liked ? 'textSecondary' : 'textMuted'}>
+                {liked ? 'Liked' : 'Like'}
+              </Text>
+            </PressableScale>
+          )}
 
-            "Read more" used to sit under this and expand the excerpt in place,
-            which meant a row in a scrolling list could double its own height
-            under the thumb and reflow everything below it. The card is an index
-            entry; the review's own page is the thing that opens. So the clamp is
-            a wall rather than a fold, and the tap that used to expand now goes
-            where it always should have — through to the review.
-          */}
-            {review &&
-              (log.spoilers ? (
-                /* The notice takes the excerpt's slot rather than sitting above
-                   it, so a flagged card is the same object with its content
-                   covered — not a warning stacked on the thing it warns about.
-                   `router.push` rather than a `<Link>`: the notice owns its own
-                   button role and nesting it in a link would announce twice. */
-                <SpoilerNotice onPress={() => router.push(reviewHref)} />
-              ) : (
-                <Link href={reviewHref} asChild>
-                  <PressableScale accessibilityRole="link" style={styles.proseTap} scaleTo={0.995}>
-                    <Text variant="reviewExcerpt" color="proseInk" numberOfLines={REVIEW_LINES}>
-                      {review}
-                    </Text>
-                  </PressableScale>
-                </Link>
-              ))}
-          </View>
+          {/* Spoken with full stops rather than the dot. */}
+          <Text
+            variant="caption"
+            color="textMuted"
+            numberOfLines={1}
+            accessibilityLabel={meta.join('. ')}
+            style={styles.meta}>
+            {meta.join(META_SEPARATOR)}
+          </Text>
+
+          {canReport && (
+            <View style={styles.report}>
+              <ReportFlag
+                target={{ kind: 'review', logId: log.id }}
+                authorId={log.user_id}
+                label={
+                  profile ? `Report ${displayNameFor(profile)}’s review` : 'Report this review'
+                }
+              />
+            </View>
+          )}
         </View>
       </View>
     </Card>
@@ -424,49 +411,73 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true, engagemen
 });
 
 const styles = StyleSheet.create({
-  /* Masthead, rule, content — the card's three bands and the interval between
-     them. The rule is a hairline, so this gap is what actually separates the
-     metadata from the review. */
+  /* Header, excerpt, foot. `x8` (6) under the header, and the foot two more —
+     the intervals the design sets between the three. */
   root: { gap: Spacing.x8 },
-  /* The two columns under the rule. `flex-start` so the text column sizes to its
-     content and the artwork's link keeps its own edges — left on the default
-     `stretch`, whichever column is shorter grows an invisible tail of touch
-     area. */
-  card: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x12 },
-  /* The cover and the heart share a left edge. `align-items: flex-start` keeps
-     the heart's target the width of its own content rather than of the column.
 
-     No `fillHeight` on the poster: the artwork's height is its own 2:3
-     derivation and nothing in this row may change it. That is what makes the
-     card safe at 200% system text. */
-  artColumn: { width: BOX_ART_WIDTH, alignItems: 'flex-start', gap: Spacing.x8 },
-  art: { width: BOX_ART_WIDTH },
-  /* The cover's width exactly — `stretch` against the column's `flex-start` —
-     so the flag's `auto` margin can carry it to the cover's right edge. */
-  controls: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center' },
-  heart: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  report: { marginLeft: 'auto' },
-  /*
-   * Everything that is not the cover, in one column with one left edge.
-   *
-   * `minWidth: 0` alongside `flex: 1`, and it is load-bearing: without it a long
-   * unbroken game title measures at its natural width and pushes the column past
-   * the card instead of wrapping inside it.
-   */
-  column: { flex: 1, minWidth: 0, gap: Spacing.x8 },
+  /* The header text and the art side by side. Stretched, so the text column
+     is always the head's full height and the headline can stand at its foot;
+     the art sets its own `alignSelf` below, so its link never stretches into
+     an invisible tail of touch area under the cover. */
+  head: { flexDirection: 'row', gap: Spacing.x12 },
+  /* `minWidth: 0` is load-bearing: without it a long unbroken title measures at
+     its natural width and pushes the art off the card instead of wrapping. */
+  headText: { flex: 1, minWidth: 0 },
 
-  /* The masthead, across the whole card. `minWidth: 0` on the author side is
-     what lets a long name truncate instead of pushing the verdict off the card —
-     without it the row measures at the name's natural width. */
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  authorRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  /* Takes the slack so the sentence truncates rather than pushing the avatar. */
-  sentence: { flex: 1, minWidth: 0 },
-  /* A hairline, drawn as a filled view rather than a border: a 1dp `borderWidth`
-     rounds up to a full pixel on some densities and reads as a rule rather than
-     as a seam. */
-  rule: { height: StyleSheet.hairlineWidth, alignSelf: 'stretch' },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    gap: Spacing.x8,
+    marginBottom: Spacing.x12,
+  },
+  /* Semibold at the floor — a name is a label here, not a heading. */
+  authorName: { flexShrink: 1, fontFamily: FontFamily.semibold },
+  statusLine: { marginBottom: Spacing.x12 },
 
-  verdict: { gap: Spacing.x8 },
+  /* Title and score sit tight, one block of facts — the design leaves no
+     interval between them beyond their own line boxes. */
+  header: { alignSelf: 'stretch' },
+  /* `flexGrow` rather than `flex: 1`: the link keeps its content height as its
+     basis and only grows into the room the art leaves, so a header taller than
+     the art is never squeezed. */
+  headerToLine: { flexGrow: 1 },
+  /* The auto margin takes all of that room, so the headline stands at the foot
+     of the head — on the art's bottom edge (see `artOnLine`). */
+  headline: { marginTop: 'auto' },
+  /* The gap is the three caption spaces that used to sit between the title
+     and its credit. `flexShrink` on the title alone is what makes the title,
+     and never the year, give way — every flex child in React Native defaults
+     to 0. */
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.x12 },
+  title: { flexShrink: 1 },
+  scoreRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: Spacing.x20,
+    rowGap: 2,
+  },
+  /* Lets a long verdict shorten rather than push the row wider than the column
+     when the strip has already wrapped below. */
+  readout: { flexShrink: 1 },
+
+  /* Hung from the top, its top edge level with the avatar's… */
+  art: { width: BOX_ART_WIDTH, alignSelf: 'flex-start' },
+  /* …or, under a headline, standing on it: the bottom edge sits
+     `HEADLINE_DESCENT` above the head's foot, which is exactly the headline's
+     baseline. The art is the taller of the two on almost every card, so this
+     sets the head's height and the headline comes down to meet it; only a
+     header that outgrows the art — a two-line headline — moves the art down. */
+  artOnLine: { alignSelf: 'flex-end', marginBottom: HEADLINE_DESCENT },
   proseTap: { width: '100%' },
+  excerpt: { lineHeight: EXCERPT_LINE, letterSpacing: 0 },
+
+  footer: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x16, marginTop: 2 },
+  like: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  /* Gives way before the flag does: on a narrow card the date ends in "…"
+     rather than pushing the flag off the edge. */
+  meta: { flexShrink: 1 },
+  report: { marginLeft: 'auto' },
 });

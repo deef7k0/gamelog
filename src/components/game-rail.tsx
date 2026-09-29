@@ -17,6 +17,14 @@ import type { GameSearchResult } from '@/lib/games';
 const RAIL_POSTER = 92;
 
 /**
+ * Posters rendered before the rail is scrolled: the four a phone shows, and two
+ * more. After that the rail keeps one screen either side (`windowSize` 3). The
+ * list defaults rendered — and downloaded — every poster however far off the
+ * right edge; a publisher's remasters rail on the studio page holds dozens.
+ */
+const RAIL_FIRST = 6;
+
+/**
  * Where each poster sits. `leading` is 0 because `styles.rail` pads only its
  * right edge — this rail bleeds off the left of the display by design.
  */
@@ -75,6 +83,8 @@ export function GamePosterRail({
       contentContainerStyle={styles.rail}
       onScroll={driver ? onScroll : undefined}
       scrollEventThrottle={16}
+      initialNumToRender={RAIL_FIRST}
+      windowSize={3}
       renderItem={({ item, index }) => <RailPoster game={item} index={index} scrollX={driver} />}
     />
   );

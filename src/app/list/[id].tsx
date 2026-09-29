@@ -6,7 +6,7 @@ import { Alert, Share, StyleSheet, View, useWindowDimensions } from 'react-nativ
 import Animated from 'react-native-reanimated';
 
 import { AwardShow } from '@/components/award-show';
-import { CollectionHeader } from '@/components/collection-header';
+import { CollectionHeader, collectionCover } from '@/components/collection-header';
 import { CaptionedGrid } from '@/components/captioned-grid';
 import { CommentSection } from '@/components/comment-section';
 import { CollectionRow } from '@/components/collection-row';
@@ -20,6 +20,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, type ThemePalette } from '@/constants/theme';
+import { useImmersiveBackground } from '@/hooks/use-immersive-background';
 import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -106,6 +107,16 @@ export default function ListDetailScreen() {
     queryFn: async () => (await getEngagement('list', [id!], userId ?? null))[id!],
     enabled: !!id,
   });
+
+  /*
+   * The page's colour: a single cover's own tone, or the app's page for a
+   * mosaic of several. Read from the cover the header draws (`collectionCover`),
+   * above the early returns because it is a hook. The background only — every
+   * control on this screen keeps its neutral fill.
+   */
+  const cover = list.data ? collectionCover(list.data) : null;
+  const pageColor = useImmersiveBackground(cover?.cover_url ?? cover?.hero_url ?? null);
+  const background = pageColor ?? undefined;
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', id] });
@@ -289,6 +300,7 @@ export default function ListDetailScreen() {
         collection={data}
         owner={owner.data ?? null}
         isOwner={isOwner}
+        pageColor={pageColor}
         engagement={engagement.data}
         onShare={() =>
           Share.share({
@@ -387,7 +399,7 @@ export default function ListDetailScreen() {
    */
   if (isAwards) {
     return (
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
         <AwardShow listId={id!} isOwner={isOwner} header={header} onScroll={onScroll} />
       </Screen>
     );
@@ -409,7 +421,7 @@ export default function ListDetailScreen() {
    */
   if (isCaptioned) {
     return (
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
         <Animated.FlatList
           data={[null]}
           keyExtractor={() => 'board'}
@@ -449,7 +461,7 @@ export default function ListDetailScreen() {
    */
   if (!isTierList && layout === 'rows') {
     return (
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
         <Animated.FlatList
           data={ordered}
           onScroll={onScroll}
@@ -503,7 +515,7 @@ export default function ListDetailScreen() {
     return (
       /* The mosaic runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
         <Animated.FlatList
           data={ordered}
           onScroll={onScroll}
@@ -583,7 +595,7 @@ export default function ListDetailScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+    <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
       <Animated.FlatList
         data={items}
         onScroll={onScroll}

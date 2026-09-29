@@ -19,6 +19,15 @@ const NUMBER_SIZE = 46;
 const NUMBER_LINE = 54;
 
 /**
+ * The same readout on a review card, where it shares a line with the playthrough
+ * strip beside the box art: 25 over 30, from the card's design — a little over
+ * half the review page's number, so the card still leads with the score without
+ * the score being taller than the title and credit above it together.
+ */
+const COMPACT_NUMBER_SIZE = 25;
+const COMPACT_NUMBER_LINE = 30;
+
+/**
  * Room for "100" at `NUMBER_SIZE`, when the readout is ranged left beside a
  * control. Tabular figures make every score the same width per digit, and this
  * floor makes 7 and 100 the same width too, so the verdict beside it does not
@@ -42,6 +51,14 @@ export type ScoreReadoutProps = {
    * sits on its axis; `start` in the form, beside the clear button.
    */
   align?: 'start' | 'center';
+  /**
+   * `large` on the review page and in the log form. `compact` on a review card:
+   * the number at 25 and the verdict beside it on one baseline, with no "out of
+   * 100" and no width floor under the number — nothing on a card drags a score
+   * through a digit boundary, and 92dp of reserved width is a third of the
+   * column. `align` does not apply to it; a `hint` stacks under the verdict.
+   */
+  size?: 'large' | 'compact';
 };
 
 /**
@@ -61,22 +78,66 @@ export type ScoreReadoutProps = {
  * Shared by the review page and the log form, so a score you set is drawn the
  * way it will be read.
  */
-export function ScoreReadout({ score, hint, align = 'start' }: ScoreReadoutProps) {
+export function ScoreReadout({ score, hint, align = 'start', size = 'large' }: ScoreReadoutProps) {
   const theme = useTheme();
   const accent = useAccent();
 
   const scored = score !== null;
+  const compact = size === 'compact';
   const tint = scored ? scoreColor(score, theme) : accent.quietInk;
   const verdict = scored ? labelFor(score) : 'Not scored';
-  const aside = hint ?? (scored ? 'out of 100' : null);
+  const aside = hint ?? (scored && !compact ? 'out of 100' : null);
+  /* The spoken label keeps the scale in every size: it costs a sighted reader
+     nothing, and a listener has no other way to learn it. */
+  const label = [scored ? `Scored ${score} out of 100 — ${verdict}` : verdict, hint]
+    .filter(Boolean)
+    .join('. ');
+
+  /*
+   * Compact drops the scale, against the note above.
+   *
+   * On a card the readout shares one line with the playthrough strip, inside a
+   * ~256dp column beside the box art. Inline at the 10dp floor, "95 OUTSTANDING
+   * out of 100" is 170dp and the strip no longer fits beside it. The scale was
+   * stacked under the verdict for a while; on a card it is gone, by the owner's
+   * call — every score in the app is out of 100, and the card is an index entry
+   * that opens the page where the scale is printed. "95 OUTSTANDING" is ~100dp
+   * on one baseline, as the review page's readout reads, and a "100
+   * MASTERPIECE" still leaves the strip its room. A hint, which is an
+   * instruction rather than the scale, still stacks under the verdict.
+   */
+  if (compact) {
+    const verdictText = (
+      <Text variant="h6" numberOfLines={1} style={[styles.verdict, { color: tint }]}>
+        {verdict.toUpperCase()}
+      </Text>
+    );
+
+    return (
+      <View
+        style={[styles.compactReadout, !aside && styles.compactOneLine]}
+        accessible
+        accessibilityLabel={label}>
+        <Text style={[styles.numberCompact, { color: tint }]}>{scored ? score : '—'}</Text>
+        {aside ? (
+          <View style={styles.compactVerdict}>
+            {verdictText}
+            <Text variant="caption" numberOfLines={1} style={{ color: accent.quietInk }}>
+              {aside}
+            </Text>
+          </View>
+        ) : (
+          verdictText
+        )}
+      </View>
+    );
+  }
 
   return (
     <View
       style={[styles.readout, align === 'center' && styles.centred]}
       accessible
-      accessibilityLabel={[scored ? `Scored ${score} out of 100 — ${verdict}` : verdict, hint]
-        .filter(Boolean)
-        .join('. ')}>
+      accessibilityLabel={label}>
       <Text style={[styles.number, align === 'start' && styles.numberFloor, { color: tint }]}>
         {scored ? score : '—'}
       </Text>
@@ -153,6 +214,20 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   numberFloor: { minWidth: NUMBER_FLOOR },
+  /* `compact`: the number, and beside it the verdict — on the number's baseline
+     when it is alone, as the large readout sets it, and centred on the number
+     when a hint stacks under it, since two lines cannot share one baseline with
+     a single figure. */
+  compactReadout: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  compactOneLine: { alignItems: 'baseline' },
+  compactVerdict: { flexShrink: 1 },
+  numberCompact: {
+    fontFamily: FontFamily.bold,
+    fontSize: COMPACT_NUMBER_SIZE,
+    lineHeight: COMPACT_NUMBER_LINE,
+    letterSpacing: -0.5,
+    fontVariant: ['tabular-nums'],
+  },
   /* Shrinks and wraps rather than overflowing: an instruction in place of
      "out of 100" can run longer than the line. */
   verdict: { flexShrink: 1, letterSpacing: 0.4 },

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decode } from 'jpeg-js';
 
 import { atLuminance, hexToRgb, rgbToHex, saturate } from '@/lib/color';
+import { dominantSwatch } from '@/lib/immersive-color';
 
 /**
  * The dominant colour of a piece of box art, read from the actual pixels.
@@ -153,6 +154,27 @@ export async function extractArtworkColor(uri: string): Promise<ArtworkColor | n
   const cached = await readCache(uri);
   if (cached) return cached;
 
+  const pixels = await decodeSwatch(uri);
+  if (!pixels) return null;
+
+  const raw = dominantOf(pixels);
+  if (!raw) return null;
+
+  const color = atLuminance(saturate(raw, SATURATION_FLOOR), TARGET_LUMINANCE);
+  const result: ArtworkColor = { color, raw, palette: paletteFor(color) };
+  await writeCache(uri, result);
+  return result;
+}
+
+/**
+ * The swatch-sized thumbnail of `uri`, decoded to RGBA — or null when there is
+ * no thumbnail to read or it could not be fetched or decoded.
+ *
+ * Shared by the accent (`extractArtworkColor`) and the immersive page colour
+ * (`extractDominantColor`): the same 3 KB file, the same size caps, two
+ * different questions asked of its pixels.
+ */
+async function decodeSwatch(uri: string): Promise<Uint8Array | null> {
   const swatch = swatchUrl(uri);
   if (!swatch) return null;
 
@@ -170,20 +192,49 @@ export async function extractArtworkColor(uri: string): Promise<ArtworkColor | n
       maxMemoryUsageInMB: 16,
       maxResolutionInMP: MAX_SWATCH_MP,
     });
-
-    const raw = dominantOf(image.data);
-    if (!raw) return null;
-
-    const color = atLuminance(saturate(raw, SATURATION_FLOOR), TARGET_LUMINANCE);
-    const result: ArtworkColor = { color, raw, palette: paletteFor(color) };
-    await writeCache(uri, result);
-    return result;
+    return image.data;
   } catch {
     /* Swallowed on purpose. A cover whose colour cannot be read is not an error
-       the user should ever see — the page falls back to its genre hue and looks
-       entirely normal. */
+       the user should ever see — the page falls back to its genre hue, or to
+       the plain page colour, and looks entirely normal. */
     return null;
   }
+}
+
+/** A separate namespace, so the two extractions never read each other's answers. */
+const DOMINANT_PREFIX = 'artwork-dominant:v1:';
+
+/** Stored when the image decoded and no swatch survived Palette's filter. */
+const NO_SWATCH = 'none';
+
+/**
+ * The colour covering the most of an image — Android Palette's dominant swatch,
+ * ported in `lib/immersive-color.ts` — for a page whose background is the
+ * artwork's own tone. Blacks, whites and greys included, unlike the accent.
+ *
+ * Cached for good, the way the accent is. "No swatch" is cached too: an
+ * all-black cover will be all-black next time. A failed fetch is not — it
+ * returns null and the next visit asks again.
+ */
+export async function extractDominantColor(uri: string): Promise<string | null> {
+  try {
+    const stored = await AsyncStorage.getItem(DOMINANT_PREFIX + uri);
+    if (stored === NO_SWATCH) return null;
+    if (stored && hexToRgb(stored)) return stored;
+  } catch {
+    /* An unreadable cache is an empty one. */
+  }
+
+  const pixels = await decodeSwatch(uri);
+  if (!pixels) return null;
+
+  const color = dominantSwatch(pixels)?.color ?? null;
+  try {
+    await AsyncStorage.setItem(DOMINANT_PREFIX + uri, color ?? NO_SWATCH);
+  } catch {
+    /* A full disk should not stop a page from having a colour. */
+  }
+  return color;
 }
 
 /**

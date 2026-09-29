@@ -29,14 +29,22 @@ import type { WikidataEntityRef, WikidataGameInfo } from './types';
  * from `npm run web`: the API answers anonymous CORS requests that carry it.
  */
 
-const ENDPOINT = 'https://www.wikidata.org/w/api.php';
+export const WIKIDATA_API = 'https://www.wikidata.org/w/api.php';
+
+/** Wikimedia Commons' Action API — the same protocol, for file pages and their licences. */
+export const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
 
 /**
  * Wikimedia asks every client to identify itself. Browsers will not let a page
  * set `User-Agent`, so the web build sends `Api-User-Agent`, which the API
  * reads in its place and allows through CORS; native builds send both.
+ *
+ * **Media needs it too.** Commons' image hosts (`thumb.wikimedia.org`,
+ * `upload.wikimedia.org`) answer a generic client — Android's `okhttp/4.x`, which
+ * is what an `<Image>` sends by default — with 403 "Please set a user-agent",
+ * verified. Anything that loads a Wikimedia image passes this as a header.
  */
-const USER_AGENT = 'GameLog/1.0 (com.nomicoprod.gamelog; game credits from Wikidata)';
+export const USER_AGENT = 'GameLog/1.0 (com.nomicoprod.gamelog; game credits from Wikidata)';
 
 /** Long enough for a slow mobile connection; short enough that a dead one ends in the error state. */
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -50,7 +58,8 @@ const LABEL_BATCH = 50;
  */
 const PERSON_BATCH = 25;
 
-export type WikidataErrorKind = 'network' | 'timeout' | 'rate-limited' | 'unavailable' | 'malformed';
+export type WikidataErrorKind =
+  'network' | 'timeout' | 'rate-limited' | 'unavailable' | 'malformed';
 
 /** A failure to *reach or read* Wikidata — never "Wikidata has nothing", which is `null`. */
 export class WikidataError extends Error {
@@ -114,7 +123,7 @@ async function findGameItem(
 
 /** Item ids holding one exact statement. Two at most: two already means "ambiguous". */
 async function searchItems(statement: string, signal?: AbortSignal): Promise<string[]> {
-  const body = await request(
+  const body = await wikimediaRequest(
     {
       action: 'query',
       list: 'search',
@@ -126,12 +135,14 @@ async function searchItems(statement: string, signal?: AbortSignal): Promise<str
     },
     signal
   );
-  return searchHits(body).map((hit) => hit.title).filter(isItemId);
+  return searchHits(body)
+    .map((hit) => hit.title)
+    .filter(isItemId);
 }
 
 /** One item's claims; null when the item no longer exists. */
 async function getItemClaims(qid: string, signal?: AbortSignal): Promise<WikidataClaims | null> {
-  const body = await request(
+  const body = await wikimediaRequest(
     { action: 'wbgetentities', ids: qid, props: 'claims', languages: 'en' },
     signal
   );
@@ -167,11 +178,12 @@ export async function resolveWikidataLabels(
 
   for (let start = 0; start < wanted.length; start += LABEL_BATCH) {
     const batch = wanted.slice(start, start + LABEL_BATCH);
-    const body = await request(
+    const body = await wikimediaRequest(
       { action: 'wbgetentities', ids: batch.join('|'), props: 'labels|info', languages: 'en|mul' },
       signal
     );
-    if (!isRecord(body.entities)) throw new WikidataError('malformed', 'No entities in the response.');
+    if (!isRecord(body.entities))
+      throw new WikidataError('malformed', 'No entities in the response.');
 
     for (const id of batch) {
       const entity = body.entities[id];
@@ -224,7 +236,7 @@ async function findPeople(
   const humans = new Set<string>();
   for (let start = 0; start < pages.length; start += PERSON_BATCH) {
     const batch = pages.slice(start, start + PERSON_BATCH);
-    const body = await request(
+    const body = await wikimediaRequest(
       {
         action: 'query',
         list: 'search',
@@ -244,9 +256,10 @@ async function findPeople(
   return humans;
 }
 
-function searchHits(body: Record<string, unknown>): { title: string; pageid: number }[] {
+export function searchHits(body: Record<string, unknown>): { title: string; pageid: number }[] {
   const hits = isRecord(body.query) ? body.query.search : undefined;
-  if (!Array.isArray(hits)) throw new WikidataError('malformed', 'No search results in the response.');
+  if (!Array.isArray(hits))
+    throw new WikidataError('malformed', 'No search results in the response.');
   return hits.filter(
     (hit): hit is { title: string; pageid: number } =>
       isRecord(hit) && typeof hit.title === 'string' && typeof hit.pageid === 'number'
@@ -260,9 +273,10 @@ function searchHits(body: Record<string, unknown>): { title: string; pageid: num
  * The API reports its own errors with a `200` and an `error` object, so a
  * response is not a success until the body has been read.
  */
-async function request(
+export async function wikimediaRequest(
   params: Record<string, string>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  endpoint: string = WIKIDATA_API
 ): Promise<Record<string, unknown>> {
   const query = Object.entries({ ...params, format: 'json', origin: '*' })
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
@@ -286,20 +300,23 @@ async function request(
   let status: number;
   let text: string;
   try {
-    const response = await fetch(`${ENDPOINT}?${query}`, { headers, signal: controller.signal });
+    const response = await fetch(`${endpoint}?${query}`, { headers, signal: controller.signal });
     status = response.status;
     text = await response.text();
   } catch (error) {
     if (signal?.aborted) throw error;
-    if (controller.signal.aborted) throw new WikidataError('timeout', 'Wikidata did not answer in time.');
+    if (controller.signal.aborted)
+      throw new WikidataError('timeout', 'Wikidata did not answer in time.');
     throw new WikidataError('network', 'Could not reach Wikidata.');
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
   }
 
-  if (status === 429) throw new WikidataError('rate-limited', 'Wikidata is rate limiting requests.');
-  if (status < 200 || status >= 300) throw new WikidataError('unavailable', `Wikidata returned ${status}.`);
+  if (status === 429)
+    throw new WikidataError('rate-limited', 'Wikidata is rate limiting requests.');
+  if (status < 200 || status >= 300)
+    throw new WikidataError('unavailable', `Wikidata returned ${status}.`);
 
   let body: unknown;
   try {
@@ -307,7 +324,8 @@ async function request(
   } catch {
     throw new WikidataError('malformed', 'Wikidata returned something that is not JSON.');
   }
-  if (!isRecord(body)) throw new WikidataError('malformed', 'Wikidata returned an unexpected shape.');
+  if (!isRecord(body))
+    throw new WikidataError('malformed', 'Wikidata returned an unexpected shape.');
 
   if (isRecord(body.error)) {
     const code = typeof body.error.code === 'string' ? body.error.code : 'unknown';

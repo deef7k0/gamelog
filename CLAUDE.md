@@ -41,8 +41,10 @@ npx eslint src     # lint
 npx prettier --write "src/**/*.{ts,tsx}"
 npm test           # node:test — pure modules only: the M3 scheme generator, the
                    # genre reach order, barcodes, progress choices, review filters,
-                   # the report reasons against 0031's CHECKs, and the Wikidata
-                   # claim parsing and game lookup (lib/wikidata)
+                   # the report reasons against 0031's CHECKs, the Wikidata
+                   # claim parsing and game lookup (lib/wikidata), the Commons
+                   # logo licence check, and the immersive page colour
+                   # (Palette port, Oklab darkening)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -182,7 +184,17 @@ src/
                                         its title, and the title that scrolls —
                                         shared by Surprise Me and a review
                      ui/stats-strip     a row of figures with rules between;
-                                        the game page's strip and a review's
+                                        the game page's strip and a review's,
+                                        and `size="compact"` on a review card
+                     review-cells       a review's playthrough as strip cells,
+                                        shared by the review page and the card
+                     log-card           the review card in every list: a header
+                                        (author, title + year on one line, the
+                                        compact score + strip) beside 66dp box
+                                        art top-right, the serif headline's
+                                        baseline on the art's bottom edge, then
+                                        three lines of the review, then the foot
+                                        (like, count · date, report flag)
                      ui/selectable      `useSelectable()`: the one selected
                                         state (accent wash + edge + label) for
                                         any control that draws its own shape
@@ -208,6 +220,10 @@ src/
                      library-stats      the head of a library (0028)
                      game-info-sections the Wikidata screen's cards — awards,
                                         cast, budget, credits, people
+                     studio-identity    a studio's name, or its Commons logo in
+                                        its place; see § Immersive pages
+                     ui/smooth-scrim    SimpMusic's artworkScrimBrush: artwork
+                                        melting into a page colour
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
@@ -232,6 +248,15 @@ src/
     use-steam-artwork   Steam CDN URLs + the hashed-path fallback, cached 7 days
     use-wikidata-game-info  one query per game: its Wikidata item, claims and
                         labels, cached a day. Null means "nothing found"
+    use-immersive-background  a page colour from one piece of artwork, or null
+                        for the app's page. Background only — never a control
+    use-studio-catalogue  a studio's company (identity + game ids) and its
+                        games — the one company request the logo shares
+    use-studio-banner   the studio's banner URL, remembered per device so a
+                        return visit paints art and colour before IGDB answers
+    use-studio-logo     a studio's verified public-domain logo, or null;
+                        stored on the device (a month; "none" a week). No
+                        IGDB request of its own
     use-square-cover    a game's 1:1 cover from SteamGridDB, persisted to
                         AsyncStorage. Returns `resolved` — do not draw the IGDB
                         cover before it is true; that is the swap it prevents
@@ -248,7 +273,13 @@ src/
     wikidata/        the additional-information screen's data: finding a game's
                      item by exact id (lookup.ts), reading claims (claims.ts,
                      normalize.ts — pure, under `npm test`), and the Action API
-                     (client.ts). See § Wikidata
+                     (client.ts). See § Wikidata. Also the studio logo:
+                     commons.ts (the licence check — pure, tested) and
+                     studio-logo.ts (finding the file)
+    immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
+                     darkened in Oklab, and the scrim's stops. Pure, tested
+    logo-luminance.ts   how light a logo's ink is, decoded with Skia
+                     (+ .web.ts, which has no Skia and returns null)
     barcode.ts       GTIN check digits, UPC-E expansion, normalising to GTIN-14
     review-facets.ts what the review list filters and tallies by. Pure
     postgrest.ts     `inList()`, the safe `in` filter for strings people typed
@@ -452,6 +483,78 @@ the live Action API:
   `npm run web`; browsers cannot set `User-Agent`, so the client also sends
   `Api-User-Agent`, which the preflight allows.
 
+## Immersive pages and studio logos
+
+A **collection with one cover** and the **studio page** fill their background
+with a colour taken from their artwork; a collection showing several covers
+stays on the app's page. "One cover" is what is on screen, not the setting: the
+owner's `single` (0033), or a mosaic with only one cover to draw — a one-game
+collection — both count (`collectionCover`). The colour is the artwork's own
+*tone*, so a dark or grey cover gives a near-black page, correctly: Disco
+Elysium's lands on `#0A0A06`, Marvel's Spider-Man's on `#530000`. The recipe is SimpMusic's, read from its source (`UIExt.kt`
+`toImmersiveBackground` / `artworkScrimBrush`, `AlbumScreen.kt`,
+`ArtistScreen.kt`), and `lib/immersive-color.ts` is a port, not a lookalike:
+
+- **The colour is the background's, never a control's.** No `<AccentProvider>`
+  on either screen: buttons, pills and links keep their neutral fills and the
+  house blue. `useImmersiveBackground` returns a page colour or null (the app's
+  page); `<Screen background>` and the header's scrim take it, nothing else.
+- **Palette's dominant swatch, ported** — 5-bit quantisation, median cut into
+  16 boxes, Palette's default filter (near-black, near-white, skin tones). Greys
+  survive, so black-and-white art gives a grey page. `extractArtworkColor`'s
+  hue vote is the *accent* and must not be used here: it drops greys by design.
+- **Darkened in Oklab**, as Compose's `lerp` does: `0.35 + 0.45 × lightness`
+  toward black. sRGB gives visibly different pages (white → #333 instead of
+  #161616); SimpMusic's own screenshots measure #1A1A1A / #1B1B1B / #3B1129 and
+  the Oklab port reproduces them. The page is then darkened further, rarely, if
+  `textMuted` would fall under AA on it.
+- **Geometry.** Collections: artwork half the display, scrim over its bottom
+  70%. Studio: a square banner (≤ half the display), 5% black veil, the same
+  scrim, the name or logo centred over the bottom with one meta line under it.
+
+The **studio logo** replaces the name with the studio's logo from Wikimedia
+Commons — only ever a verified public-domain or CC0 file:
+
+- **The licence rule lives in `lib/wikidata/commons.ts` and nowhere else.** It
+  reads `extmetadata.License` (the licence template's *code*: `pd`, `cc0`,
+  `cc-by-sa-4.0`…) and cross-checks `Copyrighted`, `LicenseShortName`,
+  `LicenseUrl` and `NonFree`. `pd` requires `Copyrighted: False`; CC0 says
+  `True` and is fine. "No known copyright restrictions" and enwiki fair-use
+  files have **no** `License` code, so the allowlist rejects them without a
+  special case. Never infer a licence from a title or description.
+- **Which file**: the studio's Wikidata item, found by IGDB slug (P9650, fetched
+  from IGDB's `companies`) or — failing that — by an exact label/alias match
+  among video game companies, then its P154 (logo image) at best rank, never an
+  ended one. Only when Wikidata names no logo is Commons searched, and a searched
+  file's title must be the studio's name plus "logo" and nothing that names
+  something else. Two false positives this already caught, verified live:
+  Commons' "depicts Valve" data returns the **Steam** logo, and a title search
+  for "Valve" returns **"Valve Index logo.svg"**. Neither is Valve's logo.
+- **Commons' media host 403s a generic client.** `thumb.wikimedia.org` /
+  `upload.wikimedia.org` answer Android's default `okhttp/4.x` with "Please set a
+  user-agent". Every Wikimedia image is loaded with `USER_AGENT` in its source
+  headers (`<StudioIdentity>`, `measureLogoLuminance`).
+- **A logo's ink is measured, not assumed.** Commons logos are drawn for white
+  pages — FromSoftware's is pure black. `measureLogoLuminance` decodes the PNG
+  with Skia once and caches the number; `logoNeedsLightInk` draws the logo as a
+  light silhouette only when its ink is under 3:1 on the page (Mojang's
+  white-on-red block stays as it is). The web build has no Skia and draws light.
+  It measures the **same download the logo is drawn from**: `Image.prefetch`
+  into expo-image's disk cache, `Image.getCachePathAsync`, then Skia reads the
+  file — it used to `fetch` the PNG and let `<Image>` download it again. Keep
+  `<StudioIdentity>`'s `cacheKey` equal to the URL, or the two stop meeting.
+- **The studio page asks IGDB twice, and never by involvement.** `companies`
+  (`developed` + `published`, plus the name and slug the logo needs), then
+  `games where id = (…)`: 1.5–2.2s for every studio measured, Nintendo's 2,953
+  ids included. `games where involved_companies.company = X` — what it used to
+  ask — took 3.1–5.5s for Naughty Dog, Rockstar and FromSoftware, and the
+  payload was not why: the same query with a third of the fields was as slow.
+  `STUDIO_FIELDS` is the studio's own field list (a third of `GAME_FIELDS`, with
+  artwork sizes so a wordmark strip is never downloaded as a banner). The
+  involvement query survives only for a company with no games of its own.
+- Everything fails to the name: no item, no free logo, a rate limit, no
+  network, an image that will not load.
+
 ## Conventions
 
 - **State**: server data → TanStack Query; auth session → the zustand store.
@@ -651,10 +754,11 @@ the live Action API:
   binding; the accessors behave identically. See `ui/pressable-scale.tsx`.
 - **Two families, and the line between them is a rule.** Inter is the
   *interface*: every label, button, tab, count and caption. **Source Serif 4 is
-  reviews and nothing else** — a review's game title, its prose, and its excerpt
-  in a feed card. The seven `review*` steps in `Type` are the serif's whole
-  extent; reaching for one outside a review surface spends the distinction for
-  nothing. The brief this came from names Tiempos and Graphik, both commercial
+  reviews and nothing else** — a review's game title, its prose, and the
+  writer's headline on a feed card (`reviewHeadlineSmall`; the card's
+  three-line excerpt is sans since its redesign). The eight `review*` steps in
+  `Type` are the serif's whole extent; reaching for one outside a review surface
+  spends the distinction for nothing. The brief this came from names Tiempos and Graphik, both commercial
   and unshippable; Source Serif 4 and Inter are the open stand-ins. Every weight
   is its own family name — Android synthesises neither bold nor oblique from a
   custom font, so `fontWeight: '700'` on Inter silently renders regular.
@@ -791,8 +895,10 @@ the live Action API:
   music-app playlist hero: ~44% of the display, the art tinted toward the page,
   then a long early fade into it, so there is no edge where the image stops. A
   database before 0033 has no `cover_style` at all, and every reader treats that
-  as `mosaic`. The rows *inside* a collection are a list of games and keep
-  portrait box art.
+  as `mosaic`. A mosaic with only one cover to draw is shown as the single cover
+  — banner crop, page colour and all — except on an award show, whose trophy is
+  drawn over the mosaic. The rows *inside* a collection are a list of games and
+  keep portrait box art.
 - **Three ways to show a game, and they are not interchangeable.** `<GameCase />`
   on a game's own page; `<GameListItem />` for a row that needs a surface behind
   it (search results, feeds); `<CoverTile />` for a grid where the artwork *is*
@@ -1104,6 +1210,14 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   `web.output: 'static'`). `ui/soft-glow.web.tsx` is a CSS-radial-gradient
   fallback that Metro resolves automatically; a verified web export contains no
   CanvasKit at all. Any new Skia component needs the same treatment.
+- **A blurred copy of a remote image is a second download on Android.**
+  expo-image blurs with a Glide transformation, and Glide keeps two
+  differently-transformed requests for one URL apart, so a sharp and a blurred
+  `<Image>` mounted together both go to the network — every cold `<HeroArt>`
+  fetched its 1080p art twice. `<HeroArt>` now mounts the blurred copy once the
+  sharp one has loaded, when it decodes from the disk cache that load filled.
+  iOS coalesces the two already. Anything else that stacks a blurred copy over
+  the same remote image needs the same order.
 - **A `<BlurView>` on Android does nothing without a `blurTarget`.** SDK 57
   changed the contract: `blurMethod: 'dimezisBlurView'` with no target silently
   falls back to `'none'` — a flat translucent slab, no blur, one console warning.

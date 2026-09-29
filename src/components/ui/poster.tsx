@@ -101,6 +101,12 @@ export type PosterProps = {
    * price for an effect only three rails use.
    */
   parallax?: SharedValue<number> | null;
+  /**
+   * Where this cover's download stands in the queue, expo-image's `priority`.
+   * `low` for a wall of covers under something that should arrive first — the
+   * studio grid, below its banner. Omitted, it is expo-image's own `normal`.
+   */
+  priority?: 'low' | 'normal' | 'high';
 };
 
 /**
@@ -134,6 +140,7 @@ export const Poster = memo(function Poster({
   edition = null,
   steamAppId = null,
   parallax = null,
+  priority,
 }: PosterProps) {
   const theme = useTheme();
   const steam = useSteamArtwork(steamAppId);
@@ -172,6 +179,7 @@ export const Poster = memo(function Poster({
       cachePolicy="memory-disk"
       contentFit="cover"
       transition={220}
+      priority={priority}
       onError={() => {
         if (!steamSource) return;
         // First failure asks for the hashed path; if that one fails too

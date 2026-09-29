@@ -1018,8 +1018,11 @@ export const Type = {
    * which is the entire argument for having a second family at all.
    *
    * So: serif for the editorial content (the game's title on a review, the
-   * prose, the excerpt in a feed card) and sans for everything *about* it (the
-   * byline, the year, the playthrough facts, the like count). Do not reach for
+   * prose, the writer's headline on a feed card) and sans for everything *about*
+   * it (the byline, the year, the playthrough facts, the like count). The feed
+   * card's excerpt is sans since its redesign: at three lines and 11px beside a
+   * score and a strip it is a preview of the prose, not the prose — the serif
+   * headline over it is what says "somebody wrote this". Do not reach for
    * any of these outside a review surface; a serif game title in a search result
    * would spend the distinction for nothing.
    * ---------------------------------------------------------------------- */
@@ -1028,6 +1031,14 @@ export const Type = {
   reviewTitle: { fontSize: 20, lineHeight: 24, fontFamily: FontFamily.serifBold },
   /** The same, on a feed card, where it shares a column with the artwork. */
   reviewTitleSmall: { fontSize: 16, lineHeight: 20, fontFamily: FontFamily.serifBold },
+  /**
+   * The writer's own headline on a feed card — "One of the best games of all
+   * time" — closing the header block beside the box art, under the score and
+   * the date. The card's design sets it at ~10.5; 11 is the nearest a bold
+   * serif stays legible, one step over the sans floor because a serif at the
+   * floor fills in.
+   */
+  reviewHeadlineSmall: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.serifBold },
   /*
    * The prose. Deliberately looser than `prose`: 26 on 16 is a 1.63 ratio where
    * the sans body runs 1.6 on 15 — a serif at reading length needs the extra

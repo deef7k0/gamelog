@@ -6,8 +6,17 @@ import { Text } from '@/components/ui/text';
 import { Radius, Spacing, Type } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 
-/** A glyph in the value row, drawn at the figure's height. */
+/** A glyph in the value row, drawn at the figure's height — per size. */
 const ICON_SIZE = 20;
+const COMPACT_ICON_SIZE = 12;
+
+/**
+ * `regular` is the game page's and the review page's strip. `compact` is the
+ * same strip on a review card, beside the score on one line: cells as wide as
+ * their content (about 44dp) instead of sharing the row, and the figure and
+ * label at the 10dp floor instead of 17 over 11.
+ */
+export type StatsStripSize = 'regular' | 'compact';
 
 /**
  * One cell of a strip: a value over its label.
@@ -51,13 +60,20 @@ export type StatsCell = {
  * Colours come from `useAccent()`: both screens run on a game's own colour, so
  * the rules are `outlineVariant` and the labels the tonal inks.
  */
-export function StatsStrip({ cells }: { cells: readonly StatsCell[] }) {
+export function StatsStrip({
+  cells,
+  size = 'regular',
+}: {
+  cells: readonly StatsCell[];
+  size?: StatsStripSize;
+}) {
   const accent = useAccent();
+  const compact = size === 'compact';
 
   return (
     <View style={styles.strip}>
       {cells.map((cell, index) => (
-        <View key={cell.key} style={styles.slot}>
+        <View key={cell.key} style={compact ? styles.compactSlot : styles.slot}>
           {/* A rule *between* cells, not around the strip.
 
               The app reaches for a surface step before a border, and this is the
@@ -67,9 +83,14 @@ export function StatsStrip({ cells }: { cells: readonly StatsCell[] }) {
               between columns of a grid is the thing a rule is actually for — it
               has two edges to sit on rather than floating across artwork. */}
           {index > 0 && (
-            <View style={[styles.divider, { backgroundColor: accent.m3.outlineVariant }]} />
+            <View
+              style={[
+                compact ? styles.compactDivider : styles.divider,
+                { backgroundColor: accent.m3.outlineVariant },
+              ]}
+            />
           )}
-          <StatCell cell={cell} />
+          <StatCell cell={cell} compact={compact} />
         </View>
       ))}
     </View>
@@ -112,7 +133,7 @@ export function StatsStripSkeleton({ count = 4 }: { count?: number }) {
  * never computed: a cell either is a button or is a pair of static lines, and a
  * screen reader is told which without inspecting a prop.
  */
-function StatCell({ cell }: { cell: StatsCell }) {
+function StatCell({ cell, compact }: { cell: StatsCell; compact: boolean }) {
   const accent = useAccent();
   const labelColor = cell.onPress ? accent.onSurface : accent.quietInk;
 
@@ -127,14 +148,26 @@ function StatCell({ cell }: { cell: StatsCell }) {
         up above its neighbours'. `minHeight` rather than `height` so a number
         scaled up by the OS text setting grows the row instead of being clipped.
       */}
-      <View style={styles.value}>
+      <View style={compact ? styles.compactValue : styles.value}>
         {cell.icon ? (
           <Ionicons
             name={cell.icon.name}
-            size={ICON_SIZE}
+            size={compact ? COMPACT_ICON_SIZE : ICON_SIZE}
             color={cell.icon.color}
             importantForAccessibility="no"
           />
+        ) : compact ? (
+          /* On a card the figure sits beside a 25dp score, so it is the strip
+             at the type floor: `h6`, 10 bold, with an unknown answer in the
+             quiet ink rather than a size down — there is no size down. */
+          <Text
+            variant="h6"
+            numberOfLines={1}
+            style={
+              cell.empty ? { color: accent.quietInk } : cell.tint ? { color: cell.tint } : undefined
+            }>
+            {cell.value}
+          </Text>
         ) : cell.empty ? (
           /*
            * A non-answer is quieter than an answer — `h4` in the quiet ink, where a
@@ -167,7 +200,13 @@ function StatCell({ cell }: { cell: StatsCell }) {
         not the fill: this is a *word*, and `accent.color` on a dark page is a
         button colour that fails AA as type.
       */}
-      {cell.empty ? (
+      {compact ? (
+        /* One line at the floor: a card has no room for a sentence under a
+           figure, and the page the card opens has the full strip. */
+        <Text variant="caption" numberOfLines={1} style={{ color: labelColor }}>
+          {cell.label}
+        </Text>
+      ) : cell.empty ? (
         /*
          * A sentence, not a unit — so the caption step and two lines.
          *
@@ -193,9 +232,11 @@ function StatCell({ cell }: { cell: StatsCell }) {
     </>
   );
 
+  const cellStyle = compact ? styles.compactCell : styles.cell;
+
   if (!cell.onPress) {
     return (
-      <View style={styles.cell} accessible accessibilityLabel={cell.a11y}>
+      <View style={cellStyle} accessible accessibilityLabel={cell.a11y}>
         {body}
       </View>
     );
@@ -207,7 +248,7 @@ function StatCell({ cell }: { cell: StatsCell }) {
       accessibilityLabel={cell.a11y}
       onPress={cell.onPress}
       scaleTo={0.96}
-      style={StyleSheet.flatten(styles.cell)}>
+      style={StyleSheet.flatten(cellStyle)}>
       {body}
     </PressableScale>
   );
@@ -246,6 +287,30 @@ const styles = StyleSheet.create({
      size down, or a mark, is centred in the same space a number occupies. */
   value: { minHeight: Type.h2.lineHeight, justifyContent: 'center' },
   sentence: { textAlign: 'center' },
+
+  /*
+   * `compact`. The slot does not flex: on a card the strip shares its line with
+   * the score and must be only as wide as its cells, not stretch to the edge.
+   * Each cell is at least 44dp — the width the card's mock gives "PS4" and
+   * "570 h" — so a short figure does not make a narrow column that sets its
+   * rules unevenly. No vertical padding: the rule runs nearly the strip's full
+   * height, because at this size an inset rule would be a dot.
+   */
+  compactSlot: { position: 'relative' },
+  compactCell: {
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: Spacing.x8,
+  },
+  compactDivider: {
+    position: 'absolute',
+    left: 0,
+    top: 2,
+    bottom: 2,
+    width: StyleSheet.hairlineWidth,
+  },
+  compactValue: { minHeight: Type.h6.lineHeight, justifyContent: 'center' },
   /* Exactly the two text boxes they stand in for, so nothing moves when the real
      values arrive. Read off `Type` rather than written as numbers: retuning the
      scale must move both together. */

@@ -92,6 +92,12 @@ export type HeroArtProps = {
    *  - `false` — no fade at all. The caller is covering the edge some other way.
    */
   fade?: 'color' | 'mask' | false;
+  /**
+   * The size of the image that actually loaded, once it has. For a caller that
+   * has to reject art it cannot use — the studio banner skips a game whose
+   * first IGDB "artwork" is a 6:1 wordmark strip, which no crop can show.
+   */
+  onLoad?: (size: { width: number; height: number }) => void;
 };
 
 /**
@@ -110,17 +116,32 @@ export function HeroArt({
   scrim = false,
   height,
   fade = 'color',
+  onLoad,
 }: HeroArtProps) {
   const theme = useTheme();
   const window = useWindowDimensions();
   const steam = useSteamArtwork(steamAppId);
   const [steamFailed, setSteamFailed] = useState(false);
+  /* The art whose sharp copy has finished loading — see the blurred copy below. */
+  const [loaded, setLoaded] = useState<string | null>(null);
 
   const heroHeight = height ?? heroHeightFor(window.width, window.height);
 
   /* Steam's hero, then IGDB's, then nothing. Same ladder as `<Poster>`. */
   const steamSource = steam && !steamFailed ? steam.hero : null;
   const source = steamSource ?? uri ?? null;
+
+  /*
+   * The blurred copy waits for the sharp one when both are the same file.
+   *
+   * On Android a blur is a Glide transformation, so the two copies are two
+   * requests for one URL, and started together neither finds the other in the
+   * cache: a cold hero downloaded its 1080p file twice. Mounted once the sharp
+   * copy has loaded, the blurred one decodes from the disk cache that load just
+   * filled. iOS coalesced the two downloads already and loses nothing. A Steam
+   * hero is a different file from `uri`, so its blurred copy never waited.
+   */
+  const blurReady = source !== uri || loaded === uri;
 
   const content = (
     <View style={[styles.hero, { height: heroHeight }]}>
@@ -132,6 +153,13 @@ export function HeroArt({
           cachePolicy="memory-disk"
           contentFit="cover"
           transition={280}
+          /* The largest thing on every screen that opens on art: ahead of the
+             posters and rails that mount beside it. */
+          priority="high"
+          onLoad={(event) => {
+            setLoaded(source);
+            onLoad?.({ width: event.source.width, height: event.source.height });
+          }}
           onError={() => {
             if (!steamSource) return;
             if (steam) steam.onFailed();
@@ -153,7 +181,7 @@ export function HeroArt({
           MaskedView, and nesting one inside another is unreliable on Android.
           The art is dissolving to transparent there anyway, which does the same
           job of getting it out of the way of the case and the title. */}
-      {uri && fade !== 'mask' && (
+      {uri && blurReady && fade !== 'mask' && (
         <MaskedView
           style={StyleSheet.absoluteFill}
           pointerEvents="none"

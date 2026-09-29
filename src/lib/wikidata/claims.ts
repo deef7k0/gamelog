@@ -93,7 +93,12 @@ export function entityIdOf(snak: unknown): string | null {
 
   /* Older serialisations carried only the number. */
   const numeric = value['numeric-id'];
-  if (value['entity-type'] === 'item' && typeof numeric === 'number' && Number.isSafeInteger(numeric) && numeric > 0) {
+  if (
+    value['entity-type'] === 'item' &&
+    typeof numeric === 'number' &&
+    Number.isSafeInteger(numeric) &&
+    numeric > 0
+  ) {
     return `Q${numeric}`;
   }
   return null;

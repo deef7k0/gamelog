@@ -227,7 +227,10 @@ function castFrom(claims: WikidataClaims, refs: EntityRefs): WikidataCastMember[
   }
 
   const all = [...members.values()];
-  return [...all.filter((member) => member.dub === null), ...all.filter((member) => member.dub !== null)];
+  return [
+    ...all.filter((member) => member.dub === null),
+    ...all.filter((member) => member.dub !== null),
+  ];
 }
 
 /**
@@ -280,7 +283,8 @@ function budgetsFrom(claims: WikidataClaims, refs: EntityRefs): WikidataBudget[]
     if (!quantity) continue;
 
     const currency = quantity.unit ? currencyFor(quantity.unit, refs) : null;
-    const unitLabel = !currency && quantity.unit ? (resolve(quantity.unit, refs)?.label ?? null) : null;
+    const unitLabel =
+      !currency && quantity.unit ? (resolve(quantity.unit, refs)?.label ?? null) : null;
     const formatted = formatBudgetAmount(quantity.amount, currency, unitLabel);
     const scope = scopeOf(statement, refs);
     const year = qualifierYear(statement, P.pointInTime);
@@ -288,7 +292,13 @@ function budgetsFrom(claims: WikidataClaims, refs: EntityRefs): WikidataBudget[]
     const key = `${formatted}|${scope ?? ''}|${year ?? ''}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    budgets.push({ amount: quantity.amount, currency: currency?.code ?? null, formatted, scope, year });
+    budgets.push({
+      amount: quantity.amount,
+      currency: currency?.code ?? null,
+      formatted,
+      scope,
+      year,
+    });
   }
   return budgets;
 }
@@ -361,7 +371,8 @@ function creditsFrom(claims: WikidataClaims, property: string, refs: EntityRefs)
   const credits = new Map<string, WikidataCredit>();
   for (const statement of statementsOf(claims, property)) {
     const entity = resolve(entityIdOf(statement.mainsnak), refs);
-    if (entity && !credits.has(entity.id)) credits.set(entity.id, { id: entity.id, name: entity.label });
+    if (entity && !credits.has(entity.id))
+      credits.set(entity.id, { id: entity.id, name: entity.label });
   }
   return [...credits.values()];
 }

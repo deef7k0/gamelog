@@ -232,11 +232,14 @@ typography:
   # ---------------------------------------------------------------------------
   # Reviews, and nothing else in the app.
   #
-  # The serif is the rule and these seven steps are its whole extent: serif for
-  # the editorial content (a review's game title, its prose, its excerpt in a
-  # feed card), sans for everything *about* it (byline, year, playthrough facts,
-  # like count). A review is the one thing in this product a person wrote, and
-  # the split is what makes it read as writing rather than as app output.
+  # The serif is the rule and these eight steps are its whole extent: serif for
+  # the editorial content (a review's game title, its prose, the writer's
+  # headline on a feed card), sans for everything *about* it (byline, year,
+  # playthrough facts, like count). The feed card's three-line excerpt is sans:
+  # beside a score and a strip it previews the prose rather than being it, and
+  # the serif headline above it carries the distinction. A review is the one
+  # thing in this product a person wrote, and the split is what makes it read as
+  # writing rather than as app output.
   #
   # Source Serif 4 stands in for Tiempos, which is commercial and cannot ship.
   # Inter stands in for Graphik on the sans side, and is already here.
@@ -251,6 +254,11 @@ typography:
     fontSize: "16px"
     fontWeight: 700
     lineHeight: "20px"
+  reviewHeadlineSmall:
+    fontFamily: "SourceSerif4_700Bold"
+    fontSize: "11px"
+    fontWeight: 700
+    lineHeight: "15px"
   reviewProse:
     fontFamily: "SourceSerif4_400Regular"
     fontSize: "14px"

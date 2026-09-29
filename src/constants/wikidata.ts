@@ -43,11 +43,21 @@ export const WikidataProperty = {
 
   /* How a person is told from a studio. */
   instanceOf: 'P31', // instance of
+
+  /* A studio's logo, on the studio page. */
+  igdbCompanyId: 'P9650', // Internet Game Database company ID — the IGDB slug
+  industry: 'P452', // industry
+  logoImage: 'P154', // logo image — a Commons file name
+  endTime: 'P582', // end time — marks a logo the studio has retired
 } as const;
 
 export const WikidataItem = {
   human: 'Q5',
   english: 'Q1860',
+  /* What a studio is, for finding one by name: the industry, or the kind of company. */
+  videoGameIndustry: 'Q941594',
+  videoGameDeveloper: 'Q210167',
+  videoGamePublisher: 'Q1137109',
 } as const;
 
 /**

@@ -24,7 +24,10 @@ import type { WikidataEntityRef } from './types.ts';
 const item = (id: string) => ({
   snaktype: 'value',
   property: 'P0',
-  datavalue: { type: 'wikibase-entityid', value: { 'entity-type': 'item', 'numeric-id': Number(id.slice(1)), id } },
+  datavalue: {
+    type: 'wikibase-entityid',
+    value: { 'entity-type': 'item', 'numeric-id': Number(id.slice(1)), id },
+  },
 });
 const text = (value: string) => ({ snaktype: 'value', datavalue: { type: 'string', value } });
 const time = (year: number, precision = 9) => ({
@@ -67,7 +70,10 @@ describe('claim readers', () => {
   it('reads an item id, and the older numeric-only form', () => {
     assert.equal(entityIdOf(item('Q42')), 'Q42');
     assert.equal(
-      entityIdOf({ snaktype: 'value', datavalue: { value: { 'entity-type': 'item', 'numeric-id': 7 } } }),
+      entityIdOf({
+        snaktype: 'value',
+        datavalue: { value: { 'entity-type': 'item', 'numeric-id': 7 } },
+      }),
       'Q7'
     );
   });
@@ -99,7 +105,10 @@ describe('claim readers', () => {
     assert.equal(yearOf(time(2014, 11)), 2014);
     assert.equal(yearOf(time(2010, 8)), null);
     assert.equal(
-      yearOf({ snaktype: 'value', datavalue: { value: { time: '-0500-00-00T00:00:00Z', precision: 9 } } }),
+      yearOf({
+        snaktype: 'value',
+        datavalue: { value: { time: '-0500-00-00T00:00:00Z', precision: 9 } },
+      }),
       null
     );
   });
@@ -196,12 +205,32 @@ describe('cast', () => {
         statement(item('Q2'), { P453: [item('Q12')] }),
       ],
     };
-    const refs = refsOf({ Q1: 'Troy Baker', Q2: 'Nolan North', Q10: 'Joel', Q11: 'Sam', Q12: 'Nathan' });
+    const refs = refsOf({
+      Q1: 'Troy Baker',
+      Q2: 'Nolan North',
+      Q10: 'Joel',
+      Q11: 'Sam',
+      Q12: 'Nathan',
+    });
 
     const { cast } = normalizeGameInfo('Q100', claims, refs, NOBODY);
     assert.deepEqual(cast, [
-      { id: 'Q1', name: 'Troy Baker', characters: ['Joel', 'Sam'], cast: true, voice: true, dub: null },
-      { id: 'Q2', name: 'Nolan North', characters: ['Nathan'], cast: false, voice: true, dub: null },
+      {
+        id: 'Q1',
+        name: 'Troy Baker',
+        characters: ['Joel', 'Sam'],
+        cast: true,
+        voice: true,
+        dub: null,
+      },
+      {
+        id: 'Q2',
+        name: 'Nolan North',
+        characters: ['Nathan'],
+        cast: false,
+        voice: true,
+        dub: null,
+      },
     ]);
   });
 
@@ -242,7 +271,12 @@ describe('cast', () => {
         statement(item('Q2'), { P453: [item('Q10')] }),
       ],
     };
-    const { cast } = normalizeGameInfo('Q189784', claims, refsOf({ Q2: null, Q10: 'Doomguy' }), NOBODY);
+    const { cast } = normalizeGameInfo(
+      'Q189784',
+      claims,
+      refsOf({ Q2: null, Q10: 'Doomguy' }),
+      NOBODY
+    );
     assert.deepEqual(cast, []);
   });
 });
@@ -258,7 +292,11 @@ describe('awards and nominations', () => {
         statement(item('Q2'), { P585: [time(2016)] }),
       ],
     };
-    const refs = refsOf({ Q1: 'Most Anticipated Game', Q2: 'Game of the Year', Q3: 'Best Environment' });
+    const refs = refsOf({
+      Q1: 'Most Anticipated Game',
+      Q2: 'Game of the Year',
+      Q3: 'Best Environment',
+    });
 
     const { awards } = normalizeGameInfo('Q4267401', claims, refs, NOBODY);
     assert.deepEqual(awards, [
@@ -280,9 +318,20 @@ describe('awards and nominations', () => {
       P166: [statement(item('Q1'))],
       P1411: [statement(item('Q1')), statement(item('Q2'))],
     };
-    const info = normalizeGameInfo('Q100', claims, refsOf({ Q1: 'GOTY', Q2: 'Best Narrative' }), NOBODY);
-    assert.deepEqual(info.awards.map((award) => award.name), ['GOTY']);
-    assert.deepEqual(info.nominations.map((award) => award.name), ['GOTY', 'Best Narrative']);
+    const info = normalizeGameInfo(
+      'Q100',
+      claims,
+      refsOf({ Q1: 'GOTY', Q2: 'Best Narrative' }),
+      NOBODY
+    );
+    assert.deepEqual(
+      info.awards.map((award) => award.name),
+      ['GOTY']
+    );
+    assert.deepEqual(
+      info.nominations.map((award) => award.name),
+      ['GOTY', 'Best Narrative']
+    );
   });
 });
 
@@ -298,14 +347,28 @@ describe('budget', () => {
 
     const { budgets } = normalizeGameInfo('Q3182559', claims, refs, NOBODY);
     assert.deepEqual(budgets, [
-      { amount: 660000000, currency: 'PLN', formatted: 'PLN 660 million', scope: 'Economic production', year: null },
-      { amount: 540000000, currency: 'PLN', formatted: 'PLN 540 million', scope: 'Marketing', year: null },
+      {
+        amount: 660000000,
+        currency: 'PLN',
+        formatted: 'PLN 660 million',
+        scope: 'Economic production',
+        year: null,
+      },
+      {
+        amount: 540000000,
+        currency: 'PLN',
+        formatted: 'PLN 540 million',
+        scope: 'Marketing',
+        year: null,
+      },
     ]);
   });
 
   it('prints a symbol for dollars and joins several parts', () => {
     const claims = {
-      P2130: [statement(quantity('+40000000', entity('Q4917')), { P518: [item('Q1'), item('Q2')] })],
+      P2130: [
+        statement(quantity('+40000000', entity('Q4917')), { P518: [item('Q1'), item('Q2')] }),
+      ],
     };
     const refs = refsOf({ Q4917: 'United States dollar', Q1: 'development', Q2: 'marketing' });
     const [budget] = normalizeGameInfo('Q214232', claims, refs, NOBODY).budgets;
@@ -372,17 +435,33 @@ describe('credits and people', () => {
   it('lists each person once with every role, most senior first', () => {
     const { people } = normalizeGameInfo('Q24666782', claims, refs, humans);
     assert.deepEqual(people, [
-      { id: 'Q315577', name: 'Hideo Kojima', roles: ['Director', 'Producer', 'Designer', 'Screenwriter'] },
+      {
+        id: 'Q315577',
+        name: 'Hideo Kojima',
+        roles: ['Director', 'Producer', 'Designer', 'Screenwriter'],
+      },
       { id: 'Q59780390', name: 'Ludvig Forssell', roles: ['Composer'] },
     ]);
   });
 
   it('prefers people over a studio in the same role, and keeps the role sections', () => {
     const info = normalizeGameInfo('Q24666782', claims, refs, humans);
-    assert.deepEqual(info.producers.map((credit) => credit.name), ['Hideo Kojima']);
-    assert.deepEqual(info.designers.map((credit) => credit.name), ['Hideo Kojima']);
-    assert.deepEqual(info.screenwriters.map((credit) => credit.name), ['Hideo Kojima']);
-    assert.deepEqual(info.composers.map((credit) => credit.name), ['Ludvig Forssell']);
+    assert.deepEqual(
+      info.producers.map((credit) => credit.name),
+      ['Hideo Kojima']
+    );
+    assert.deepEqual(
+      info.designers.map((credit) => credit.name),
+      ['Hideo Kojima']
+    );
+    assert.deepEqual(
+      info.screenwriters.map((credit) => credit.name),
+      ['Hideo Kojima']
+    );
+    assert.deepEqual(
+      info.composers.map((credit) => credit.name),
+      ['Ludvig Forssell']
+    );
   });
 
   it('keeps a studio where it is the only credit, but never lists it as a person (The Witcher 3)', () => {
@@ -392,8 +471,14 @@ describe('credits and people', () => {
       refsOf({ Q1172164: 'CD Projekt RED', Q19005369: 'Marcin Przybyłowicz' }),
       new Set(['Q19005369'])
     );
-    assert.deepEqual(info.producers.map((credit) => credit.name), ['CD Projekt RED']);
-    assert.deepEqual(info.people.map((person) => person.name), ['Marcin Przybyłowicz']);
+    assert.deepEqual(
+      info.producers.map((credit) => credit.name),
+      ['CD Projekt RED']
+    );
+    assert.deepEqual(
+      info.people.map((person) => person.name),
+      ['Marcin Przybyłowicz']
+    );
   });
 
   it('keeps two people who share a name, and merges one person referenced under a merged id', () => {
@@ -432,10 +517,20 @@ describe('what is requested, and what counts as nothing', () => {
     assert.equal(hasGameInfo(null), false);
     assert.equal(hasGameInfo(undefined), false);
 
-    const empty = normalizeGameInfo('Q28677081', { P136: [statement(item('Q7'))] }, refsOf({ Q7: 'racing' }), NOBODY);
+    const empty = normalizeGameInfo(
+      'Q28677081',
+      { P136: [statement(item('Q7'))] },
+      refsOf({ Q7: 'racing' }),
+      NOBODY
+    );
     assert.equal(hasGameInfo(empty), false);
 
-    const one = normalizeGameInfo('Q1', { P86: [statement(item('Q2'))] }, refsOf({ Q2: 'Composer' }), NOBODY);
+    const one = normalizeGameInfo(
+      'Q1',
+      { P86: [statement(item('Q2'))] },
+      refsOf({ Q2: 'Composer' }),
+      NOBODY
+    );
     assert.equal(hasGameInfo(one), true);
   });
 });

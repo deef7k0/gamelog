@@ -21,7 +21,7 @@
  *
  *    Two screens surface them, both under a heading that says what they are: the
  *    parent game's own page ("Editions & extras"), and a studio's catalogue,
- *    where `getCompanyGames` deliberately does *not* filter them and the screen
+ *    where `getStudioGames` deliberately does *not* filter them and the screen
  *    partitions them into a rail of their own. Neither is a search result, which
  *    is the distinction — the filter is about not diluting a list of games with
  *    versions of one, not about hiding them.

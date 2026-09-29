@@ -625,8 +625,8 @@ function RailSkeleton() {
   );
 }
 
-/** Roughly a collapsed `<LogCard>`: header block, stats, four lines of prose. */
-const REVIEW_CARD_HEIGHT = 320;
+/** A typical `<LogCard>`: the header beside its art, three lines of prose, the like row. */
+const REVIEW_CARD_HEIGHT = 212;
 
 /** Lifts a one-line inline link to the platform floor without moving the text. */
 const FOOTER_SLOP = { top: 14, bottom: 14, left: 8, right: 8 };

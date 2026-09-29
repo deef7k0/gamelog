@@ -18,7 +18,8 @@ import { makeGameId, yearFrom, type Game, type GameProvider, type GameSearchResu
  *   https://api-docs.igdb.com/#apicalypse
  */
 
-type IgdbImage = { image_id?: string };
+/** `width` and `height` only where a query asks for them — the studio catalogue's artworks. */
+type IgdbImage = { image_id?: string; width?: number; height?: number };
 
 type IgdbGame = {
   id: number;
@@ -451,49 +452,130 @@ export async function getGameEditions(
     );
 }
 
+/** A studio as IGDB names it: the identity a logo lookup starts from. */
+export type CompanyIdentity = { id: number; name: string; slug: string | null };
+
+/** A company's identity, and the ids of every game it developed or published. */
+export type StudioCompany = { identity: CompanyIdentity | null; gameIds: number[] };
+
 /**
- * A studio's catalogue, repackages included.
+ * The first half of a studio's catalogue: who the company is, and which games.
  *
- * ## `version_parent = null` is gone from this one query
+ * One small request to `companies`, whose `developed` and `published` lists are
+ * the company's games already resolved — the fast question. Asking `games` for
+ * `involved_companies.company = X` instead makes IGDB work out that join itself,
+ * and it is slow in a way the payload does not explain: measured through the
+ * deployed function, FromSoftware took 5.2–5.5s, Rockstar Games 4.5s and Naughty
+ * Dog 3.1–3.3s, where this and `getStudioGames` together take 1.7–2.1s for every
+ * studio tried, Nintendo's 2,953 ids included.
  *
- * It was here for a real reason: "Game of the Year Edition" rows are repackages
- * of a game already in the list, and left in a flat grid they fill a prolific
- * publisher's page with the same three covers in a row — which is precisely how
- * a filter like that earns its place, and why it still guards every *search*
- * path in this file.
+ * The same response carries the name and slug — the slug is the exact key
+ * Wikidata files IGDB companies under (P9650), which is how the studio page
+ * finds a studio's logo without matching on a name — so the logo lookup reads
+ * them from here rather than asking IGDB a second time.
  *
- * What changed is that the studio screen no longer renders one flat grid. It
- * partitions this list — `edition` and `bundle` into a rail of their own, and
- * everything else into the catalogue — so the duplicates the filter existed to
- * suppress are now the contents of a section that says what they are. Filtering
- * them at the query was the cheapest way to solve the grid problem and the only
- * way to guarantee the rail could never exist.
- *
- * The caller must keep partitioning. Drop that and this returns straight to the
- * shape the filter was written against.
- *
- * ## Why the limit doubled
- *
- * Repackages now compete for the same budget, and a publisher with two hundred
- * catalogue entries has a good few dozen of them. At 100 the editions would have
- * been taken out of the *originals*' allowance, so relaxing the filter without
- * raising the cap would have quietly shortened the catalogue it was meant to
- * enrich. IGDB's own ceiling is 500.
+ * Developed and published only: a company credited just for porting or support
+ * work on a game is not listed for it. Against the involvement query that cost
+ * one game in each of Capcom's and Electronic Arts' newest 200 (a licensed
+ * Evercade cabinet, and a mobile spin-off) and none anywhere else tried. A
+ * company with no games of its own at all is the case that would be wrong, so
+ * `getStudioGames` asks by involvement for exactly that one.
  */
-export async function getCompanyGames(
+export async function getStudioCompany(
   companyId: number,
   signal?: AbortSignal
+): Promise<StudioCompany> {
+  const raw = await igdbQuery<
+    { id: number; name?: string; slug?: string; developed?: number[]; published?: number[] }[]
+  >(
+    'companies',
+    `fields name, slug, developed, published; where id = ${companyId}; limit 1;`,
+    signal
+  );
+  const first = raw?.[0];
+  return {
+    identity: first?.name ? { id: first.id, name: first.name, slug: first.slug ?? null } : null,
+    gameIds: [...new Set([...(first?.developed ?? []), ...(first?.published ?? [])])],
+  };
+}
+
+/**
+ * Only what the studio page draws: a title, a cover, one piece of key art, a
+ * year, a score and an edition.
+ *
+ * `GAME_FIELDS` also carries every game's summary, storyline, genres,
+ * platforms, companies and storefronts — 406 KB for Capcom's 200 games and
+ * 379 KB for FromSoftware's 155, all of it parsed on the JS thread and none of
+ * it on screen. This is a third of that. Screenshots stay, as the banner's
+ * fallback for a game with no key art; artworks bring their size, so a banner
+ * that is a wordmark strip is passed over before anything downloads it.
+ */
+const STUDIO_FIELDS = `
+  fields name, total_rating, first_release_date, cover.image_id,
+         artworks.image_id, artworks.width, artworks.height, screenshots.image_id,
+         game_type, parent_game, version_parent, version_title;
+`;
+
+/**
+ * Past this many ids the query is asked by involvement instead. Nintendo's
+ * 2,953 went through by id in under a second, so this is a guard against a
+ * request body nobody has measured, not a tuned number.
+ */
+const MAX_ID_FILTER = 5000;
+
+/**
+ * A studio's catalogue, repackages included: its 200 newest games with covers,
+ * from the ids `getStudioCompany` found.
+ *
+ * ## Repackages are not filtered out here
+ *
+ * "Game of the Year Edition" rows are repackages of a game already in the list,
+ * and left in a flat grid they fill a prolific publisher's page with the same
+ * three covers in a row — which is why a `version_parent = null` filter still
+ * guards every *search* path in this file. The studio screen does not render one
+ * flat grid: it partitions this list, `edition` and `bundle` into a rail of their
+ * own and everything else into the catalogue, so the duplicates are the contents
+ * of a section that says what they are. The caller must keep partitioning. Drop
+ * that and this returns straight to the shape the filter was written against.
+ *
+ * 200 rather than 100 because repackages compete for the same budget; IGDB's own
+ * ceiling is 500.
+ *
+ * ## The hero is the first art that can be a banner
+ *
+ * `maxHeroAspect` is the widest artwork the caller can crop. Elden Ring's first
+ * "artwork" is a 1920×295 wordmark strip; with sizes in hand its key art is
+ * chosen instead, rather than the strip being downloaded at 1080p, rejected on
+ * load and the banner moving on to another game. Artwork IGDB sent without a
+ * size is taken on trust — the screen still checks what actually loads.
+ */
+export async function getStudioGames(
+  companyId: number,
+  gameIds: readonly number[],
+  { maxHeroAspect }: { maxHeroAspect: number },
+  signal?: AbortSignal
 ): Promise<GameSearchResult[]> {
+  const byId = gameIds.length > 0 && gameIds.length <= MAX_ID_FILTER;
   const raw = await igdbQuery<IgdbGame[]>(
     'games',
-    `${GAME_FIELDS}
-     where involved_companies.company = ${companyId}
+    `${STUDIO_FIELDS}
+     where ${byId ? `id = (${gameIds.join(',')})` : `involved_companies.company = ${companyId}`}
        & cover != null;
      sort first_release_date desc;
      limit 200;`,
     signal
   );
-  return (raw ?? []).map(toGame).map(toSearchResult);
+  return (raw ?? []).map((game) =>
+    toSearchResult({ ...toGame(game), heroUrl: bannerArtOf(game, maxHeroAspect) })
+  );
+}
+
+/** The first artwork no wider than `maxAspect`, else the first screenshot, at 1080p. */
+function bannerArtOf(raw: IgdbGame, maxAspect: number): string | null {
+  const artwork = raw.artworks?.find(
+    (image) => !image.width || !image.height || image.width / image.height <= maxAspect
+  );
+  return imageUrl(artwork, '1080p') ?? imageUrl(raw.screenshots?.[0], '1080p');
 }
 
 // ---------------------------------------------------------------------------

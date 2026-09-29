@@ -9,6 +9,7 @@ import { CollectionMosaic } from '@/components/collection-mosaic';
 import { Avatar } from '@/components/ui/avatar';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { RichText } from '@/components/ui/rich-text';
+import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Text } from '@/components/ui/text';
 import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
@@ -18,34 +19,21 @@ import type { Engagement, ListCover, ListItem, ListWithItems } from '@/lib/api';
 import type { ListCoverStyle, Profile } from '@/lib/database.types';
 
 /**
- * How much of the display the artwork block occupies.
- *
- * About two fifths: the music-app playlist hero this follows keeps its artwork
- * to the upper ~40% of the screen, full width, so it reads as a cinematic banner
- * with the name and controls on the first screenful rather than as a poster the
- * page starts under. It was half, which pushed the description below the fold.
+ * How much of the display the artwork block occupies: half, SimpMusic's album
+ * and playlist header (`screenInfo.hDP / 2`), full width and cropped.
  */
-const COVER_RATIO = 0.44;
+const COVER_RATIO = 0.5;
 
 /**
- * Where the fade starts, as a fraction of the cover block's height.
- *
- * Early, and long. The artwork does not stop and then darken: it starts
- * dissolving while it is still clearly visible, so by the time the eye reaches
- * the bottom there is no edge left to find — the image has melted into the page.
- * The title sits over the last third, on ground the ramp has already darkened.
+ * How much of the artwork the scrim covers, from the bottom: 70%, the
+ * reference's `hDP * 0.35` of an `hDP / 2` frame. Long on purpose — the shorter
+ * the ramp, the steeper its alpha, and a steep ramp is what reads as an edge.
+ * The title sits over its last third, where the page colour has taken over.
  */
-const FADE_START = 0.3;
+const SCRIM_RATIO = 0.7;
 
-/**
- * The whole image's tint, toward the page colour.
- *
- * A raw box cover is the brightest thing in the app, and the reference darkens
- * its hero before the fade begins. Tinting toward the page — not toward black —
- * is the half of the transition that is colour rather than opacity: the art is
- * already partway to the page's colour when the ramp takes it the rest of the way.
- */
-const TINT = 0.22;
+/** The quiet line under the title — "Collection · 12 games" — at the reference's 77% white. */
+const META_ALPHA = 0.77;
 
 /**
  * Where a single cover is anchored in the banner, top to bottom.
@@ -74,6 +62,13 @@ export type CollectionHeaderProps = {
   collection: ListWithItems;
   owner: Profile | null;
   isOwner: boolean;
+  /**
+   * The page colour the artwork melts into — the immersive colour of a single
+   * cover (`useImmersiveBackground`), or null for the app's own page, which is
+   * what a mosaic of several covers always uses. The screen fills with the same
+   * value.
+   */
+  pageColor?: string | null;
   /** Like count and whether the viewer is one of them. */
   engagement?: Engagement;
   onEdit?: () => void;
@@ -92,11 +87,19 @@ export type CollectionHeaderProps = {
  *
  * ## The shape, and what changed
  *
- * Two fifths of a screen of artwork — four covers, or the one the owner chose —
- * tinted toward the page and dissolving into it through a long fade; the name
- * and the byline set *over* the bottom of it; one row of actions on the dark
- * below; then the description, tight under the actions. Everything is centred on
- * the artwork's axis.
+ * Half a screen of artwork — four covers, or the one the owner chose — melting
+ * into the page through a smoothstep scrim over its bottom 70%; the name and the
+ * byline set *over* the bottom of it; one row of actions below; then the
+ * description, tight under the actions. Everything is centred on the artwork's
+ * axis. The geometry is SimpMusic's album and playlist header, read from
+ * `AlbumScreen.kt` / `PlaylistScreen.kt`.
+ *
+ * **The page takes a single cover's colour.** With one cover — the owner's
+ * choice, or the only one a collection has (`collectionCover`) — the screen
+ * fills with that cover's immersive colour (`useImmersiveBackground`) and the
+ * scrim melts into it; with a mosaic of several it stays the app's own page,
+ * since several covers have no one colour. The colour is the background's
+ * alone — the actions below keep their neutral fills.
  *
  * Two things were wrong before and both were structural rather than cosmetic.
  *
@@ -122,6 +125,7 @@ export function CollectionHeader({
   collection,
   owner,
   isOwner,
+  pageColor = null,
   engagement,
   onEdit,
   onEditDetails,
@@ -138,7 +142,8 @@ export function CollectionHeader({
   const items = collection.items ?? [];
   const covers = coversFrom(items);
   const display = collection.cover_style ?? 'mosaic';
-  const single = display === 'single' ? singleCover(items, collection.cover_game_id) : null;
+  const single = collectionCover(collection);
+  const page = pageColor ?? theme.background;
   const isAwards = collection.kind === 'awards';
   const description = collection.description?.trim();
 
@@ -163,11 +168,12 @@ export function CollectionHeader({
         {/*
           The artwork, full width and cropped to the banner.
 
-          One cover when the owner chose one: drawn straight into the banner
-          with `cover` fit rather than as a square mosaic of one, so the crop is
-          the banner's shape and can be anchored high (`SINGLE_ANCHOR`). Four
-          otherwise: the square mosaic, sized to the block's longer axis and
-          centred — a centre crop rather than a stretch.
+          One cover when the owner chose one or there is only one to show:
+          drawn straight into the banner with `cover` fit rather than as a
+          square mosaic of one, so the crop is the banner's shape and can be
+          anchored high (`SINGLE_ANCHOR`). Several otherwise: the square mosaic,
+          sized to the block's longer axis and centred — a centre crop rather
+          than a stretch.
         */}
         {single ? (
           <Image
@@ -190,34 +196,17 @@ export function CollectionHeader({
           </View>
         )}
 
-        {/* The tint: the whole image, a step toward the page. See `TINT`. */}
-        <View
-          style={[styles.tint, { backgroundColor: withAlpha(theme.background, TINT) }]}
-          pointerEvents="none"
-        />
-
         {/*
-          The fade: long, early and weighted, into the page colour.
+          The artwork melting into the page: SimpMusic's album header, which
+          lays `artworkScrimBrush` over the bottom 70% of the art and nothing
+          else — no tint over the whole image, so the top of the cover shows at
+          full strength and only the bottom gives way.
 
-          Five stops, and the first half of the ramp is barely there — the image
-          is still clearly visible where it begins, which is what stops the eye
-          finding a line. Every stop ends on a colour at an explicit alpha and
-          never the keyword `transparent` — expo-linear-gradient premultiplies
-          on Android and would fade the keyword through black, leaving a grey
-          bruise mid-ramp.
+          Into `page`: the cover's own immersive colour when there is a single
+          cover, the app's page otherwise. A mosaic of several covers has no one
+          colour to take, so it stays on the ordinary page.
         */}
-        <LinearGradient
-          colors={[
-            withAlpha(theme.background, 0),
-            withAlpha(theme.background, 0.15),
-            withAlpha(theme.background, 0.5),
-            withAlpha(theme.background, 0.85),
-            theme.background,
-          ]}
-          locations={[0, 0.25, 0.55, 0.82, 1]}
-          style={[styles.fade, { top: `${FADE_START * 100}%` }]}
-          pointerEvents="none"
-        />
+        <SmoothScrim color={page} style={[styles.fade, { height: `${SCRIM_RATIO * 100}%` }]} />
 
         {/* Keeps the floating back disc legible over a bright cover. */}
         <LinearGradient
@@ -235,6 +224,9 @@ export function CollectionHeader({
           them clear of the very bottom edge, where the ramp is fully black and
           the text would look like it had fallen out of the image.
         */}
+        {/* The reference's title stack: the name, 4 below it the byline, 2 below
+            that the kind and count at 77% white — "2007 • Album" in SimpMusic,
+            "Collection · 12 games" here. */}
         <View style={styles.titleBlock} pointerEvents="box-none">
           <Text variant="display" numberOfLines={2} style={styles.title}>
             {collection.title}
@@ -255,7 +247,7 @@ export function CollectionHeader({
             </Link>
           )}
 
-          <Text variant="bodySmall" color="textMuted">
+          <Text variant="body" style={[styles.meta, { color: withAlpha(theme.text, META_ALPHA) }]}>
             {collectionKindLabel(collection)} · {items.length}{' '}
             {items.length === 1 ? 'game' : 'games'}
           </Text>
@@ -570,6 +562,35 @@ function coversFrom(items: ListItem[]): ListCover[] {
 }
 
 /**
+ * The one cover a collection shows, or null when it shows several. The screen
+ * reads it too — the page colour comes from this image — so the two cannot
+ * disagree about which cover it is.
+ *
+ * One cover either because the owner chose it (`cover_style`, 0033) or because
+ * the mosaic has only one to draw: a collection of one game, which the mosaic
+ * fills with that cover anyway. Both are drawn the same way and both colour the
+ * page — what decides it is how many covers are on screen, not which setting
+ * put them there. This used to ask only for the setting, so a one-game
+ * collection drew a single cover over the app's own page, and on a database
+ * without 0033, where nothing can be `single`, no collection ever took a colour.
+ *
+ * Not for an award show's mosaic: even with one winner it is a darkened cover
+ * under a trophy — the mark that says it is a show — rather than plain art.
+ */
+export function collectionCover(collection: ListWithItems): ListCover | null {
+  const items = collection.items ?? [];
+  if ((collection.cover_style ?? 'mosaic') === 'single') {
+    return singleCover(items, collection.cover_game_id);
+  }
+  if (collection.kind === 'awards') return null;
+
+  /* The same art `<CollectionMosaic>` keeps — the first four, minus any with
+     nothing to draw — so this is one exactly when the mosaic would be. */
+  const art = coversFrom(items).filter((cover) => !!(cover.cover_url ?? cover.hero_url));
+  return art.length === 1 ? art[0] : null;
+}
+
+/**
  * The one cover a single-cover collection shows: the owner's pick while it is
  * still in the list, otherwise the first item with art — `resolvePreview` in
  * `api/lists.ts`, over the full items the page has rather than the summary's.
@@ -590,23 +611,25 @@ const styles = StyleSheet.create({
   cover: { position: 'relative', width: '100%', overflow: 'hidden' },
   coverArt: { position: 'absolute' },
   single: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  tint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  /* `top` is supplied inline — the ramp begins partway down the artwork. */
+  /* `height` is supplied inline — `SCRIM_RATIO` of the artwork, from the bottom. */
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   scrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '22%' },
 
+  /* The reference's title block: 20 in from each side, 16 up from the edge
+     (`x24`, the ladder's 15), and 4 then 2 between its lines. */
   titleBlock: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     alignItems: 'center',
-    gap: Spacing.x4,
-    paddingHorizontal: Spacing.x24,
-    paddingBottom: Spacing.x16,
+    gap: 2,
+    paddingHorizontal: Spacing.x32,
+    paddingBottom: Spacing.x24,
   },
   title: { textAlign: 'center' },
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, marginTop: 2 },
+  meta: { textAlign: 'center' },
 
   /* Tight. The reference leaves almost nothing between the buttons and the
      description, and that compactness is what keeps the list on screen. */

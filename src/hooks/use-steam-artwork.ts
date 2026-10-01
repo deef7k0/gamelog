@@ -34,8 +34,15 @@ import { directArtwork, fetchSteamArtwork, type SteamArtworkType } from '@/lib/g
 /** Cache lifetime. Steam re-cuts store art rarely; a week is well inside that. */
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const CACHE_VERSION = 1;
+/*
+ * 2: the `library` slot became the 600×900 capsule (it was the 2× one), so the
+ * hashed URLs stored under 1 name a file four times the size. They are dropped
+ * rather than migrated — re-resolving is one batched request.
+ */
+const CACHE_VERSION = 2;
 const CACHE_KEY = `steam-artwork:v${CACHE_VERSION}`;
+/** Keys earlier versions wrote, removed on first hydrate so they do not sit on disk forever. */
+const RETIRED_KEYS = ['steam-artwork:v1'];
 
 /** How long failures are collected before one batched lookup goes out. */
 const BATCH_WINDOW_MS = 60;
@@ -73,6 +80,8 @@ function notify() {
 async function hydrate(): Promise<void> {
   if (hydrated) return;
   hydrated = true;
+
+  void AsyncStorage.multiRemove(RETIRED_KEYS).catch(() => {});
 
   try {
     const raw = await AsyncStorage.getItem(CACHE_KEY);

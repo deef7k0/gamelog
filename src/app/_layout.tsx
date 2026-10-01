@@ -1,17 +1,23 @@
-import {
-  Inter_300Light,
-  Inter_400Regular,
-  Inter_400Regular_Italic,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_600SemiBold_Italic,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
-import {
-  SourceSerif4_400Regular,
-  SourceSerif4_600SemiBold,
-  SourceSerif4_700Bold,
-} from '@expo-google-fonts/source-serif-4';
+/*
+ * One import per weight, from the weight's own path — never from the package.
+ *
+ * Each `@expo-google-fonts` package's index `require()`s every style it has,
+ * and Metro bundles every file a module requires whether or not its export is
+ * used: importing seven weights from `@expo-google-fonts/inter` shipped all
+ * eighteen, and three from Source Serif 4 shipped all sixteen — 10.5 MB of
+ * fonts in every APK, 7.1 MB of them never drawn. The subpaths require one
+ * file each.
+ */
+import { Inter_300Light } from '@expo-google-fonts/inter/300Light';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_400Regular_Italic } from '@expo-google-fonts/inter/400Regular_Italic';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { Inter_600SemiBold_Italic } from '@expo-google-fonts/inter/600SemiBold_Italic';
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import { SourceSerif4_400Regular } from '@expo-google-fonts/source-serif-4/400Regular';
+import { SourceSerif4_600SemiBold } from '@expo-google-fonts/source-serif-4/600SemiBold';
+import { SourceSerif4_700Bold } from '@expo-google-fonts/source-serif-4/700Bold';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';

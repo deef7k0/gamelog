@@ -12,6 +12,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "GAMELOG_ANDROID_ABIS": "armeabi-v7a,arm64-v8a"
       }
     },
     "production": {

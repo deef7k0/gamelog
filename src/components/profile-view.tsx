@@ -2,10 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter, type Href } from 'expo-router';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { Alert, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
-
-import type { TopBarScroll } from '@/hooks/use-screen-chrome';
+import {
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { ConnectAccountCard } from '@/components/gaming/connect-card';
@@ -156,14 +160,6 @@ export type ProfileViewProps = {
    * the name alone and starts a little further down, clear of the bar.
    */
   handleInBar?: boolean;
-  /**
-   * The enclosing screen's top-bar scroll handler, from `useTopBarScroll()`.
-   *
-   * Threaded in rather than created here because this component *is* the page's
-   * scroller on both profile routes, and the bar it feeds belongs to the screen
-   * above it.
-   */
-  onScroll?: TopBarScroll['onScroll'];
 };
 
 /**
@@ -190,7 +186,7 @@ export type ProfileViewProps = {
  * the Instagram shape puts identity and reach on one line so the reader can size
  * up a stranger in one glance, and the widgets keep the room they had.
  */
-export function ProfileView({ profileId, headerAction, handleInBar, onScroll }: ProfileViewProps) {
+export function ProfileView({ profileId, headerAction, handleInBar }: ProfileViewProps) {
   const theme = useTheme();
   const clearance = useTabBarClearance();
   const { width } = useWindowDimensions();
@@ -452,10 +448,8 @@ export function ProfileView({ profileId, headerAction, handleInBar, onScroll }: 
   }
 
   return (
-    <Animated.FlatList
+    <FlatList
       data={rows}
-      onScroll={onScroll}
-      scrollEventThrottle={16}
       keyExtractor={rowKey}
       renderItem={renderRow}
       ItemSeparatorComponent={RowSeparator}

@@ -4,7 +4,6 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
 
 import { steamCoverUrl, steamHeaderUrl } from '@/components/gaming/game-tile';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
@@ -14,7 +13,6 @@ import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import {
@@ -40,7 +38,6 @@ const SHOWCASE_ICON = 56;
  * gets its own row underneath, where it belongs.
  */
 export default function GamingAchievementsScreen() {
-  const { onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === id;
@@ -101,10 +98,8 @@ export default function GamingAchievementsScreen() {
 
   return (
     <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <Animated.FlatList
+      <FlatList
         data={games}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
         keyExtractor={(game) => game.appId}
         renderItem={({ item }) => <GameProgressRow game={item} userId={id} />}
         contentContainerStyle={styles.content}

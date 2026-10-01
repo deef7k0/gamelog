@@ -46,7 +46,6 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store",
       [
         "expo-navigation-bar",
         {
@@ -62,6 +61,15 @@
         {
           "cameraPermission": "Gamelog uses the camera to read the barcode on a game box, so it can find that exact release.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
         }
       ]
     ],

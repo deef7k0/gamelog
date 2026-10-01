@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 
 import { stripHtml } from '../games';
+import { firstImgInHtml, lightenFeed } from './feed-lighten';
 import type { Article } from './types';
 
 /**
@@ -73,12 +74,6 @@ function imageFrom(item: RssItem): string | null {
   );
 }
 
-function firstImgInHtml(html: string | null): string | null {
-  if (!html) return null;
-  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-  return match?.[1] ?? null;
-}
-
 function toIso(value: string | null): string | null {
   if (!value) return null;
   const parsed = new Date(value);
@@ -86,7 +81,7 @@ function toIso(value: string | null): string | null {
 }
 
 function parseFeed(xml: string, source: string): Article[] {
-  const root = parser.parse(xml) as Record<string, any>;
+  const root = parser.parse(lightenFeed(xml)) as Record<string, any>;
   // RSS puts items under rss.channel.item; Atom uses feed.entry.
   const items: RssItem[] = root?.rss?.channel?.item ?? root?.feed?.entry ?? [];
 

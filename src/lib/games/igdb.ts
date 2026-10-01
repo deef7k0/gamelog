@@ -99,8 +99,13 @@ function steamAppIdOf(raw: IgdbGame): string | null {
 
 /**
  * IGDB returns image ids, not URLs; you pick a size when building the URL.
- * t_cover_big  = 264x374 portrait
- * t_screenshot_huge / t_1080p = landscape
+ * t_cover_big       = 264x374 portrait
+ * t_screenshot_big  = 889x500 (the Overview's screenshot rail)
+ * t_1080p           = 1920x1080 (the game page's full-bleed hero)
+ *
+ * Pick the size the slot draws at, not the largest there is: every byte is
+ * downloaded, decoded, then downsampled, and lands in an image cache that grows
+ * to 250 MB on Android.
  */
 function imageUrl(image: IgdbImage | undefined, size: string): string | null {
   if (!image?.image_id) return null;
@@ -175,8 +180,12 @@ function toGame(raw: IgdbGame): Game {
       .filter((name): name is string => !!name),
     score: typeof raw.total_rating === 'number' ? Math.round(raw.total_rating) : null,
     storeUrl: raw.url ?? null,
+    /* `screenshot_big`, 889×500 — the rail draws one ~325dp wide, 855px on a
+       1080p phone, so `screenshot_huge` (1280×720) was twice the pixels and
+       ~1.6× the bytes for nothing visible: ten per game page, decoded and
+       downsampled, and most of what one visit put in the image cache. */
     screenshots: (raw.screenshots ?? [])
-      .map((shot) => imageUrl(shot, 'screenshot_huge'))
+      .map((shot) => imageUrl(shot, 'screenshot_big'))
       .filter((url): url is string => !!url),
     ...editionOf(raw),
     steamAppId: steamAppIdOf(raw),

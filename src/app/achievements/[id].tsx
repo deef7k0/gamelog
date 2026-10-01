@@ -2,8 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
@@ -14,7 +13,6 @@ import { Text } from '@/components/ui/text';
 import { rarityFor } from '@/constants/rarity';
 import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import {
   cacheGameAchievements,
@@ -29,7 +27,6 @@ export default function AchievementsScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { onScroll } = useTopBarScroll();
   const userId = useAuth((state) => state.session?.user.id);
   const steamId = useAuth((state) => state.profile?.steam_id);
 
@@ -111,10 +108,8 @@ export default function AchievementsScreen() {
   return (
     <AccentProvider artwork={game.data?.coverUrl ?? game.data?.heroUrl} genres={game.data?.genres}>
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-        <Animated.FlatList
+        <FlatList
           data={list}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           keyExtractor={(entry) => entry.id}
           contentContainerStyle={list.length === 0 ? styles.emptyContent : styles.content}
           showsVerticalScrollIndicator={false}

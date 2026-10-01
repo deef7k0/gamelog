@@ -2,8 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { Alert, FlatList, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AwardShow } from '@/components/award-show';
 import { CollectionHeader, collectionCover } from '@/components/collection-header';
@@ -21,7 +20,6 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, type ThemePalette } from '@/constants/theme';
 import { useImmersiveBackground } from '@/hooks/use-immersive-background';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import {
   deleteList,
@@ -78,7 +76,6 @@ export default function ListDetailScreen() {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { onScroll } = useTopBarScroll();
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [sort, setSort] = useState<GameSort>('default');
@@ -400,7 +397,7 @@ export default function ListDetailScreen() {
   if (isAwards) {
     return (
       <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
-        <AwardShow listId={id!} isOwner={isOwner} header={header} onScroll={onScroll} />
+        <AwardShow listId={id!} isOwner={isOwner} header={header} />
       </Screen>
     );
   }
@@ -422,11 +419,9 @@ export default function ListDetailScreen() {
   if (isCaptioned) {
     return (
       <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
-        <Animated.FlatList
+        <FlatList
           data={[null]}
           keyExtractor={() => 'board'}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={header}
@@ -462,10 +457,8 @@ export default function ListDetailScreen() {
   if (!isTierList && layout === 'rows') {
     return (
       <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
-        <Animated.FlatList
+        <FlatList
           data={ordered}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           key="collection-rows"
           keyExtractor={(item) => item.game_id}
           contentContainerStyle={styles.content}
@@ -516,10 +509,8 @@ export default function ListDetailScreen() {
       /* The mosaic runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
       <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
-        <Animated.FlatList
+        <FlatList
           data={ordered}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           key="collection-grid"
           numColumns={GRID_COLUMNS}
           keyExtractor={(item) => item.game_id}
@@ -596,10 +587,8 @@ export default function ListDetailScreen() {
 
   return (
     <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
-      <Animated.FlatList
+      <FlatList
         data={items}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
         keyExtractor={(item) => item.game_id}
         contentContainerStyle={items.length === 0 ? styles.empty : styles.content}
         showsVerticalScrollIndicator={false}

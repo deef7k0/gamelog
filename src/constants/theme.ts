@@ -616,8 +616,31 @@ const TONAL_STATES = { wash: 0.14, edge: 0.45, ring: 0.22 } as const;
  * pill is blue on the Search tab and the game's own colour on its reviews
  * sheet: `wash`, `edge` and `ring` are derived here, from whichever hue is in
  * force.
+ *
+ * **Computed once per hue and mode, then shared.** Both modes build a Material 3
+ * scheme and run luminance-preserving tints, and the house blue is asked for by
+ * every control that reads `useAccent()` — so the result is cached, and callers
+ * get the same object back. Treat it as immutable.
  */
 export function accentRoles(hue: string, { tonal = false }: { tonal?: boolean } = {}): AccentRoles {
+  const key = `${tonal ? 'tonal' : 'house'}:${hue}`;
+  const cached = accentCache.get(key);
+  if (cached) return cached;
+
+  const roles = buildAccentRoles(hue, tonal);
+  /* Oldest first out; a Map iterates in insertion order. A game's hue is read
+     off its box art, so a long session would otherwise keep every one it saw. */
+  if (accentCache.size >= ACCENT_CACHE_SIZE) {
+    accentCache.delete(accentCache.keys().next().value as string);
+  }
+  accentCache.set(key, roles);
+  return roles;
+}
+
+const accentCache = new Map<string, AccentRoles>();
+const ACCENT_CACHE_SIZE = 64;
+
+function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
   if (!tonal) {
     /* The house blue. `primary` is a chosen brand colour sitting on a fixed
        `background`, not a measurement, so there is nothing for a tonal palette

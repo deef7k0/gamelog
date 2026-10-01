@@ -210,6 +210,37 @@ function paletteFor(scheme: DynamicScheme, name: PaletteName): TonalPalette {
  * hex reaching it should cost the page its colour, not its render.
  */
 export function generateDynamicTheme(seedColor: string, isDark: boolean): DynamicThemeColors {
+  const key = `${isDark ? 'dark' : 'light'}:${seedColor}`;
+  const cached = schemes.get(key);
+  if (cached) return cached;
+
+  const colors = buildScheme(seedColor, isDark);
+  /* Oldest first out: a Map iterates in insertion order. */
+  if (schemes.size >= SCHEME_CACHE_SIZE) schemes.delete(schemes.keys().next().value as string);
+  schemes.set(key, colors);
+  return colors;
+}
+
+/**
+ * Every scheme built this session, by seed and mode.
+ *
+ * **This cache is the difference between a screen that opens and one that
+ * stutters.** Building a scheme is HCT maths over five tonal palettes and
+ * twenty-three roles: 6 ms a call on a warm V8, several times that under
+ * Hermes, which has no JIT. And it is asked for constantly with the same few
+ * seeds — `accentRoles()` builds one for the house blue, and `useAccent()` used
+ * to call that in every button, chip, tab and field on mount, so a screen of
+ * twenty controls built the same scheme twenty times on the JS thread while its
+ * push animation ran. The answer is a pure function of its two arguments, so it
+ * is computed once. The results are shared, so they must never be mutated.
+ *
+ * Bounded, because seeds come from box art: a session that opens two hundred
+ * game pages would otherwise keep two hundred schemes it will not see again.
+ */
+const schemes = new Map<string, DynamicThemeColors>();
+const SCHEME_CACHE_SIZE = 64;
+
+function buildScheme(seedColor: string, isDark: boolean): DynamicThemeColors {
   const source = Hct.fromInt(argbOf(seedColor));
 
   /*

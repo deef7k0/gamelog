@@ -28,15 +28,13 @@ import { mix } from '@/lib/color';
  * ## How this obeys `<SoftGlow>`'s hardest rule
  *
  * That component's docblock is blunt: **do not animate `size` or `blurRadius`**.
- * Either one changes the blur filter's bounds, which forces Skia to re-rasterise
- * the blurred layer every frame.
+ * Either one rebuilds the gradient, every frame.
  *
  * Here the rule is not so much obeyed as unreachable. Every prop `<SoftGlow>`
  * receives is a constant for a given viewport, and it is `memo`'d, so after mount
- * it never re-renders and Skia does **zero per-frame work**. Everything that
- * moves is `opacity` and `scale` on the `Animated.View` wrapping it — the same
- * pattern Home already ships (`app/(tabs)/index.tsx`). Do not "improve" this by
- * animating a Skia prop.
+ * it never re-renders and the gradient is drawn **once**. Everything that moves
+ * is `opacity` and `scale` on the `Animated.View` wrapping it — compositor work,
+ * no redraw. Do not "improve" this by animating one of the glow's props.
  *
  * ## Why the colour is allowed to cut
  *
@@ -63,7 +61,7 @@ export const BLOOM_BLEED = 140;
 /** The source circle's diameter, against the cover's edge. */
 const SIZE_RATIO = 1.55;
 
-/** Skia's Gaussian sigma, not a CSS radius. `<SoftGlow>`'s own default. */
+/** How far the glow's soft edge reaches past its body, in dp. `<SoftGlow>`'s own default. */
 const BLUR = 24;
 
 /** Peak paint alpha. Under the cover, never over it — this is the room, not a veil. */
@@ -112,7 +110,8 @@ export function SurpriseBloom({
    * The well it lives in is full screen width, so a glow positioned at half the
    * *card's* box would sit well left of the cover. Centring a fixed-size host
    * instead means the offsets are always `size / 2`, they never depend on the
-   * viewport, and Skia rasterises a 500dp square rather than a full-screen one.
+   * viewport, and the gradient is drawn over a 500dp square rather than a
+   * full-screen one.
    */
   const size = Math.round(cardEdge * SIZE_RATIO);
   const centre = Math.round(size / 2);

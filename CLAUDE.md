@@ -43,8 +43,10 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # genre reach order, barcodes, progress choices, review filters,
                    # the report reasons against 0031's CHECKs, the Wikidata
                    # claim parsing and game lookup (lib/wikidata), the Commons
-                   # logo licence check, and the immersive page colour
-                   # (Palette port, Oklab darkening)
+                   # logo licence check, the immersive page colour
+                   # (Palette port, Oklab darkening), the PNG decoder (against
+                   # Node's zlib and a real Commons thumbnail) and the RSS
+                   # lightening (parsed before and after, field for field)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -178,13 +180,13 @@ src/
                      game-details-sheet the full IGDB record, behind a button
                      add-to-collection  pick which collection a game joins
                      store-prices       where to buy, from IsThereAnyDeal
-                     ui/soft-glow       Skia radial glow (+ .web.tsx fallback)
-                     ui/scroll-ambience scroll-driven page gradient (+ .web.tsx)
+                     ui/soft-glow       a radial glow — a native CSS gradient,
+                                        no Skia; Surprise Me's bloom and edges
                      collection-mosaic  a collection's artwork: its first four
                                         IGDB covers 2x2, or the owner's one cover
                                         (0033), cropped — never SteamGridDB
                      ui/ambient-light   Home's soft light in the top-left
-                                        corner (Skia, + .web.tsx CSS fallback)
+                                        corner (a native CSS gradient, no Skia)
                      surprise-deck / -bloom / -sheen / -page-wash
                                         the dealt card's deck, its light, its
                                         gloss and the page's colour transition.
@@ -304,8 +306,12 @@ src/
                      studio-logo.ts (finding the file)
     immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
                      darkened in Oklab, and the scrim's stops. Pure, tested
-    logo-luminance.ts   how light a logo's ink is, decoded with Skia
-                     (+ .web.ts, which has no Skia and returns null)
+    logo-luminance.ts   how light a logo's ink is, from a 250px thumbnail
+                     decoded in JavaScript
+    png.ts           a PNG decoder (inflate after puff.c), for the above. Pure,
+                     tested against Node's zlib
+    news/feed-lighten.ts  RSS article bodies cut out before parsing. Pure,
+                     tested
     barcode.ts       GTIN check digits, UPC-E expansion, normalising to GTIN-14
     review-facets.ts what the review list filters and tallies by. Pure
     postgrest.ts     `inList()`, the safe `in` filter for strings people typed
@@ -430,7 +436,7 @@ on every image.
 
 | Slot | Filename | Size |
 | --- | --- | --- |
-| `library` | `library_600x900_2x.jpg` | 1200×1800, exactly `PosterAspectRatio` |
+| `library` | `library_600x900.jpg` | 600×900, exactly `PosterAspectRatio` |
 | `header` | `header.jpg` | 460×215 |
 | `hero` | `library_hero.jpg` | 1920×620 |
 | `logo` | `library_logo.png` | transparent wordmark |
@@ -438,7 +444,14 @@ on every image.
 `steam/apps/<appid>/<filename>` is right for roughly 95% of appids. The rest put
 their assets behind a content hash and 404 on the plain path — verified live:
 `730` (CS2) serves directly, `2623190` (Oblivion Remastered) does not and needs
-`…/apps/2623190/b52322f…/library_600x900_2x.jpg`.
+`…/apps/2623190/b52322f…/library_600x900.jpg`.
+
+**The capsule is the 1× file, never `_2x`.** `library_600x900_2x.jpg` is
+1200×1800 — four times the pixels for a slot no wider than 200dp (600px at 3×):
+CS2's is 120 KB against 38 KB. A linked library is hundreds of tiles, so the 2×
+file was most of what filled the image cache for anyone with Steam linked. The
+hashed fallback asks `GetItems` for `library_capsule` for the same reason, and
+`use-steam-artwork`'s cache is versioned (`v2`) so stored 2× URLs were dropped.
 
 Three things that are easy to get wrong, all verified against the live API:
 
@@ -561,14 +574,17 @@ Commons — only ever a verified public-domain or CC0 file:
   user-agent". Every Wikimedia image is loaded with `USER_AGENT` in its source
   headers (`<StudioIdentity>`, `measureLogoLuminance`).
 - **A logo's ink is measured, not assumed.** Commons logos are drawn for white
-  pages — FromSoftware's is pure black. `measureLogoLuminance` decodes the PNG
-  with Skia once and caches the number; `logoNeedsLightInk` draws the logo as a
-  light silhouette only when its ink is under 3:1 on the page (Mojang's
-  white-on-red block stays as it is). The web build has no Skia and draws light.
-  It measures the **same download the logo is drawn from**: `Image.prefetch`
-  into expo-image's disk cache, `Image.getCachePathAsync`, then Skia reads the
-  file — it used to `fetch` the PNG and let `<Image>` download it again. Keep
-  `<StudioIdentity>`'s `cacheKey` equal to the URL, or the two stop meeting.
+  pages — FromSoftware's is pure black. `measureLogoLuminance` reads the logo's
+  pixels once and caches the number with the logo; `logoNeedsLightInk` draws
+  the logo as a light silhouette only when its ink is under 3:1 on the page
+  (Mojang's white-on-red block stays as it is). **It measures a 250px thumbnail
+  of the same file, decoded in JavaScript** (`lib/png.ts`, `jpeg-js` for a JPEG
+  logo): Commons serves any standard width at the same path
+  (`…/960px-X.svg.png` → `…/250px-X.svg.png`), a mean is a mean at either size,
+  and decoding the drawn 960px file in JS would be ~300k pixels on the JS
+  thread. This was Skia's job — it decoded the drawn file out of expo-image's
+  disk cache — and it was the last thing Skia did; see § APK size and speed.
+  The 250px file costs one ~3 KB request per studio per month.
 - **The studio page asks IGDB twice, and never by involvement.** `companies`
   (`developed` + `published`, plus the name and slug the logo needs), then
   `games where id = (…)`: 1.5–2.2s for every studio measured, Nintendo's 2,953
@@ -996,7 +1012,7 @@ Commons — only ever a verified public-domain or CC0 file:
   lighter than the old bar's 30% because it only has to carry one glyph), then
   the glyph — no `backgroundColor`, ever. It has nothing of its own to show; it softens
   what the page put behind it, which is why a page's ambience (`<SoftGlow>`,
-  `<ScrollAmbience>`) belongs in `<Screen backdrop>` and never in the bar. Giving
+  `<AmbientLight>`) belongs in `<Screen backdrop>` and never in the bar. Giving
   the bar its own gradient would put two ramps in the same column meeting at its
   bottom edge, which is a seam — the exact thing `<Ambience>` exists to avoid.
 - **`<Screen topBar>` is a slot, not a child.** The bar blurs the page, so it has
@@ -1010,11 +1026,10 @@ Commons — only ever a verified public-domain or CC0 file:
 - **Nothing hides on scroll any more.** The disc is small enough to stay put, and
   a back affordance that slides out of reach is a trap rather than a saving.
   `useTopBarScroll()` survives as a general-purpose UI-thread scroll offset,
-  but the bar does not read it — nor does Home any more, since its corner glow
-  (the one thing that faded against it) was removed — and roughly a dozen
-  screens still call it and use nothing from it. That is an inert
-  worklet write per frame: harmless, dead, and worth deleting the next time you
-  are in one of those files.
+  and nothing calls it: eleven screens used to, and read nothing from it — a
+  worklet write per frame of every scroll, on lists that were `Animated.FlatList`
+  only to carry it. They are plain `FlatList`s and `SectionList`s again. A
+  screen that genuinely needs its offset on the UI thread can take it back.
 - **Gradients end on `withAlpha(colour, 0)`, never `'transparent'`.**
   `expo-linear-gradient` interpolates through black on Android, so fading to the
   keyword leaves a grey bruise mid-ramp. `withAlpha` is in `constants/theme.ts`.
@@ -1304,6 +1319,56 @@ web component and the header comment maps every construct to what replaced it.
 Port snippets that way rather than installing DOM libraries — `motion` and
 `tailwind-merge` would bundle and then do nothing.
 
+## APK size and speed
+
+The sideloaded APK was 170 MB, with another ~100 MB of data on top. Most of it
+was not this app's code. The rules that keep it that way:
+
+- **Only the ARM architectures in the sideloaded APK.** React Native builds its
+  native libraries per architecture and Expo packages them uncompressed, so an
+  APK carrying all four (`armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`) carries
+  every `.so` four times. `eas.json`'s `preview` profile sets
+  `GAMELOG_ANDROID_ABIS=armeabi-v7a,arm64-v8a` — every phone, 32-bit included —
+  which `app.config.js` turns into `expo-build-properties`' `buildArchs`. Each
+  architecture listed costs its full size on every install, whichever phone it
+  is. Store builds leave it unset — Play splits an `.aab` per device — and so
+  should a build for an x86_64 emulator.
+- **R8 and resource shrinking are on for release builds** (`app.json`,
+  `expo-build-properties`). Every library here ships its keep rules; if a
+  release build ever crashes with a missing class that a debug build does not,
+  that is R8, and the fix is a keep rule, not turning it off.
+- **A native module costs its full size whether or not anything calls it.**
+  Autolinking links every Expo module in `node_modules`, transitive ones
+  included. `@expo/ui` (Jetpack Compose, Material 3, Material Components) comes
+  in through `expo-router`'s toolbar and is excluded on Android in
+  `package.json` (`expo.autolinking.android.exclude`) — safe because nothing
+  here renders a `Stack.Toolbar`, and its JS registers views lazily. Check
+  `npx expo-modules-autolinking resolve --platform android` after adding a
+  dependency; uninstall what nothing imports.
+- **Import fonts by weight path** — `@expo-google-fonts/inter/400Regular`,
+  never the package. Each package's index requires every style it has, and
+  Metro bundles every file a module requires: seven Inter weights and three
+  Source Serif weights shipped as all thirty-four, 7.1 MB never drawn.
+  `metro.config.js` resolves `@expo-google-fonts/material-symbols` to an empty
+  module for the same reason (967 KB that `expo-symbols` imports for a view
+  this app never renders).
+- **Ask for artwork at the size its slot draws.** Every byte is downloaded,
+  decoded and downsampled, then kept in expo-image's disk cache, which on
+  Android is Glide's — **capped at 250 MB**, and that cap is most of the "user
+  data". IGDB screenshots are `screenshot_big`, Steam capsules the 1× file,
+  covers `cover_big`; only the game page's full-bleed hero is `1080p`.
+- **Anything a hundred controls ask for is computed once.** `accentRoles()` and
+  `generateDynamicTheme()` are cached by seed: a scheme is 6 ms on a warm V8
+  and several times that under Hermes, and `useAccent()` used to build the
+  house blue's in every button, chip, tab and field on mount.
+- **Measure feeds before parsing them.** RSS outlets put whole articles in
+  `content:encoded` (and PC Gamer again in `dc:content`): 5.1 MB, parsed on the
+  JS thread as Home loads. `lightenFeed` cuts them to what is read — 226 KB —
+  and its test holds the parsed result identical.
+- **Judge speed in a release build**, not Expo Go: `npx expo start --no-dev
+  --minify`, or the preview APK. Dev mode is several times slower and its
+  performance warnings measure that.
+
 ## Gotchas
 
 - **An animated style's end value can be lost; commit the end state as a plain
@@ -1324,17 +1389,18 @@ Port snippets that way rather than installing DOM libraries — `motion` and
   React-known positions (the tab bar's indicator) uses a Reanimated CSS
   transition instead, whose target is a React prop. The real fix is the static
   flag `FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS`, which Expo Go cannot change.
-- **Skia works in Expo Go, but only at the pinned version.** `@shopify/react-native-skia`
-  is bundled with Expo Go for SDK 57 at exactly 2.6.2, which is what
-  `package.json` holds. Install it with `npx expo install`, never a bare
-  `npm install` — a newer version is a native mismatch Expo Go cannot load, and
-  the failure is at runtime, not at build.
-- **Skia on the web needs CanvasKit, so it is not used there.** The browser needs
-  `LoadSkiaWeb()` and a multi-megabyte WASM binary before a single Skia
-  component renders, which is a real cost for a real web target (`app.json` sets
-  `web.output: 'static'`). `ui/soft-glow.web.tsx` is a CSS-radial-gradient
-  fallback that Metro resolves automatically; a verified web export contains no
-  CanvasKit at all. Any new Skia component needs the same treatment.
+- **There is no Skia, and a gradient does not need it.** React Native 0.86 draws
+  `experimental_backgroundImage: 'radial-gradient(…)'` / `'linear-gradient(…)'`
+  natively on the New Architecture, iOS and Android alike, so `<SoftGlow>` and
+  `<AmbientLight>` are plain views. Skia was ~8–15 MB of native library per CPU
+  architecture for those two glows and one logo measurement, and each Skia
+  `<Canvas>` was a GPU surface of its own. What it had and a CSS gradient lacks
+  is `dither`: a gradient spanning a few dozen 8-bit steps on near-black can show
+  faint rings. Use enough stops that each band is narrow (the ambient light has
+  eleven); if rings ever show, the answer is a dithered bitmap, not Skia back.
+  The parser accepts `px`/`%` sizes and positions and `rgba()` stops
+  (`processBackgroundImage.js`) — and gradients still end on
+  `withAlpha(colour, 0)`, because Android interpolates them unpremultiplied.
 - **A blurred copy of a remote image is a second download on Android.**
   expo-image blurs with a Glide transformation, and Glide keeps two
   differently-transformed requests for one URL apart, so a sharp and a blurred

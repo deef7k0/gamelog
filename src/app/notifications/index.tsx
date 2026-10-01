@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { RefreshControl, SectionList, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getNotifications,
@@ -23,14 +21,6 @@ import {
 } from '@/lib/api';
 import { displayNameFor, timeAgo } from '@/lib/format';
 import { useAuth } from '@/store/auth';
-
-/*
- * Reanimated ships animated wrappers for `ScrollView` and `FlatList` and not for
- * `SectionList`, so this screen makes its own. Needed for the same reason as
- * everywhere else: the top bar hides against a scroll offset read on the UI
- * thread, and a plain `SectionList` cannot deliver one.
- */
-const AnimatedSectionList = Animated.createAnimatedComponent(SectionList<AppNotification>);
 
 const VERB: Record<NotificationKind, string> = {
   like: 'liked your',
@@ -64,7 +54,6 @@ export default function NotificationsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { onScroll } = useTopBarScroll();
   const userId = useAuth((state) => state.session?.user.id);
 
   const notifications = useQuery({
@@ -127,10 +116,8 @@ export default function NotificationsScreen() {
 
   return (
     <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
-      <AnimatedSectionList
+      <SectionList
         sections={sections}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
         keyExtractor={(item) => item.id}
         contentContainerStyle={sections.length === 0 ? styles.empty : styles.content}
         showsVerticalScrollIndicator={false}

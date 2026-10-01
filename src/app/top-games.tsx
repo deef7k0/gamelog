@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
@@ -11,7 +10,6 @@ import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { getPopularGames } from '@/lib/news';
 import type { ChartBasis } from '@/lib/news';
 
@@ -37,7 +35,6 @@ const GAP = Spacing.x12;
  */
 export default function TopGamesScreen() {
   const { width } = useWindowDimensions();
-  const { onScroll } = useTopBarScroll();
 
   const chart = useQuery({
     queryKey: ['popular-games', TOP_N],
@@ -87,10 +84,8 @@ export default function TopGamesScreen() {
      * the bar would be the same words twice, 40dp apart.
      */
     <Screen edges={[]} topBar={<FrostedTopBar back />}>
-      <Animated.FlatList
+      <FlatList
         data={tiles}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}
         keyExtractor={(tile) => tile.game.id}

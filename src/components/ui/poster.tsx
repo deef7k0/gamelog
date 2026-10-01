@@ -80,7 +80,7 @@ export type PosterProps = {
   /**
    * Steam appid, when the game has a Steam listing.
    *
-   * Given one, the poster shows Steam's official `library_600x900_2x` capsule
+   * Given one, the poster shows Steam's official `library_600x900` capsule
    * instead of `coverUrl` — publisher store art at exactly this component's 2:3,
    * rather than whatever IGDB was able to scrape. **IGDB is still the fallback**:
    * an appid with no capsule, or no appid at all (every console exclusive),

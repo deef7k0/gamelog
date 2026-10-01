@@ -2,15 +2,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { Alert, FlatList, StyleSheet, View } from 'react-native';
 
 import { AwardSlotRow } from '@/components/award-slot';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ErrorState, LoadingState } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
-import type { TopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteAward, getAwards, reorderAwards, swapAwards, type AwardSlot } from '@/lib/api';
 
@@ -19,7 +17,6 @@ export type AwardShowProps = {
   isOwner: boolean;
   /** The collection header, rendered above the ballot. */
   header: ReactNode;
-  onScroll?: TopBarScroll['onScroll'];
 };
 
 /**
@@ -43,7 +40,7 @@ export type AwardShowProps = {
  * `position` has no unique constraint, so a partial write that collides is legal
  * and silently falls back to `created_at` ordering; a dense rewrite cannot.
  */
-export function AwardShow({ listId, isOwner, header, onScroll }: AwardShowProps) {
+export function AwardShow({ listId, isOwner, header }: AwardShowProps) {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -91,10 +88,8 @@ export function AwardShow({ listId, isOwner, header, onScroll }: AwardShowProps)
   if (ballot.isError) return <ErrorState error={ballot.error} />;
 
   return (
-    <Animated.FlatList
+    <FlatList
       data={awards}
-      onScroll={onScroll}
-      scrollEventThrottle={16}
       keyExtractor={(award) => award.id}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}

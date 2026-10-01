@@ -38,7 +38,7 @@ const HUE_LIFT = 0.45;
  * How much the light swells past the commit point, as a scale factor.
  *
  * A *scale*, not a second glow stacked on the first. Two layers doubled the
- * Skia canvases on this screen and composited to an alpha the label could not
+ * lights on this screen and composited to an alpha the label could not
  * survive. Widening the same light costs one transform on the UI thread and adds
  * no alpha at all.
  */
@@ -110,7 +110,7 @@ export type SwipeEdgeProps = {
  * the screen: the radius sets the reach, the scale sets the coverage, and
  * neither has to compromise for the other. Building it as a genuinely elliptical
  * gradient would have meant leaving `<SoftGlow>` behind and hand-rolling a
- * second Skia component for the same picture.
+ * second glow component for the same picture.
  *
  * ## Why the centre is on screen
  *

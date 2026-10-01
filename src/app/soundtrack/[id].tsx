@@ -3,8 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { FlatList, Linking, StyleSheet, View } from 'react-native';
 
 import { GameDisc } from '@/components/game-disc';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
@@ -12,7 +11,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing } from '@/constants/theme';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { getStarredSong, starSong, unstarSong } from '@/lib/api';
 import { formatDuration, getAlbumTracks, type SoundtrackTrack } from '@/lib/soundtracks';
@@ -34,7 +32,6 @@ const PREVIEW_SECONDS = 30;
  */
 export default function SoundtrackScreen() {
   const theme = useTheme();
-  const { onScroll } = useTopBarScroll();
   const params = useLocalSearchParams<{
     id: string;
     title?: string;
@@ -149,10 +146,8 @@ export default function SoundtrackScreen() {
 
   return (
     <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <Animated.FlatList
+      <FlatList
         data={list}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
         keyExtractor={(track) => track.id}
         contentContainerStyle={list.length === 0 ? styles.empty : styles.content}
         showsVerticalScrollIndicator={false}

@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CdBinder } from '@/components/cd-binder';
 import {
@@ -24,7 +23,6 @@ import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { STATUS_LABEL } from '@/constants/status';
 import { Radius, Spacing } from '@/constants/theme';
-import { useTopBarScroll } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import {
@@ -95,7 +93,6 @@ function isLibraryTab(value: string | undefined): value is LibraryTab {
  */
 export default function LibraryScreen() {
   const { width } = useWindowDimensions();
-  const { onScroll } = useTopBarScroll();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; tab?: string }>();
   const id = params.id;
@@ -239,10 +236,8 @@ export default function LibraryScreen() {
           onOpenCopy={(copy) => router.push({ pathname: '/copy/[id]', params: { id: copy.id } })}
         />
       ) : (
-        <Animated.FlatList
+        <FlatList
           data={entries}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           key={`grid-${COLUMNS}`}
           numColumns={COLUMNS}
           keyExtractor={(entry) => entry.key}

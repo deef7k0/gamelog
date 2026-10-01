@@ -27,13 +27,15 @@ import { INK_ON_DARK, mix } from '@/lib/color';
  * depicted object. Peak alpha is deliberately under the case's 0.20: see
  * DESIGN.md § 4.2, which keeps the case superior on every material axis.
  *
- * ## Why `expo-linear-gradient` and not Skia
+ * ## Why a fixed gradient that moves, not a gradient that changes
  *
- * Three Skia canvases already live on this screen (two swipe edges, one bloom).
- * A fourth, over the artwork, on mid-range Android, is what this budget cannot
- * afford. A `<LinearGradient>` with fixed colours rasterises **once**; everything
- * per-frame is a `translateX` and an `opacity` on the wrapper, which is a pure
- * compositor operation with no JS and no Skia in it.
+ * This screen already carries three lights (two swipe edges, one bloom); a
+ * fourth that re-rendered over the artwork every frame, on mid-range Android,
+ * is what this budget cannot afford. A `<LinearGradient>` with fixed colours
+ * rasterises **once**; everything per-frame is a `translateX` and an `opacity`
+ * on the wrapper, which is a pure compositor operation with no JS in it. (The
+ * lights were Skia canvases when this was written; they are plain views with
+ * CSS gradients now, and the same argument holds.)
  *
  * ## Why it is a sibling of the artwork rather than inside it
  *

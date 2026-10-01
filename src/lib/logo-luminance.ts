@@ -1,14 +1,33 @@
-import { AlphaType, ColorType, Skia, type SkData } from '@shopify/react-native-skia';
-import { Image } from 'expo-image';
+import { decode as decodeJpeg } from 'jpeg-js';
 
 import { meanOpaqueLuminance } from '@/lib/immersive-color';
+import { decodePng, type DecodedImage } from '@/lib/png';
 import { USER_AGENT } from '@/lib/wikidata/client';
 
-/** A logo thumbnail is tens of KB; this is a backstop, not a budget. */
-const MAX_BYTES = 2_000_000;
-const MAX_PIXELS = 4_000_000;
+/**
+ * The width the logo is measured at, not drawn at.
+ *
+ * A mean is a mean: the ink of a 250px rendering of a logo is the ink of its
+ * 960px one, give or take the anti-aliased edge. What the width does change is
+ * the decode, which runs in JavaScript — ~20k pixels here against ~300k at the
+ * drawn size, the difference between a few milliseconds and most of a second
+ * on the JS thread. 250 is one of Commons' standard thumbnail widths, so it is
+ * usually already rendered and cached at Wikimedia's edge.
+ */
+const MEASURE_WIDTH = 250;
 
-/** Pixels sampled per logo. Every pixel of a 960px render is ~250k; a tenth of that is plenty. */
+/** A 250px logo is a few KB; this is a backstop, not a budget. */
+const MAX_BYTES = 2_000_000;
+
+/**
+ * The largest image measured. It bounds the fallback, when the small thumbnail
+ * cannot be had and the logo's own URL is read instead — a small original
+ * passes, a 960px rendering does not, and is left unmeasured rather than
+ * stalling the JS thread to decode it.
+ */
+const MAX_PIXELS = 120_000;
+
+/** Pixels sampled per logo. ~20k at the measuring width; every one of them is fine. */
 const TARGET_SAMPLES = 25_000;
 
 /**
@@ -20,52 +39,32 @@ const TARGET_SAMPLES = 25_000;
  * be measured, because Commons' logos are drawn for white pages: FromSoftware's
  * is pure black and would vanish on the studio page's dark one.
  *
- * Decoded with Skia, which the app already carries and which Expo Go ships at
- * the pinned version — a PNG needs inflating, and `jpeg-js` reads only JPEG.
- * Measured once per studio, when the logo is first resolved; the number is
- * cached with it. `logo-luminance.web.ts` is the web build's, which has no Skia.
+ * Decoded in JavaScript (`lib/png.ts`, and `jpeg-js` for the rare JPEG logo).
+ * This was Skia's job, and the last one Skia had: a native library of 8–15 MB
+ * per CPU architecture, in every APK, to read a few thousand pixels once per
+ * studio. Measured once, when the logo is first resolved, and cached with it
+ * for a month (`use-studio-logo`).
  *
- * ## One download, not two
+ * ## A second, smaller download
  *
- * The bytes are read from expo-image's own disk cache, downloaded into it
- * first: the entry `<StudioIdentity>` then draws the logo from. Measuring used
- * to `fetch` the file and the `<Image>` downloaded it again. Where the cache
- * cannot hand the file over — it resolves no path — the logo is fetched as
- * before, which costs the second download and nothing else.
+ * The page draws the 960px thumbnail; this reads the 250px one, which Commons
+ * serves from the same path. That costs one extra request of ~3 KB per studio
+ * per month, and saves decoding 300k pixels on the JS thread — it used to read
+ * the drawn file out of expo-image's disk cache, which was right while Skia
+ * decoded it natively and wrong once the decode is JavaScript.
  *
  * Every request carries the app's User-Agent: Wikimedia's media host refuses a
  * generic client with a 403.
  */
 export async function measureLogoLuminance(url: string): Promise<number | null> {
   try {
-    const data = (await fromImageCache(url)) ?? (await downloaded(url));
-    if (!data) return null;
-
-    const image = Skia.Image.MakeImageFromEncoded(data);
-    if (!image) {
-      data.dispose();
-      return null;
-    }
-
-    try {
-      const width = image.width();
-      const height = image.height();
-      if (width * height > MAX_PIXELS) return null;
-      const pixels = image.readPixels(0, 0, {
-        width,
-        height,
-        colorType: ColorType.RGBA_8888,
-        alphaType: AlphaType.Unpremul,
-      });
-      if (!(pixels instanceof Uint8Array)) return null;
-      return meanOpaqueLuminance(
-        pixels,
-        Math.max(1, Math.floor((width * height) / TARGET_SAMPLES))
-      );
-    } finally {
-      image.dispose();
-      data.dispose();
-    }
+    const small = measuringUrl(url);
+    const image = (await fetchImage(small)) ?? (small !== url ? await fetchImage(url) : null);
+    if (!image) return null;
+    return meanOpaqueLuminance(
+      image.data,
+      Math.max(1, Math.floor((image.width * image.height) / TARGET_SAMPLES))
+    );
   } catch {
     /* Unmeasured is an answer: the logo is drawn light, which is always legible. */
     return null;
@@ -73,29 +72,44 @@ export async function measureLogoLuminance(url: string): Promise<number | null> 
 }
 
 /**
- * The logo's bytes from expo-image's disk cache, after downloading them into
- * it — keyed by the URL, which is the key `<StudioIdentity>` draws it under.
+ * The same file at `MEASURE_WIDTH`.
+ *
+ * A Commons thumbnail's last path segment is `<width>px-<name>`, and any
+ * standard width can be asked for at the same path:
+ * `…/thumb/0/0d/Nintendo.svg/960px-Nintendo.svg.png` →
+ * `…/thumb/0/0d/Nintendo.svg/250px-Nintendo.svg.png` (verified live: 9.6 KB →
+ * 3.1 KB). Anything else — an original rather than a thumbnail, or a thumbnail
+ * already this small — is measured as it is.
  */
-async function fromImageCache(url: string): Promise<SkData | null> {
-  try {
-    const cached = await Image.prefetch(url, {
-      cachePolicy: 'disk',
-      headers: { 'User-Agent': USER_AGENT },
-    });
-    if (!cached) return null;
-    const path = await Image.getCachePathAsync(url);
-    if (!path) return null;
-    return await Skia.Data.fromURI(path.startsWith('file://') ? path : `file://${path}`);
-  } catch {
-    return null;
-  }
+export function measuringUrl(url: string): string {
+  return url.replace(
+    /\/(\d+)px-([^/?#]+)((?:[?#].*)?)$/,
+    (match, width: string, name: string, rest: string) =>
+      Number(width) > MEASURE_WIDTH ? `/${MEASURE_WIDTH}px-${name}${rest}` : match
+  );
 }
 
-/** The logo fetched directly, when the image cache could not hand it over. */
-async function downloaded(url: string): Promise<SkData | null> {
+async function fetchImage(url: string): Promise<DecodedImage | null> {
   const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
   if (!response.ok) return null;
   const buffer = await response.arrayBuffer();
   if (buffer.byteLength > MAX_BYTES) return null;
-  return Skia.Data.fromBytes(new Uint8Array(buffer));
+  return decodeImage(new Uint8Array(buffer));
+}
+
+/** PNG or JPEG, by their signatures; anything else is unmeasured. */
+function decodeImage(bytes: Uint8Array): DecodedImage | null {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return decodePng(bytes, { maxPixels: MAX_PIXELS });
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    /* `useTArray`: a Uint8Array, not the Node Buffer React Native lacks. A JPEG
+       has no alpha, so every pixel counts — the background included, which is
+       what a JPEG logo puts on the page anyway. */
+    const image = decodeJpeg(bytes, {
+      useTArray: true,
+      maxMemoryUsageInMB: 16,
+      maxResolutionInMP: MAX_PIXELS / 1_000_000,
+    });
+    return { width: image.width, height: image.height, data: image.data };
+  }
+  return null;
 }

@@ -88,7 +88,7 @@ export type HeroArtProps = {
    *    behind it. The only option that works over a **coloured or animated**
    *    backdrop: a ramp to `background` painted over a lit gradient is a dark
    *    band across the middle of the screen, which is exactly the seam this
-   *    replaced. Use it on any screen running `<ScrollAmbience>`.
+   *    replaced. Use it over any backdrop that is not the flat page colour.
    *  - `false` — no fade at all. The caller is covering the edge some other way.
    */
   fade?: 'color' | 'mask' | false;

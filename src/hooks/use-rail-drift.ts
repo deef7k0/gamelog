@@ -34,8 +34,8 @@ export type RailGeometry = {
  * settles afterwards — and it is worse. A spring re-targeted every frame is a
  * smoothing filter with extra steps, it does not reverse exactly when you drag
  * back, and it drifts a pixel or two off its rest position at the end of a
- * gesture. `<ScrollAmbience>` already settled this argument for the game page's
- * backdrop and the reasoning is the same here: a value derived from scroll
+ * gesture. The game page's old scroll-driven backdrop settled this argument
+ * and the reasoning is the same here: a value derived from scroll
  * offset and nothing else is frame-perfect, reverses exactly, and costs nothing
  * when the finger is still.
  *

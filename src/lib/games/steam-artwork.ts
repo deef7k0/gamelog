@@ -3,7 +3,7 @@
  *
  * IGDB's covers are scraped and inconsistent — a game can have a fan-made
  * capsule, a box scan from 1998, or the wrong regional art. Steam's
- * `library_600x900_2x.jpg` is the publisher's own store asset at exactly the
+ * `library_600x900.jpg` is the publisher's own store asset at exactly the
  * 2:3 this UI is built around, so where a game has a Steam listing it is the
  * better image.
  *
@@ -17,12 +17,12 @@
  *
  * Most appids serve artwork at a predictable path:
  *
- *   …/store_item_assets/steam/apps/730/library_600x900_2x.jpg   → 200
+ *   …/store_item_assets/steam/apps/730/library_600x900.jpg   → 200
  *
  * Newer or re-published entries put their assets behind a content hash:
  *
- *   …/store_item_assets/steam/apps/2623190/library_600x900_2x.jpg           → 404
- *   …/store_item_assets/steam/apps/2623190/b52322f…/library_600x900_2x.jpg  → 200
+ *   …/store_item_assets/steam/apps/2623190/library_600x900.jpg           → 404
+ *   …/store_item_assets/steam/apps/2623190/b52322f…/library_600x900.jpg  → 200
  *
  * Both verified against the live CDN. The hash is only discoverable through
  * `IStoreBrowseService/GetItems`, so the strategy is: construct the direct URL
@@ -56,7 +56,16 @@ export type SteamArtworkType = 'library' | 'header' | 'hero' | 'logo';
  * API fallback — see `ASSET_KEYS`.
  */
 const FILENAMES: Record<SteamArtworkType, string> = {
-  library: 'library_600x900_2x.jpg',
+  /*
+   * The 1× capsule, 600×900 — not `_2x`, 1200×1800.
+   *
+   * The largest poster in the app is the game page's case at ≤200dp, 600px on
+   * a 3× display; a grid tile is ~110dp. The 2× file carried four times the
+   * pixels (CS2: 120 KB against 38 KB) into every tile of a linked library —
+   * hundreds of them — to be decoded and then thrown away by downsampling, and
+   * it was most of what filled the image cache for anyone with Steam linked.
+   */
+  library: 'library_600x900.jpg',
   header: 'header.jpg',
   hero: 'library_hero.jpg',
   logo: 'library_logo.png',
@@ -73,7 +82,7 @@ const FILENAMES: Record<SteamArtworkType, string> = {
  * a hash is not.
  */
 const ASSET_KEYS: Partial<Record<SteamArtworkType, string>> = {
-  library: 'library_capsule_2x',
+  library: 'library_capsule',
   header: 'header',
   hero: 'library_hero',
 };

@@ -115,8 +115,17 @@ function useArtworkHue({
 export function useAccent(): AccentRoles {
   const theme = useTheme();
   const provided = useContext(AccentContext);
-  const house = useMemo(() => accentRoles(theme.primary), [theme.primary]);
-  return provided ?? house;
+  /*
+   * A lookup, not a build: `accentRoles` caches by hue, so every control on
+   * every screen shares one house-blue role set.
+   *
+   * This used to be `useMemo(() => accentRoles(theme.primary))` — memoised per
+   * *instance*, so each button, chip, tab and field built its own Material 3
+   * scheme on mount (6 ms on a warm V8, several times that under Hermes), and
+   * built it even under a game's provider, where it was thrown away. A screen
+   * of twenty controls paid for twenty identical schemes during its push.
+   */
+  return provided ?? accentRoles(theme.primary);
 }
 
 /**

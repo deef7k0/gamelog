@@ -201,7 +201,7 @@ export function SelectField({
 const styles = StyleSheet.create({
   /* The same rhythm as `<TextField>`, so the two sit in one row without their
      labels or their wells disagreeing by a pixel. */
-  wrapper: { gap: Spacing.x12 },
+  wrapper: { gap: Spacing.x8 },
   /* The text field's well exactly: 54 tall, 18 round, no resting border —
      the 1.5 edge is always there and only its colour changes. */
   shell: {
@@ -209,8 +209,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.x8,
     minHeight: ControlHeight.field,
-    paddingHorizontal: Spacing.x24,
-    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    paddingVertical: Spacing.x8,
     borderRadius: Radius.input,
     borderWidth: 1.5,
   },

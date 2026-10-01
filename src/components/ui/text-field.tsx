@@ -39,6 +39,9 @@ export type TextFieldProps = TextInputProps & {
  */
 const EDGE = 1.5;
 
+/** A search bar's height: SimpMusic's, from Material's search bar. */
+const SEARCH_HEIGHT = 56;
+
 /**
  * A text field: a label above, a hint or error below, and between them a soft
  * grey well with no border.
@@ -145,7 +148,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
 const styles = StyleSheet.create({
   /* 8 between the label, the well and the hint — the reference's spacing. */
-  wrapper: { gap: Spacing.x12 },
+  wrapper: { gap: Spacing.x8 },
   /* No shadow and no resting border: the fill is the whole field. The edge is
      always there at `EDGE` and only its colour changes. */
   shell: {
@@ -155,7 +158,7 @@ const styles = StyleSheet.create({
     borderWidth: EDGE,
   },
   shellArea: { alignItems: 'stretch' },
-  icon: { paddingLeft: Spacing.x24 },
+  icon: { paddingLeft: Spacing.x16 },
   /* Sized to the floor even though its contents are a 20dp glyph: whatever the
      caller puts here is tappable often enough that it must not be the one
      control on the screen a thumb cannot land on. */
@@ -167,8 +170,8 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    paddingHorizontal: Spacing.x24,
-    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    paddingVertical: Spacing.x8,
     /* `fieldText` carries no `lineHeight`, deliberately: on Android a
        lineHeight on a TextInput clips descenders and fights the vertical
        centring the min-height is doing. The edge's two widths come off the
@@ -177,13 +180,14 @@ const styles = StyleSheet.create({
     minHeight: ControlHeight.field - EDGE * 2,
   },
   /* Vertically centred rather than top-padded: a single line of text should
-     sit on the field's midline. */
-  search: { paddingVertical: 0 },
-  withIcon: { paddingLeft: Spacing.x12 },
+     sit on the field's midline. 56, the reference's search bar (Material's
+     `SearchBarDefaults.InputFieldHeight`) — two over a form field. */
+  search: { paddingVertical: 0, minHeight: SEARCH_HEIGHT - EDGE * 2 },
+  withIcon: { paddingLeft: Spacing.x8 },
   multiline: {
     minHeight: 120,
     textAlignVertical: 'top',
-    paddingTop: Spacing.x20,
-    paddingBottom: Spacing.x20,
+    paddingTop: Spacing.x12,
+    paddingBottom: Spacing.x12,
   },
 });

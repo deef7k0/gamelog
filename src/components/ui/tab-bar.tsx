@@ -3,7 +3,14 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
+import {
+  ControlHeight,
+  Radius,
+  SmallControlSlop,
+  Spacing,
+  TapTarget,
+  withAlpha,
+} from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { readableInk } from '@/lib/color';
@@ -139,6 +146,8 @@ export function TabBar<T extends string>({
            is not a list, so nothing derives "2 of 4" on its own. */
         accessibilityHint={`${index + 1} of ${tabs.length}`}
         onPress={() => onChange(tab.key)}
+        /* Drawn at the reference's chip height, touched at the floor. */
+        hitSlop={iconOnly ? undefined : SmallControlSlop}
         scaleTo={0.95}
         pressedColor={active ? accent.ring : theme.pressed}
         focusRing={accent.ring}
@@ -218,12 +227,16 @@ export function TabBar<T extends string>({
 const styles = StyleSheet.create({
   /* No wrapper and no hairline. The bar sits directly on whatever is behind it
      — page, artwork, a blurred header — and the pill is what carries selection,
-     so the divider the underline needed is gone with it. */
+     so the divider the underline needed is gone with it.
+
+     SimpMusic's chip row (`LibraryScreen.kt`, `HomeScreen.kt`): 15 in from the
+     edge, so the first pill lines up with the page's content, 8 above and
+     below, 4 between. */
   content: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x4,
-    paddingHorizontal: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
     paddingVertical: Spacing.x8,
   },
   /* Evenly divided rather than scrolled, for `iconOnly`. */
@@ -234,15 +247,17 @@ const styles = StyleSheet.create({
      than the screen there is no slack and the row scrolls from its start exactly
      as it did before. */
   contentCenter: { flexGrow: 1, justifyContent: 'center' },
+  /* The reference's chip: 32 drawn and 16 at the sides (Material's filter
+     chip, which SimpMusic draws every row of choices with). It reaches the tap
+     floor through `SmallControlSlop`, vertically — the row's own 8 above and
+     below is room for it. */
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    paddingVertical: Spacing.x8,
+    paddingVertical: Spacing.x4,
     paddingHorizontal: Spacing.x16,
-    /* `TapTarget`, not a hard-coded 40. This was four points short on iOS and
-       eight on Android — and it is the control that names where you are. */
-    minHeight: TapTarget,
+    minHeight: ControlHeight.small,
     /* `pill`, not `control`. A tab is not a button — it is a position in a set,
        and the fully-round end is what distinguishes "where you are" from "what
        you can press". Same reasoning that keeps `<Chip>` a pill. */
@@ -250,7 +265,13 @@ const styles = StyleSheet.create({
   },
   /* Each glyph takes an equal share of the row and centres in it, so four
      destinations sit on a rhythm rather than at four label-driven widths. */
-  tabIcon: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.x8 },
+  tabIcon: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.x8,
+    /* A glyph strip has no word to size it, so it stays at the floor. */
+    minHeight: TapTarget,
+  },
   /* Uppercase and tracked: the row has to read as chrome at a glance, and caps
      at this size are what separate a control strip from a line of prose. */
   label: { textTransform: 'uppercase', letterSpacing: 0.6 },

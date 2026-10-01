@@ -10,7 +10,7 @@ import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { appendToList, getList } from '@/lib/api';
+import { addToList, appendToList, getList, removeFromList } from '@/lib/api';
 import { getGameById, type GameSearchResult } from '@/lib/games';
 
 /**
@@ -25,11 +25,24 @@ import { getGameById, type GameSearchResult } from '@/lib/games';
  * So one tap does the whole job — resolve the game, write the row, invalidate
  * the collection, and go back to it. No confirmation step: adding is one row in
  * a list the owner can remove from, which is not worth an "are you sure".
+ *
+ * ## Replacing one game with another
+ *
+ * `?position=` puts the game at that position instead of the end, and
+ * `?replace=` removes that game once the new one is in — the favourites
+ * widget's Replace, which keeps a ranked top four in its order. Written in that
+ * order, so a failed add never loses the game it was replacing. A game already
+ * in the list moves to the position rather than being added twice.
  */
 export default function AddToListScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, position, replace } = useLocalSearchParams<{
+    id: string;
+    position?: string;
+    replace?: string;
+  }>();
+  const at = position !== undefined && position !== '' ? Number(position) : null;
 
   const [input, setInput] = useState('');
   const query = useDebouncedValue(input.trim());
@@ -56,7 +69,10 @@ export default function AddToListScreen() {
       const game = await getGameById(result.id);
       if (!game) throw new Error(`Could not load “${result.title}” from IGDB.`);
 
-      await appendToList(id!, game);
+      if (at !== null && Number.isFinite(at)) await addToList(id!, game, { position: at });
+      else await appendToList(id!, game);
+
+      if (replace && replace !== game.id) await removeFromList(id!, replace);
     },
     onSuccess: () => {
       // The same three keys the collection screen invalidates after an edit —
@@ -65,6 +81,8 @@ export default function AddToListScreen() {
       queryClient.invalidateQueries({ queryKey: ['list', id] });
       queryClient.invalidateQueries({ queryKey: ['lists'] });
       queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      // The game page's star reads this, for both the game in and the game out.
+      queryClient.invalidateQueries({ queryKey: ['list-membership'] });
       // Straight back to the collection, which refetches with the new game in
       // it — the point of the flow is seeing the shelf you just changed.
       router.back();
@@ -113,10 +131,17 @@ export default function AddToListScreen() {
         // each and the screen closes on success, so a second tap during the
         // round trip would queue an add the user never sees the result of.
         isDisabled={() => add.isPending}
-        prompt={{
-          title: 'Add a game',
-          message: 'Search IGDB, then tap a game to add it to this collection.',
-        }}
+        prompt={
+          replace
+            ? {
+                title: 'Replace a game',
+                message: 'Search IGDB, then tap the game to put in its place.',
+              }
+            : {
+                title: 'Add a game',
+                message: 'Search IGDB, then tap a game to add it to this collection.',
+              }
+        }
       />
     </Screen>
   );

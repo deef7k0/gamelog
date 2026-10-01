@@ -18,7 +18,7 @@ import { hasCase, type PlatformKey } from '@/constants/platform-cases';
 import { PosterAspectRatio } from '@/constants/theme';
 import { labelFor } from '@/constants/score';
 import { STATUS_LABEL } from '@/constants/status';
-import { useArrival } from '@/hooks/use-arrival';
+import { useLandingArrival } from '@/hooks/use-arrival';
 import type { GameLog } from '@/lib/database.types';
 
 /**
@@ -119,7 +119,7 @@ export function GameCaseFlip({
    * row follows it in. Sharing `useArrival` with those buttons is what makes the
    * two one sequence rather than two components animating past each other.
    */
-  const landed = useArrival();
+  const { progress: landed, landed: hasLanded } = useLandingArrival();
 
   /*
    * A stand-in cover has no back to turn over.
@@ -260,7 +260,11 @@ export function GameCaseFlip({
         accessibilityLabel={label}
         accessibilityHint={flippable ? 'Turns the case over to show your record' : undefined}
         onAccessibilityTap={flippable ? () => settle(facing.get() < 90) : undefined}
-        style={[styles.object, { width, height }, object]}>
+        /* `hasLanded`: the landed, front-facing pose as a plain style once
+           the arrival is over, so React holds it and a dropped animated end
+           state cannot leave the case frozen mid-fall — see
+           `useLandingArrival`. A turn still animates over it. */
+        style={[styles.object, { width, height }, object, hasLanded && styles.landed]}>
         {/* Both faces are hidden from assistive tech and the whole object above
             carries one label: `<GameCase>` marks *itself* `accessible` with an
             image role, which would otherwise sit inside this button as a second
@@ -344,6 +348,10 @@ const styles = StyleSheet.create({
    * this changes no pixel of the incumbent layout.
    */
   object: { alignItems: 'flex-start', justifyContent: 'flex-start', zIndex: 2 },
+  /* `object` at landed = 1 and turn = 0, term for term. */
+  landed: {
+    transform: [{ perspective: 900 }, { translateY: 0 }, { scale: 1 }, { rotateY: '0deg' }],
+  },
   /*
    * Pre-turned a half turn, so the parent's rotation lands it facing you.
    *

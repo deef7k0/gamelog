@@ -56,8 +56,12 @@ const MIN_OVERLAP = 0.18;
  * all. A tablet therefore leaves some room at the right, which is the correct
  * trade: this is a widget on a profile, not a hero.
  */
-const CARD_MIN = 72;
-const CARD_MAX = 132;
+const CARD_MIN = 64;
+/* 76, down from 132 when the profile was compacted: on a phone the shelf used
+   to fill the width with ~85dp covers; now they stop at 76 and the overlap
+   closes up to `MIN_OVERLAP`, so the stack is a little smaller and still
+   reaches nearly across. */
+const CARD_MAX = 76;
 
 /**
  * Cover width and step for a shelf of `count` cards in `available` dp.
@@ -193,9 +197,9 @@ export const GamesWidget = memo(function GamesWidget({
           style={styles.head}>
           {/* Possessive rather than "LIBRARY": the shelf mixes a Steam library
               with games logged in this app, and neither word covers both. */}
-          <Text variant="h5" numberOfLines={1} style={styles.headTitle}>
+          <Text variant="itemTitle" numberOfLines={1} style={styles.headTitle}>
             {ownerName}
-            <Text variant="h5" color="textSecondary">
+            <Text variant="itemTitle" color="textSecondary">
               ’s games
             </Text>
           </Text>
@@ -379,8 +383,8 @@ const SPLIT_SLOP = { top: 16, bottom: 16, left: 8, right: 8 };
 const styles = StyleSheet.create({
   widget: {
     flex: 1,
-    gap: Spacing.x12,
-    paddingTop: Spacing.x16,
+    gap: Spacing.x8,
+    paddingTop: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

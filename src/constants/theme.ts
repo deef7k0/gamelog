@@ -792,51 +792,50 @@ export const Fonts = Platform.select({
 });
 
 /**
- * Spacing ladder.
+ * Spacing ladder, at the owner's reference's numbers.
  *
- * ⚠️ **The names are step names, not dp values.** `x16` is "the sixteenth-step
- * slot", and it currently resolves to 10. They were literal once; the ladder was
- * compressed when the interface was scaled down so the artwork would out-weigh
- * the chrome around it, and renaming ~470 call sites to chase the numbers would
- * have been a far larger and riskier diff than the change itself. Read the value
- * here, never infer it from the name, and never "fix" a name to match its
- * number. (Tailwind's `p-4` is 16px on the same principle.)
+ * ⚠️ **The names are step names.** `x16` is the page margin and resolves to 15,
+ * not 16. Read the value here, never infer it from the name, and never "fix" a
+ * name to match its number.
  *
- * ## Two compressions, and this is the second
+ * ## SimpMusic's ladder, read from its code
  *
- * The first took roughly a quarter off everything above `x4`, to stop a 16dp
- * page margin and 24dp section gaps making a 74dp cover look incidental.
+ * The values are the dp SimpMusic lays itself out in, from `HomeScreen.kt`,
+ * `AdapterItems.kt`, `FullWidthItems.kt`, `LibraryScreen.kt` and
+ * `SearchScreen.kt`: 4 between chips, 8 between a list's items and from art to
+ * its title, 12 from a thumbnail to its text and between grid cells, **15 at
+ * the side of every page** (Home, Library, every row), 20 and 24 for a sheet's
+ * or a setting's inset, 32 for an album's body, 48 at the foot of a scroll.
  *
- * This one takes a further ~17% off every step from `x12` up. It is the spacing
- * half of a deliberate zoom-out of the whole interface — see `Type`, which was
- * scaled at the same time — and the target was **density**: the chrome was
- * spending so much of a card on air that a review excerpt got four or five lines
- * before running out of card.
+ * ## What this undid
  *
- * `x4` and `x8` did not move. Below about 6 a gap stops reading as a gap and
- * starts reading as a rendering artefact, and those two are the intervals
- * *inside* a pair — a glyph and its label — where there was never any air to
- * reclaim. Everything from `x12` up is the space *between* things, which is
- * where the zoom actually lived.
+ * The ladder had been compressed twice — first by a quarter, then a further
+ * ~17% from `x12` up — to zoom the chrome out so the artwork out-weighed it:
+ * the page margin was 10 and a band's gap 40. At the owner's direction the app
+ * now takes SimpMusic's dimensions instead, so the ladder went back to
+ * Material's 4dp grid with the reference's 15 for the margin. The controls
+ * had been sized to the reference *on* the compressed ladder (a 52dp button,
+ * 15 inside a field), and were re-pointed so they kept those sizes.
  */
 export const Spacing = {
   x4: 4,
-  x8: 6,
-  x12: 8,
-  x16: 10,
-  x20: 13,
-  x24: 15,
-  x32: 20,
-  x40: 25,
-  x48: 30,
+  x8: 8,
+  x12: 12,
+  /** The page margin: SimpMusic's 15, on Home, Library and every row. */
+  x16: 15,
+  x20: 20,
+  x24: 24,
+  /** Between one band of a page and the next, and an album's body inset. */
+  x32: 32,
+  x40: 40,
+  /** The foot of a scroll. */
+  x48: 48,
   /*
-   * The top of the ladder, and it exists for a single job: the gap *between*
-   * Home's sections, where the point is that the interval is unmistakably larger
-   * than any spacing inside a section. It keeps a clear margin over `x48` (30)
-   * for exactly that reason — close the gap between the two and the distinction
-   * stops reading.
+   * The top of the ladder, for the space under a form whose footer is pinned
+   * over it. Bands of a page are `x32` apart — the reference's own interval —
+   * not this.
    */
-  x64: 40,
+  x64: 64,
 } as const;
 
 /**
@@ -937,38 +936,46 @@ export const Radius = {
  * relative values are resolved against each step's own size: -0.02em on 32
  * becomes -0.64, 0.08em on 11 becomes 0.88. Changing a step's size means
  * recomputing its tracking.
+ *
+ * ## The sizes are SimpMusic's
+ *
+ * Each step is one of the owner's reference's styles (`Typo.kt`), at its sp:
+ * `display` its `titleLarge` (25, an album's name), `h1` `headlineLarge` (23),
+ * `h2` `headlineMedium` (20, Home's shelf titles — "Quick picks"), `h3`
+ * `titleMedium` (18, a sheet's or a screen's title), `h4` `labelMedium` (16,
+ * the artist page's section headings and a setting's name), `h5` `labelSmall`
+ * (14, a chip's and a tab's word), `body` `bodyMedium` (13) and `bodySmall`
+ * its `bodySmall` (11). `caption` is 11 too — the reference sets nothing
+ * smaller that is meant to be read. `h6` and `label` stay at 10: they are
+ * badges, which the reference draws smaller still (its LIVE badge is 9).
+ *
+ * The scale had been zoomed out ~8% with the spacing ladder; it came back up
+ * with it. Weights stayed this app's: SimpMusic registers one Poppins file and
+ * lets Compose synthesise the rest, which says nothing worth copying.
  */
 export const Type = {
-  display: { fontSize: 24, lineHeight: 29, fontFamily: FontFamily.bold, letterSpacing: -0.52 },
-  h1: { fontSize: 21, lineHeight: 26, fontFamily: FontFamily.bold, letterSpacing: -0.35 },
-  h2: { fontSize: 17, lineHeight: 21, fontFamily: FontFamily.bold, letterSpacing: -0.19 },
-  h3: { fontSize: 15, lineHeight: 20, fontFamily: FontFamily.bold },
-  h4: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.bold },
-  h5: { fontSize: 12, lineHeight: 17, fontFamily: FontFamily.bold },
+  display: { fontSize: 25, lineHeight: 30, fontFamily: FontFamily.bold, letterSpacing: -0.55 },
+  h1: { fontSize: 23, lineHeight: 28, fontFamily: FontFamily.bold, letterSpacing: -0.39 },
+  h2: { fontSize: 20, lineHeight: 25, fontFamily: FontFamily.bold, letterSpacing: -0.22 },
+  h3: { fontSize: 18, lineHeight: 23, fontFamily: FontFamily.bold },
+  h4: { fontSize: 16, lineHeight: 21, fontFamily: FontFamily.bold },
+  h5: { fontSize: 14, lineHeight: 19, fontFamily: FontFamily.bold },
   h6: { fontSize: 10, lineHeight: 14, fontFamily: FontFamily.bold, letterSpacing: 0.22 },
 
-  body: { fontSize: 12, lineHeight: 18, fontFamily: FontFamily.regular },
+  body: { fontSize: 13, lineHeight: 19, fontFamily: FontFamily.regular },
   /* Long-form reading — an article or review body, not UI copy. Deliberately
      looser than `body`: those two screens are the ones people actually read. */
   prose: { fontSize: 14, lineHeight: 22, fontFamily: FontFamily.regular },
   bodySmall: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.regular },
 
   /*
-   * 10 is the floor. Below this the metadata steps stop being small text and
-   * start being unreadable — iOS puts its legibility guidance at 11pt and this
-   * is already a point under it, which is affordable for a timestamp or a count
-   * and would not be for anything you have to actually read. Do not shrink
-   * these two further; take it out of the steps above instead.
-   *
-   * **The scale was zoomed out ~8% and these two are the reason it is only 8%.**
-   * Every other step lost a point or two; `caption` and `label` were already on
-   * the floor and held, which compresses the bottom of the scale — `bodySmall`
-   * is 11 and `h6` is 10, so the three quietest steps now sit within a point of
-   * each other. That is the cost of the zoom and it is paid deliberately: the
-   * alternative is an unreadable timestamp. If the scale is ever tightened
-   * again, it has to come out of `display` through `body`, not out of here.
+   * 11, the reference's smallest reading size (`bodySmall`) and iOS's
+   * legibility floor. It was 10 while the scale was zoomed out. `label` stays
+   * at 10 because it is a badge — uppercase, tracked, a word or two over art —
+   * and a badge that grew would no longer fit the covers it sits on. Do not
+   * shrink either.
    */
-  caption: { fontSize: 10, lineHeight: 13, fontFamily: FontFamily.regular, letterSpacing: 0.2 },
+  caption: { fontSize: 11, lineHeight: 14, fontFamily: FontFamily.regular, letterSpacing: 0.2 },
   label: {
     fontSize: 10,
     lineHeight: 13,
@@ -1215,9 +1222,12 @@ export const TapTarget = Platform.select({ android: 48, default: 44 }) as number
  * is drawn shorter and reaches `TapTarget` through `hitSlop`, which is what
  * lets a row of filter pills stay light without a thumb missing them; `large`
  * is for the one action a screen exists for.
+ *
+ * `small` is the reference's chip, 32 (Material's filter chip, which SimpMusic
+ * draws its Home, Library and Search filters with). It was 36.
  */
 export const ControlHeight = {
-  small: 36,
+  small: 32,
   medium: 52,
   field: 54,
   large: 60,
@@ -1225,7 +1235,7 @@ export const ControlHeight = {
 
 /**
  * The touch slop that lifts a `ControlHeight.small` control to the platform
- * floor: 4 on iOS, 6 on Android. Vertical only — horizontally the label is
+ * floor: 6 on iOS, 8 on Android. Vertical only — horizontally the label is
  * already wider than the floor.
  */
 export const SmallControlSlop = {
@@ -1235,7 +1245,7 @@ export const SmallControlSlop = {
 
 /**
  * The vertical gap between wrapped rows of small controls: exactly the two
- * slops that meet across it (8 on iOS, 12 on Android).
+ * slops that meet across it (12 on iOS, 16 on Android).
  *
  * Slop expands the touch rectangle without moving the box, and React Native
  * resolves an *overlap* by view order rather than by proximity — so with a

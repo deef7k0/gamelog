@@ -14,6 +14,7 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
+import { useTabBarClearance } from '@/components/app-tab-bar';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -96,6 +97,7 @@ export function GameSearchResults({
   prompt,
   layoutToggle = false,
 }: GameSearchResultsProps) {
+  const clearance = useTabBarClearance();
   const [sort, setSort] = useState<GameSort>('default');
   const [layout, setLayout] = useState<CollectionLayout>('rows');
   const { width } = useWindowDimensions();
@@ -160,7 +162,11 @@ export function GameSearchResults({
       columnWrapperStyle={grid ? styles.gridRow : undefined}
       keyExtractor={(game) => game.id}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, grid && styles.gridContent]}
+      contentContainerStyle={[
+        styles.content,
+        grid && styles.gridContent,
+        { paddingBottom: Spacing.x48 + clearance },
+      ]}
       renderItem={({ item }) =>
         grid ? (
           /* The collection's grid: the cover is the result, as it is on a

@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  runOnJS,
   useReducedMotion,
   useSharedValue,
   withDelay,
@@ -64,4 +65,50 @@ export function useArrival(
   }, [delay, progress, reduceMotion, spring]);
 
   return progress;
+}
+
+/**
+ * `useArrival`, plus whether it has finished — as React state.
+ *
+ * ## Why a caller needs to know, and what goes wrong without it
+ *
+ * Reanimated holds an animated style's *first-render* value as the view's
+ * React props, forever: `PropsFilter` snapshots it once, on the component's
+ * first render. Everything after that lives in Reanimated's props registry and
+ * is applied over React's props on each commit. In 4.x a settled animation's
+ * values are meant to be handed back to React (`FORCE_REACT_RENDER_FOR_SETTLED_
+ * ANIMATIONS`) — but the hand-back is a JS `setInterval`, and the native side
+ * deletes registry entries more than two seconds old *before* it returns those
+ * more than one second old. So if the JS thread stalls for over a second while
+ * an arrival settles — the game page does exactly that, landing a dozen queries
+ * and decoding a cover's colour on the JS thread — the final value is dropped
+ * without ever reaching React, and the next re-render puts the view back at its
+ * first frame: a button at opacity 0, a case still tilted mid-fall.
+ *
+ * `landed` flips when the spring finishes, so the caller can add the landed
+ * pose as a plain style after the animated one. React then holds the end state
+ * itself, and losing the registry entry costs nothing. Callers that never
+ * re-render after arriving can keep using `useArrival`.
+ */
+export function useLandingArrival(
+  delay = 0,
+  spring: WithSpringConfig = ARRIVAL_OBJECT
+): { progress: SharedValue<number>; landed: boolean } {
+  const reduceMotion = useReducedMotion();
+  const progress = useSharedValue(reduceMotion ? 1 : 0);
+  const [landed, setLanded] = useState(reduceMotion);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    progress.set(
+      withDelay(
+        delay,
+        withSpring(1, spring, (finished) => {
+          if (finished) runOnJS(setLanded)(true);
+        })
+      )
+    );
+  }, [delay, progress, reduceMotion, spring]);
+
+  return { progress, landed };
 }

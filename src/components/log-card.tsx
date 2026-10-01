@@ -256,7 +256,8 @@ export const LogCard = memo(function LogCard({ log, showAuthor = true }: LogCard
 
 const styles = StyleSheet.create({
   /* The design's inset: 15 around, 10 between the top row and the art. */
-  root: { padding: Spacing.x24, gap: Spacing.x16 },
+  /* 15 in, a card's inset in the reference (`Spacing.x16`). */
+  root: { padding: Spacing.x16, gap: Spacing.x16 },
 
   top: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   /* The title gives way before the year does, and the whole link before the

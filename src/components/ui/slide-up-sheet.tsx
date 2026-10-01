@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -91,30 +91,50 @@ export type SlideUpSheetProps = {
  * setting asks to be spared, not control — a sheet you cannot pull down because
  * you asked for less animation would be answering an accessibility preference by
  * removing an affordance.
+ *
+ * ## Open is a React fact, not only an animated one
+ *
+ * The sheet is mounted fresh each time it opens (`<OpenSheet>`), so its first
+ * render is always off-screen — and Reanimated keeps an animated style's first
+ * render as the view's React props. Once the rise settles, `settled` adds the
+ * resting pose as a plain style. Without it, a JS stall as the sheet settled
+ * could drop the animated end value and the next re-render would put the sheet
+ * back off-screen: the quick-log sheet "closed itself" a second after opening,
+ * exactly when its game and your log arrived and re-rendered it. See
+ * `useLandingArrival` for the mechanism.
  */
-export function SlideUpSheet({
-  visible,
-  onClose,
-  title,
-  maxHeightRatio,
-  children,
-}: SlideUpSheetProps) {
+export function SlideUpSheet(props: SlideUpSheetProps) {
+  if (!props.visible) return null;
+  return <OpenSheet {...props} />;
+}
+
+function OpenSheet({ onClose, title, maxHeightRatio, children }: SlideUpSheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
 
   /** Distance below its resting place, in dp. `height` is fully dismissed. */
-  const offset = useSharedValue(height);
+  const offset = useSharedValue(reduceMotion ? 0 : height);
+  /** The rise is over and the sheet is at rest — see the note above. */
+  const [settled, setSettled] = useState(reduceMotion);
 
+  /* Rises on mount, and again if the window changes height while open (a
+     keyboard on Android resizes it). */
   useEffect(() => {
-    if (visible) {
-      offset.set(reduceMotion ? 0 : withSpring(0, RISE));
-    } else {
-      offset.set(height);
+    if (reduceMotion) {
+      offset.set(0);
+      return;
     }
-  }, [visible, height, offset, reduceMotion]);
+    offset.set(
+      withSpring(0, RISE, (finished) => {
+        if (finished) runOnJS(setSettled)(true);
+      })
+    );
+  }, [height, offset, reduceMotion]);
 
+  /* `settled` is left as it is: the fall animates over it, and the sheet
+     unmounts the moment it lands. */
   function dismiss() {
     if (reduceMotion) {
       offset.set(height);
@@ -162,8 +182,6 @@ export function SlideUpSheet({
     opacity: interpolate(offset.get(), [0, height], [1, 0], 'clamp'),
   }));
 
-  if (!visible) return null;
-
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <Animated.View
@@ -171,6 +189,7 @@ export function SlideUpSheet({
           StyleSheet.absoluteFill,
           { backgroundColor: withAlpha(theme.shadowInk, 0.5) },
           scrimStyle,
+          settled && styles.scrimSettled,
         ]}
         pointerEvents="none"
       />
@@ -186,6 +205,7 @@ export function SlideUpSheet({
             : { paddingTop: insets.top },
           { backgroundColor: theme.background, borderColor: theme.border },
           sheetStyle,
+          settled && styles.sheetSettled,
         ]}>
         <GestureDetector gesture={drag}>
           <View style={styles.grabRow}>
@@ -255,4 +275,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   body: { flex: 1 },
+  /* The animated styles at offset 0: the sheet at rest, the scrim at full. */
+  sheetSettled: { transform: [{ translateY: 0 }], opacity: 1 },
+  scrimSettled: { opacity: 1 },
 });

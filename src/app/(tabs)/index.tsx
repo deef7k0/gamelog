@@ -17,6 +17,7 @@ import { EmptyState, Screen } from '@/components/ui/screen';
 import { AmbientLight } from '@/components/ui/ambient-light';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { useTabBarClearance } from '@/components/app-tab-bar';
 import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
@@ -104,6 +105,7 @@ function newsCardHeight(width: number): number {
  */
 export default function HomeScreen() {
   const theme = useTheme();
+  const clearance = useTabBarClearance();
   const accent = useAccent();
   const router = useRouter();
   const navigation = useNavigation();
@@ -298,7 +300,7 @@ export default function HomeScreen() {
          * scroll origin, so a pull-to-refresh still behaves.
          */
         maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -320,12 +322,14 @@ export default function HomeScreen() {
           which is the arrangement the reference uses and the honest one: the
           furniture is part of the page, not a lid on it.
 
-          The two controls are the two that are not about a game: what happened
-          while you were away, and how the app behaves.
+          One control: what happened while you were away. Settings moved to the
+          profile's top bar, beside the other things that are about you.
         */}
         <View style={styles.masthead}>
           <View style={styles.mastheadTitles}>
-            <Text variant="h2">GameLog</Text>
+            {/* `h3`: the reference's app name is `titleMedium`, 18 — a step
+                under the 20 its shelves are titled in. */}
+            <Text variant="h3">GameLog</Text>
             {/* `textSecondary`, not `textMuted`: this line sits on the corner
                 light's brightest pixels, where the muted grey is under AA. */}
             <Text variant="bodySmall" color="textSecondary">
@@ -361,17 +365,6 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               )}
-            </PressableScale>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Settings"
-              onPress={() => router.push('/settings')}
-              scaleTo={0.92}
-              pressedColor={theme.controlPressed}
-              focusRing={accent.ring}
-              style={StyleSheet.flatten([styles.key, { backgroundColor: theme.controlFill }])}>
-              <Ionicons name="settings-outline" size={19} color={theme.text} />
             </PressableScale>
           </View>
         </View>
@@ -627,11 +620,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.x8,
   },
   mastheadTitles: { flex: 1, gap: 1 },
-  /* `x12` (8) between the two keys: Material's gap between touch targets. */
-  mastheadActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  /* `x8` (8) between the two keys: Material's gap between touch targets. */
+  mastheadActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   /* A round key at the tap floor itself — 44 on iOS, 48 on Android — so the
-     disc you see is the area you can press. These two are the sole routes to
-     notifications and settings and must not be the hardest things to hit. */
+     disc you see is the area you can press. It is the sole route to
+     notifications and must not be the hardest thing to hit. */
   key: {
     width: TapTarget,
     height: TapTarget,
@@ -653,15 +646,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* `x64` (48) between bands, not `x24` (18).
+  /* `x32` (32) between bands — SimpMusic's interval between sections — against
+     15 from a heading to its own rail.
 
      The page's only structural rhythm, and the reason a stack of unrelated
-     sections still reads as one document rather than one long scroll. At 18 the
-     gap between two sections was barely larger than the gap between a heading
-     and its own rail, so the headings read as captions floating in a continuous
-     column. The interval separating sections has to be unmistakably bigger than
-     any interval inside one. */
-  content: { paddingBottom: Spacing.x48, gap: Spacing.x64 },
+     sections still reads as one document rather than one long scroll. When the
+     two gaps were close, the headings read as captions floating in a
+     continuous column. The interval separating sections has to be unmistakably
+     bigger than any interval inside one. */
+  content: { paddingBottom: Spacing.x48, gap: Spacing.x32 },
   welcome: { paddingHorizontal: Spacing.x16, gap: Spacing.x8, paddingTop: Spacing.x4 },
   welcomeUser: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   /* Shrinks rather than pushing the row wide — a long display name truncates

@@ -5,11 +5,11 @@ import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
+import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * Lifts "See all" from 36dp to 48 without growing the heading row.
+ * Lifts "See all" from 39dp past 48 without growing the heading row.
  *
  * Slop rather than padding because the row's height is set by the title beside
  * it: adding 6dp of padding here would push every band's heading apart to fix a
@@ -19,6 +19,12 @@ const SEE_ALL_SLOP = { top: 6, bottom: 6, left: 8, right: 8 };
 
 export type HomeSectionProps = {
   title: string;
+  /**
+   * Words set before the title in the regular weight, so the title is the
+   * bold part: "Similar to **Hades**". For a heading whose subject is a name
+   * the page did not choose — the bold is where the reader's eye lands.
+   */
+  lead?: string;
   /** Optional one-line explanation of what the section is showing and why. */
   subtitle?: string;
   /** Where "See all" goes. Omit to render the heading without one. */
@@ -43,10 +49,10 @@ export type HomeSectionProps = {
  * a section that wants to look different is a section that will make Home look
  * assembled by two people.
  *
- * Separation between sections is set by the page (`Spacing.x64`, 48dp) rather
+ * Separation between sections is set by the page (`Spacing.x32`, 32dp) rather
  * than here, so a section never decides its own distance from its neighbours.
  */
-export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionProps) {
+export function HomeSection({ title, lead, subtitle, seeAll, children }: HomeSectionProps) {
   const theme = useTheme();
 
   return (
@@ -59,6 +65,7 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
               rather than as separate sections. 19px bold is the step where the
               heading reads first. */}
           <Text variant="h2" accessibilityRole="header">
+            {lead && <Text variant="h2" style={styles.lead}>{`${lead} `}</Text>}
             {title}
           </Text>
           {subtitle && (
@@ -72,7 +79,7 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
           <Link href={seeAll} asChild>
             <PressableScale
               accessibilityRole="link"
-              accessibilityLabel={`See all ${title.toLowerCase()}`}
+              accessibilityLabel={`See all ${(lead ? `${lead} ${title}` : title).toLowerCase()}`}
               hitSlop={SEE_ALL_SLOP}
               scaleTo={0.96}
               style={styles.seeAll}>
@@ -91,10 +98,10 @@ export function HomeSection({ title, subtitle, seeAll, children }: HomeSectionPr
 }
 
 const styles = StyleSheet.create({
-  /* `x24` (15) between the heading and what it heads — the owner's reference,
+  /* `x16` (15) between the heading and what it heads — the owner's reference,
      SimpMusic's Analytics, puts 16 there. At 8 the heading read as a caption
      glued to the rail rather than as the title of a section. */
-  section: { gap: Spacing.x24 },
+  section: { gap: Spacing.x16 },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -103,11 +110,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x16,
   },
   headText: { flex: 1, gap: 2 },
-  /* The padding alone does NOT clear the floor, which is what the note here
-     used to claim. `bodySmall` is a 16dp line box, not 18, and `Spacing.x12` is
-     10, not 12 — so this measured 36dp against 44 (iOS) and 48 (Android), on
-     every band heading in the app. `SEE_ALL_SLOP` is what actually clears it;
-     the padding is spacing. */
+  /* The heading's size in the regular family: Android synthesises no weight
+     for a custom font, so the lighter half is a family, not a `fontWeight`. */
+  lead: { fontFamily: FontFamily.regular },
+  /* The padding alone does not clear the floor: a 15dp `bodySmall` line and
+     12 above and below is 39dp, against 44 (iOS) and 48 (Android).
+     `SEE_ALL_SLOP` is what clears it; the padding is spacing. */
   seeAll: {
     flexDirection: 'row',
     alignItems: 'center',

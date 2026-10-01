@@ -10,8 +10,8 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getStarredSong } from '@/lib/api';
 
-/** Album art at the size the soundtrack screen's own rows use. */
-const ARTWORK = 64;
+/** Album art: 56, a step under the soundtrack screen's 64 rows, with the widget. */
+const ARTWORK = 56;
 
 /** Previews are always 30 seconds; used to draw the progress bar. */
 const PREVIEW_SECONDS = 30;
@@ -67,10 +67,10 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
   return (
     <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.head}>
-        <Ionicons name="star" size={14} color={theme.primaryText} />
+        <Ionicons name="star" size={13} color={theme.primaryText} />
         {/* Matched to Favourites and the shelf: one heading treatment on this
             page, not three. */}
-        <Text variant="h5">Starred song</Text>
+        <Text variant="itemTitle">Starred song</Text>
       </View>
 
       <PressableScale
@@ -100,7 +100,7 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
         )}
 
         <View style={styles.body}>
-          <Text variant="h5" numberOfLines={1}>
+          <Text variant="itemTitle" numberOfLines={1}>
             {track.title}
           </Text>
           <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
@@ -137,8 +137,8 @@ const styles = StyleSheet.create({
      sitting in the middle of the page. */
   widget: {
     flex: 1,
-    gap: Spacing.x12,
-    paddingTop: Spacing.x16,
+    gap: Spacing.x8,
+    paddingTop: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },

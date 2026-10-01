@@ -138,8 +138,9 @@ export function SectionMore({ label = 'More', accessibilityLabel, onPress }: Sec
  * A section's heading: its name, bold and white, and at the far end a quiet
  * fact about it (`action`) or its way onward (`more`).
  *
- * `h2`, the app's band heading, for the reference's 16sp bold: Inter at 17 is
- * the size Poppins at 16 reads as.
+ * `h4`, the reference's `labelMedium`: 16 bold. Not `h2` — that is Home's
+ * shelf title (`headlineMedium`, 20), and the artist page sets its section
+ * headings a step smaller than Home does.
  */
 export function SectionHeader({
   title,
@@ -171,7 +172,7 @@ export function SectionHeader({
           paddingRight: hasMore ? Math.max(0, inset - metrics.moreInset) : inset,
         },
       ]}>
-      <Text variant="h2" accessibilityRole="header" style={styles.title}>
+      <Text variant="h4" accessibilityRole="header" style={styles.title}>
         {title}
       </Text>
       {action}

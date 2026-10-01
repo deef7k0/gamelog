@@ -75,14 +75,14 @@ export function SortBar<T extends string>({
 }
 
 const styles = StyleSheet.create({
-  /* Columns `x12` (8): Material asks for 8dp between adjacent touch targets.
+  /* Columns `x8` (8): Material asks for 8dp between adjacent touch targets.
      Rows `SmallControlRowGap` — exactly the two slops that meet across the gap,
      so when the row wraps, the touch boxes of two rows tile rather than
      overlap, and a tap between them can never pick the wrong sort order. */
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: Spacing.x12,
+    columnGap: Spacing.x8,
     rowGap: SmallControlRowGap,
   },
   pill: {
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     minHeight: ControlHeight.small,
     justifyContent: 'center',
     paddingVertical: Spacing.x4,
-    paddingHorizontal: Spacing.x20,
+    paddingHorizontal: Spacing.x16,
     /* A pill: this filters, and filters are the pill family (DESIGN.md § 9). */
     borderRadius: Radius.pill,
     borderWidth: 1,

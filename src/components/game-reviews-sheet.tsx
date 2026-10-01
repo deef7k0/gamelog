@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
   },
   criticText: { flex: 1, gap: 2 },
   controls: { gap: Spacing.x8, marginTop: Spacing.x16 },
-  /* A filter pill like the sort pills above it, drawn at 36 and touched at
+  /* A filter pill like the sort pills above it, drawn at 32 and touched at
      the floor. */
   filterButton: {
     flexDirection: 'row',
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     gap: Spacing.x8,
     paddingVertical: Spacing.x4,
-    paddingHorizontal: Spacing.x20,
+    paddingHorizontal: Spacing.x16,
     minHeight: ControlHeight.small,
     borderRadius: Radius.pill,
     borderWidth: 1,

@@ -1,15 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link } from 'expo-router';
-import { memo } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link, useRouter } from 'expo-router';
+import { memo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { gridItemWidth } from '@/components/gaming/game-tile';
+import { Button } from '@/components/ui/button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import type { ListItem } from '@/lib/api';
+import { removeFromList, type ListItem } from '@/lib/api';
 import type { ProfileAchievementStats } from '@/lib/database.types';
 
 /** Four across, edge to edge — the same rule every poster grid in the app uses. */
@@ -36,7 +38,20 @@ export const FavoritesWidget = memo(function FavoritesWidget({
   isSelf: boolean;
 }) {
   const theme = useTheme();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
+
+  /*
+   * Editing your four, in place.
+   *
+   * Edit used to open the favourites collection, where nothing let you say
+   * which game sat in which slot. Now it turns the row into a picker: tap a
+   * game, then Replace it — the new game takes the same slot, so the order is
+   * yours — or Remove it. An empty slot offers a +. Done puts it back.
+   */
+  const [editing, setEditing] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   /*
    * Four covers spanning the page.
@@ -44,7 +59,8 @@ export const FavoritesWidget = memo(function FavoritesWidget({
    * They were a fixed 52dp, which left most of a phone's width empty and made
    * someone's top four look like a footnote. This is the one thing on a profile
    * people screenshot, so it takes the same width the collection and library
-   * grids take — about 83dp a cover on a 390dp phone rather than 52.
+   * grids take — the row runs edge to edge, about 79dp a cover on a 360dp
+   * phone.
    */
   const posterWidth = gridItemWidth(
     Math.min(width, MaxContentWidth),
@@ -52,81 +68,208 @@ export const FavoritesWidget = memo(function FavoritesWidget({
     Spacing.x16,
     FAVORITE_GAP
   );
+  const posterHeight = posterWidth / (2 / 3);
+
+  const shown = items.slice(0, FAVORITE_COLUMNS);
+  const selected = shown.find((item) => item.game_id === selectedId) ?? null;
+  const canEdit = isSelf && !!listId;
+
+  const remove = useMutation({
+    mutationFn: (gameId: string) => removeFromList(listId!, gameId),
+    onSuccess: () => {
+      setSelectedId(null);
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      queryClient.invalidateQueries({ queryKey: ['list', listId] });
+      queryClient.invalidateQueries({ queryKey: ['list-membership'] });
+    },
+  });
+
+  /** The picker, told to put its game in this one's slot and take this one out. */
+  function replace(item: ListItem) {
+    setSelectedId(null);
+    router.push({
+      pathname: '/add-to-list/[id]',
+      params: { id: listId!, position: String(item.position), replace: item.game_id },
+    });
+  }
+
+  /** The picker, told to put its game after the last of the four. */
+  function addToEmptySlot() {
+    const last = items.reduce((max, item) => Math.max(max, item.position), -1);
+    router.push({
+      pathname: '/add-to-list/[id]',
+      params: { id: listId!, position: String(last + 1) },
+    });
+  }
+
+  function toggleEditing() {
+    setEditing((value) => !value);
+    setSelectedId(null);
+    remove.reset();
+  }
 
   return (
     <View style={[styles.widget, { borderTopColor: theme.border }]}>
       <View style={styles.widgetHead}>
         <View style={styles.widgetTitle}>
-          <Ionicons name="star" size={14} color={theme.primaryText} />
-          {/* `h5`, not `caption`. This block is the profile's focal moment —
-              four games the person chose — and it was labelled at 10px, the
-              smallest step in the type scale, while a decorative banner took a
-              third of the screen. Sentence case rather than caps for the same
-              reason: it is a section title, not a metadata tag. */}
-          <Text variant="h5">Favourites</Text>
+          <Ionicons name="star" size={13} color={theme.primaryText} />
+          {/* `itemTitle`: a section title in sentence case, not a metadata
+              tag. */}
+          <Text variant="itemTitle">Favourites</Text>
         </View>
 
-        {isSelf && listId && (
-          <Link href={{ pathname: '/list/[id]', params: { id: listId } }} asChild>
-            {/* The only route to changing your top four, and it measured
-                13dp tall by ~20dp wide — no style, no `minHeight`, no
-                `hitSlop`. `hitSlop` rather than padding so the mark stays
-                small while the target clears the floor. */}
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Edit favourites"
-              scaleTo={0.9}
-              hitSlop={Spacing.x16}
-              style={StyleSheet.flatten([styles.editLink])}>
-              <Text variant="bodySmall" color="primaryText">
-                Edit
-              </Text>
-            </PressableScale>
-          </Link>
+        {canEdit && (
+          /* `hitSlop` rather than padding so the word stays small while the
+             target clears the floor. */
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={editing ? 'Done editing favourites' : 'Edit favourites'}
+            accessibilityState={{ expanded: editing }}
+            onPress={toggleEditing}
+            scaleTo={0.9}
+            hitSlop={Spacing.x16}
+            style={styles.editLink}>
+            <Text variant="bodySmall" color="primaryText">
+              {editing ? 'Done' : 'Edit'}
+            </Text>
+          </PressableScale>
         )}
       </View>
 
-      {items.length > 0 ? (
+      {shown.length > 0 || editing ? (
         <View style={styles.posters}>
-          {items.slice(0, FAVORITE_COLUMNS).map((item) => (
-            <Link
-              key={item.game_id}
-              href={{ pathname: '/game/[id]', params: { id: item.game_id } }}
-              asChild>
+          {shown.map((item, index) => {
+            const title = item.game?.title ?? 'Favourite game';
+            const poster = (
+              <Poster
+                coverUrl={item.game?.cover_url}
+                heroUrl={item.game?.hero_url}
+                title={item.game?.title}
+                width={posterWidth}
+                rounded="image"
+              />
+            );
+
+            if (!editing) {
+              return (
+                <Link
+                  key={item.game_id}
+                  href={{ pathname: '/game/[id]', params: { id: item.game_id } }}
+                  asChild>
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={title}
+                    scaleTo={0.94}>
+                    {poster}
+                  </PressableScale>
+                </Link>
+              );
+            }
+
+            const isSelected = item.game_id === selectedId;
+            return (
               <PressableScale
+                key={item.game_id}
                 accessibilityRole="button"
-                accessibilityLabel={item.game?.title ?? 'Favourite game'}
-                scaleTo={0.94}>
-                <Poster
-                  coverUrl={item.game?.cover_url}
-                  heroUrl={item.game?.hero_url}
-                  title={item.game?.title}
-                  width={posterWidth}
-                  rounded="image"
+                accessibilityLabel={`${title}, favourite ${index + 1}`}
+                accessibilityHint="Select it to replace or remove it"
+                accessibilityState={{ selected: isSelected }}
+                onPress={() => setSelectedId(isSelected ? null : item.game_id)}
+                scaleTo={0.94}
+                /* The others step back while one is chosen, so it is clear which
+                   one Replace and Remove are about. */
+                style={selected && !isSelected ? styles.dimmed : undefined}>
+                {poster}
+                {/* A ring drawn over the art, inside its edge, so choosing a
+                    game never moves the row. */}
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.ring,
+                    { borderColor: isSelected ? theme.primaryText : theme.borderStrong },
+                    isSelected && styles.ringSelected,
+                  ]}
                 />
               </PressableScale>
-            </Link>
-          ))}
+            );
+          })}
 
-          {/* Empty slots so the row keeps its shape below four picks. */}
-          {Array.from({ length: Math.max(0, FAVORITE_COLUMNS - items.length) }).map((_, index) => (
-            <View
-              key={`slot-${index}`}
-              style={[
-                styles.emptySlot,
-                {
-                  width: posterWidth,
-                  height: posterWidth / (2 / 3),
-                  backgroundColor: theme.surfaceElevated,
-                  borderColor: theme.border,
-                },
-              ]}
-            />
-          ))}
+          {/* Empty slots so the row keeps its shape below four picks. While
+              editing, each is a way to add one. */}
+          {Array.from({ length: Math.max(0, FAVORITE_COLUMNS - shown.length) }).map((_, index) =>
+            editing ? (
+              <PressableScale
+                key={`slot-${index}`}
+                accessibilityRole="button"
+                accessibilityLabel="Add a favourite"
+                onPress={addToEmptySlot}
+                scaleTo={0.94}
+                style={StyleSheet.flatten([
+                  styles.emptySlot,
+                  styles.addSlot,
+                  {
+                    width: posterWidth,
+                    height: posterHeight,
+                    backgroundColor: theme.surfaceElevated,
+                    borderColor: theme.borderStrong,
+                  },
+                ])}>
+                <Ionicons name="add" size={24} color={theme.textSecondary} />
+              </PressableScale>
+            ) : (
+              <View
+                key={`slot-${index}`}
+                style={[
+                  styles.emptySlot,
+                  {
+                    width: posterWidth,
+                    height: posterHeight,
+                    backgroundColor: theme.surfaceElevated,
+                    borderColor: theme.border,
+                  },
+                ]}
+              />
+            )
+          )}
         </View>
       ) : (
         <Text variant="caption" color="textMuted">
           {isSelf ? 'Star up to four games to pin them here.' : 'No favourites yet.'}
+        </Text>
+      )}
+
+      {/* What to do with the chosen game — or, until one is chosen, how. */}
+      {editing &&
+        (selected ? (
+          <View style={styles.editBar}>
+            <Text variant="itemTitle" numberOfLines={1} style={styles.flex}>
+              {selected.game?.title ?? 'Favourite game'}
+            </Text>
+            <Button
+              title="Replace"
+              variant="secondary"
+              size="small"
+              onPress={() => replace(selected)}
+            />
+            <Button
+              title="Remove"
+              variant="danger"
+              size="small"
+              loading={remove.isPending}
+              onPress={() => remove.mutate(selected.game_id)}
+            />
+          </View>
+        ) : (
+          <Text variant="bodySmall" color="textMuted">
+            Tap a game to replace or remove it.
+          </Text>
+        ))}
+
+      {remove.isError && (
+        <Text variant="bodySmall" color="danger">
+          {remove.error instanceof Error
+            ? remove.error.message
+            : 'Could not remove it. Check your connection and try again.'}
         </Text>
       )}
     </View>
@@ -207,8 +350,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   widget: {
     flex: 1,
-    gap: Spacing.x12,
-    paddingTop: Spacing.x16,
+    gap: Spacing.x8,
+    paddingTop: Spacing.x12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   widgetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -223,6 +366,20 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderStyle: 'dashed',
   },
+  addSlot: { alignItems: 'center', justifyContent: 'center' },
+  /* Over the art, at its corner, so it never changes the cover's size. */
+  ring: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: Radius.image,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  ringSelected: { borderWidth: 2 },
+  dimmed: { opacity: 0.45 },
+  editBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   statRow: { flexDirection: 'row', justifyContent: 'space-between' },
   stat: { alignItems: 'center', gap: 1, flex: 1 },
 });

@@ -13,7 +13,7 @@ import { Text } from '@/components/ui/text';
 import { PROGRESS_META, progressChoiceFor } from '@/constants/progress';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
-import { ARRIVAL_CONTROL, useArrival } from '@/hooks/use-arrival';
+import { ARRIVAL_CONTROL, useLandingArrival } from '@/hooks/use-arrival';
 import { useTheme } from '@/hooks/use-theme';
 import { getListMembership, toggleSingletonMembership } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
@@ -394,7 +394,7 @@ function Arriving({
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }) {
-  const progress = useArrival(delay, ARRIVAL_CONTROL);
+  const { progress, landed } = useLandingArrival(delay, ARRIVAL_CONTROL);
 
   const animated = useAnimatedStyle(() => ({
     opacity: progress.get(),
@@ -404,7 +404,13 @@ function Arriving({
     ],
   }));
 
-  return <Animated.View style={[style, animated]}>{children}</Animated.View>;
+  /* The landed pose as a plain style once the spring is done, so React holds
+     it. Without it the review button and the keys under it could vanish: their
+     React props were the first frame (opacity 0), and a JS stall could drop the
+     animated end state — see `useLandingArrival`. */
+  return (
+    <Animated.View style={[style, animated, landed && styles.arrived]}>{children}</Animated.View>
+  );
 }
 
 /**
@@ -539,6 +545,8 @@ const styles = StyleSheet.create({
      be adjacent; four reads as the seams of one bar. See the note on the
      constant. */
   row: { flexDirection: 'row', gap: GROUP_GAP },
+  /* `Arriving`'s end state, identical to the animated style at 1. */
+  arrived: { opacity: 1, transform: [{ translateY: 0 }, { scale: 1 }] },
   /* The arrival wrapper is the row's flex child, so it carries the width share
      that `action` used to. The button inside stretches to fill it. */
   actionSlot: { flex: 1 },

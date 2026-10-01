@@ -6,6 +6,7 @@ import { CollectionsBand, ReviewsBand } from '@/components/discover-lists';
 import { CoverRailSkeleton, GameCoverRail } from '@/components/game-rail';
 import { GenreGrid } from '@/components/genre-grid';
 import { HomeSection } from '@/components/home-section';
+import { useTabBarClearance } from '@/components/app-tab-bar';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getUserLogs } from '@/lib/api';
@@ -17,7 +18,7 @@ import { useAuth } from '@/store/auth';
 /** Games in each catalogue rail: a screenful and a long scroll, not the whole list. */
 const RAIL_GAMES = 20;
 
-/** Games in the "Because you…" rail. */
+/** Games in the "Similar to…" rail. */
 const RECOMMENDED_GAMES = 12;
 
 /**
@@ -38,7 +39,7 @@ const RECOMMENDED_GAMES = 12;
  * rows with platform chips — on the screen that was meant to be the simplest in
  * the app. The chart's rank survives as the line under each cover.
  *
- * ## One "Because you…" rail
+ * ## One "Similar to…" rail
  *
  * It was a rail for each of your four best-rated games. There is one now, from
  * the game you reviewed last (`recommendationSeed`), and saving a review moves
@@ -58,6 +59,7 @@ const RECOMMENDED_GAMES = 12;
  */
 export function DiscoverFeed() {
   const theme = useTheme();
+  const clearance = useTabBarClearance();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
 
   const topTen = useQuery({
@@ -110,7 +112,7 @@ export function DiscoverFeed() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
       refreshControl={
         <RefreshControl
           refreshing={discover.isRefetching || topTen.isRefetching || similar.isRefetching}
@@ -144,7 +146,10 @@ export function DiscoverFeed() {
       </HomeSection>
 
       {seed && (similar.isLoading || recommended.length > 0) && (
-        <HomeSection title={seed.heading} subtitle="Follows the last game you reviewed.">
+        <HomeSection
+          lead="Similar to"
+          title={seed.title}
+          subtitle="Follows the last game you reviewed.">
           {similar.isLoading ? (
             <CoverRailSkeleton inset={Spacing.x16} />
           ) : (
@@ -183,8 +188,8 @@ export function DiscoverFeed() {
 }
 
 const styles = StyleSheet.create({
-  /* `x64` between bands, matching Home. A section never sets its own distance
+  /* `x32` between bands, matching Home. A section never sets its own distance
      from its neighbours — see the note in `home-section.tsx`. */
-  content: { gap: Spacing.x64, paddingTop: Spacing.x8, paddingBottom: Spacing.x48 },
-  foot: { gap: Spacing.x64 },
+  content: { gap: Spacing.x32, paddingTop: Spacing.x8, paddingBottom: Spacing.x48 },
+  foot: { gap: Spacing.x32 },
 });

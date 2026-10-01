@@ -47,6 +47,13 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "light"
+        }
+      ],
       "expo-audio",
       "expo-image",
       "expo-web-browser",

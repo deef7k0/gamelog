@@ -1,44 +1,77 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useQuery } from '@tanstack/react-query';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Pressable, Share, StyleSheet, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
 
 import { ProfileView } from '@/components/profile-view';
-import { Button } from '@/components/ui/button';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
-import { Spacing } from '@/constants/theme';
+import { Text } from '@/components/ui/text';
+import {
+  ControlHeight,
+  Elevation,
+  Motion,
+  Radius,
+  SmallControlSlop,
+  Spacing,
+  TapTarget,
+} from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
+import { useTheme } from '@/hooks/use-theme';
+import { getProfile } from '@/lib/api';
+import { displayNameFor } from '@/lib/format';
 import { useAuth } from '@/store/auth';
+import type { QuickLogMode } from '@/app/quick-log';
 
+/**
+ * Your own profile: a top bar, then `<ProfileView>`.
+ *
+ * ## The bar
+ *
+ * Instagram's arrangement: **+** on the left, your handle in the middle,
+ * **Settings** on the right. The + is the quickest way to put a game in your
+ * log — it asks whether you are logging or reviewing, then opens the picker
+ * (`quick-log`). Settings moved here from Home's masthead: it is about your
+ * account, and this is the screen that is about you. Sign out moved into it.
+ *
+ * The bar is fixed rather than in the scroll: it holds the two things you
+ * reach for on this screen, and they should not scroll away from you. The keys
+ * are Home's masthead keys — round, the action grey, at the tap floor — and the
+ * profile starts `x32 + x4` under the bar, the same distance Home's greeting
+ * sits under its masthead.
+ */
 export default function MyProfileScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const accent = useAccent();
+  const reduceMotion = useReducedMotion();
   const userId = useAuth((state) => state.session?.user.id);
-  const signOut = useAuth((state) => state.signOut);
 
-  const [signingOut, setSigningOut] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  /** Where the bar ends, so the + menu can drop from it. */
+  const [barBottom, setBarBottom] = useState(0);
 
-  function confirmSignOut() {
-    Alert.alert('Sign out?', 'You will need your email and password to sign back in.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: async () => {
-          setSigningOut(true);
-          try {
-            await signOut();
-          } catch (error) {
-            /* Reported rather than swallowed. The session survives a failed
-               sign-out, so silence would leave someone believing they had
-               signed out on a shared device. */
-            Alert.alert(
-              'Could not sign out',
-              error instanceof Error ? error.message : 'Check your connection and try again.'
-            );
-          } finally {
-            setSigningOut(false);
-          }
-        },
-      },
-    ]);
+  /* The same key `<ProfileView>` reads, so this is the cache, not a request. */
+  const profile = useQuery({
+    queryKey: ['profile', userId],
+    queryFn: () => getProfile(userId!),
+    enabled: !!userId,
+  });
+  const handle = profile.data?.username || (profile.data ? displayNameFor(profile.data) : '');
+
+  function startQuickLog(mode: QuickLogMode) {
+    setMenuOpen(false);
+    router.push({ pathname: '/quick-log', params: { mode } });
+  }
+
+  function share() {
+    if (!userId) return;
+    const name = profile.data ? displayNameFor(profile.data) : 'me';
+    const url = Linking.createURL(`/profile/${userId}`);
+    Share.share({ message: `${name} on GameLog\n${url}` }).catch(() => undefined);
   }
 
   if (!userId) {
@@ -53,64 +86,227 @@ export default function MyProfileScreen() {
 
   return (
     /*
-     * No top bar, and this is the one screen where that needs no qualification.
-     *
-     * It is a root tab, so there is nothing to go back *to* — the bottom nav is
-     * the way out and it is always on screen. It has no right-hand control
-     * either: Edit profile and Sign out are buttons in the header below, where
-     * the things they act on are. That left a bar whose entire remaining job was
-     * to exist, over the top of somebody's banner art.
-     *
-     * **`edges={['top']}`, not `[]`, and the change is a repair.** Dropping every
-     * edge was right while a full-bleed banner ran to the top of the display —
-     * that art wanted the status bar behind it. The banner is gone (see
-     * `<ProfileView>`: "the avatar is the first thing on the page"), so the only
-     * thing `[]` was still doing was starting the avatar and the stat row at
-     * y = 0. In Expo Go that merely looked tight; on a real build, where SDK 57
-     * targets Android 15 and the window is edge-to-edge, it put them underneath
-     * the clock and the notification icons.
-     *
-     * The inset *is* the header here. This screen still has no bar — a root tab
-     * has nothing to go back to — it simply no longer begins under the system's
-     * own furniture.
+     * `edges={['top']}`: on a real build the window is edge-to-edge, so without
+     * the inset the bar would sit under the clock. The bottom is left to the
+     * floating tab bar — `<ProfileView>` pads its list by its clearance.
      */
     <Screen edges={['top']}>
+      <View
+        style={styles.bar}
+        onLayout={(event) =>
+          setBarBottom(event.nativeEvent.layout.y + event.nativeEvent.layout.height)
+        }>
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="Log or review a game"
+          accessibilityState={{ expanded: menuOpen }}
+          onPress={() => setMenuOpen((open) => !open)}
+          scaleTo={0.92}
+          pressedColor={theme.controlPressed}
+          focusRing={accent.ring}
+          style={StyleSheet.flatten([
+            styles.key,
+            { backgroundColor: menuOpen ? theme.controlPressed : theme.controlFill },
+          ])}>
+          <Ionicons name="add" size={24} color={theme.text} />
+        </PressableScale>
+
+        {/* The handle, as Instagram's bar carries it — so the header below can
+            give its line to your name alone. */}
+        <Text variant="h3" numberOfLines={1} style={styles.title} accessibilityRole="header">
+          {handle}
+        </Text>
+
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          onPress={() => router.push('/settings')}
+          scaleTo={0.92}
+          pressedColor={theme.controlPressed}
+          focusRing={accent.ring}
+          style={StyleSheet.flatten([styles.key, { backgroundColor: theme.controlFill }])}>
+          <Ionicons name="settings-outline" size={20} color={theme.text} />
+        </PressableScale>
+      </View>
+
       <ProfileView
         profileId={userId}
+        handleInBar
         headerAction={
+          /*
+           * One control cut in two: Edit profile, and Share beside it.
+           *
+           * The game page's connected keys, at the reference's chip height:
+           * round where the pair begins and ends, nearly square where the two
+           * halves meet across a 4dp seam — so it reads as one bar with a cut
+           * rather than as two buttons parked side by side.
+           */
           <View style={styles.actions}>
-            <View style={styles.action}>
-              <Button
-                title="Edit profile"
-                variant="secondary"
-                onPress={() => router.push('/edit-profile')}
-                fullWidth
-              />
-            </View>
-            <View style={styles.action}>
-              {/* Confirmed, and its failure caught.
-                  `onPress={signOut}` handed a promise straight to a press
-                  handler: `auth.ts` throws on failure, so a sign-out that did
-                  not work surfaced as an unhandled rejection while the screen
-                  sat there looking signed in. It is also the most consequential
-                  control on the page, sitting a thumb's width from Edit
-                  profile. */}
-              <Button
-                title="Sign out"
-                variant="ghost"
-                onPress={confirmSignOut}
-                loading={signingOut}
-                fullWidth
-              />
-            </View>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Edit profile"
+              onPress={() => router.push('/edit-profile')}
+              hitSlop={SmallControlSlop}
+              scaleTo={0.98}
+              pressedColor={theme.controlPressed}
+              style={StyleSheet.flatten([
+                styles.half,
+                styles.start,
+                { backgroundColor: theme.controlFill },
+              ])}>
+              <Text variant="button" style={{ color: theme.controlInk }}>
+                Edit profile
+              </Text>
+            </PressableScale>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Share your profile"
+              onPress={share}
+              hitSlop={SmallControlSlop}
+              scaleTo={0.94}
+              pressedColor={theme.controlPressed}
+              style={StyleSheet.flatten([
+                styles.half,
+                styles.end,
+                { backgroundColor: theme.controlFill },
+              ])}>
+              <Ionicons name="share-outline" size={17} color={theme.controlInk} />
+            </PressableScale>
           </View>
         }
       />
+
+      {/*
+        The + menu: two choices dropped from the key, over the page.
+
+        Not a bottom sheet — the tab bar floats over the foot of this screen
+        and would sit on top of one. It drops from where you tapped, and a tap
+        anywhere else puts it away.
+      */}
+      {menuOpen && (
+        <>
+          <Pressable
+            accessibilityLabel="Close menu"
+            onPress={() => setMenuOpen(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <Animated.View
+            entering={reduceMotion ? undefined : FadeIn.duration(Motion.fast)}
+            exiting={reduceMotion ? undefined : FadeOut.duration(Motion.fast)}
+            style={[
+              styles.menu,
+              Elevation.overlay,
+              { top: barBottom + Spacing.x4, backgroundColor: theme.surfaceElevated },
+              { borderColor: theme.border },
+            ]}>
+            <MenuRow
+              icon="checkmark-circle-outline"
+              title="Log a game"
+              hint="Say where you are with it"
+              onPress={() => startQuickLog('log')}
+            />
+            <MenuRow
+              icon="create-outline"
+              title="Review a game"
+              hint="Write about it and score it"
+              onPress={() => startQuickLog('review')}
+            />
+          </Animated.View>
+        </>
+      )}
     </Screen>
   );
 }
 
+function MenuRow({
+  icon,
+  title,
+  hint,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={hint}
+      onPress={onPress}
+      scaleTo={0.98}
+      pressedColor={theme.controlPressed}
+      style={styles.menuRow}>
+      <Ionicons name={icon} size={22} color={theme.text} />
+      <View style={styles.menuText}>
+        <Text variant="itemTitle">{title}</Text>
+        <Text variant="bodySmall" color="textMuted">
+          {hint}
+        </Text>
+      </View>
+    </PressableScale>
+  );
+}
+
+/** The cut between Edit profile and Share: the game page's seam corner. */
+const SEAM = Radius.lg;
+
 const styles = StyleSheet.create({
-  actions: { flexDirection: 'row', gap: Spacing.x12 },
-  action: { flex: 1 },
+  /* Home's masthead row: the page margin, a little air above, keys at the
+     floor. */
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    paddingTop: Spacing.x8,
+  },
+  key: {
+    width: TapTarget,
+    height: TapTarget,
+    borderRadius: TapTarget / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: { flex: 1, textAlign: 'center' },
+  actions: { flex: 1, flexDirection: 'row', gap: Spacing.x4 },
+  half: {
+    minHeight: ControlHeight.small,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /* Edit profile takes the width; Share is a square-ish end cap. */
+  start: {
+    flex: 1,
+    borderTopLeftRadius: Radius.pill,
+    borderBottomLeftRadius: Radius.pill,
+    borderTopRightRadius: SEAM,
+    borderBottomRightRadius: SEAM,
+  },
+  end: {
+    width: ControlHeight.small + Spacing.x20,
+    borderTopLeftRadius: SEAM,
+    borderBottomLeftRadius: SEAM,
+    borderTopRightRadius: Radius.pill,
+    borderBottomRightRadius: Radius.pill,
+  },
+  menu: {
+    position: 'absolute',
+    left: Spacing.x16,
+    minWidth: 240,
+    paddingVertical: Spacing.x8,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    minHeight: TapTarget + Spacing.x8,
+    paddingHorizontal: Spacing.x16,
+  },
+  menuText: { flex: 1, gap: 1 },
 });

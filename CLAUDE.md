@@ -152,15 +152,25 @@ src/
                      (modal). Every `<ReportFlag>` in the app opens it
     profile/[id]     someone else's profile
     new-list, edit-list/[id], edit-profile (modals)
-    settings         the games hidden from Surprise Me, plus a link to the
-                     moderation queue for moderators. It was deliberately empty
-                     for a long time and the argument in its docblock still
-                     stands — nothing goes here until it works
+    settings         the games hidden from Surprise Me, a link to the
+                     moderation queue for moderators, and Sign out. Opened from
+                     the profile tab's bar. It was deliberately empty for a long
+                     time and the argument in its docblock still stands —
+                     nothing goes here until it works
+    quick-log        the profile's +: pick a game, then ?mode=review replaces
+                     this with the log form and ?mode=log raises the game
+                     page's progress sheet over it (modal)
     surprise         Surprise Me: one dealt game, one song from it
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
                      ui/frosted-top-bar a floating 44dp disc of glass holding the
                                         back chevron. Not a bar; see § Conventions
+                     app-tab-bar        the bottom navigation: SimpMusic's 64dp
+                                        capsule (Home, Search, News, Profile)
+                                        with a sliding 56dp indicator, floating
+                                        over the page. Tab screens pad their
+                                        scroll content by `useTabBarClearance()`
+                                        — a new tab screen must too
                      award-show / award-slot  an award ballot, and one row of it
                      game-filter-bar    genre / platform / studio / year pills
                      game-lineage       original game / editions & extras
@@ -232,6 +242,14 @@ src/
                      ui/expandable-text text in a card that opens in place, the
                                         window's height animating (the
                                         reference's DescriptionView)
+                     ui/dropdown-button SimpMusic's DropdownButton: an outlined
+                                        pill holding the current choice, and a
+                                        menu that opens *from* it (anchored,
+                                        computed, CSS keyframes). One option
+                                        draws a metadata chip instead
+                     game-platforms     the Overview's Platforms section: the
+                                        case (and its turn-over) for the chosen
+                                        platform, the dropdown, the price
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
@@ -383,8 +401,8 @@ work.** The game page briefly asked for the selected platform's own box front.
 `/grids/{platform}/{id}` takes *store* slugs — `steam`, `gog`, `egs`, `origin`,
 `eshop` — not console families, so `playstation` and `xbox` had no endpoint to
 resolve against and every console tap spent a request to fall back to the cover
-it already had. The switcher re-draws the case's spine, the price and the store
-link; the artwork is IGDB's.
+it already had. The switcher — the Overview's Platforms section — re-draws the
+case and the price; the artwork is IGDB's.
 
 Resolution is Steam appid, then a title search, because `games.source_id` is an
 IGDB id and SteamGridDB does not index IGDB; the title path is a string match and
@@ -651,9 +669,11 @@ Commons — only ever a verified public-domain or CC0 file:
   *selected control* carries two non-hue signals too — its wash is lighter than
   the resting fill and its edge far brighter than the resting edge.
 - **In-page tabs are pills, and there is one implementation.** `<TabBar>` is a
-  scrollable row of uppercase pills — the selected one takes the accent's wash
-  with its label in the accent, everything else is bare `textMuted` type on the
-  page. The News tab's dock is the same idea as a segmented capsule. No underline and no
+  scrollable row of uppercase pills at the reference's chip size (32 drawn, the
+  row 15 in) — the selected one takes the accent's wash with its label in the
+  accent, everything else is bare `textMuted` type on the page. News uses it
+  too: it had a segmented icon dock of its own (`ui/dock.tsx`, now unused) until
+  the owner asked for it to match the rest. No underline and no
   container hairline: a rule needs an edge to sit on, which read as a divider
   wherever the bar sat over artwork, and two pixels of it disappeared into a
   busy screenshot. Counts are **inline and neutral** (`ALL GAMES 135`); the red
@@ -739,18 +759,18 @@ Commons — only ever a verified public-domain or CC0 file:
   quiet line — "53" / "Songs played"), in **sentence case**: no uppercase,
   tracked micro-labels on a stat strip, a masthead fact or a notice. A row or a
   card in a list titles itself in `itemTitle` (13 semibold) with a `bodySmall`
-  line under it. Sections sit ~32dp apart with ~16dp from heading to content
-  (`<HomeSection>` uses `x24`); a card's inset is ~15dp. The game page's
+  line under it. Sections sit ~32dp apart (`x32`) with ~16dp from heading to
+  content (`<HomeSection>` uses `x16`, 15); a card's inset is ~15dp. The game page's
   sections are measured from SimpMusic's artist page instead, as fractions of
   the display — see the Overview bullet below. The studio page's banner is the worked example: the name, then the
   subject on the left (a bold figure over a quiet line) and one measurement on
-  the right (label over value). **The reference's 24dp side margin was not
-  adopted** — this app's 10dp margin is shared by every screen and its rails
-  bleed off the left edge; widening one screen would misalign it with its own
-  rails, and widening all of them is its own decision. **The game page's
-  Overview tab is that decision, taken for one tab**: its sections sit at the
-  artist page's 20 (to scale), rails included, so nothing inside it misaligns —
-  the step is at the tab bar, between the masthead's 10 and the sections.
+  the right (label over value). **The side margin is the reference's 15**
+  (`Spacing.x16`) — SimpMusic's Home, Library and every row use it; its
+  Analytics screen's 24 is that screen's own. It was 10 while the interface was
+  zoomed out, and it moved on every screen at once, rails included. **The game
+  page's Overview tab is the one exception**: its sections sit at the artist
+  page's 20 (to scale), rails included, so nothing inside it misaligns — the
+  step is at the tab bar, between the masthead's 15 and the sections.
 - **Ratings** are an integer 0-100 on `logs.rating`; `constants/score.ts` maps
   that to a verdict band ("Excellent", "Mixed") and a colour.
 - **`logs.rating` is the only score anything reads.** A reviewer can score by
@@ -809,38 +829,44 @@ Commons — only ever a verified public-domain or CC0 file:
   *under* each cover instead of beside it, and what left a suggestion card's
   byline, text and reasons flush against each other. Put a `<View>` with the
   layout inside the card.
-- **`Spacing.x*` names are step names, not dp values.** The ladder has been
-  compressed twice to scale the chrome down — `x16` is 10, `x24` is 15, `x48` is
-  30. Only `x4` still equals its name. Read the value in `constants/theme.ts`;
-  never infer it from the token name, and never "fix" a name to match its number.
-- **The interface was zoomed out ~8% (type) and ~17% (spacing from `x12` up),
-  together, on purpose.** The target was density — a review excerpt was getting
-  five lines before it ran out of card. `caption` and `label` held at the 10px
-  floor, which is why the type half is only 8%: tighten it again and it comes out
-  of `display` through `body`, never out of the floor. `Spacing.x4`/`x8` held for
-  the same kind of reason — they are the intervals *inside* a pair, where there
-  was no air to reclaim. **Artwork did not move**: see the next bullet, which is
-  the whole point of art not riding the ladder. The *controls* later grew back
-  on purpose, and only they, to the reference's sizes: 52dp buttons, 54dp
-  fields, `button` and `fieldText` at 13. Body copy, headings and spacing stayed
-  zoomed out.
+- **`Spacing.x*` names are step names.** Every step equals its name except
+  `x16`, which is the page margin and is 15, the reference's. Read the value in
+  `constants/theme.ts`; never infer it from the token name, and never "fix" a
+  name to match its number.
+- **Sizes are SimpMusic's, read from its code, at the owner's direction.** The
+  spacing ladder is 4 / 8 / 12 / 15 / 20 / 24 / 32 / 40 / 48 / 64 and `Type` is
+  the reference's `Typo.kt` one style per step (`h2` 20 is Home's shelf title,
+  `h4` 16 the artist page's section heading, `body` 13, `caption` 11). The
+  interface had been zoomed out ~8% (type) and ~17% (spacing) for density; that
+  was undone. The controls were already at the reference's sizes on the old
+  ladder (52dp buttons, 54dp fields, 15 inside a field) and were re-pointed so
+  they kept them — a control's padding is not a page's rhythm, so check what a
+  token resolves to before reusing it in one. `ControlHeight.small` is the
+  reference's 32dp chip, and `<TabBar>` is drawn at it. `h6` and `label` stay at
+  10: they are badges over art. **Artwork did not move**: see the next bullet,
+  which is the whole point of art not riding the ladder. Corner radii were left
+  alone — several were already the reference's (16 on a selection card, 18 on a
+  field) and art corners are this app's.
 - **A portrait is three across, and a row of games is the game page's
   franchise rail.** Every box-art grid is `PORTRAIT_COLUMNS` (3) wide — the
   collection, the studio, the library, and Search's results when their toolbar
   is flipped to the grid (the collection's own `<CollectionToolbar>`, given
   Search's sorts). At four a cover was ~84dp on a 360dp phone, a thumbnail of
   the box. Every *row* of games — Home's "Games for you" and "Releases", the
-  studio's three rails, Search's "Most popular", "Because you…" and "Highly
+  studio's three rails, Search's "Most popular", "Similar to…" and "Highly
   rated" — is `<GameCoverRail>`: the franchise and editions rail from the game
   page, covers at the album height of the owner's reference with the title in
   two held lines and one quiet line under it (year, studio or rank). It replaced
   three rails with three sizes — the 92dp poster rail, Home's captioned card
   rail and Search's scaling chart carousel. `inset` puts the first cover in line
-  with the heading on a screen that keeps the app's 10dp margin; `parallax` is
+  with the heading on a screen that keeps the app's 15dp margin; `parallax` is
   Home's drift, kept. The Steam library rail on a profile is still sized by
   `usePortraitWidth()`. The profile's four favourites stay four — a set, not a
   grid.
-- **Search has one "Because you…" rail, from the game you reviewed last.**
+- **Search has one "Similar to **<game>**" rail, from the game you reviewed
+  last.** The heading is `<HomeSection lead="Similar to" title={…}>` — the
+  title bold after a regular lead. It said "Because you loved/played …", split
+  on a score of 80, which guessed at a feeling the rail does not depend on.
   `recommendationSeed` (`lib/news/recommendations.ts`, pure and tested) picks
   the most recently written-about or scored IGDB log, falling back to the
   latest log, and the rail is `getSimilarTo` for that seed under the game page's
@@ -960,11 +986,12 @@ Commons — only ever a verified public-domain or CC0 file:
   reintroduce them. Right-hand controls go through the exported `<TopBarDisc>`
   so both ends of the row are the same object; an `<IconButton>` there would be an
   opaque circle beside one of frosted glass.
-  **Two screens carry no bar at all**: both profiles' owner tab and Home. Home
-  instead opens with an *in-flow* masthead row — wordmark, greeting, notification
-  bell, settings — which scrolls away with the content because a root tab has
-  nothing to go back to and a floating layer there would be reserving space for
-  two icons.
+  **Two screens carry no floating bar**: your own profile tab and Home. Home
+  opens with an *in-flow* masthead row — wordmark, greeting, notification bell —
+  which scrolls away with the content because a root tab has nothing to go back
+  to. The profile tab has a fixed row of its own, Instagram's: the + (quick log
+  or review, `quick-log`), your handle, and Settings, with the profile starting
+  `x32 + x4` under it — the distance Home's greeting sits under its masthead.
 - **The bar is a layer, not a surface.** Blur, then a scrim (22% on the disc,
   lighter than the old bar's 30% because it only has to carry one glyph), then
   the glyph — no `backgroundColor`, ever. It has nothing of its own to show; it softens
@@ -1055,7 +1082,7 @@ Commons — only ever a verified public-domain or CC0 file:
 - **The game page's Overview tab is SimpMusic's artist page, section for
   section** — read from `ArtistScreen.kt`, `AdapterItems.kt` and
   `DescriptionView.kt`, at the owner's direction. Every section is a heading on
-  the page (`h2`, the reference's 16sp bold) with its content under it, and
+  the page (`h4`, the reference's 16sp bold) with its content under it, and
   what the content is decides its shape:
   - **Pictures → a rail, no card.** Screenshots, Featured in (events), Original
     game, Editions & extras and the franchise are `<Section>` + `<ArtRail>`
@@ -1063,6 +1090,16 @@ Commons — only ever a verified public-domain or CC0 file:
     open, one quiet line — the reference's "Singles" / "Albums". Covers are 2:3
     at the albums' height; 16:9 art is at its videos' height. The art keeps the
     app's `Radius.image`: the rails are SimpMusic's, the boxes are this app's.
+  - **The object → on the page.** Platforms (`<GamePlatforms>`) is the one
+    section that is neither: the game's box on the left — the console case for
+    the chosen platform, which turns over to your record — and beside it the
+    title, "is available on …", the platform `<DropdownButton>` and the price.
+    No card, because its subject is an object, and the case casts its own
+    shadow. **The case lives here, not in the masthead**: the masthead shows
+    the plain cover, still (`PLAIN_COVER`), and has no gesture and no price.
+    The section opens on the platform you logged, else the first with a case,
+    else the first; its art slot reserves the tallest shape the game can show
+    so switching PS5 → PC does not move the page.
   - **Words and figures → a card.** About, Where to buy, Your copy, Reviews,
     Time to beat, Developers, Additional information and Achievements are
     `<InfoCard>` (read) or `<InfoCardButton>` (a door, whose heading carries the
@@ -1269,6 +1306,24 @@ Port snippets that way rather than installing DOM libraries — `motion` and
 
 ## Gotchas
 
+- **An animated style's end value can be lost; commit the end state as a plain
+  style.** Reanimated keeps an animated style's *first-render* value as the
+  view's React props (`PropsFilter` snapshots it once). Later values live in its
+  props registry, and 4.x hands a settled value back to React from a 500ms JS
+  interval — but the native side deletes entries over 2s old *before* returning
+  those over 1s old, so a JS stall of more than a second while something settles
+  drops the end value, and the next re-render shows the first frame again. On the
+  game page that was the review button and the action keys vanishing (opacity 0)
+  and the case frozen mid-fall. `useLandingArrival` reports `landed` in React
+  state so the caller adds the landed pose after the animated style (see
+  `game-actions.tsx`'s `Arriving` and `game-case-flip.tsx`). `<SlideUpSheet>`
+  does the same with its own `settled` flag — the quick-log progress sheet was
+  sliding off-screen a second after it opened, when its data arrived and
+  re-rendered it. Anything whose first frame differs from its resting state is
+  exposed the same way; a slide between
+  React-known positions (the tab bar's indicator) uses a Reanimated CSS
+  transition instead, whose target is a React prop. The real fix is the static
+  flag `FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS`, which Expo Go cannot change.
 - **Skia works in Expo Go, but only at the pinned version.** `@shopify/react-native-skia`
   is bundled with Expo Go for SDK 57 at exactly 2.6.2, which is what
   `package.json` holds. Install it with `npx expo install`, never a bare

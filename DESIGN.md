@@ -104,46 +104,49 @@ colors:
   backgroundElement: "#202020"
   backgroundSelected: "#2A2A2A"
 typography:
-  # The whole scale was zoomed out ~8% alongside the spacing ladder. `caption`
-  # and `label` held at the 10px floor and are the reason it is only 8% — every
-  # other step lost a point or two. If it is tightened again it comes out of
-  # `display` through `body`, never out of the floor.
+  # SimpMusic's sizes (`Typo.kt`), one style per step: display = titleLarge 25,
+  # h1 = headlineLarge 23, h2 = headlineMedium 20 (Home's shelf titles), h3 =
+  # titleMedium 18, h4 = labelMedium 16 (the artist page's section headings),
+  # h5 = labelSmall 14 (a chip's word), body = bodyMedium 13, bodySmall 11, and
+  # caption 11 — the reference reads nothing smaller. `h6` and `label` stay at
+  # 10: they are badges. The scale had been zoomed out ~8%; it came back up with
+  # the spacing ladder. Weights are this app's.
   # `caseTitle` / `caseEdition` are pinned and did not move: see § 2.3.
   display:
     fontFamily: "Inter_700Bold"
-    fontSize: "24px"
+    fontSize: "25px"
     fontWeight: 700
-    lineHeight: "29px"
-    letterSpacing: "-0.52px"
+    lineHeight: "30px"
+    letterSpacing: "-0.55px"
   h1:
     fontFamily: "Inter_700Bold"
-    fontSize: "21px"
+    fontSize: "23px"
     fontWeight: 700
-    lineHeight: "26px"
-    letterSpacing: "-0.35px"
+    lineHeight: "28px"
+    letterSpacing: "-0.39px"
   h2:
     fontFamily: "Inter_700Bold"
-    fontSize: "17px"
+    fontSize: "20px"
     fontWeight: 700
-    lineHeight: "21px"
-    letterSpacing: "-0.19px"
+    lineHeight: "25px"
+    letterSpacing: "-0.22px"
   h3:
     fontFamily: "Inter_700Bold"
-    fontSize: "15px"
+    fontSize: "18px"
     fontWeight: 700
-    lineHeight: "20px"
+    lineHeight: "23px"
     letterSpacing: "0"
   h4:
     fontFamily: "Inter_700Bold"
-    fontSize: "13px"
+    fontSize: "16px"
     fontWeight: 700
-    lineHeight: "18px"
+    lineHeight: "21px"
     letterSpacing: "0"
   h5:
     fontFamily: "Inter_700Bold"
-    fontSize: "12px"
+    fontSize: "14px"
     fontWeight: 700
-    lineHeight: "17px"
+    lineHeight: "19px"
     letterSpacing: "0"
   h6:
     fontFamily: "Inter_700Bold"
@@ -153,9 +156,9 @@ typography:
     letterSpacing: "0.22px"
   body:
     fontFamily: "Inter_400Regular"
-    fontSize: "12px"
+    fontSize: "13px"
     fontWeight: 400
-    lineHeight: "18px"
+    lineHeight: "19px"
     letterSpacing: "0"
   prose:
     fontFamily: "Inter_400Regular"
@@ -171,9 +174,9 @@ typography:
     letterSpacing: "0"
   caption:
     fontFamily: "Inter_400Regular"
-    fontSize: "10px"
+    fontSize: "11px"
     fontWeight: 400
-    lineHeight: "13px"
+    lineHeight: "14px"
     letterSpacing: "0.2px"
   label:
     fontFamily: "Inter_500Medium"
@@ -285,27 +288,28 @@ typography:
     fontWeight: 600
     lineHeight: "18px"
 spacing:
-  # STEP NAMES, NOT DP VALUES. The ladder has been compressed twice to scale the
-  # chrome down and the names were deliberately left alone: `x16` is 10, `x24`
-  # is 15, `x48` is 30. Only `x4` still equals its name. Read the value, never
-  # infer it from the token name, and never "fix" a name to match its number.
+  # STEP NAMES. `x16` is the page margin and is 15, SimpMusic's, not 16; every
+  # other step equals its name. Read the value, never infer it from the name.
   #
-  # The second pass took ~17% off every step from `x12` up — the spacing half of
-  # a deliberate zoom-out of the whole interface (see `typography`). `x4` and
-  # `x8` held: they are the intervals *inside* a pair, where there was no air to
-  # reclaim, and below ~6 a gap stops reading as a gap.
+  # SimpMusic's ladder, from its code: 4 between chips, 8 between a list's items,
+  # 12 from a thumbnail to its text, 15 at the side of every page, 24 for a
+  # setting's inset, 32 between sections, 48 at the foot of a scroll. The ladder
+  # had been compressed twice (the margin was 10, a band's gap 40) to zoom the
+  # chrome out; at the owner's direction it now takes the reference's numbers,
+  # and the controls that were sized to the reference on the old ladder were
+  # re-pointed so they kept their sizes.
   x4: "4px"
-  x8: "6px"
-  x12: "8px"
-  x16: "10px"
-  x20: "13px"
-  x24: "15px"
-  x32: "20px"
-  x40: "25px"
-  x48: "30px"
-  # The top of the ladder. It exists for a single job: the gap *between* Home's
-  # sections, and it keeps a clear margin over `x48` so that reads.
-  x64: "40px"
+  x8: "8px"
+  x12: "12px"
+  x16: "15px"
+  x20: "20px"
+  x24: "24px"
+  # Between one band of a page and the next.
+  x32: "32px"
+  x40: "40px"
+  x48: "48px"
+  # Under a form whose footer is pinned over it.
+  x64: "64px"
 rounded:
   # Two regimes: interface is large and soft; artwork keeps small corners.
   none: "0px"
@@ -368,7 +372,7 @@ layout:
   # small controls are spaced by exactly the two slops (`SmallControlRowGap`)
   # so their touch boxes tile rather than overlap.
   # The reference's: a button is 52 and a field 54.
-  controlHeight: { small: "36px", medium: "52px", field: "54px", large: "60px" }
+  controlHeight: { small: "32px", medium: "52px", field: "54px", large: "60px" }
   posterAspectRatio: "2:3"
   heroAspectRatio: "16:9"
   heroHeightRatio: 0.38
@@ -497,10 +501,16 @@ components:
     selectedBackground: "accent wash"
     selectedText: "accent"
     text: "{colors.textMuted}"
+  # SimpMusic's bar: a capsule of tabs floating over the page.
   bottom-nav:
-    backgroundColor: "{colors.surface}"
-    borderTop: "hairline {colors.border}"
-    height: "58px"
+    backgroundColor: "none — the page shows around the capsule"
+    capsuleColor: "{colors.surface}"
+    indicatorColor: "{colors.surfaceSelected}"
+    height: "64px"
+    indicatorHeight: "56px"
+    capsuleInset: "6px"
+    maxTabWidth: "96px"
+    padding: "4px 16px 8px"
     maxItems: 5
     selectedColor: "{colors.primaryText}"
     unselectedColor: "{colors.textMuted}"
@@ -892,7 +902,7 @@ the studio page, the game page's stats and cards, the collection rows.
   `bodySmall` line under them — a game in a collection, a collection in a list,
   a search result.
 - **Sections breathe.** ~32dp between sections, ~16dp from a heading to what it
-  heads (`<HomeSection>`: `x24`), ~15dp inside a card. The game page's sections
+  heads (`<HomeSection>`: `x16`, 15), ~15dp inside a card. The game page's sections
   are measured from the reference's artist page instead (§ 14).
 - **A header over artwork** puts the title first, then a row: the subject on the
   left (a bold figure over a quiet line) and one measurement on the right,
@@ -902,9 +912,10 @@ the studio page, the game page's stats and cards, the collection rows.
   figures ("13 min", "+15%") in its seed colour; here a *score* keeps its own
   ramp (`scoreColor`), because a blue 55 reads as endorsed.
 
-The reference's 24dp side margin was **not** adopted: this app's 10dp margin is
-shared by every screen and its rails bleed off the left edge, so widening one
-screen would misalign it with its own rails.
+The side margin is the reference's **15**, the one SimpMusic's Home, Library and
+every row of it use (its Analytics screen's 24 is that screen's own). It was 10
+while the interface was zoomed out, and it moved on every screen at once —
+widening one would misalign it with its own rails.
 
 ---
 
@@ -912,17 +923,16 @@ screen would misalign it with its own rails.
 
 ## 3.1 The ladder
 
-**8-point spacing**, named for the value: `Spacing.x16` is sixteen pixels. The
-ladder is fixed — 4, 8, 12, 16, 20, 24, 32, 40, 48 — and a gap that is not on it
-is a bug rather than a decision.
+**SimpMusic's spacing**, read from its code, on Material's 4dp grid. The ladder
+is fixed — 4, 8, 12, 15, 20, 24, 32, 40, 48, 64 — and a gap that is not on it is
+a bug rather than a decision. `Spacing.x16` is the one step that is not its own
+name: it is the page margin, and the reference's margin is 15.
 
-- Outer page padding: **16**
-- Card padding: **16**
-- Between sections: **24** — except Home, which uses **48** (`Spacing.x64`).
-  Home stacks unrelated bands rather than sections of one document, and at 24
-  the gap between two bands was barely larger than the gap between a heading and
-  its own rail. The interval separating bands has to be unmistakably bigger than
-  any interval inside one.
+- Outer page padding: **15** (`x16`)
+- Card padding: **15** (`x16`)
+- Between sections and between Home's bands: **32** (`x32`), against 15 from a
+  heading to its content. The interval separating bands has to be unmistakably
+  bigger than any interval inside one.
 - Scroll tails end in **48**
 
 **One sanctioned exception: the hairline gap.** A `gap` of `1` or `2` between a
@@ -947,7 +957,7 @@ Screen
 │   ├── poster rail        (horizontal FlatList)
 │   └── poster grid
 │
-└── Bottom tab bar: 68
+└── Bottom tab bar: 4 + 64 capsule + 8
 ```
 
 **Heroes bleed.** A screen that opens on artwork — a game, a collection, a
@@ -1014,7 +1024,8 @@ from. Everything else uses the surface-step model in § 6.
 
 The case appears on:
 
-* A game's own page (the masthead).
+* A game's own page — the Platforms section of its Overview tab (§ 14.1).
+  The masthead shows the plain cover.
 * The log form.
 * A review masthead.
 * Future collection / shelf screens.
@@ -1453,19 +1464,34 @@ Page title: `h1` variant, 28 / 34, bold.
 
 # 8. Bottom Navigation
 
-Five tabs, maximum: home, search, create, notifications, profile.
+Four destinations — Home, Search, News, Profile — in one capsule: SimpMusic's
+bar (`AppBottomNavigationBar.kt`) at its dimensions, drawn by `<AppTabBar>`.
+SimpMusic puts Search in a circle of its own; that was tried and taken back, so
+the four stay one set in their own order.
 
 ```ts
-backgroundColor: theme.surface,   // #141317
-borderTopWidth: StyleSheet.hairlineWidth,
-borderTopColor: theme.border,
-height: 58 + insets.bottom,
+capsule:   64 tall, fully round, 6 in at its ends, theme.surface
+indicator: 56 tall, one tab wide, theme.surfaceSelected — slides to the tab
+tab:       as wide as the capsule allows, at most 96; glyph 24 over bodySmall
+bar:       16 at the sides, 4 above, 8 above the system inset, over the page
 ```
+
+**It floats.** The bar is drawn over the page with nothing behind the capsule,
+so a tab's content runs under it and under the system's navigation keys to the
+bottom of the display. Every tab screen pads its scroll content by
+`useTabBarClearance()`. Android's own navigation bar is transparent:
+expo-navigation-bar's `enforceContrast: false` removes the system's scrim in a
+real build (Expo Go applies no config plugins). On Android the bar steps aside
+while the keyboard is up, because the window resizes and it would sit on it.
+
+The indicator slides by a CSS transition, so its resting place is a React prop
+and cannot be lost to a stalled JS thread the way an animated style's end value
+can (see `useLandingArrival`).
 
 Icons above labels — labels shown, not hidden, because an icon-only bar asks
 every new user to guess what a newspaper glyph leads to. Selected is the house
-blue (`primaryText`) on both glyph and label; unselected is `textMuted`. It never
-takes a game's colour. Separated by tone and a hairline, not a shadow.
+blue (`primaryText`) on both glyph and label; unselected is `textMuted`. It
+never takes a game's colour. Separated by tone, not a hairline or a shadow.
 
 Five is the ceiling. A sixth destination means something belongs one level down.
 
@@ -1507,7 +1533,8 @@ object for every action; the variants change the label, not the object:
   `borderStrong` edge, a dimmed label. Told apart by shape as well as by
   brightness, never by opacity alone.
 
-36dp when small (touched at the floor through slop), 60dp when large. Held, the
+32dp when small — the reference's chip — touched at the floor through slop,
+60dp when large. Held, the
 fill brightens to `controlPressed` and the pill sinks 3% (`PressableScale`'s
 `pressedColor`, eased on the UI thread). Focused from a keyboard, a 3dp ring in
 `accent.ring`. Loading keeps the pill and swaps the label for a spinner without
@@ -1554,8 +1581,10 @@ the resting one, so a choice survives colour blindness and greyscale.
   meet across the gap, so touch boxes tile and never overlap.
 - **Checkboxes** — `<Checkbox>`, 20dp: an empty rounded square in `borderStrong`,
   or the accent's fill with its ink's check. The row around it is the control.
-- **Tabs** — pills; the selected one takes the accent's wash and its label goes
-  to the accent. `<TabBar>` and the News dock (a segmented capsule) both.
+- **Tabs** — pills at the reference's chip size (32 drawn, 16 at the sides, 4
+  apart, the row 15 in); the selected one takes the accent's wash and its label
+  goes to the accent. `<TabBar>` is every in-page tab row, News's included — it
+  had a segmented icon dock of its own until it was brought into line.
 
 ## 9.5 Sheets, dialogs and menus
 
@@ -1615,19 +1644,20 @@ leaves a grey bruise mid-ramp.
 
 # 14. Game Page
 
-The masthead: full-bleed hero art with a heavy blur ramp, the **physical case**
-(§ 4.1) overlapping it on the left, and the game's identity — title, price,
-release date, developer, publisher, platform buttons — on the right. Actions run
-full width beneath both columns. About, soundtrack, achievements, franchise and
-screenshots follow in tabs.
+The masthead: full-bleed hero art with a heavy blur ramp, the game's **plain
+cover** overlapping it on the left — landing on arrival, with nothing to press —
+and the game's identity — title, release date, developer, publisher, community
+score — on the right. Actions run full width beneath both columns. The tabs
+follow; the **physical case** (§ 4.1) is in the Overview's Platforms section
+(§ 14.1), beside the control that chooses which platform's case it is.
 
 ```text
 ┌──────────────────────────────────────────┐
 │               HERO (0.38h)               │
 │  ┌──────┐                                │
-│  │ CASE │   TITLE                        │
-│  │      │   metadata · developer         │
-│  └──────┘   platform buttons             │
+│  │COVER │   TITLE                        │
+│  │      │   date · developer · publisher │
+│  └──────┘   community score              │
 ├──────────────────────────────────────────┤
 │  actions (full width)                    │
 ├──────────────────────────────────────────┤
@@ -1656,6 +1686,12 @@ About                               Details
 │ Five lines of synopsis…              │    ← the description card
 │ More                                 │    ← opens in place, animated
 └──────────────────────────────────────┘
+Platforms
+┌──────┐  Title                            ← no card: the subject is an object
+│ CASE │  is available on PS5, Xbox,
+│      │  PC and 2 more
+│      │  ( ◉ PS5  ⌄ )                     ← the dropdown, outlined (§ 9.4)
+└──────┘  $59.99
 Editions & extras
 [cover][cover][cover][co…                  ← 2:3 at the album height
 Title   Title   Title
@@ -1667,6 +1703,16 @@ Title   Title   Title
   (`useSectionMetrics`). Inset 20, heading row 40, items 20 apart, card 8 in the
   corner and 16 in. Type stays on the scale — `h2` headings, `itemTitle` over
   `bodySmall` under the art, `body` in a card.
+- **Platforms** is the one section that is neither a rail nor a card: the box
+  for the chosen platform — the case, which turns over to your record, or the
+  plain cover where there is no case — at the masthead's width, beside the
+  title, a sentence naming up to three platforms, the platform button and the
+  price. The button is SimpMusic's `DropdownButton` (its Home's chart country):
+  an outlined 40dp pill with the platform's glyph, its short name and a chevron
+  that turns while open; the menu opens from it — anchored to its left edge,
+  below or above, `Radius.sheet`, `Elevation.overlay`, rows with the full name
+  and the selected state of § 9.4 plus a check. One platform is a fact, drawn
+  as a metadata chip (§ 12), never a one-row menu.
 - **The card** is filled with the game's `primaryContainer` at half brightness —
   the reference halves Palette's dark-vibrant swatch — with `Elevation.card`.
   Every ink on it clears AA: `textSecondary` 6.4:1, `controlInk` 10.5:1.
@@ -2052,6 +2098,6 @@ room — visible only while a cover is loading or where a game has none.
 | 2 | The accent is **PlayStation blue** `#0070CC` (lavender was tried and reverted) and the page a near-black `#0B0A0D`, both by owner decision in the control migration (below). The cool `#14171b` is retired. | Decided. |
 | 7 | The surface ladder shares the page's hue and its steps are slightly wider than before (1.068 / 1.070 / 1.100). | Resolved. |
 | 3 | `MaxContentWidth` is 800 and the layout is phone-first single-column. There is no desktop grid. | By design. |
-| 4 | Component geometry: 48 buttons and fields (36 small, 60 large), 34 chips, 48 search pill, 58 tab bar, 44/48 tap target. | Current. |
+| 4 | Component geometry, SimpMusic's: 52 buttons (32 small, 60 large), 54 fields, 56 search bar, 32 chips and tabs, a 64 tab-bar capsule floating over the page, 44/48 tap target. | Current. |
 | 5 | `game-disc.tsx` is protected, so its stray colour literals and its two bare `'transparent'` gradient stops were left alone. Those stops are the Android black-bruise bug this document warns about in § 1.5. | Knowingly deferred. |
 | 6 | Regenerate `.impeccable/design.json` after any frontmatter change. No hook enforces it. | Manual. |

@@ -112,25 +112,26 @@ export function ChoiceChips<T extends string>({
 
 const styles = StyleSheet.create({
   field: { gap: Spacing.x12 },
-  /* Columns `x12` (8), Material's floor between touch targets. Rows exactly the
+  /* Columns `x8` (8), Material's floor between touch targets. Rows exactly the
      two slops that meet across the gap, so wrapped rows' touch boxes tile
      without overlapping — see `SmallControlRowGap`. */
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: Spacing.x12,
+    columnGap: Spacing.x8,
     rowGap: SmallControlRowGap,
   },
-  /* The reference's 14 between options (`x20`, 13). */
-  cards: { gap: Spacing.x20 },
-  /* Drawn at 36 and touched at the floor through `SmallControlSlop`. */
+  /* The reference's 14 between options (`x16`, 15). */
+  cards: { gap: Spacing.x16 },
+  /* The reference's chip: 32 drawn, 16 at the sides, touched at the floor
+     through `SmallControlSlop`. */
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.x8,
     minHeight: ControlHeight.small,
-    paddingHorizontal: Spacing.x24,
+    paddingHorizontal: Spacing.x16,
     paddingVertical: Spacing.x4,
     borderRadius: Radius.pill,
     borderWidth: 1,

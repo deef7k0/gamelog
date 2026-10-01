@@ -120,16 +120,16 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.x20,
-    padding: Spacing.x24,
+    gap: Spacing.x12,
+    padding: Spacing.x16,
     borderRadius: Radius.card,
     borderWidth: 1,
   },
   /* A picker row: a line of text, a smaller circle, still past the tap floor. */
   compact: {
     minHeight: TapTarget + Spacing.x8,
-    paddingVertical: Spacing.x12,
-    gap: Spacing.x16,
+    paddingVertical: Spacing.x8,
+    gap: Spacing.x12,
   },
   text: { flex: 1, gap: 3 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },

@@ -18,7 +18,7 @@ describe('recommendationSeed', () => {
       log({ game_id: 'igdb:2', rating: 70, updated_at: '2026-09-01T00:00:00Z' }),
     ]);
     assert.equal(seed?.gameId, 'igdb:2');
-    assert.equal(seed?.heading, 'Because you played igdb:2');
+    assert.equal(seed?.heading, 'Similar to igdb:2');
   });
 
   it('counts writing without a score as a review', () => {
@@ -35,8 +35,7 @@ describe('recommendationSeed', () => {
       log({ game_id: 'igdb:2', updated_at: '2026-05-01T00:00:00Z' }),
     ]);
     assert.equal(seed?.gameId, 'igdb:1');
-    assert.equal(seed?.reason, 'loved');
-    assert.equal(seed?.heading, 'Because you loved igdb:1');
+    assert.equal(seed?.heading, 'Similar to igdb:1');
   });
 
   it('falls back to the latest logged game when nothing is reviewed', () => {

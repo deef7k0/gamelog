@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'stretch',
     gap: Spacing.x4,
-    paddingHorizontal: Spacing.x20,
+    paddingHorizontal: Spacing.x16,
     maxWidth: 180,
   },
   pillClear: {

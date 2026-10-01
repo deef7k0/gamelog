@@ -2,15 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { memo, useCallback, useMemo, useState, useSyncExternalStore } from 'react';
-import { Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import * as Haptics from 'expo-haptics';
-import { runOnJS } from 'react-native-reanimated';
+import { memo, useCallback, useState, useSyncExternalStore } from 'react';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
-import { GamePrice, PlatformPicker } from '@/components/game-availability';
 import { caseHeightFor } from '@/components/game-case';
 import { GameCaseFlip } from '@/components/game-case-flip';
 import { GameDetailsSheet } from '@/components/game-details-sheet';
@@ -18,6 +14,7 @@ import { GameEventsWidget, TimeToBeatWidget } from '@/components/game-insights';
 import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
 import { GameListsSheet } from '@/components/game-lists-sheet';
+import { GamePlatforms } from '@/components/game-platforms';
 import { GameCoverRail } from '@/components/game-rail';
 import { CommunitySimilarCard, CommunitySimilarSheet } from '@/components/community-similar';
 import { GameStatsStrip } from '@/components/game-stats-strip';
@@ -42,7 +39,8 @@ import { Text } from '@/components/ui/text';
 import { editionLabel } from '@/constants/game-editions';
 import { copyStateLine, releaseLine } from '@/constants/physical';
 import { scoreColor } from '@/constants/score';
-import { platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
+import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
+import { platformKeyForStored } from '@/constants/platform-family';
 import { Radius, Spacing } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
@@ -73,8 +71,8 @@ const TABS = [
 /**
  * The case, sized against the screen rather than a fixed width.
  *
- * 38% leaves the remaining ~55% of the column for the title, the price and the
- * platform buttons beside it. Everything on this page is a ratio of the window
+ * 38% leaves the remaining ~55% of the column for the title and the billing
+ * beside it. Everything on this page is a ratio of the window
  * for the same reason: the masthead is a *proportion* — art this wide, copy
  * that wide, this much overlap — and a fixed number would make the same
  * composition read as two different designs on a phone and a tablet.
@@ -129,15 +127,21 @@ const STUDIO_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
  * The case, memoised from the outside.
  *
  * `<GameCaseFlip>` is protected and is not edited; wrapping it here is the
- * page's business. Its props are the game's own fields, the chosen platform and
- * the log — all stable references between renders — so a page update that
- * changes none of them (a query landing for another section, the synopsis
- * opening) no longer re-renders the case and its animated transform.
+ * page's business. Its props are the game's own fields and constants — all
+ * stable references between renders — so a page update that changes none of
+ * them (a query landing for another section, the synopsis opening) no longer
+ * re-renders the cover and its animated transform.
  */
 const CaseFlip = memo(GameCaseFlip);
 
-/** The five sheets this page raises. */
-type SheetName = 'reviews' | 'similar' | 'lists' | 'progress' | 'platforms';
+/**
+ * A platform with no case, so the masthead's `<GameCaseFlip>` draws the plain
+ * cover — and, having no back to show, does not turn. See the masthead.
+ */
+const PLAIN_COVER: PlatformKey = 'other';
+
+/** The four sheets this page raises. */
+type SheetName = 'reviews' | 'similar' | 'lists' | 'progress';
 
 /**
  * Which sheet is open, held outside React state so that opening one re-renders
@@ -185,7 +189,7 @@ export default function GameDetailScreen() {
    * The sheets keep their own open / closed state, in `<GameSheets>`.
    *
    * It used to be five `useState`s on this component, so raising the reviews
-   * sheet — or the progress sheet, or the platform picker — re-rendered this
+   * sheet — or the progress sheet, or the platform picker it once had — re-rendered this
    * entire page, masthead and tab included, just to flip one flag; and it did it
    * again on the way down. Held in a small store the sheets subscribe to,
    * opening one renders the sheet and nothing else. The openers below are
@@ -197,23 +201,15 @@ export default function GameDetailScreen() {
   const openLists = useCallback(() => sheets.set('lists'), [sheets]);
   const openProgress = useCallback(() => sheets.set('progress'), [sheets]);
 
-  /** Raised by the hold on the case. Separate so the worklet has a plain
-      function to `runOnJS` rather than a closure rebuilt every render. */
-  const openPlatforms = useCallback(() => {
-    sheets.set('platforms');
-    if (Platform.OS !== 'web') {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    }
-  }, [sheets]);
   const queryClient = useQueryClient();
 
   /*
    * One platform selection for the whole page.
    *
-   * The artwork, the price and the store link are three views of the same
-   * choice, so the choice lives here rather than inside any of them. `null`
-   * means "not chosen yet" and defers to the game's own priority order, which
-   * cannot be computed until the detail query resolves.
+   * The Platforms section's box and its price are two views of the same
+   * choice, so the choice lives here rather than inside either. `null` means
+   * "not chosen yet" and defers to `defaultPlatform` below, which cannot be
+   * computed until the detail query resolves.
    */
   const [platform, setPlatform] = useState<PlatformKey | null>(null);
 
@@ -348,49 +344,31 @@ export default function GameDetailScreen() {
      than the single accent hue — one query, served from cache on both calls. */
 
   /*
-   * Which platform's edition is on screen.
-   *
-   * Resolved from the game's platform list, which `platformKeysFor` returns in
-   * `PLATFORM_PRIORITY` order — PC first, so a multiplatform release opens on
-   * the bare portrait cover rather than inside a console case.
+   * Which platform's box the Platforms section shows, and prices.
    *
    * The artwork does **not** change with this selection. A SteamGridDB lookup
    * for per-platform box fronts lived here and has been removed: SteamGridDB's
    * `/grids/{platform}/{id}` slugs are *stores* — steam, gog, egs, eshop — not
    * console families, so `playstation` and `xbox` were never going to resolve
    * and the query spent a request per tap to fall back to the cover it already
-   * had. The switcher still re-draws the case's spine, the price and the store
-   * link, which is what it was always for.
+   * had. The switcher re-draws the case and the price, which is what it was
+   * always for.
+   *
+   * **It opens on a case, not on PC.** `platformKeysFor` returns the game's
+   * platforms in `PLATFORM_PRIORITY` order, PC first — right for a list, wrong
+   * for a default here: the section's box would be the same plain cover the
+   * masthead already shows, and the one thing the section is for would be one
+   * tap away. So: the platform you logged it on, else the first that comes in a
+   * case (PS5, Xbox, Switch, PS4), else the first there is.
    */
   const availablePlatforms = platformKeysFor(game.data?.platforms);
+  const playedOn = platformKeyForStored(myLog.data?.played_on);
+  const defaultPlatform: PlatformKey | undefined =
+    (playedOn && availablePlatforms.includes(playedOn) ? playedOn : undefined) ??
+    availablePlatforms.find(hasCase) ??
+    availablePlatforms[0];
   const activePlatform =
-    platform && availablePlatforms.includes(platform) ? platform : availablePlatforms[0];
-
-  /*
-   * Hold the case to open the platform picker.
-   *
-   * `enabled` on the count rather than skipping the detector: a `<GestureDetector>`
-   * whose gesture is disabled is inert and still lets every touch through, so the
-   * flip and the tap behave identically on a single-platform game. Mounting it
-   * conditionally would instead swap the view tree under the case and cost it its
-   * arrival animation on any game that gains a platform mid-session.
-   *
-   * The haptic fires from the worklet thread via `runOnJS` — `Gesture` callbacks
-   * are worklets, and calling into Expo's native module directly from one is the
-   * crash this indirection exists to prevent. Fire-and-forget, because a missing
-   * Taptic engine must never take the gesture down with it.
-   */
-  const caseHold = useMemo(
-    () =>
-      Gesture.LongPress()
-        .enabled(availablePlatforms.length > 1)
-        .minDuration(400)
-        .onStart(() => {
-          'worklet';
-          runOnJS(openPlatforms)();
-        }),
-    [availablePlatforms.length, openPlatforms]
-  );
+    platform && availablePlatforms.includes(platform) ? platform : defaultPlatform;
 
   if (game.isLoading) {
     return (
@@ -475,51 +453,46 @@ export default function GameDetailScreen() {
           and centred, this block was two full screens before the first review;
           side by side it is one. */}
       <View style={[styles.identity, { marginTop: -caseOverlap }]}>
-        {/* The badge the case was missing on its own page.
-
-            Every 92dp poster in a franchise rail is stamped "Remake" by
-            `<Poster edition>`, and the 148dp case on that remake's own page —
-            the largest, most deliberate rendering of the same fact — was the
-            one place the app knew and did not say. `GameCaseDisplay` has taken
-            the prop since it was written; nothing was passing it.
-
-            Wrapped rather than replaced: `<GameCaseFlip>` lands the case on
-            arrival and turns it over to the record on a drag or a tap. The front
-            is still exactly this component, drawn by the same protected
-            `<GameCase>`; the wrapper contributes only the rotation the `tilt`
-            prop was written to receive. */}
         {/*
-          Hold the case to change which edition it is.
+          Always the plain cover, and still.
 
-          The picker used to be a row of up to seven buttons under the masthead,
-          which spent two lines of the page's most valuable space on a control
-          most readers set once or never. It is a sheet now, and the case itself
-          is the affordance — you press the object you want to re-draw.
+          The case moved to the Overview's Platforms section, with the platform
+          button beside it and the turn-over that shows your record on its back
+          — choosing a platform up here, by holding the box, was a gesture
+          nobody could see. The masthead says *which game*; the section says
+          *which box*. So this is the cover as the game is billed, landing on
+          arrival as it always has, with nothing to press.
 
-          ## Why the gesture is here and not inside `<GameCaseFlip>`
+          `PLAIN_COVER` is a platform with no case, which is how the protected
+          `<GameCaseFlip>` is asked for the bare cover — and it would announce
+          that key by name. The label is the page's, set outside it, and the
+          object inside is hidden from assistive tech so it is read once.
 
-          That component owns the drag-to-turn, and it wraps the protected
-          `<GameCase>`. Composing a long press *around* it keeps both untouched
-          and lets RNGH arbitrate naturally: a hold that does not move raises the
-          sheet, and any real horizontal travel is a flip, because movement
-          cancels a long press before it fires. The two never both win.
-
-          Guarded on there being a choice to make — one platform means the hold
-          does nothing, which is better than a sheet with a single row in it.
+          The edition band ("Remake", "Definitive Edition") is printed by the
+          case, so it is on the box in Platforms; a plain cover never carried it.
         */}
-        <GestureDetector gesture={caseHold}>
-          <View accessible={false}>
+        <View
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={[
+            data.title,
+            data.edition ? editionLabel(data.edition) : null,
+            'cover art',
+          ]
+            .filter(Boolean)
+            .join(', ')}>
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <CaseFlip
               coverUrl={data.coverUrl}
               heroUrl={data.heroUrl}
               title={data.title}
               edition={data.edition ? editionLabel(data.edition) : null}
-              platform={activePlatform}
+              platform={PLAIN_COVER}
               width={caseWidth}
-              log={logged ?? null}
+              log={null}
             />
           </View>
-        </GestureDetector>
+        </View>
 
         {/*
           One step up the scale, all the way down this column.
@@ -580,25 +553,6 @@ export default function GameDetailScreen() {
               </Text>
             </View>
           )}
-
-          {/* The price sits with the game's other facts, directly under what
-              everyone else thinks of it — "what is this and what does it cost"
-              read as one column beside the object itself.
-
-              It ran full width below the case for a while, grouped with the
-              platform buttons on the argument that the two are one control. The
-              argument still holds for the *buttons*, which stay below: they
-              re-draw the case, the price and the store link together, and seven
-              of them need the full width to wrap in two rows instead of three.
-              The price itself is a fact, not a control, so it belongs up here —
-              at the cost of a narrower column, which is why the store link
-              under it truncates rather than wraps. */}
-          <GamePrice
-            gameId={data.id}
-            selected={activePlatform}
-            title={data.title}
-            steamAppId={data.steamAppId}
-          />
         </View>
       </View>
 
@@ -865,6 +819,25 @@ export default function GameDetailScreen() {
                   </Text>
                 )}
               </InfoCard>
+
+              {/*
+                Platforms: which machines it is on, and the box on each — the
+                case, its turn-over and its price, beside the platform button
+                that changes all three. After About, because what the game is
+                comes before which box to get; before Where to buy, because which
+                box comes before which shop. On the page and not in a card: it
+                is the one section here whose subject is an object.
+              */}
+              {activePlatform && (
+                <GamePlatforms
+                  game={data}
+                  log={logged ?? null}
+                  platforms={availablePlatforms}
+                  selected={activePlatform}
+                  onSelect={setPlatform}
+                  artWidth={caseWidth}
+                />
+              )}
 
               {/* Below About, not above it: the price is the next question for
                   a reader who has decided, and the synopsis is how anyone else
@@ -1150,14 +1123,7 @@ export default function GameDetailScreen() {
         {/* A sibling of `<Screen>`, not a child: the floating back disc is
             rendered by the screen *after* its content, so a sheet mounted inside
             would have the page's own back arrow floating over the top of it. */}
-        <GameSheets
-          store={sheets}
-          game={data}
-          log={logged ?? null}
-          availablePlatforms={availablePlatforms}
-          activePlatform={activePlatform}
-          onSelectPlatform={setPlatform}
-        />
+        <GameSheets store={sheets} game={data} log={logged ?? null} />
       </>
     </AccentProvider>
   );
@@ -1169,21 +1135,7 @@ export default function GameDetailScreen() {
  * Subscribed to the page's sheet store, so that opening one re-renders this and
  * not the page under it. See the note where the page creates the store.
  */
-function GameSheets({
-  store,
-  game,
-  log,
-  availablePlatforms,
-  activePlatform,
-  onSelectPlatform,
-}: {
-  store: SheetStore;
-  game: Game;
-  log: GameLog | null;
-  availablePlatforms: PlatformKey[];
-  activePlatform: PlatformKey;
-  onSelectPlatform: (platform: PlatformKey) => void;
-}) {
+function GameSheets({ store, game, log }: { store: SheetStore; game: Game; log: GameLog | null }) {
   const router = useRouter();
   const open = useSyncExternalStore(store.subscribe, store.get);
   const close = useCallback(() => store.set(null), [store]);
@@ -1226,38 +1178,12 @@ function GameSheets({
           }}
         />
       </SlideUpSheet>
-
-      {/* The platform picker, raised by holding the case. Half the display: it
-          is a picker, and covering the page would hide the case it re-draws.
-          Selecting closes it; the choice is visible behind the sheet's fall. */}
-      <SlideUpSheet
-        visible={open === 'platforms'}
-        onClose={close}
-        title="Platform"
-        maxHeightRatio={0.5}>
-        <View style={styles.platformSheet}>
-          <Text variant="bodySmall" color="textMuted">
-            Re-draws the case, the price and the store link.
-          </Text>
-          <PlatformPicker
-            available={availablePlatforms}
-            selected={activePlatform}
-            onSelect={(next) => {
-              onSelectPlatform(next);
-              close();
-            }}
-          />
-        </View>
-      </SlideUpSheet>
     </>
   );
 }
 
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
-  /* The sheet's own inset. `<SlideUpSheet>` pads nothing — it owns the corner
-     and the grabber and leaves the body to whatever fills it. */
-  platformSheet: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x8, gap: Spacing.x16 },
   /* A list inside one card, so the interval is a list's rather than a card's. */
   studios: { gap: Spacing.x4 },
   studioRow: { paddingVertical: Spacing.x4 },

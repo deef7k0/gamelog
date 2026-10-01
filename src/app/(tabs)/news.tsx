@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -7,11 +6,10 @@ import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { GameListItem } from '@/components/game-list-item';
 import { ArticleCard, EventCard, TrailerCard } from '@/components/news-cards';
-import { Dock, DockItem } from '@/components/ui/dock';
-import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { TabBar } from '@/components/ui/tab-bar';
+import { useTabBarClearance } from '@/components/app-tab-bar';
 import { Spacing } from '@/constants/theme';
-import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import {
   getGameEvents,
@@ -24,17 +22,17 @@ import {
 
 type NewsTab = 'news' | 'trailers' | 'releases' | 'charts' | 'events';
 
-const TABS: { key: NewsTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+const TABS: { key: NewsTab; label: string }[] = [
   // Chronological firehoses, all equally useful whenever you reach them.
   // Discover moved to the Search tab: it answers "what should I play",
   // which is a search question, not a news one.
-  { key: 'news', label: 'News', icon: 'newspaper' },
-  { key: 'trailers', label: 'Trailers', icon: 'play-circle' },
-  { key: 'releases', label: 'Releases', icon: 'calendar' },
+  { key: 'news', label: 'News' },
+  { key: 'trailers', label: 'Trailers' },
+  { key: 'releases', label: 'Releases' },
   // Was "Steam Top". The chart is IGDB's cross-platform popularity now, so a
   // storefront's name on the tab would be describing the wrong thing.
-  { key: 'charts', label: 'Popular', icon: 'trending-up' },
-  { key: 'events', label: 'Events', icon: 'megaphone' },
+  { key: 'charts', label: 'Popular' },
+  { key: 'events', label: 'Events' },
 ];
 
 /** Two across, matching the Top 10 screen the widget opens. */
@@ -51,7 +49,7 @@ const CHART_GAP = Spacing.x12;
  */
 export default function NewsScreen() {
   const theme = useTheme();
-  const accent = useAccent();
+  const clearance = useTabBarClearance();
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<NewsTab>('news');
 
@@ -183,7 +181,11 @@ export default function NewsScreen() {
             numColumns={CHART_COLUMNS}
             keyExtractor={(tile) => tile.game.id}
             columnWrapperStyle={styles.chartColumn}
-            contentContainerStyle={chartTiles.length === 0 ? styles.empty : styles.chartGrid}
+            contentContainerStyle={
+              chartTiles.length === 0
+                ? styles.empty
+                : [styles.chartGrid, { paddingBottom: Spacing.x48 + clearance }]
+            }
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <CoverTile game={item.game} width={chartTileWidth} rank={item.rank} />
@@ -218,31 +220,23 @@ export default function NewsScreen() {
   }
 
   return (
-    /* The section name lives in the top bar rather than on the dock. Six icons
-       fit on the narrowest phone where six text tabs had to scroll, which meant
-       "Events" was permanently off-screen — but an icon alone cannot tell
-       Releases from Trailers, so the active one is spelled out up there instead.
-
-       No `scrollY`: each tab brings its own list, and the dock below the bar is
-       how you move between them. A header that slid away would take the name of
-       the section you are in with it. */
-    <Screen edges={[]} insetHeader topBar={<FrostedTopBar />}>
-      <View style={styles.dockRow}>
-        <Dock>
-          {TABS.map((entry) => (
-            <DockItem
-              key={entry.key}
-              active={tab === entry.key}
-              onPress={() => setTab(entry.key)}
-              accessibilityLabel={entry.label}>
-              <Ionicons
-                name={entry.icon}
-                size={19}
-                color={tab === entry.key ? accent.onSurface : theme.textMuted}
-              />
-            </DockItem>
-          ))}
-        </Dock>
+    /*
+     * The app's `<TabBar>`, as on Search, a library and a game's page.
+     *
+     * This was a `<Dock>` of five icons in a segmented capsule — a second tab
+     * control that existed on this one screen, which an icon could not even
+     * label (Releases and Trailers had to be spelled out by the top bar). The
+     * words scroll if a narrow phone cannot fit all five; the row starts at
+     * the page's edge, so the last one is seen to run off it.
+     *
+     * No `topBar` and no `insetHeader`, for Search's reason: the bar it had was
+     * a `<FrostedTopBar />` with nothing to go back to, which draws nothing,
+     * while `insetHeader` reserved the band it would have filled. A root tab
+     * takes the top edge and spends it on content.
+     */
+    <Screen edges={['top']}>
+      <View style={styles.tabs}>
+        <TabBar tabs={TABS} value={tab} onChange={setTab} label="News sections" />
       </View>
 
       {renderBody()}
@@ -269,6 +263,7 @@ function List<T>({
   gap?: number;
 }) {
   const theme = useTheme();
+  const clearance = useTabBarClearance();
 
   return (
     <FlatList
@@ -276,7 +271,11 @@ function List<T>({
       keyExtractor={keyOf}
       renderItem={({ item }) => render(item)}
       ItemSeparatorComponent={() => <View style={{ height: gap }} />}
-      contentContainerStyle={data.length === 0 ? styles.empty : styles.content}
+      contentContainerStyle={
+        data.length === 0
+          ? styles.empty
+          : [styles.content, { paddingBottom: Spacing.x48 + clearance }]
+      }
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
@@ -287,7 +286,7 @@ function List<T>({
 }
 
 const styles = StyleSheet.create({
-  dockRow: { paddingVertical: Spacing.x12 },
+  tabs: { paddingTop: Spacing.x8 },
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   chartGrid: { padding: Spacing.x16, paddingBottom: Spacing.x48, gap: CHART_GAP },
   chartColumn: { gap: CHART_GAP },

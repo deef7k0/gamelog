@@ -218,7 +218,7 @@ export function Button({
       scaleTo={0.97}
       pressedColor={look.pressed}
       focusRing={accent.ring}
-      /* A small button is drawn at 36 and touched at the platform floor. */
+      /* A small button is drawn at 32 and touched at the platform floor. */
       hitSlop={hitSlop ?? (small ? SmallControlSlop : undefined)}
       style={StyleSheet.flatten([
         styles.base,
@@ -284,15 +284,15 @@ const styles = StyleSheet.create({
   },
   /* 52, the reference's — past both platforms' floors on its own. */
   medium: {
-    paddingVertical: Spacing.x12,
-    paddingHorizontal: Spacing.x32,
+    paddingVertical: Spacing.x8,
+    paddingHorizontal: Spacing.x20,
     minHeight: ControlHeight.medium,
   },
-  /* 36 drawn, the tap floor through `SmallControlSlop`. `small` is for a button
+  /* 32 drawn, the tap floor through `SmallControlSlop`. `small` is for a button
      inside a row or a card, where a 52dp pill would outweigh what it acts on. */
   small: {
     paddingVertical: Spacing.x4,
-    paddingHorizontal: Spacing.x20,
+    paddingHorizontal: Spacing.x16,
     minHeight: ControlHeight.small,
   },
   /* 60, for the one action a screen is *about*. Well past the tap floor, which
@@ -300,18 +300,19 @@ const styles = StyleSheet.create({
      controls sitting directly under it and still read as the thing you came to
      press. */
   large: {
-    paddingVertical: Spacing.x16,
-    paddingHorizontal: Spacing.x32,
+    paddingVertical: Spacing.x12,
+    paddingHorizontal: Spacing.x20,
     minHeight: ControlHeight.large,
   },
   fullWidth: { alignSelf: 'stretch' },
   content: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   label: { ...Type.button },
-  /* Only the size steps down — the family comes from `label` above. */
+  /* `body`'s 13 on `button`'s family — the same size as a medium label now that
+     `body` is the reference's 13. A small button is smaller by its height. */
   labelSmall: { fontSize: Type.body.fontSize, lineHeight: Type.body.lineHeight },
-  /* `h3`'s size on `button`'s family: the hero has to hold the middle of a 60dp
-     slab without the word floating in it. */
-  labelLarge: { fontSize: Type.h3.fontSize, lineHeight: Type.h3.lineHeight },
+  /* `h4`'s size on `button`'s family: the hero has to hold the middle of a 60dp
+     slab without the word floating in it. 16, the reference's `labelMedium`. */
+  labelLarge: { fontSize: Type.h4.fontSize, lineHeight: Type.h4.lineHeight },
   count: {
     minWidth: 22,
     paddingHorizontal: Spacing.x4,

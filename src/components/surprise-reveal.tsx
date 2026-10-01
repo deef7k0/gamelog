@@ -144,14 +144,16 @@ export function revealLayout(width: number, height: number): RevealLayout {
    * poster of the same width, and that height comes out of the spacer between
    * the meta block and the support cards.
    *
-   * A compact display drops to 0.32 and *does* bind — a 360x640 phone shows a
-   * 204dp square rather than a 302dp one. That is the same call `compact` makes
+   * A compact display drops to 0.28 and *does* bind — a 360x640 phone shows a
+   * 179dp square rather than a 302dp one. That is the same call `compact` makes
    * everywhere else in this function: the screen must not scroll, so on a short
-   * display the artwork is what yields.
+   * display the artwork is what yields. It was 0.32 until the interface took
+   * SimpMusic's spacing and type, which made the blocks under the art ~50dp
+   * taller; the four hundredths are that height, given back by the artwork.
    *
    */
   const squareWidth = Math.round(
-    Math.max(140, Math.min(width * SQUARE_RATIO, height * (compact ? 0.32 : 0.42)))
+    Math.max(140, Math.min(width * SQUARE_RATIO, height * (compact ? 0.28 : 0.42)))
   );
 
   /*

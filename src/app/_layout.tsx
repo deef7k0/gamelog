@@ -15,6 +15,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
+import { NavigationBar } from 'expo-navigation-bar';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -148,6 +149,16 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <ThemeProvider value={DarkTheme}>
             <StatusBar style="light" />
+            {/*
+              Android's navigation bar: light keys, nothing behind them. The
+              window is edge-to-edge, so the app already draws under the bar;
+              what made it a black band was Android's contrast scrim, which
+              `enforceContrast: false` in app.json removes in a real build, and
+              the tab bar painting the page colour under itself, which it no
+              longer does (`<AppTabBar>` floats). Expo Go applies no config
+              plugins, so there the system may still draw its scrim.
+            */}
+            <NavigationBar style="light" />
 
             {/*
             No native header, anywhere.
@@ -225,6 +236,7 @@ export default function RootLayout() {
                 {/* A picker, so it presents as a modal: you are choosing one thing
                   and returning, not navigating somewhere. */}
                 <Stack.Screen name="add-to-list/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="quick-log" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
               </Stack.Protected>
 

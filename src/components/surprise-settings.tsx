@@ -629,12 +629,12 @@ const styles = StyleSheet.create({
      interval `toggleText` uses for the same relationship. */
   captioned: { gap: 2 },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  /* Columns `x12` (8): the separation between two *different* filters, and
+  /* Columns `x8` (8): the separation between two *different* filters, and
      Material puts the floor for that at 8dp. Rows `SmallControlRowGap`. */
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: Spacing.x12,
+    columnGap: Spacing.x8,
     rowGap: SmallControlRowGap,
   },
   chip: {
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.x4,
     /*
-     * Drawn at 36 and touched at the floor, like every filter pill.
+     * Drawn at 32 and touched at the floor, like every filter pill.
      *
      * This grid used to be the one place slop was refused: at a 6dp gap the
      * expanded rectangles of two chips in adjacent *rows* overlapped, and React
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
      */
     minHeight: ControlHeight.small,
     paddingVertical: Spacing.x4,
-    paddingHorizontal: Spacing.x20,
+    paddingHorizontal: Spacing.x16,
     /* A pill: these filter, and filters are the pill family. */
     borderRadius: Radius.pill,
     borderWidth: 1,

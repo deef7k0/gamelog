@@ -1,5 +1,5 @@
 /**
- * The one personalised rail on Search: "Because you loved Hades".
+ * The one personalised rail on Search: "Similar to **Hades**".
  *
  * Built from what the user has logged — no recommendation service, no
  * embedding model. The rail's games are IGDB's own `similar_games` for one seed
@@ -17,9 +17,6 @@
  * moves it on. Pure, so `npm test` covers it.
  */
 
-/** A score at or above this is "loved" rather than merely "played". */
-const LOVED_THRESHOLD = 80;
-
 /** What a seed needs of a log — `LogWithRelations` has all of it. */
 export type SeedLog = {
   game_id: string;
@@ -32,8 +29,15 @@ export type SeedLog = {
 export type RecommendationSeed = {
   gameId: string;
   title: string;
-  reason: 'loved' | 'played';
-  /** "Because you loved Hades" */
+  /**
+   * "Similar to Hades" — the heading as one string, for a screen reader. On
+   * screen the title is set bold after a regular "Similar to".
+   *
+   * It said "Because you loved Hades" or "Because you played Hades", split on a
+   * score of 80. The rail is IGDB's similar games for the seed whatever the
+   * score was, so the heading now says what the rail is rather than guessing
+   * how the reader felt about the game.
+   */
   heading: string;
 };
 
@@ -57,11 +61,5 @@ export function recommendationSeed(logs: readonly SeedLog[]): RecommendationSeed
   if (!seed) return null;
 
   const title = seed.game?.title?.trim() || 'a game';
-  const loved = (seed.rating ?? 0) >= LOVED_THRESHOLD;
-  return {
-    gameId: seed.game_id,
-    title,
-    reason: loved ? 'loved' : 'played',
-    heading: loved ? `Because you loved ${title}` : `Because you played ${title}`,
-  };
+  return { gameId: seed.game_id, title, heading: `Similar to ${title}` };
 }

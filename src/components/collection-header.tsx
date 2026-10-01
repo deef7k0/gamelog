@@ -45,10 +45,10 @@ const META_ALPHA = 0.77;
  */
 const SINGLE_ANCHOR = '22%';
 
-/** The one filled action. */
-const PILL_HEIGHT = 52;
-/** Every circular action beside it. */
-const CIRCLE = 52;
+/** The one filled action: the reference album's Play pill, 48. */
+const PILL_HEIGHT = 48;
+/** Every circular action beside it: the reference's 48 circles. */
+const CIRCLE = 48;
 
 /**
  * Lines of description shown before "See more".
@@ -625,16 +625,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.x20,
+    gap: Spacing.x12,
   },
+  /* `AlbumScreen.kt`'s Play pill: 48 tall, at least 110 wide, 20 at the sides,
+     12 from the circles either side of it. */
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.x8,
     height: PILL_HEIGHT,
-    minWidth: 132,
-    paddingHorizontal: Spacing.x24,
+    minWidth: 110,
+    paddingHorizontal: Spacing.x20,
     borderRadius: PILL_HEIGHT / 2,
   },
   circle: {

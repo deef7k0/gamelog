@@ -487,11 +487,10 @@ export default function StudioScreen() {
 const styles = StyleSheet.create({
   grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
-  /* `x48` (30) between the bands — the reference's 32 between sections — and
-     tighter inside the header's own blocks: the rails are separate subjects and
-     the identity block is one. Not `x64` (Home's interval) — that page is a
-     stack of unrelated things, and every band here is about the same studio. */
-  header: { gap: Spacing.x48, paddingBottom: Spacing.x16 },
+  /* `x32` between the bands — the reference's 32 between sections, Home's
+     interval too — and tighter inside the header's own blocks: the rails are
+     separate subjects and the identity block is one. */
+  header: { gap: Spacing.x32, paddingBottom: Spacing.x16 },
   /* Cancels the grid's horizontal padding so the art reaches both edges. */
   banner: { marginHorizontal: -Spacing.x16, overflow: 'hidden' },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },

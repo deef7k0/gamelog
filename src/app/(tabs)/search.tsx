@@ -21,6 +21,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
 import { TextField } from '@/components/ui/text-field';
+import { useTabBarClearance } from '@/components/app-tab-bar';
 import { Spacing } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTheme } from '@/hooks/use-theme';
@@ -90,6 +91,7 @@ const SCOPES = [
  */
 export default function SearchScreen() {
   const theme = useTheme();
+  const clearance = useTabBarClearance();
   const router = useRouter();
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id);
@@ -169,7 +171,10 @@ export default function SearchScreen() {
         <ScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.historyContent}>
+          contentContainerStyle={[
+            styles.historyContent,
+            { paddingBottom: Spacing.x48 + clearance },
+          ]}>
           <SearchHistory
             entries={entries}
             onSelect={(entry) => {
@@ -211,7 +216,7 @@ export default function SearchScreen() {
           keyExtractor={(profile) => profile.id}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: Spacing.x48 + clearance }]}
           /* `<PersonRow>`, not a fourth hand-rolled copy — the component was
              extracted because this screen and `discover-people` had duplicated
              it, and then neither caller was migrated. */
@@ -303,11 +308,12 @@ export default function SearchScreen() {
             ) : undefined
           }
         />
-
-        {/* Under the field, iOS scope-bar style: the placeholder already names
-            the scope, so the two agree wherever the eye lands first. */}
-        <TabBar tabs={SCOPES} value={scope} onChange={setScope} label="What to search" />
       </View>
+
+      {/* Under the field, iOS scope-bar style: the placeholder already names
+          the scope, so the two agree wherever the eye lands first. Outside the
+          header's padding: the bar brings the page margin itself. */}
+      <TabBar tabs={SCOPES} value={scope} onChange={setScope} label="What to search" />
 
       {renderResults()}
     </Screen>
@@ -315,7 +321,7 @@ export default function SearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x16, gap: Spacing.x8 },
+  header: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x8 },
   /* `flexGrow: 1` so the empty state can centre itself rather than pinning to
      the top of a content-sized container. */
   listContent: { padding: Spacing.x16, paddingBottom: Spacing.x48, flexGrow: 1 },

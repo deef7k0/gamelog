@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { SurpriseHiddenList } from '@/components/surprise-hidden-list';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
@@ -37,10 +38,42 @@ import { useAuth } from '@/store/auth';
  * **Moderation** passes the same test from the other side: it is a row only for
  * the people it works for. Everyone else never sees it — a link to a queue the
  * database would refuse them is exactly the inert control this screen avoids.
+ *
+ * **Sign out** is the last row. It was a button on the profile beside Edit
+ * profile, a thumb's width from it; signing out is an account act you do rarely
+ * and on purpose, which is what this screen is for.
  */
 export default function SettingsScreen() {
   const userId = useAuth((state) => state.session?.user.id);
+  const signOut = useAuth((state) => state.signOut);
   const theme = useTheme();
+  const [signingOut, setSigningOut] = useState(false);
+
+  function confirmSignOut() {
+    Alert.alert('Sign out?', 'You will need your email and password to sign back in.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: async () => {
+          setSigningOut(true);
+          try {
+            await signOut();
+          } catch (error) {
+            /* Reported rather than swallowed. The session survives a failed
+               sign-out, so silence would leave someone believing they had
+               signed out on a shared device. */
+            Alert.alert(
+              'Could not sign out',
+              error instanceof Error ? error.message : 'Check your connection and try again.'
+            );
+          } finally {
+            setSigningOut(false);
+          }
+        },
+      },
+    ]);
+  }
 
   const moderator = useQuery({
     queryKey: ['is-moderator', userId],
@@ -99,6 +132,30 @@ export default function SettingsScreen() {
             </Link>
           </View>
         )}
+
+        <View style={styles.group}>
+          <Text variant="label" color="textMuted">
+            ACCOUNT
+          </Text>
+          {/* Confirmed first, and its failure reported — see `confirmSignOut`. */}
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+            accessibilityState={{ busy: signingOut, disabled: signingOut }}
+            disabled={signingOut}
+            onPress={confirmSignOut}
+            scaleTo={0.98}
+            pressedColor={theme.controlPressed}
+            style={StyleSheet.flatten([styles.row, { backgroundColor: theme.controlFill }])}>
+            <Ionicons name="log-out-outline" size={20} color={theme.danger} />
+            <View style={styles.rowText}>
+              <Text variant="h5" color="danger">
+                Sign out
+              </Text>
+            </View>
+            {signingOut && <ActivityIndicator size="small" color={theme.textMuted} />}
+          </PressableScale>
+        </View>
       </ScrollView>
     </Screen>
   );

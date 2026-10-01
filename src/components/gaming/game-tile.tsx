@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -130,6 +130,26 @@ export function gridItemWidth(
 ): number {
   const usable = screenWidth - horizontalPadding * 2 - gap * (columns - 1);
   return Math.floor(usable / columns);
+}
+
+/**
+ * Box art three across: the owner's size for a portrait in this app, set by
+ * the collection screen's grid. Four across made each cover about 84dp on a
+ * 360dp phone, a thumbnail of the box rather than the box; three makes it 108.
+ * Every portrait grid is three across, and every rail's covers are the width a
+ * tile in that grid would be (`usePortraitWidth`), so a cover is the same size
+ * wherever it is shelved.
+ */
+export const PORTRAIT_COLUMNS = 3;
+
+/**
+ * One portrait's width on this display: a third of the page between its 10dp
+ * margins, less the two gaps a row of three has. For a rail, where there is no
+ * grid to divide but the covers should match the ones that are in one.
+ */
+export function usePortraitWidth(): number {
+  const { width } = useWindowDimensions();
+  return gridItemWidth(width, PORTRAIT_COLUMNS, Spacing.x16, Spacing.x12);
 }
 
 const styles = StyleSheet.create({

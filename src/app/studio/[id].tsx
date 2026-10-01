@@ -2,8 +2,8 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { gridItemWidth } from '@/components/gaming/game-tile';
-import { GamePosterRail } from '@/components/game-rail';
+import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
+import { GameCoverRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
 import { LOGO_WIDTH_RATIO, StudioIdentity } from '@/components/studio-identity';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
@@ -24,12 +24,12 @@ import { useStudioLogo } from '@/hooks/use-studio-logo';
 import { useTheme } from '@/hooks/use-theme';
 import { gameSortOptions, sortGames, type GameSearchResult, type GameSort } from '@/lib/games';
 
-/** Four across, matching the library and collection grids. */
-const COLUMNS = 4;
+/** Three across, the app's portrait size (`PORTRAIT_COLUMNS`). */
+const COLUMNS = PORTRAIT_COLUMNS;
 const GAP = Spacing.x8;
 
 /**
- * How much of the grid exists at once, in rows of four.
+ * How much of the grid exists at once, in rows of three.
  *
  * The list defaults are built for text rows: ten rows up front and ten
  * screens either side after that, which on a 200-game catalogue is every
@@ -39,6 +39,13 @@ const GAP = Spacing.x8;
  * screen either side keeps ahead of a scroll.
  */
 const GRID_FIRST_ROWS = 2;
+
+/**
+ * Where a rail's first cover starts: the list's own padding plus the heading's,
+ * which is where `<HomeSection>` sets its title. The rail itself is pulled out
+ * to the screen's edges (`railBleed`), so it scrolls off both of them.
+ */
+const RAIL_INSET = Spacing.x16 * 2;
 const GRID_BATCH_ROWS = 4;
 const GRID_WINDOW = 3;
 
@@ -396,9 +403,14 @@ export default function StudioScreen() {
               because a heading is a claim and a two-poster rail under "Best from
               the studio" is not one this data can make.
             */}
+            {/* The game page's franchise rail, as every row of games is: the
+                rail runs edge to edge (`railBleed` cancels the list's padding)
+                and its first cover starts in line with the heading above it. */}
             {best.length > 0 && (
               <HomeSection title="Best from the studio" subtitle="Their highest-rated originals.">
-                <GamePosterRail games={best} />
+                <View style={styles.railBleed}>
+                  <GameCoverRail games={best} inset={RAIL_INSET} />
+                </View>
               </HomeSection>
             )}
 
@@ -406,7 +418,9 @@ export default function StudioScreen() {
               <HomeSection
                 title="Remakes & remasters"
                 subtitle="Games they have gone back to — including ports.">
-                <GamePosterRail games={redone} />
+                <View style={styles.railBleed}>
+                  <GameCoverRail games={redone} inset={RAIL_INSET} />
+                </View>
               </HomeSection>
             )}
 
@@ -414,7 +428,9 @@ export default function StudioScreen() {
               <HomeSection
                 title="Special editions"
                 subtitle="Definitive cuts, complete editions and bundles.">
-                <GamePosterRail games={repackaged} />
+                <View style={styles.railBleed}>
+                  <GameCoverRail games={repackaged} inset={RAIL_INSET} />
+                </View>
               </HomeSection>
             )}
 
@@ -495,5 +511,7 @@ const styles = StyleSheet.create({
   /* `<HomeSection>` insets its own heading but leaves its children to bleed, for
      the rails. The sort row is not a rail and needs the inset back. */
   sort: { paddingHorizontal: Spacing.x16 },
+  /* Cancels the list's horizontal padding so a rail reaches both edges. */
+  railBleed: { marginHorizontal: -Spacing.x16 },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
 });

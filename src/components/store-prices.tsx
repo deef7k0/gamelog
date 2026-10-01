@@ -1,12 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { InfoCard } from '@/components/ui/info-card';
 import { Text } from '@/components/ui/text';
 import { storeBrand, storeInitial } from '@/constants/stores';
-import { Radius, Spacing, readableInk } from '@/constants/theme';
+import { Radius, Spacing, TapTarget, readableInk } from '@/constants/theme';
+import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getGameStores } from '@/lib/games/igdb';
 import { formatPrice, getStorePrices, lookupItadGame, type StorePrice } from '@/lib/games/itad';
@@ -20,6 +22,13 @@ const MARK = 34;
 
 /** Storefronts shown before the rail is cut. The list is cheapest-first. */
 const STORE_LIMIT = 8;
+
+/**
+ * Storefronts shown while the card is folded. The cheapest three answer the
+ * question nearly every time, and the card sits between About and the reviews,
+ * where eight rows pushed everything under it a screen down.
+ */
+const FOLDED_STORES = 3;
 
 export type StorePricesProps = {
   /** App-wide game id. */
@@ -47,6 +56,8 @@ export type StorePricesProps = {
  * cached briefly, because being current is the entire point.
  */
 export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: StorePricesProps) {
+  const accent = useAccent();
+  const [open, setOpen] = useState(false);
   const parsed = parseGameId(gameId);
   const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
   const knownSteamAppId = parsed?.source === 'steam' ? parsed.sourceId : (directSteamAppId ?? null);
@@ -92,9 +103,17 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
      one horizontal scroller with nothing saying how far it ran. The list is
      sorted cheapest-first and the heading already states the best price, so
      everything past the eighth is a scroll nobody finishes for a price nobody
-     wants. The count says what was left out rather than hiding it. */
-  const shown = list.slice(0, STORE_LIMIT);
-  const hidden = list.length - shown.length;
+     wants. The count says what was left out rather than hiding it.
+
+     Folded, it is three, and the toggle names how many more the card opens to.
+     The count beside the price waits until then — "8 of 25" over three rows
+     would describe a list nobody is looking at. Not animated: a list that grows
+     steps, as the additional-information screen's folding lists do. */
+  const capped = list.slice(0, STORE_LIMIT);
+  const hidden = list.length - capped.length;
+  const folds = capped.length > FOLDED_STORES;
+  const shown = folds && !open ? capped.slice(0, FOLDED_STORES) : capped;
+  const more = capped.length - FOLDED_STORES;
 
   return (
     <InfoCard
@@ -102,7 +121,7 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
       action={
         <Text variant="bodySmall" color="textMuted">
           from {formatPrice(best.amount, best.currency)}
-          {hidden > 0 ? ` · ${shown.length} of ${list.length}` : ''}
+          {open && hidden > 0 ? ` · ${capped.length} of ${list.length}` : ''}
         </Text>
       }>
       {/*
@@ -118,6 +137,25 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
         {shown.map((deal) => (
           <StoreButton key={`${deal.shopId}:${deal.url}`} deal={deal} />
         ))}
+
+        {folds && (
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityState={{ expanded: open }}
+            accessibilityLabel={open ? 'Show fewer stores' : `Show ${more} more stores`}
+            onPress={() => setOpen((value) => !value)}
+            scaleTo={0.98}
+            style={styles.toggle}>
+            <Text variant="h5" style={{ color: accent.onSurface }}>
+              {open ? 'Show less' : `Show ${more} more`}
+            </Text>
+            <Ionicons
+              name={open ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={accent.onSurface}
+            />
+          </PressableScale>
+        )}
       </View>
     </InfoCard>
   );
@@ -231,6 +269,15 @@ const styles = StyleSheet.create({
   labels: { gap: 1 },
   priceLine: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.x4 },
   struck: { textDecorationLine: 'line-through' },
+  /* The folding lists' toggle (`game-info-sections.tsx`): as wide as its label,
+     tall enough to hit. */
+  toggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: Spacing.x4,
+    minHeight: TapTarget,
+  },
   cutContainer: {
     alignItems: 'center',
     gap: 2,

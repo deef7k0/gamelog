@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { FlatList, Linking, StyleSheet, View } from 'react-native';
 
-import { GameTile } from '@/components/gaming/game-tile';
+import { GameTile, usePortraitWidth } from '@/components/gaming/game-tile';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -34,7 +34,6 @@ import {
 } from '@/lib/gaming';
 import type { LinkedAccount } from '@/lib/gaming';
 
-const RAIL_POSTER = 78;
 const SHOWCASE_ICON = 52;
 
 /**
@@ -513,10 +512,13 @@ function GameRail({
   loading: boolean;
   ownerId: string;
 }) {
+  /* The app's portrait width, as every rail's covers are; these were 78. */
+  const posterWidth = usePortraitWidth();
+
   if (loading) {
     return (
       <Section title={title}>
-        <RailSkeleton size={RAIL_POSTER} portrait />
+        <RailSkeleton size={posterWidth} portrait />
       </Section>
     );
   }
@@ -530,7 +532,7 @@ function GameRail({
         showsHorizontalScrollIndicator={false}
         keyExtractor={(game) => game.appId}
         contentContainerStyle={styles.rail}
-        renderItem={({ item }) => <GameTile game={item} width={RAIL_POSTER} ownerId={ownerId} />}
+        renderItem={({ item }) => <GameTile game={item} width={posterWidth} ownerId={ownerId} />}
       />
     </Section>
   );

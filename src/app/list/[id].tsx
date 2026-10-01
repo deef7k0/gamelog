@@ -11,7 +11,7 @@ import { CaptionedGrid } from '@/components/captioned-grid';
 import { CommentSection } from '@/components/comment-section';
 import { CollectionRow } from '@/components/collection-row';
 import { CollectionToolbar, type CollectionLayout } from '@/components/collection-toolbar';
-import { gridItemWidth } from '@/components/gaming/game-tile';
+import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
@@ -42,17 +42,17 @@ import { useAuth } from '@/store/auth';
 const POSTER = 58;
 
 /**
- * Four across, matching the library and Top 10 grids.
+ * Three across — the app's portrait size (`PORTRAIT_COLUMNS`), and this is the
+ * screen the owner set it on.
  *
- * It was three, on the argument that this screen opens on a half-display of
- * artwork and a denser grid under that reads as the page losing interest in its
- * own subject. Four wins anyway, for a reason the argument missed: a collection
- * is a *shelf*, and the number of games you can see at once is most of what
- * makes it feel like one. Three across put nine games on the first screenful of
- * a fifty-game collection. `gridItemWidth` still subtracts the gutters, so the
- * covers stay as large as the width allows.
+ * It went from three to four on the argument that a collection is a shelf and
+ * the number of games in view is most of what makes it feel like one. The owner
+ * took it back to three: at four each cover was about 84dp on a 360dp phone, a
+ * thumbnail of the box, and a shelf of boxes nobody can make out is not a
+ * shelf. `gridItemWidth` still subtracts the gutters, so the covers are as
+ * large as the width allows.
  */
-const GRID_COLUMNS = 4;
+const GRID_COLUMNS = PORTRAIT_COLUMNS;
 const GRID_GAP = Spacing.x12;
 
 /**

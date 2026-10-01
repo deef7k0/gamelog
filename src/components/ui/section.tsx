@@ -1,12 +1,17 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import {
-  FlatList,
   StyleSheet,
   View,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useReducedMotion,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
@@ -35,6 +40,11 @@ function metricsFor(windowWidth: number) {
   return {
     /** A heading, a card and a rail's first item all start this far in: the reference's 20. */
     inset: at(20),
+    /**
+     * The sides of an album or playlist's body — its actions and description,
+     * under a centred header: the reference's 32 (`AlbumScreen.kt`).
+     */
+    bodyInset: at(32),
     /** A heading row, with or without its More: the height of the reference's `TextButton`. */
     headerHeight: at(40),
     /** The More's own padding, the `TextButton`'s 12, so its word sits in from the edge. */
@@ -270,6 +280,16 @@ export type ArtShape = 'cover' | 'wide';
  * Windowed like every rail in the app: a screenful and a little more up front,
  * one screen either side after that.
  */
+/** What an item's art is drawn with, beyond its size. */
+export type ArtRailContext = {
+  index: number;
+  /** The rail's scroll offset, when it runs the parallax; null when it does not. */
+  scrollX: SharedValue<number> | null;
+  /** Where the first item starts and how far apart items sit — for `useRailDrift`. */
+  inset: number;
+  itemGap: number;
+};
+
 export function ArtRail<T>({
   data,
   keyOf,
@@ -279,41 +299,69 @@ export function ArtRail<T>({
   subtitleOf,
   onPressItem,
   labelOf,
+  inset: insetProp,
+  parallax = false,
 }: {
   data: readonly T[];
   keyOf: (item: T) => string;
   shape: ArtShape;
-  renderArt: (item: T, size: { width: number; height: number }) => ReactNode;
+  renderArt: (
+    item: T,
+    size: { width: number; height: number },
+    context: ArtRailContext
+  ) => ReactNode;
   titleOf?: (item: T) => string;
   subtitleOf?: (item: T) => string | null;
   onPressItem?: (item: T) => void;
   /** What a screen reader says for an item; defaults to its title. */
   labelOf?: (item: T) => string;
+  /**
+   * Where the first item starts, when the screen's margin is not the section
+   * inset in force — Home and Search keep the app's 10.
+   */
+  inset?: number;
+  /**
+   * Let the art sit behind its frame and slide as the rail moves (`<Poster
+   * parallax>`), as Home's rails always have. Off under a reduced-motion
+   * preference.
+   */
+  parallax?: boolean;
 }) {
   const metrics = useSectionMetrics();
-  const inset = useSectionInset();
+  const contextInset = useSectionInset();
+  const inset = insetProp ?? contextInset;
   const size = metrics[shape];
+  const reduceMotion = useReducedMotion();
+
+  /* Written and read on the UI thread, so a drag never enters JS. */
+  const scrollX = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollX.set(event.contentOffset.x);
+  });
+  const driver = parallax && !reduceMotion ? scrollX : null;
 
   return (
-    <FlatList
+    <Animated.FlatList
       data={data}
       horizontal
       keyExtractor={keyOf}
       showsHorizontalScrollIndicator={false}
       initialNumToRender={4}
       windowSize={3}
+      onScroll={driver ? onScroll : undefined}
+      scrollEventThrottle={16}
       contentContainerStyle={{
         paddingHorizontal: inset,
         paddingTop: metrics.artTop,
         paddingBottom: metrics.itemBottom,
         gap: metrics.itemGap,
       }}
-      renderItem={({ item }) => {
+      renderItem={({ item, index }) => {
         const title = titleOf?.(item);
         const subtitle = subtitleOf?.(item);
         const body = (
           <View style={{ width: size.width }}>
-            {renderArt(item, size)}
+            {renderArt(item, size, { index, scrollX: driver, inset, itemGap: metrics.itemGap })}
             {title !== undefined && (
               <View style={{ paddingTop: metrics.titleTop }}>
                 <Text variant="itemTitle" numberOfLines={2} style={styles.itemTitle}>

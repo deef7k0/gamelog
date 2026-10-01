@@ -5,7 +5,12 @@ import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import Animated from 'react-native-reanimated';
 
 import { CdBinder } from '@/components/cd-binder';
-import { gridItemWidth, steamCoverUrl, steamHeaderUrl } from '@/components/gaming/game-tile';
+import {
+  PORTRAIT_COLUMNS,
+  gridItemWidth,
+  steamCoverUrl,
+  steamHeaderUrl,
+} from '@/components/gaming/game-tile';
 import { LibraryStats } from '@/components/library-stats';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
@@ -42,8 +47,8 @@ import {
 } from '@/lib/gaming';
 import { useAuth } from '@/store/auth';
 
-/** Four across, matching the poster grids elsewhere in the app. */
-const COLUMNS = 4;
+/** Three across, the app's portrait size (`PORTRAIT_COLUMNS`). */
+const COLUMNS = PORTRAIT_COLUMNS;
 const GAP = Spacing.x8;
 
 type LibraryTab = 'all' | 'physical' | 'logged' | 'favourites' | 'steam';

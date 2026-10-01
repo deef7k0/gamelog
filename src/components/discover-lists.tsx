@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
 import { useCollectionEngagement } from '@/hooks/use-collection-engagement';
 import { useTheme } from '@/hooks/use-theme';
-import { getEngagement, getPopularCollections, getPopularReviews } from '@/lib/api';
+import { getPopularCollections, getPopularReviews } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 
 /**
@@ -36,23 +36,13 @@ import { useAuth } from '@/store/auth';
 const BAND_LIMIT = 3;
 
 function usePopularReviewsData() {
-  const viewerId = useAuth((state) => state.session?.user.id) ?? null;
-
   const reviews = useQuery({
     queryKey: ['discover', 'reviews'],
     queryFn: () => getPopularReviews(),
     staleTime: 5 * 60_000,
   });
 
-  const ids = (reviews.data ?? []).map((log) => log.id);
-
-  const engagement = useQuery({
-    queryKey: ['engagement', 'log', ids, viewerId],
-    queryFn: () => getEngagement('log', ids, viewerId),
-    enabled: ids.length > 0,
-  });
-
-  return { reviews, engagement };
+  return { reviews };
 }
 
 function usePopularCollectionsData() {
@@ -77,11 +67,11 @@ function usePopularCollectionsData() {
  * is a log, not a review, and a popular-reviews list full of them would be a
  * chart of games wearing their raters' names.
  *
- * Engagement is fetched in one batch for the whole page rather than per card,
- * so the like buttons are live without twenty extra requests.
+ * No likes are fetched for these: the review card carries no like row (see
+ * `<LogCard>`); liking happens on the review's own page.
  */
 export function DiscoverReviews() {
-  const { reviews, engagement } = usePopularReviewsData();
+  const { reviews } = usePopularReviewsData();
 
   if (reviews.isLoading) return <LoadingState />;
   if (reviews.isError)
@@ -113,7 +103,7 @@ export function DiscoverReviews() {
       keyboardDismissMode="on-drag"
       refreshing={reviews.isRefetching}
       onRefresh={() => reviews.refetch()}
-      renderItem={({ item }) => <LogCard log={item} engagement={engagement.data?.[item.id]} />}
+      renderItem={({ item }) => <LogCard log={item} />}
       /*
         Virtualisation, for a list with no upper bound on its length.
 
@@ -147,7 +137,7 @@ function CardGap() {
 
 /** The first few reviews, for a host that is already scrolling. */
 export function ReviewsBand({ limit = BAND_LIMIT }: { limit?: number }) {
-  const { reviews, engagement } = usePopularReviewsData();
+  const { reviews } = usePopularReviewsData();
 
   /* A band is supporting content, so it fails quietly: a hard error state here
      would replace someone's whole Discover feed because one section of it could
@@ -160,7 +150,7 @@ export function ReviewsBand({ limit = BAND_LIMIT }: { limit?: number }) {
   return (
     <View style={styles.band}>
       {rows.map((log) => (
-        <LogCard key={log.id} log={log} engagement={engagement.data?.[log.id]} />
+        <LogCard key={log.id} log={log} />
       ))}
     </View>
   );

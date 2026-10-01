@@ -19,13 +19,14 @@ const NUMBER_SIZE = 46;
 const NUMBER_LINE = 54;
 
 /**
- * The same readout on a review card, where it shares a line with the playthrough
- * strip beside the box art: 25 over 30, from the card's design — a little over
- * half the review page's number, so the card still leads with the score without
- * the score being taller than the title and credit above it together.
+ * The same readout on a review card, at the foot of the text beside the box
+ * art: 21 over 25, measured from the card's design — "84" set a little larger
+ * than the card's title, its verdict at the type floor beside it. Exported
+ * because the card stands the number's baseline on the art's bottom edge and
+ * has to know how far below the baseline this line box runs.
  */
-const COMPACT_NUMBER_SIZE = 25;
-const COMPACT_NUMBER_LINE = 30;
+export const COMPACT_NUMBER_SIZE = 21;
+export const COMPACT_NUMBER_LINE = 25;
 
 /**
  * Room for "100" at `NUMBER_SIZE`, when the readout is ranged left beside a

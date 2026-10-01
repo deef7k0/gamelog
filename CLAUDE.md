@@ -188,13 +188,14 @@ src/
                                         and `size="compact"` on a review card
                      review-cells       a review's playthrough as strip cells,
                                         shared by the review page and the card
-                     log-card           the review card in every list: a header
-                                        (author, title + year on one line, the
-                                        compact score + strip) beside 66dp box
-                                        art top-right, the serif headline's
-                                        baseline on the art's bottom edge, then
-                                        three lines of the review, then the foot
-                                        (like, count · date, report flag)
+                     log-card           the review card in every list, after
+                                        Letterboxd: title + year left and the
+                                        writer (name, avatar) right on the top
+                                        row; 83dp box art with five lines of the
+                                        review beside it; the score bottom-right,
+                                        its baseline on the art's bottom edge.
+                                        No likes, date or report flag on the
+                                        card — those are on the review page
                      ui/selectable      `useSelectable()`: the one selected
                                         state (accent wash + edge + label) for
                                         any control that draws its own shape
@@ -823,9 +824,34 @@ Commons — only ever a verified public-domain or CC0 file:
   on purpose, and only they, to the reference's sizes: 52dp buttons, 54dp
   fields, `button` and `fieldText` at 13. Body copy, headings and spacing stayed
   zoomed out.
+- **A portrait is three across, and a row of games is the game page's
+  franchise rail.** Every box-art grid is `PORTRAIT_COLUMNS` (3) wide — the
+  collection, the studio, the library, and Search's results when their toolbar
+  is flipped to the grid (the collection's own `<CollectionToolbar>`, given
+  Search's sorts). At four a cover was ~84dp on a 360dp phone, a thumbnail of
+  the box. Every *row* of games — Home's "Games for you" and "Releases", the
+  studio's three rails, Search's "Most popular", "Because you…" and "Highly
+  rated" — is `<GameCoverRail>`: the franchise and editions rail from the game
+  page, covers at the album height of the owner's reference with the title in
+  two held lines and one quiet line under it (year, studio or rank). It replaced
+  three rails with three sizes — the 92dp poster rail, Home's captioned card
+  rail and Search's scaling chart carousel. `inset` puts the first cover in line
+  with the heading on a screen that keeps the app's 10dp margin; `parallax` is
+  Home's drift, kept. The Steam library rail on a profile is still sized by
+  `usePortraitWidth()`. The profile's four favourites stay four — a set, not a
+  grid.
+- **Search has one "Because you…" rail, from the game you reviewed last.**
+  `recommendationSeed` (`lib/news/recommendations.ts`, pure and tested) picks
+  the most recently written-about or scored IGDB log, falling back to the
+  latest log, and the rail is `getSimilarTo` for that seed under the game page's
+  own `['similar', gameId]` key. The seed is read from `['user-logs', userId]`,
+  so saving a review moves the rail on. It was a rail for each of the four
+  best-rated games, which never moved and stacked four bands on a screen meant
+  to be simple.
 - **Artwork does not ride the ladder.** Cover, poster and case sizes are fixed dp
-  in their components (`BOX_ART_WIDTH`, `POSTER_WIDTH`, `RAIL_POSTER`, the case's
-  `WIDTHS`) precisely so retuning `Spacing` or `Type` moves the interface and
+  in their components (`BOX_ART_WIDTH`, `POSTER_WIDTH`, the case's `WIDTHS`) or
+  derived from the display (`usePortraitWidth`), never from `Spacing` —
+  precisely so retuning `Spacing` or `Type` moves the interface and
   leaves the art where it is — the art is meant to be the largest thing on any
   screen. Grid covers go through `gridItemWidth()`, which subtracts spacing from
   the viewport, so tightening the ladder makes them *bigger*, which is the
@@ -908,7 +934,11 @@ Commons — only ever a verified public-domain or CC0 file:
   database before 0033 has no `cover_style` at all, and every reader treats that
   as `mosaic`. A mosaic with only one cover to draw is shown as the single cover
   — banner crop, page colour and all — except on an award show, whose trophy is
-  drawn over the mosaic. The rows *inside* a collection are a list of games and
+  drawn over the mosaic. Under the header the body is SimpMusic's album body
+  (`AlbumScreen.kt`): one column `bodyInset` in (32 to scale), the action row
+  centred in it, then the description start-aligned across it — three lines and
+  a More that opens in place — with "No description" in the same place and type
+  when nothing is written. The rows *inside* a collection are a list of games and
   keep portrait box art.
 - **Three ways to show a game, and they are not interchangeable.** `<GameCase />`
   on a game's own page; `<GameListItem />` for a row that needs a surface behind

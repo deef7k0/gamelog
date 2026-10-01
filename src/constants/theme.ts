@@ -107,7 +107,7 @@ export const Colors = {
      * the thing being tried. The surface ladder was tuned against `background`,
      * so cards on Home separate a little more strongly than elsewhere.
      */
-    homeBackground: '#1a1a1a',
+    homeBackground: '#14171c',
     /**
      * Cards and the tab bar. One perceptible step off the page: 1.076:1 on
      * `background` (#14171c). The owner's colour.

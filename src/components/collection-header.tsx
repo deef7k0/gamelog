@@ -9,6 +9,7 @@ import { CollectionMosaic } from '@/components/collection-mosaic';
 import { Avatar } from '@/components/ui/avatar';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSectionMetrics } from '@/components/ui/section';
 import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Text } from '@/components/ui/text';
 import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
@@ -136,6 +137,7 @@ export function CollectionHeader({
 }: CollectionHeaderProps) {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
+  const sections = useSectionMetrics();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const items = collection.items ?? [];
@@ -253,7 +255,15 @@ export function CollectionHeader({
         </View>
       </View>
 
-      <View style={styles.body}>
+      {/*
+        SimpMusic's album and playlist body (`AlbumScreen.kt`): one column, 32
+        in from each side to scale — the action row centred in it, then the
+        description under it, start-aligned across the column's full width,
+        each with the reference's 8 above and below. The description used to
+        sit 15 in, tight under the buttons, while "No description" centred
+        itself — two alignments for one slot.
+      */}
+      <View style={{ paddingHorizontal: sections.bodyInset, paddingTop: sections.cardGap }}>
         {/*
           Three objects, always. Never four, never a second line.
 
@@ -263,7 +273,7 @@ export function CollectionHeader({
           overflow to its right, which is what guarantees the row measures the
           same for a visitor and for the person who made it.
         */}
-        <View style={styles.actions}>
+        <View style={[styles.actions, { paddingVertical: sections.cardGap }]}>
           {onShare ? (
             <CircleAction icon="share-outline" label="Share this collection" onPress={onShare} />
           ) : (
@@ -302,28 +312,22 @@ export function CollectionHeader({
         </View>
 
         {/*
-          The description, tight under the actions.
-
-          `gap` on the body is deliberately small: the reference stacks these
-          with almost nothing between them, and the compactness is what keeps the
-          list itself on the first screenful.
+          The description: the reference's `DescriptionView`, three lines and
+          then its More, opening in place (`<ExpandableText>`). With nothing
+          written the same slot says so, in the same type and the same place,
+          as the reference's does.
         */}
-        {description ? (
-          /* SimpMusic's description, opening in place: the text's window grows
-             to the whole of it rather than the clamp jumping (see
-             `<ExpandableText>`). Its More shows until the text is measured and
-             goes if the description already fits — never a More that opens
-             three lines you had already read. */
-          <View style={styles.about}>
+        <View style={[styles.about, { paddingVertical: sections.cardGap }]}>
+          {description ? (
             <ExpandableText rich lines={DESCRIPTION_LINES} subject="the description">
               {description}
             </ExpandableText>
-          </View>
-        ) : (
-          <Text variant="body" color="textMuted">
-            No description
-          </Text>
-        )}
+          ) : (
+            <Text variant="body" color="textSecondary">
+              No description
+            </Text>
+          )}
+        </View>
       </View>
 
       {ownerActions && (
@@ -616,16 +620,12 @@ const styles = StyleSheet.create({
   byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, marginTop: 2 },
   meta: { textAlign: 'center' },
 
-  /* Tight. The reference leaves almost nothing between the buttons and the
-     description, and that compactness is what keeps the list on screen. */
-  body: { paddingHorizontal: Spacing.x24, alignItems: 'center', gap: Spacing.x12 },
-
+  /* Centred in the column, whatever the description beneath does. */
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.x20,
-    marginTop: Spacing.x12,
   },
   pill: {
     flexDirection: 'row',
@@ -650,7 +650,8 @@ const styles = StyleSheet.create({
      the page's axis. */
   circleSpacer: { width: CIRCLE, height: CIRCLE },
 
-  about: { alignSelf: 'stretch', gap: Spacing.x4 },
+  /* Start-aligned across the column: a paragraph, not a caption. */
+  about: { alignSelf: 'stretch' },
 
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   /* The menu surface: `Radius.sheet` and a hairline on the three sides that

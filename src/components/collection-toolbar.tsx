@@ -27,7 +27,9 @@ export type CollectionLayout = 'grid' | 'rows';
  * owner arranged, or the ranking if it is a ranked list. Everything else is a
  * temporary way of reading the same shelf and none of it is written back.
  */
-const SORTS: readonly { value: GameSort; icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
+export type ToolbarSort = { value: GameSort; icon: keyof typeof Ionicons.glyphMap; label: string };
+
+const SORTS: readonly ToolbarSort[] = [
   { value: 'default', icon: 'reorder-three', label: 'List order' },
   { value: 'title', icon: 'text', label: 'A to Z' },
   { value: 'newest', icon: 'arrow-down', label: 'Newest first' },
@@ -42,6 +44,11 @@ export type CollectionToolbarProps = {
   onLayout: (layout: CollectionLayout) => void;
   /** Hidden on the shapes where re-ordering would destroy the only structure. */
   showSort?: boolean;
+  /**
+   * The sorts on offer, when they are not a collection's — search results lead
+   * with IGDB's relevance rather than a list's own order.
+   */
+  sorts?: readonly ToolbarSort[];
 };
 
 /**
@@ -66,6 +73,7 @@ export function CollectionToolbar({
   layout,
   onLayout,
   showSort = true,
+  sorts = SORTS,
 }: CollectionToolbarProps) {
   const theme = useTheme();
   const accent = useAccent();
@@ -80,7 +88,7 @@ export function CollectionToolbar({
           </Text>
 
           <View style={styles.sorts}>
-            {SORTS.map((option) => {
+            {sorts.map((option) => {
               const active = option.value === sort;
               const look = selectable(active);
               return (

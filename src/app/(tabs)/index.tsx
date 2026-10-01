@@ -5,8 +5,7 @@ import { useEffect, useMemo } from 'react';
 import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
-import { GameCardRail } from '@/components/game-card-rail';
-import { GamePosterRail } from '@/components/game-rail';
+import { CoverRailSkeleton, GameCoverRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
 import { LogCard } from '@/components/log-card';
 import { ArticleCard } from '@/components/news-cards';
@@ -21,7 +20,7 @@ import { Text } from '@/components/ui/text';
 import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { getEngagement, getHomeReviews, getUnreadCount, getUserLogs } from '@/lib/api';
+import { getHomeReviews, getUnreadCount, getUserLogs } from '@/lib/api';
 import { displayNameFor, greetingFor } from '@/lib/format';
 import { recommendFromLogs } from '@/lib/games/recommend';
 import { getGamingNews, getNewReleases, getUpcomingReleases } from '@/lib/news';
@@ -174,23 +173,9 @@ export default function HomeScreen() {
     staleTime: 2 * 60_000,
   });
 
-  /*
-   * Likes and comments for both halves of the Reviews band, in one batch.
-   *
-   * Home used to render `<LogCard>` with no `engagement` prop at all, which
-   * made the screen where you read your circle's writing the one place you
-   * could not answer it. `DiscoverReviews` already pays this exact cost — two
-   * queries for a whole page — so the batch is keyed and shaped to match it.
-   */
-  const reviewIds = [...(reviews.data?.followed ?? []), ...(reviews.data?.newest ?? [])].map(
-    (log) => log.id
-  );
-
-  const engagement = useQuery({
-    queryKey: ['engagement', 'log', reviewIds, userId ?? null],
-    queryFn: () => getEngagement('log', reviewIds, userId ?? null),
-    enabled: reviewIds.length > 0,
-  });
+  /* No likes batch for the Reviews band: the review card carries no like row
+     any more (see `<LogCard>`), so a count for each card would be a request
+     whose answer is never drawn. Liking happens on the review's own page. */
 
   const news = useQuery({
     queryKey: ['news', 'articles'],
@@ -224,7 +209,6 @@ export default function HomeScreen() {
     logs.isRefetching ||
     recommended.isRefetching ||
     reviews.isRefetching ||
-    engagement.isRefetching ||
     news.isRefetching ||
     releases.isRefetching ||
     upcoming.isRefetching;
@@ -233,7 +217,6 @@ export default function HomeScreen() {
     logs.refetch();
     recommended.refetch();
     reviews.refetch();
-    engagement.refetch();
     news.refetch();
     releases.refetch();
     upcoming.refetch();
@@ -463,9 +446,20 @@ export default function HomeScreen() {
                  null rating too, so the old subtitle described a filter that
                  does not exist. */
               subtitle="Based on the games you've played.">
-              {/* Home's game rails run the parallax — see the note above
-                  `PARALLAX_OVERSCAN` in `ui/poster.tsx`. */}
-              <GameCardRail games={recommendedGames} loading={seedsPending} parallax />
+              {/* The game page's franchise rail, as every row of games is now:
+                  covers at the albums' height, the title in two held lines, the
+                  studio under it. Home's rails keep the parallax — see the note
+                  above `PARALLAX_OVERSCAN` in `ui/poster.tsx`. */}
+              {seedsPending ? (
+                <CoverRailSkeleton inset={Spacing.x16} />
+              ) : (
+                <GameCoverRail
+                  games={recommendedGames}
+                  subtitleOf={(game) => game.developer}
+                  inset={Spacing.x16}
+                  parallax
+                />
+              )}
             </HomeSection>
           )
         )}
@@ -498,7 +492,7 @@ export default function HomeScreen() {
             seeAll="/reviews">
             <View style={styles.stack}>
               {followed.map((log) => (
-                <LogCard key={log.id} log={log} engagement={engagement.data?.[log.id]} />
+                <LogCard key={log.id} log={log} />
               ))}
 
               {followed.length > 0 && newest.length > 0 && (
@@ -510,7 +504,7 @@ export default function HomeScreen() {
               )}
 
               {newest.map((log) => (
-                <LogCard key={log.id} log={log} engagement={engagement.data?.[log.id]} />
+                <LogCard key={log.id} log={log} />
               ))}
             </View>
           </HomeSection>
@@ -525,7 +519,7 @@ export default function HomeScreen() {
          */}
         <HomeSection title="Releases" subtitle="Just out, and what's next." seeAll="/releases">
           {releases.isLoading || upcoming.isLoading ? (
-            <RailSkeleton />
+            <CoverRailSkeleton inset={Spacing.x16} />
           ) : releases.isError && upcoming.isError ? (
             <BandError
               label="Releases could not load."
@@ -535,7 +529,7 @@ export default function HomeScreen() {
               }}
             />
           ) : (
-            <GamePosterRail games={releaseRail} parallax />
+            <GameCoverRail games={releaseRail} inset={Spacing.x16} parallax />
           )}
         </HomeSection>
 
@@ -615,18 +609,8 @@ function BandError({ label, onRetry }: { label: string; onRetry: () => void }) {
  * radius — the rail is the last thing in its band, so the understatement moved
  * one section instead of four.
  */
-function RailSkeleton() {
-  return (
-    <View style={styles.railSkeleton}>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <Skeleton key={index} width={92} height={181} />
-      ))}
-    </View>
-  );
-}
-
-/** A typical `<LogCard>`: the header beside its art, three lines of prose, the like row. */
-const REVIEW_CARD_HEIGHT = 212;
+/** A `<LogCard>`: 15 of padding, the title row (the 26dp avatar), 10, the 124dp art, 15. */
+const REVIEW_CARD_HEIGHT = 191;
 
 /** Lifts a one-line inline link to the platform floor without moving the text. */
 const FOOTER_SLOP = { top: 14, bottom: 14, left: 8, right: 8 };
@@ -691,7 +675,6 @@ const styles = StyleSheet.create({
   /* A rule with its label sitting on the gap above it, so the two halves of the
      Reviews band read as one band with a seam rather than as two lists. */
   divider: { paddingTop: Spacing.x12, borderTopWidth: StyleSheet.hairlineWidth },
-  railSkeleton: { flexDirection: 'row', gap: Spacing.x12, paddingHorizontal: Spacing.x16 },
   bandError: {
     paddingHorizontal: Spacing.x16,
     gap: Spacing.x4,

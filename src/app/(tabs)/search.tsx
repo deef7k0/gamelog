@@ -229,7 +229,7 @@ export default function SearchScreen() {
     /* Discover *is* the empty state. Before you have typed anything, the most
        useful thing this screen can do is answer "what should I play next"
        rather than tell you to type at least two characters. */
-    return isQueryable ? <GameSearchResults query={query} /> : <DiscoverFeed />;
+    return isQueryable ? <GameSearchResults query={query} layoutToggle /> : <DiscoverFeed />;
   }
 
   return (

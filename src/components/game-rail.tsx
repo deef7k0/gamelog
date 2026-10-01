@@ -1,121 +1,56 @@
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import Animated, {
-  useAnimatedScrollHandler,
-  useReducedMotion,
-  useSharedValue,
-  type SharedValue,
-} from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 
 import { Poster } from '@/components/ui/poster';
-import { PressableScale } from '@/components/ui/pressable-scale';
-import { ArtRail } from '@/components/ui/section';
-import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
-import { useRailDrift, type RailGeometry } from '@/hooks/use-rail-drift';
+import { ArtRail, useSectionInset, useSectionMetrics } from '@/components/ui/section';
+import { Skeleton } from '@/components/ui/surface';
+import { Radius, Type } from '@/constants/theme';
+import { useRailDrift } from '@/hooks/use-rail-drift';
 import type { GameSearchResult } from '@/lib/games';
 
-const RAIL_POSTER = 92;
-
-/**
- * Posters rendered before the rail is scrolled: the four a phone shows, and two
- * more. After that the rail keeps one screen either side (`windowSize` 3). The
- * list defaults rendered — and downloaded — every poster however far off the
- * right edge; a publisher's remasters rail on the studio page holds dozens.
- */
-const RAIL_FIRST = 6;
-
-/**
- * Where each poster sits. `leading` is 0 because `styles.rail` pads only its
- * right edge — this rail bleeds off the left of the display by design.
- */
-const RAIL_GEOMETRY: RailGeometry = {
-  pitch: RAIL_POSTER + Spacing.x12,
-  leading: 0,
-  itemWidth: RAIL_POSTER,
-};
-
-/**
- * Horizontal rails shared by the game Overview tab, the studio catalogue and the
- * franchise section.
- *
- * These are browsing surfaces, so they use `<Poster />`. `<GameCase />` is
- * reserved for dedicated game pages — see the rule in CLAUDE.md.
- */
-
-export function GamePosterRail({
-  games,
-  emptyLabel,
-  parallax = false,
-}: {
-  games: GameSearchResult[];
-  emptyLabel?: string;
-  /**
-   * Let the artwork sit behind its frame and slide as the rail moves. Off by
-   * default: this rail also serves the game page's franchise and studio bands,
-   * and Home is the only screen that asked for the effect. Ignored under a
-   * reduced-motion preference.
-   */
-  parallax?: boolean;
-}) {
-  const reduceMotion = useReducedMotion();
-  const scrollX = useSharedValue(0);
-
-  const onScroll = useAnimatedScrollHandler((event) => {
-    scrollX.set(event.contentOffset.x);
-  });
-
-  const driver = parallax && !reduceMotion ? scrollX : null;
-
-  if (games.length === 0) {
-    return emptyLabel ? (
-      <Text variant="bodySmall" color="textMuted">
-        {emptyLabel}
-      </Text>
-    ) : null;
-  }
-
-  return (
-    <Animated.FlatList
-      data={games}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      keyExtractor={(game) => game.id}
-      contentContainerStyle={styles.rail}
-      onScroll={driver ? onScroll : undefined}
-      scrollEventThrottle={16}
-      initialNumToRender={RAIL_FIRST}
-      windowSize={3}
-      renderItem={({ item, index }) => <RailPoster game={item} index={index} scrollX={driver} />}
-    />
-  );
-}
-
-/** What a cover rail needs of a game — a search result or a full record. */
+/** What a cover rail needs of a game — a search result, a full record, a chart row. */
 export type CoverRailGame = Pick<
   GameSearchResult,
   'id' | 'title' | 'coverUrl' | 'heroUrl' | 'edition' | 'releaseYear'
->;
+> & {
+  /** Steam's own capsule, where there is one; IGDB's cover otherwise. */
+  steamAppId?: string | null;
+};
 
 /**
- * Games as a game page's section draws them: SimpMusic's "Singles" and
- * "Albums" rails with box art in place of album squares — each cover at the
- * albums' height (`<ArtRail>`, shape `cover`), its title under it and one quiet
- * line under that, the release year unless the caller says otherwise.
+ * Games in a row, the one way the app draws one: the game page's franchise and
+ * editions, taken everywhere a row of games appears — Home, Search, a studio.
  *
- * The rail for the sections of a game's own page. Home, the studio page and
- * the other bands keep `<GamePosterRail>`: they are lists of many games, where
- * art this size would show two at a time.
+ * SimpMusic's "Singles" and "Albums" rails with box art in place of album
+ * squares (`<ArtRail>`, shape `cover`): each cover at the albums' height, its
+ * title under it in two lines always held open, and one quiet line under that —
+ * the release year unless the caller says otherwise (a studio, a rank).
+ *
+ * This replaced three rails that each had their own sizes: the 92dp poster
+ * rail, Home's captioned card rail and Search's chart carousel. A cover is now
+ * one size and one shape on every screen that shows a row of them. These are
+ * browsing surfaces, so they use `<Poster />`; `<GameCase />` is reserved for a
+ * game's own page — see the rule in CLAUDE.md.
  */
-export function GameCoverRail({
+export function GameCoverRail<T extends CoverRailGame>({
   games,
   subtitleOf = (game) => (game.releaseYear === null ? null : String(game.releaseYear)),
   labelOf,
+  inset,
+  parallax = false,
 }: {
-  games: readonly CoverRailGame[];
-  subtitleOf?: (game: CoverRailGame) => string | null;
+  games: readonly T[];
+  subtitleOf?: (game: T) => string | null;
   /** What a screen reader says for a cover, when its title alone is not enough. */
-  labelOf?: (game: CoverRailGame) => string;
+  labelOf?: (game: T) => string;
+  /** Where the first cover starts, when it is not the section inset in force. */
+  inset?: number;
+  /**
+   * The art slides behind its frame as the rail moves — Home's rails, which
+   * always have. Off elsewhere, and under a reduced-motion preference.
+   */
+  parallax?: boolean;
 }) {
   const router = useRouter();
 
@@ -124,14 +59,16 @@ export function GameCoverRail({
       data={games}
       keyOf={(game) => game.id}
       shape="cover"
-      renderArt={(game, size) => (
-        <Poster
-          coverUrl={game.coverUrl}
-          heroUrl={game.heroUrl}
-          title={game.title}
-          edition={game.edition}
+      inset={inset}
+      parallax={parallax}
+      renderArt={(game, size, context) => (
+        <RailCover
+          game={game}
           width={size.width}
-          rounded="image"
+          index={context.index}
+          scrollX={context.scrollX}
+          leading={context.inset}
+          gap={context.itemGap}
         />
       )}
       titleOf={(game) => game.title}
@@ -142,47 +79,72 @@ export function GameCoverRail({
   );
 }
 
-/** One poster, lifted out of `renderItem` so it can hold `useRailDrift`. */
-function RailPoster({
+/** One cover, lifted out of the rail's render so it can hold `useRailDrift`. */
+function RailCover({
   game,
+  width,
   index,
   scrollX,
+  leading,
+  gap,
 }: {
-  game: GameSearchResult;
+  game: CoverRailGame;
+  width: number;
   index: number;
   scrollX: SharedValue<number> | null;
+  leading: number;
+  gap: number;
 }) {
-  const drift = useRailDrift(scrollX, index, RAIL_GEOMETRY);
+  const drift = useRailDrift(scrollX, index, { pitch: width + gap, leading, itemWidth: width });
 
   return (
-    <Link href={{ pathname: '/game/[id]', params: { id: game.id } }} asChild>
-      <PressableScale accessibilityRole="button" accessibilityLabel={game.title} scaleTo={0.95}>
-        <View style={styles.railItem}>
-          <Poster
-            coverUrl={game.coverUrl}
-            heroUrl={game.heroUrl}
-            title={game.title}
-            edition={game.edition}
-            steamAppId={game.steamAppId}
-            width={RAIL_POSTER}
-            rounded="image"
-            parallax={drift}
-          />
-          <Text variant="caption" numberOfLines={2}>
-            {game.title}
-          </Text>
-          {game.releaseYear !== null && (
-            <Text variant="caption" color="textMuted">
-              {game.releaseYear}
-            </Text>
-          )}
+    <Poster
+      coverUrl={game.coverUrl}
+      heroUrl={game.heroUrl}
+      title={game.title}
+      edition={game.edition}
+      steamAppId={game.steamAppId}
+      width={width}
+      rounded="image"
+      parallax={drift}
+    />
+  );
+}
+
+/**
+ * The rail's shape while its games load: the same covers and the same two
+ * held lines, so nothing moves when the real ones arrive.
+ */
+export function CoverRailSkeleton({ count = 4, inset }: { count?: number; inset?: number }) {
+  const metrics = useSectionMetrics();
+  const contextInset = useSectionInset();
+  const { width, height } = metrics.cover;
+
+  return (
+    <View
+      style={[
+        styles.skeleton,
+        {
+          paddingLeft: inset ?? contextInset,
+          paddingTop: metrics.artTop,
+          gap: metrics.itemGap,
+        },
+      ]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
+      {Array.from({ length: count }, (_, index) => (
+        <View key={index} style={{ width, gap: metrics.titleTop }}>
+          <Skeleton width={width} height={height} radius={Radius.image} />
+          <Skeleton width={width * 0.8} height={Type.itemTitle.lineHeight - 6} />
+          <Skeleton width={width * 0.4} height={Type.bodySmall.lineHeight - 5} />
         </View>
-      </PressableScale>
-    </Link>
+      ))}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  rail: { gap: Spacing.x12, paddingRight: Spacing.x16 },
-  railItem: { width: RAIL_POSTER, gap: 2 },
+  /* Clipped rather than scrolled: four covers run off the right edge as the
+     real rail's do. */
+  skeleton: { flexDirection: 'row', overflow: 'hidden' },
 });

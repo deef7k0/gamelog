@@ -1,8 +1,17 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import {
+  CollectionToolbar,
+  type CollectionLayout,
+  type ToolbarSort,
+} from '@/components/collection-toolbar';
+import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { GameListItem } from '@/components/game-list-item';
+import { Poster } from '@/components/ui/poster';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Radius, Spacing } from '@/constants/theme';
@@ -30,6 +39,21 @@ const SORTS = gameSortOptions(['default', 'newest', 'rating', 'title'], {
   default: 'Relevance',
 });
 
+/**
+ * The same four as glyphs, for the collection's toolbar when the results can
+ * be drawn as a grid — relevance in the slot where a collection keeps its own
+ * order, since it is the results' own order.
+ */
+const TOOLBAR_SORTS: readonly ToolbarSort[] = [
+  { value: 'default', icon: 'reorder-three', label: 'Relevance' },
+  { value: 'newest', icon: 'arrow-down', label: 'Newest first' },
+  { value: 'rating', icon: 'star', label: 'Highest rated' },
+  { value: 'title', icon: 'text', label: 'A to Z' },
+];
+
+/** Between covers in the grid, across and down — the collection grid's. */
+const GRID_GAP = Spacing.x12;
+
 export type GameSearchResultsProps = {
   /** The search term. Debounce it in the caller, which owns the text field. */
   query: string;
@@ -47,6 +71,12 @@ export type GameSearchResultsProps = {
   isDisabled?: (game: GameSearchResult) => boolean;
   /** Shown before the query is long enough to run. */
   prompt?: { title: string; message?: string };
+  /**
+   * Offer the collection's grid: the same toolbar, and three big covers across
+   * when it is flipped. The Search tab's; a picker keeps the list, whose rows
+   * carry the "Added" badges and disabled states a cover has no room for.
+   */
+  layoutToggle?: boolean;
 };
 
 /**
@@ -64,9 +94,15 @@ export function GameSearchResults({
   badgeFor,
   isDisabled,
   prompt,
+  layoutToggle = false,
 }: GameSearchResultsProps) {
   const [sort, setSort] = useState<GameSort>('default');
+  const [layout, setLayout] = useState<CollectionLayout>('rows');
+  const { width } = useWindowDimensions();
   const isQueryable = query.length >= MIN_QUERY_LENGTH;
+  const grid = layoutToggle && layout === 'grid';
+  /* The app's portrait size, three across — the collection grid's own. */
+  const tileWidth = gridItemWidth(width, PORTRAIT_COLUMNS, Spacing.x16, GRID_GAP);
 
   const games = useQuery({
     // Shared key: the picker and the Search tab hit the same cache, so opening
@@ -117,20 +153,60 @@ export function GameSearchResults({
   return (
     <FlatList
       data={ordered}
+      /* `numColumns` cannot change on a mounted list — React Native refuses to
+         re-lay it out — so each layout is its own list, and the key swaps it. */
+      key={grid ? 'search-grid' : 'search-rows'}
+      numColumns={grid ? PORTRAIT_COLUMNS : 1}
+      columnWrapperStyle={grid ? styles.gridRow : undefined}
       keyExtractor={(game) => game.id}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={styles.content}
-      renderItem={({ item }) => (
-        <GameListItem
-          game={item}
-          badge={badgeFor?.(item) ?? null}
-          onPress={onSelect ? () => onSelect(item) : undefined}
-          disabled={isDisabled?.(item)}
-        />
-      )}
+      contentContainerStyle={[styles.content, grid && styles.gridContent]}
+      renderItem={({ item }) =>
+        grid ? (
+          /* The collection's grid: the cover is the result, as it is on a
+             shelf — the title is on the box. */
+          <Link href={{ pathname: '/game/[id]', params: { id: item.id } }} asChild>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={item.title}
+              scaleTo={0.95}>
+              <Poster
+                coverUrl={item.coverUrl}
+                heroUrl={item.heroUrl}
+                title={item.title}
+                edition={item.edition}
+                steamAppId={item.steamAppId}
+                width={tileWidth}
+                rounded="image"
+              />
+            </PressableScale>
+          </Link>
+        ) : (
+          <GameListItem
+            game={item}
+            badge={badgeFor?.(item) ?? null}
+            onPress={onSelect ? () => onSelect(item) : undefined}
+            disabled={isDisabled?.(item)}
+          />
+        )
+      }
       ListHeaderComponent={
-        // Only once there is more than one result to reorder — a sort row above
-        // a single hit is chrome that does nothing.
+        layoutToggle && ordered.length > 0 ? (
+          /* The collection's toolbar: the sorts as glyphs, and at the far end
+             the button that draws the results as big covers — or back as rows.
+             The sorts only once there is more than one result to reorder. */
+          <View style={styles.sorts}>
+            <CollectionToolbar
+              sorts={TOOLBAR_SORTS}
+              sort={sort}
+              onSort={setSort}
+              layout={layout}
+              onLayout={setLayout}
+              showSort={ordered.length > 1}
+            />
+          </View>
+        ) : // Only once there is more than one result to reorder — a sort row
+        // above a single hit is chrome that does nothing.
         ordered.length > 1 ? (
           <View style={styles.sorts}>
             <SortBar
@@ -196,6 +272,9 @@ const styles = StyleSheet.create({
      nothing to fill. */
   content: { padding: Spacing.x16, gap: Spacing.x8, paddingBottom: Spacing.x48, flexGrow: 1 },
   sorts: { paddingBottom: Spacing.x4 },
+  /* The grid sets its own rhythm: covers `GRID_GAP` apart both ways. */
+  gridContent: { gap: GRID_GAP },
+  gridRow: { gap: GRID_GAP },
   skeletonRow: { flexDirection: 'row', gap: Spacing.x12, paddingVertical: Spacing.x16 },
   skeletonPoster: {
     width: SKELETON_POSTER,

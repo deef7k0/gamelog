@@ -917,40 +917,50 @@ export default function GameDetailScreen() {
                 What one person wrote. The way to everything anybody wrote is the
                 heading's More — it was a "See all reviews" row at the foot of
                 this card, which is the reference's More in the wrong place.
+
+                Only when somebody has written one. An empty card asking for the
+                first review repeated the masthead's review button, the one
+                primary action on the page, and a section exists here only when
+                it has something in it — as Where to buy and Developers do. So
+                no skeleton either: a card drawn while loading and then
+                withdrawn would move everything under it twice.
               */}
-              <InfoCard
-                title="Reviews"
-                more={{
-                  accessibilityLabel: `See all reviews of ${data.title}`,
-                  onPress: openReviews,
-                }}>
-                <TopReviewCard
-                  /* `bare`: the card is already here. */
-                  bare
-                  /* Five, against the default three. This tab scrolls and this is
+              {topReview.data && (
+                <InfoCard
+                  title="Reviews"
+                  more={{
+                    accessibilityLabel: `See all reviews of ${data.title}`,
+                    onPress: openReviews,
+                  }}>
+                  <TopReviewCard
+                    /* `bare`: the card is already here. */
+                    bare
+                    /* Five, against the default three. This tab scrolls and this is
                      the only review on it, so the clamp can afford to be a real
                      sample rather than a taste — the three exists for Surprise Me,
                      where the same card sits on a screen that must not scroll. */
-                  lines={5}
-                  review={topReview.data ?? null}
-                  loading={topReview.isPending}
-                  liked={topReview.data?.likedByViewer ?? false}
-                  onToggleLike={() => {
-                    if (topReview.data && userId) likeReview.mutate(!topReview.data.likedByViewer);
-                  }}
-                  onOpenReview={() => {
-                    if (topReview.data) {
-                      router.push({
-                        pathname: '/review/[id]',
-                        params: { id: topReview.data.log.id },
-                      });
+                    lines={5}
+                    review={topReview.data}
+                    loading={false}
+                    liked={topReview.data.likedByViewer}
+                    onToggleLike={() => {
+                      if (topReview.data && userId)
+                        likeReview.mutate(!topReview.data.likedByViewer);
+                    }}
+                    onOpenReview={() => {
+                      if (topReview.data) {
+                        router.push({
+                          pathname: '/review/[id]',
+                          params: { id: topReview.data.log.id },
+                        });
+                      }
+                    }}
+                    onWriteReview={() =>
+                      router.push({ pathname: '/log/[id]', params: { id: data.id } })
                     }
-                  }}
-                  onWriteReview={() =>
-                    router.push({ pathname: '/log/[id]', params: { id: data.id } })
-                  }
-                />
-              </InfoCard>
+                  />
+                </InfoCard>
+              )}
 
               <TimeToBeatWidget gameId={data.id} />
               <GameEventsWidget gameId={data.id} />

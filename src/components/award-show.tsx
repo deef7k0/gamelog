@@ -85,7 +85,7 @@ export function AwardShow({ listId, isOwner, header }: AwardShowProps) {
   }
 
   if (ballot.isLoading) return <LoadingState />;
-  if (ballot.isError) return <ErrorState error={ballot.error} />;
+  if (ballot.isLoadingError) return <ErrorState error={ballot.error} />;
 
   return (
     <FlatList

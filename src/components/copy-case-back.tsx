@@ -63,8 +63,24 @@ export type CopyCaseBackProps = {
  * this face is the object's, that list is the one to read.
  */
 export function CopyCaseBack({ copy, platform, width }: CopyCaseBackProps) {
-  const height = (width / CASE_TEMPLATE_SIZE.width) * CASE_TEMPLATE_SIZE.height;
+  /* The front's own height: each platform's case is drawn at its template's
+     proportions, and the two faces must be one rectangle. */
+  const size = hasCase(platform) ? CASE_TEMPLATES[platform].templateSize : CASE_TEMPLATE_SIZE;
+  const height = (width / size.width) * size.height;
   const pad = SIZES.pad(width);
+  /*
+   * A face shorter than a keep case — a near-square 3DS box, a SNES box on its
+   * side — has no room for the whole list this layout was drawn for, and a row
+   * cut in half by the shell's edge reads as a fault. So a short face prints a
+   * one-line title, as many whole rows as fit, and no note. The estimate is of
+   * the type's own line boxes, a little generous so it errs toward one row
+   * fewer. Everything is in the readable list under the case either way.
+   */
+  const short = height < width * 1.1;
+  const rowHeight = SIZES.label(width) * 1.3 + 1 + SIZES.value(width) * 1.35 + 5;
+  const rowsRoom =
+    height - SIZES.band(width) - pad * 2 - SIZES.title(width) * 1.35 - pad * 0.6 - pad * 0.5;
+  const maxRows = short ? Math.max(0, Math.floor((rowsRoom + 5) / rowHeight)) : Infinity;
 
   const meta = PLATFORMS[platform];
   const band = hasCase(platform) ? CASE_TEMPLATES[platform].spineColor : meta.accent;
@@ -120,12 +136,12 @@ export function CopyCaseBack({ copy, platform, width }: CopyCaseBackProps) {
       <View style={[styles.body, { padding: pad, gap: pad * 0.6 }]}>
         <RNText
           style={[styles.title, { fontSize: SIZES.title(width), color: PLASTIC.ink }]}
-          numberOfLines={2}>
+          numberOfLines={short ? 1 : 2}>
           {copy.game?.title ?? 'A copy'}
         </RNText>
 
         <View style={[styles.rows, { borderTopColor: PLASTIC.rule, paddingTop: pad * 0.5 }]}>
-          {rows.map(([label, value]) => (
+          {rows.slice(0, maxRows).map(([label, value]) => (
             <View key={label} style={styles.row}>
               <RNText
                 style={[styles.label, { fontSize: SIZES.label(width), color: PLASTIC.quiet }]}
@@ -141,7 +157,7 @@ export function CopyCaseBack({ copy, platform, width }: CopyCaseBackProps) {
           ))}
         </View>
 
-        {!!copy.notes?.trim() && (
+        {!short && !!copy.notes?.trim() && (
           <RNText
             style={[styles.notes, { fontSize: SIZES.notes(width), color: PLASTIC.quiet }]}
             numberOfLines={2}>

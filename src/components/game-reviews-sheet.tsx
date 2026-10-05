@@ -5,20 +5,20 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { ReviewBreakdown } from '@/components/review-breakdown';
-import { ReviewCard } from '@/components/review-card';
+import { ReviewQuote } from '@/components/review-quote';
 import { Button } from '@/components/ui/button';
 import { ScoreTile } from '@/components/ui/score-tile';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { useSelectable } from '@/components/ui/selectable';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
-import { Card, Skeleton } from '@/components/ui/surface';
+import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { PLATFORM_FAMILIES, familyForStored } from '@/constants/platform-family';
 import { ratingVerdict } from '@/constants/score';
+import { ArtRowWindow } from '@/constants/list-window';
 import { ControlHeight, Radius, SmallControlSlop, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { useLikeToggle } from '@/hooks/use-like-toggle';
 import {
   getGameReviewList,
   getRatingBreakdown,
@@ -26,6 +26,7 @@ import {
   type ReviewListItem,
   type ReviewSort,
 } from '@/lib/api';
+import { displayNameFor } from '@/lib/format';
 import {
   PLAY_FILTERS,
   PROGRESS_FILTERS,
@@ -40,7 +41,7 @@ import { useAuth } from '@/store/auth';
 /**
  * How much of a review the list prints.
  *
- * Ten, against the five `<TopReviewCard>` shows on Overview and the five in the
+ * Ten, against the five a card in the Overview's rail shows and the five in the
  * feed, and the difference is deliberate: those are samples offered to somebody
  * reading about a game or scrolling past one, and this is the screen they opened
  * *because* they want the reviews. Ten lines is most of a short review and enough
@@ -199,7 +200,7 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
 
       <ReviewBreakdown
         sections={sections}
-        failed={stats.isError}
+        failed={stats.isLoadingError}
         onRetry={() => void stats.refetch()}
       />
 
@@ -317,6 +318,7 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
     <FlatList
       data={reviews.data ?? []}
       keyExtractor={(item) => item.log.id}
+      {...ArtRowWindow}
       ListHeaderComponent={header}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -324,7 +326,7 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
       ListEmptyComponent={
         reviews.isPending ? (
           <LoadingState label="Loading reviews…" />
-        ) : reviews.isError ? (
+        ) : reviews.isLoadingError ? (
           <ErrorState error={reviews.error} onRetry={() => reviews.refetch()} />
         ) : (
           <EmptyState
@@ -434,29 +436,24 @@ function ScoreSummary({
 }
 
 /**
- * One review, at the size a review deserves.
+ * One review: its words, and under them who wrote it and what they scored it.
  *
- * ## The layout, and the one thing it does not do
+ *     the first line of the review…
+ *     the second line…
+ *     the third line…
  *
- * Three bands: who wrote it and when, then the score beside the prose, then the
- * two ways to answer it.
+ *     username                       84
  *
- *     (pfp) username                     12 hours ago
- *     ┌────┐  the first line of the review…
- *     │ 84 │  the second line…
- *     └────┘  the third line…
- *     ♡ 12   💬 3
+ * The card is `<ReviewQuote>` — the critics' card from the game page, which at
+ * the owner's direction is the member's review card too, there and here. Text,
+ * a name — with the writer's picture, in this list — and a score: the platform
+ * mark, the hours, the heart and the report flag this row used to carry are on
+ * the review's own page, which a tap opens.
  *
- * The sketch this was built from had the text *wrapping back under* the score
- * tile at line four — a magazine drop-cap float. **React Native cannot do
- * that**, and it is worth writing down so nobody tries again: there is no
- * `float`, and an inline `<View>` inside a `<Text>` occupies one line box rather
- * than reflowing the lines beneath it. The only way to get it is to measure with
- * `onTextLayout`, split the string at the returned line boundary and render two
- * `<Text>`s — a setState and a second layout pass per row, inside a `FlatList`,
- * on the screen whose whole job is scrolling smoothly through a hundred of
- * these. The column is the honest trade: the tile and the prose still share a
- * top edge and still sit under the name, which is what the sketch was after.
+ * **Neutral, not the game's colour.** On the game page the card takes the
+ * game's dark tone; this sheet is raised over that page and keeps the app's
+ * own surface, as its rows always have, so the list reads as the sheet's
+ * rather than as more of the page under it.
  *
  * How much of the review it prints is `REVIEW_LINES`, which says why.
  */
@@ -466,47 +463,40 @@ function ScoreSummary({
    landing — to draw exactly what it already showed. */
 const ReviewRow = memo(function ReviewRow({ item }: { item: ReviewListItem }) {
   const router = useRouter();
+  const theme = useTheme();
   const { log } = item;
   const onPress = useCallback(
     () => router.push({ pathname: '/review/[id]', params: { id: log.id } }),
     [router, log.id]
   );
 
-  /* The optimistic heart, from the shared hook rather than a second copy of the
-     same override rule. The row is fed a plain count and flag, which is exactly
-     the `Engagement` shape it wants. */
-  const { liked, likeCount, toggle } = useLikeToggle('log', log.id, {
-    likes: item.likes,
-    comments: item.comments,
-    likedByViewer: item.likedByViewer,
-  });
+  const name = displayNameFor(log.profile);
+  const headline = log.review_title?.trim();
 
   return (
     <View style={styles.rowWrap}>
-      <Card padded={false} style={styles.rowCard}>
-        {/*
-          The row's interior is `<ReviewCard>`, shared with the game page's
-          Overview card and with Surprise Me.
-
-          All three show one person's review of a game you are already looking
-          at, and all three used to draw it differently: this one led with an
-          avatar row and a timestamp beside a 62dp score tile, the Overview card
-          led with the tile alone. One shape, one file — and the game's title
-          appears on none of them, because it is the name of the screen.
-
-          The timestamp went with the redraw. It was the only thing on the row
-          that the review itself did not say, and it was competing for the top
-          line with the writer's name; the full review page prints the date.
-        */}
-        <ReviewCard
-          log={log}
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={[
+          headline ? `${name}’s review, “${headline}”` : `${name}’s review`,
+          log.rating !== null ? `scored ${Math.round(log.rating)}` : null,
+          log.spoilers ? 'Contains spoilers' : null,
+          'Read all of it.',
+        ]
+          .filter(Boolean)
+          .join('. ')}
+        onPress={onPress}
+        scaleTo={0.99}>
+        <ReviewQuote
+          text={log.review ?? ''}
+          byline={name}
+          avatarUrl={log.profile?.avatar_url ?? null}
+          score={log.rating}
           lines={REVIEW_LINES}
-          liked={liked}
-          likeCount={likeCount}
-          onToggleLike={toggle}
-          onOpen={onPress}
+          spoiler={!!log.spoilers}
+          fill={theme.surface}
         />
-      </Card>
+      </PressableScale>
     </View>
   );
 });
@@ -563,5 +553,4 @@ const styles = StyleSheet.create({
   filterGroup: { gap: Spacing.x8 },
   clear: { alignItems: 'flex-start' },
   rowWrap: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12 },
-  rowCard: { padding: Spacing.x12, gap: Spacing.x8 },
 });

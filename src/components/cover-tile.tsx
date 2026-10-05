@@ -71,6 +71,7 @@ export const CoverTile = memo(function CoverTile({ game, width, rank }: CoverTil
           heroUrl={game.heroUrl}
           title={game.title}
           edition={game.edition ?? null}
+          gameId={game.id}
           steamAppId={game.steamAppId ?? null}
           width={artWidth}
           rounded="image"

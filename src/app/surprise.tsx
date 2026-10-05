@@ -769,7 +769,7 @@ export default function SurpriseScreen() {
     );
   }
 
-  if (batch.isError) {
+  if (batch.isLoadingError) {
     return (
       <Screen edges={['top', 'bottom']} padded topBar={<FrostedTopBar back />}>
         <ErrorState error={batch.error} onRetry={() => batch.refetch()} />

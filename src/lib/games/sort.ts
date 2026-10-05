@@ -17,6 +17,14 @@ export type SortableGame = {
   title: string;
   releaseYear: number | null;
   score: number | null;
+  /**
+   * The full release date (`YYYY-MM-DD`), where the caller has one.
+   *
+   * Optional because half the callers only hold a year — a collection's cached
+   * rows, a chart. With it, "newest" orders two games from the same year by
+   * the day they came out instead of by their titles.
+   */
+  releaseDate?: string | null;
 };
 
 /**
@@ -54,6 +62,18 @@ function compareNullable(a: number | null, b: number | null, direction: 1 | -1):
 }
 
 /**
+ * When a game came out, as a number to order by — the date when there is one,
+ * else the first of its year, else null.
+ */
+function releasedAt(game: SortableGame): number | null {
+  if (game.releaseDate) {
+    const parsed = Date.parse(game.releaseDate);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return game.releaseYear === null ? null : Date.UTC(game.releaseYear, 0, 1);
+}
+
+/**
  * A newly ordered array. Never sorts in place — the input is usually a query
  * result held by TanStack Query, and mutating it would reorder the cache.
  */
@@ -68,9 +88,9 @@ export function sortGames<T extends SortableGame>(games: readonly T[], sort: Gam
   return [...games].sort((a, b) => {
     switch (sort) {
       case 'newest':
-        return compareNullable(a.releaseYear, b.releaseYear, -1) || byTitle(a, b);
+        return compareNullable(releasedAt(a), releasedAt(b), -1) || byTitle(a, b);
       case 'oldest':
-        return compareNullable(a.releaseYear, b.releaseYear, 1) || byTitle(a, b);
+        return compareNullable(releasedAt(a), releasedAt(b), 1) || byTitle(a, b);
       case 'rating':
         return compareNullable(a.score, b.score, -1) || byTitle(a, b);
       case 'title':

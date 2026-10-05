@@ -65,14 +65,5 @@
     "lint": "expo lint",
     "test": "node --import ./scripts/esm-register.mjs --test 'src/**/*.test.ts'"
   },
-  "private": true,
-  "expo": {
-    "autolinking": {
-      "android": {
-        "exclude": [
-          "@expo/ui"
-        ]
-      }
-    }
-  }
+  "private": true
 }

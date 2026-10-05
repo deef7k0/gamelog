@@ -62,6 +62,7 @@ export function GameTile({ game, width, showStats = true, ownerId }: GameTilePro
         coverUrl={steamCoverUrl(game.appId)}
         heroUrl={steamHeaderUrl(game.appId)}
         title={game.name}
+        gameId={game.gameId}
         width={width}
         rounded="image"
       />

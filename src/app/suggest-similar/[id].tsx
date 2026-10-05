@@ -72,7 +72,7 @@ export default function SuggestSimilarScreen() {
   } else if (game.isLoading) {
     body = <LoadingState />;
   } else if (!game.data) {
-    body = game.isError ? (
+    body = game.isLoadingError ? (
       <ErrorState error={game.error} onRetry={() => void game.refetch()} />
     ) : (
       <EmptyState title="Game not found" />
@@ -100,7 +100,7 @@ export default function SuggestSimilarScreen() {
   } else if (other.isLoading || pair.isLoading) {
     body = <LoadingState />;
   } else if (!other.data) {
-    body = other.isError ? (
+    body = other.isLoadingError ? (
       <ErrorState error={other.error} onRetry={() => void other.refetch()} />
     ) : (
       <EmptyState title="Game not found" />

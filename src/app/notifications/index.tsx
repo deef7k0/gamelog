@@ -106,7 +106,7 @@ export default function NotificationsScreen() {
     );
   }
 
-  if (notifications.isError) {
+  if (notifications.isLoadingError) {
     return (
       <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={notifications.error} />

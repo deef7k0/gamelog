@@ -74,7 +74,7 @@ export function GameListsSheet({ gameId, gameTitle }: GameListsSheetProps) {
   });
 
   if (lists.isLoading) return <LoadingState />;
-  if (lists.isError) return <ErrorState error={lists.error} />;
+  if (lists.isLoadingError) return <ErrorState error={lists.error} />;
 
   const data = lists.data ?? [];
 

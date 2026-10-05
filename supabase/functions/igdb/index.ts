@@ -63,6 +63,12 @@ const ALLOWED_ENDPOINTS = new Set([
   // does nothing until:
   //   supabase functions deploy igdb --project-ref <ref> --use-api
   'game_time_to_beats',
+  // How many games a `where` clause matches — `{ "count": 12345 }` — for the
+  // page count on a platform's games. The whole path is matched, so `games`
+  // above never admitted this. Until the function is redeployed the app counts
+  // through `games` instead, with a dozen small probes where this is one
+  // request; see `countGames` in `src/lib/games/browse.ts`.
+  'games/count',
 ]);
 
 const CORS_HEADERS = {

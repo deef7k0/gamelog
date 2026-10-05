@@ -109,7 +109,7 @@ export default function PeopleScreen() {
         ListEmptyComponent={
           people.isLoading ? (
             <LoadingState />
-          ) : people.isError ? (
+          ) : people.isLoadingError ? (
             <ErrorState
               error={people.error}
               action={

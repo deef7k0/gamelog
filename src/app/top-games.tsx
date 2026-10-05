@@ -121,7 +121,7 @@ export default function TopGamesScreen() {
                 <Skeleton key={index} width={tileWidth} height={96} radius={Radius.image} />
               ))}
             </View>
-          ) : chart.isError ? (
+          ) : chart.isLoadingError ? (
             <ErrorState error={chart.error} />
           ) : (
             <EmptyState title="No chart data" message="IGDB did not return a chart right now." />

@@ -1,6 +1,7 @@
 import { decode as decodeJpeg } from 'jpeg-js';
 
 import { meanOpaqueLuminance } from '@/lib/immersive-color';
+import { logoInkOf, type LogoInk } from '@/lib/logo-ink';
 import { decodePng, type DecodedImage } from '@/lib/png';
 import { USER_AGENT } from '@/lib/wikidata/client';
 
@@ -87,6 +88,50 @@ export function measuringUrl(url: string): string {
     (match, width: string, name: string, rest: string) =>
       Number(width) > MEASURE_WIDTH ? `/${MEASURE_WIDTH}px-${name}${rest}` : match
   );
+}
+
+/**
+ * IGDB's smallest rendering that keeps a logo's own shape: fitted inside
+ * 90×128, where `t_thumb` and `t_micro` are square crops that cut a wordmark's
+ * ends off and with them its corners. Verified live: 1–3 KB, at most 8,100
+ * pixels, a palette PNG with its transparency intact.
+ */
+const IGDB_MEASURE_SIZE = 't_cover_small';
+
+const IGDB_IMAGE =
+  /^(https:\/\/images\.igdb\.com\/igdb\/image\/upload\/)t_[a-z0-9_]+\/([^/.?#]+)\.[a-z]+$/;
+
+/**
+ * Where an IGDB logo is read from, and the id it is remembered under — or null
+ * for an image from anywhere else, which is left unmeasured.
+ *
+ * As `.png`, whatever the drawn URL asks for: IGDB flattens transparency to
+ * black in a JPEG, and the transparency is half of what is being measured.
+ */
+export function igdbLogoSource(url: string): { id: string; measureUrl: string } | null {
+  const match = IGDB_IMAGE.exec(url);
+  return match
+    ? { id: match[2], measureUrl: `${match[1]}${IGDB_MEASURE_SIZE}/${match[2]}.png` }
+    : null;
+}
+
+/**
+ * What a platform's or a studio's IGDB logo is made of — how much of it is
+ * cut out, how much of its ink is dark, what ground it brought — so it can be
+ * drawn on the page without a plate (`logoTreatment`).
+ *
+ * Null when the file could not be read as a logo: nothing opaque in it, a
+ * format the decoder does not take. **Throws when it could not be fetched**,
+ * which is a different fact — the caller remembers the first for months and
+ * the second not at all.
+ */
+export async function measureLogoInk(measureUrl: string): Promise<LogoInk | null> {
+  const response = await fetch(measureUrl);
+  if (!response.ok) throw new Error(`Logo request failed (${response.status})`);
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > MAX_BYTES) return null;
+  const image = decodeImage(new Uint8Array(buffer));
+  return image ? logoInkOf(image) : null;
 }
 
 async function fetchImage(url: string): Promise<DecodedImage | null> {

@@ -126,7 +126,7 @@ export default function NewsScreen() {
 
   function renderBody() {
     if (active.isLoading) return <LoadingState />;
-    if (active.isError) return <ErrorState error={active.error} />;
+    if (active.isLoadingError) return <ErrorState error={active.error} />;
 
     switch (tab) {
       case 'news':

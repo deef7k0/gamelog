@@ -1,5 +1,6 @@
 import { editionKindFor, editionRank } from '../../constants/game-editions';
 import { supabase } from '../supabase';
+import { rememberGame } from './seen-games';
 import { makeGameId, yearFrom, type Game, type GameProvider, type GameSearchResult } from './types';
 
 /**
@@ -236,6 +237,24 @@ function toSearchResult(game: Game): GameSearchResult {
   };
 }
 
+/**
+ * `toGame` for a row fetched with **the whole of `GAME_FIELDS`** — and so a
+ * complete record, which is kept for the game page (`seen-games.ts`).
+ *
+ * Every list below builds the complete game and then cuts it down to a row.
+ * Remembering it on the way past is what lets the game page open from a list
+ * without asking IGDB for the record a second time.
+ *
+ * Never use this on a row fetched with fewer fields (`STUDIO_FIELDS`, the
+ * `similar_games` expansion): a partial record would be handed to the game
+ * page as if it were the game.
+ */
+function toFullGame(raw: IgdbGame): Game {
+  const game = toGame(raw);
+  rememberGame(game);
+  return game;
+}
+
 async function search(term: string, signal?: AbortSignal): Promise<GameSearchResult[]> {
   const trimmed = term.trim();
   if (!trimmed) return [];
@@ -250,7 +269,7 @@ async function search(term: string, signal?: AbortSignal): Promise<GameSearchRes
     signal
   );
 
-  return (raw ?? []).map(toGame).map(toSearchResult);
+  return (raw ?? []).map(toFullGame).map(toSearchResult);
 }
 
 async function getById(sourceId: string, signal?: AbortSignal): Promise<Game | null> {
@@ -264,7 +283,7 @@ async function getById(sourceId: string, signal?: AbortSignal): Promise<Game | n
   );
 
   const first = raw?.[0];
-  return first ? toGame(first) : null;
+  return first ? toFullGame(first) : null;
 }
 
 /**
@@ -403,7 +422,7 @@ export async function getCollectionGames(
      limit 50;`,
     signal
   );
-  return (raw ?? []).map(toGame).map(toSearchResult);
+  return (raw ?? []).map(toFullGame).map(toSearchResult);
 }
 
 export async function getFranchiseGames(
@@ -418,7 +437,7 @@ export async function getFranchiseGames(
      limit 50;`,
     signal
   );
-  return (raw ?? []).map(toGame).map(toSearchResult);
+  return (raw ?? []).map(toFullGame).map(toSearchResult);
 }
 
 /**
@@ -452,7 +471,7 @@ export async function getGameEditions(
   );
 
   return (raw ?? [])
-    .map(toGame)
+    .map(toFullGame)
     .map(toSearchResult)
     .sort(
       (a, b) =>
@@ -737,7 +756,7 @@ export async function searchGamesFiltered(
     : `${GAME_FIELDS} ${clause} sort first_release_date desc; limit 40;`;
 
   const raw = await igdbQuery<IgdbGame[]>('games', body, signal);
-  return (raw ?? []).map(toGame).map(toSearchResult);
+  return (raw ?? []).map(toFullGame).map(toSearchResult);
 }
 
 /* -------------------------------------------------------------------------
@@ -956,7 +975,7 @@ export async function getSurprisePool(
   async function fetchAt(offset: number): Promise<GameSearchResult[]> {
     const body = `${GAME_FIELDS} ${clause} sort ${sort}; limit ${SURPRISE_BATCH}; offset ${offset};`;
     const raw = await igdbQuery<IgdbGame[]>('games', body, signal);
-    return (raw ?? []).map(toGame).map(toSearchResult);
+    return (raw ?? []).map(toFullGame).map(toSearchResult);
   }
 
   const offset = randomInt(filtered ? FILTERED_MAX_OFFSET : MAX_OFFSET);
@@ -1024,9 +1043,15 @@ export async function getSurprisePoolSize(
  * cache them for the session rather than refetching per keystroke.
  *
  * Platforms are capped and sorted by `generation` descending so the console
- * someone is likely to mean is near the top; IGDB lists ~200 platforms
+ * someone is likely to mean is near the top; IGDB lists ~220 platforms
  * including arcade boards and calculators, and an unsorted picker of those is
  * unusable.
+ *
+ * **`platform_type`, not `category`.** IGDB renamed the field (the numbers are
+ * the same: 1 console, 5 handheld, 6 computer) and a `where` on the old name
+ * does not fail — it matches nothing, so this returned an empty list and the
+ * award picker's platform filter had no platforms in it. The same rename that
+ * took `external_games.category`; see CLAUDE.md § Wikidata.
  */
 export async function getGenres(signal?: AbortSignal): Promise<IgdbTag[]> {
   const raw = await igdbQuery<IgdbTag[]>(
@@ -1040,7 +1065,7 @@ export async function getGenres(signal?: AbortSignal): Promise<IgdbTag[]> {
 export async function getPlatforms(signal?: AbortSignal): Promise<IgdbTag[]> {
   const raw = await igdbQuery<(IgdbTag & { generation?: number })[]>(
     'platforms',
-    'fields name, generation; where category = (1,5,6); sort generation desc; limit 100;',
+    'fields name, generation; where platform_type = (1,5,6); sort generation desc; limit 100;',
     signal
   );
   return (raw ?? []).filter((entry) => entry.name).map(({ id, name }) => ({ id, name }));

@@ -81,9 +81,10 @@ export type TopReviewCardProps = {
 /**
  * What one person thought, under the game they thought it about.
  *
- * Shared by the Surprise Me reveal and the game page's Overview tab. The two
- * surfaces ask a game the same question — is this worth my evening — so they get
- * the same answer in the same shape, rather than two cards that drift apart.
+ * Surprise Me's, under the dealt card. The game page's Overview shared it —
+ * both ask a game the same question, is this worth my evening — until its
+ * reviews became a rail of `<ReviewQuote>` cards (`<MemberReviewsWidget>`).
+ * `bare`, `footer` and the five-line `lines` below were that page's.
  *
  * ## Why the score is the artwork
  *

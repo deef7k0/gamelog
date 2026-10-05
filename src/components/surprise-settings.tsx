@@ -295,7 +295,7 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
             had a moment ago sitting under the filters you have now, reading as
             current. That is the one failure mode worse than no number.
           */}
-          {poolSize.data && !poolSize.isError && <PoolSizeLine size={poolSize.data} />}
+          {poolSize.data && !poolSize.isLoadingError && <PoolSizeLine size={poolSize.data} />}
 
           <View style={styles.subgroup}>
             {/* `header`, and it is the fix for the chip group's missing context.
@@ -333,7 +333,7 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
               <Text variant="bodySmall" color="textMuted">
                 Loading genres…
               </Text>
-            ) : genres.isError ? (
+            ) : genres.isLoadingError ? (
               /*
                 An IGDB failure used to render as nothing at all — `FilterChips`
                 returns null on an empty list, so the heading and its sentence sat

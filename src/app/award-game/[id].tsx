@@ -100,7 +100,7 @@ export default function AwardGamePickerScreen() {
       );
     }
     if (results.isLoading) return <LoadingState />;
-    if (results.isError) return <ErrorState error={results.error} />;
+    if (results.isLoadingError) return <ErrorState error={results.error} />;
 
     return (
       <FlatList

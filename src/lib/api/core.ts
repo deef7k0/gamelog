@@ -14,6 +14,7 @@ import { inList } from '../postgrest';
 import { reviewFilterClauses, type ReviewFilters } from '../review-facets';
 import { supabase } from '../supabase';
 import { getEngagement } from './engagement';
+import { rememberLogs } from './seen-logs';
 
 /** Columns for a log plus the game and author it renders with. */
 const LOG_WITH_RELATIONS = '*, game:games(*), profile:profiles(*)';
@@ -243,7 +244,7 @@ export async function getGameReviews(gameId: string): Promise<LogWithRelations[]
     .order('created_at', { ascending: false })
     .limit(50);
 
-  return unwrap(data as LogWithRelations[] | null, error);
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
 }
 
 export async function getUserLogs(userId: string): Promise<LogWithRelations[]> {
@@ -254,7 +255,7 @@ export async function getUserLogs(userId: string): Promise<LogWithRelations[]> {
     .order('created_at', { ascending: false })
     .limit(100);
 
-  return unwrap(data as LogWithRelations[] | null, error);
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
 }
 
 /** Games this user has platinumed or 100%'d — the achievements showcase. */
@@ -267,7 +268,7 @@ export async function getUserCompletions(userId: string): Promise<LogWithRelatio
     .order('updated_at', { ascending: false })
     .limit(50);
 
-  return unwrap(data as LogWithRelations[] | null, error);
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
 }
 
 /**
@@ -294,7 +295,7 @@ export async function getFeed(userId: string): Promise<LogWithRelations[]> {
     .order('created_at', { ascending: false })
     .limit(50);
 
-  return unwrap(data as LogWithRelations[] | null, error);
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
 }
 
 /**
@@ -308,7 +309,7 @@ export async function getGlobalFeed(): Promise<LogWithRelations[]> {
     .order('created_at', { ascending: false })
     .limit(50);
 
-  return unwrap(data as LogWithRelations[] | null, error);
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
 }
 
 // ---------------------------------------------------------------------------
@@ -506,7 +507,7 @@ const PROFILE_QUERY_MAX = 60;
  * different route. Backslash is Postgres's default LIKE escape, so it has to be
  * escaped first or it would escape whatever followed it.
  */
-function likeLiteral(input: string): string {
+export function likeLiteral(input: string): string {
   return input.replace(/\*/g, '').replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
@@ -582,6 +583,86 @@ export async function searchProfiles(query: string, signal?: AbortSignal): Promi
       return byRank !== 0 ? byRank : (a.username ?? '').localeCompare(b.username ?? '');
     })
     .slice(0, 25);
+}
+
+/** Longest review query worth sending. A search term is not a paragraph. */
+const REVIEW_QUERY_MAX = 60;
+
+/** How many rows each of the three filters may bring back, and how many are kept. */
+const REVIEW_SEARCH_LIMIT = 40;
+
+/**
+ * Reviews by a typed word, for Search: the game a review is about, its
+ * headline, or something it says.
+ *
+ * ## Three filters, three requests
+ *
+ * For the reason `searchProfiles` is two: PostgREST's `or=(…)` puts the user's
+ * text inside its own filter grammar, where a comma or a parenthesis breaks the
+ * tree and the search comes back as a 400. A single `.ilike()` sends its
+ * pattern as one opaque value. The game's title is matched on the embedded row,
+ * which only narrows the *logs* because the embed is `!inner` — without it the
+ * filter empties the `game` field and returns every review regardless.
+ *
+ * ## Ranked here
+ *
+ * Relevance is not a column. A review *of* the game named leads, then one whose
+ * headline holds the term, then one that merely says the word; newest first
+ * inside each. Only logs with writing in them: a bare score is not a review.
+ */
+export async function searchReviews(
+  query: string,
+  signal?: AbortSignal
+): Promise<LogWithRelations[]> {
+  const trimmed = query.trim().slice(0, REVIEW_QUERY_MAX);
+  if (!trimmed) return [];
+
+  const pattern = `%${likeLiteral(trimmed)}%`;
+
+  const byGame = supabase
+    .from('logs')
+    .select('*, game:games!inner(*), profile:profiles(*)')
+    .not('review', 'is', null)
+    .ilike('game.title', pattern)
+    .order('created_at', { ascending: false })
+    .limit(REVIEW_SEARCH_LIMIT);
+  const byHeadline = supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .not('review', 'is', null)
+    .ilike('review_title', pattern)
+    .order('created_at', { ascending: false })
+    .limit(REVIEW_SEARCH_LIMIT);
+  const byWords = supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .ilike('review', pattern)
+    .order('created_at', { ascending: false })
+    .limit(REVIEW_SEARCH_LIMIT);
+
+  const [game, headline, words] = await Promise.all([
+    signal ? byGame.abortSignal(signal) : byGame,
+    signal ? byHeadline.abortSignal(signal) : byHeadline,
+    signal ? byWords.abortSignal(signal) : byWords,
+  ]);
+
+  /* In rank order, so the first sighting of a review is its best one. */
+  const bands = [
+    rememberLogs(unwrap(game.data as LogWithRelations[] | null, game.error)),
+    rememberLogs(unwrap(headline.data as LogWithRelations[] | null, headline.error)),
+    rememberLogs(unwrap(words.data as LogWithRelations[] | null, words.error)),
+  ];
+
+  const seen = new Set<string>();
+  const found: LogWithRelations[] = [];
+  for (const band of bands) {
+    for (const log of band) {
+      if (seen.has(log.id) || !(log.review ?? '').trim()) continue;
+      seen.add(log.id);
+      found.push(log);
+    }
+  }
+  return found.slice(0, REVIEW_SEARCH_LIMIT);
 }
 
 export async function followUser(followerId: string, followingId: string): Promise<void> {
@@ -766,7 +847,7 @@ export async function getTopGameReview(
 
   if (error) throw new Error(error.message);
 
-  const reviews = (data as LogWithRelations[] | null) ?? [];
+  const reviews = rememberLogs((data as LogWithRelations[] | null) ?? []);
   const written = reviews.filter((log) => (log.review ?? '').trim().length > 0);
   if (written.length === 0) return null;
 
@@ -789,6 +870,43 @@ export async function getTopGameReview(
     likes: engagement[best.id]?.likes ?? 0,
     likedByViewer: engagement[best.id]?.likedByViewer ?? false,
   };
+}
+
+/**
+ * The reviews worth showing for a game, most liked first — the game page's
+ * rail.
+ *
+ * `getTopGameReview`'s ranking, kept whole instead of cut to its winner: the
+ * newest `RANKED_REVIEWS` written reviews, ordered by likes with recency
+ * breaking ties. The rows arrive newest-first and the sort is stable, which is
+ * what makes that tiebreak hold. No viewer: the rail's cards carry no heart,
+ * so nothing here needs to know who is looking.
+ *
+ * One review skips the likes query — there is nothing to rank.
+ */
+export async function getTopGameReviews(gameId: string): Promise<LogWithRelations[]> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .eq('game_id', gameId)
+    .not('review', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(RANKED_REVIEWS);
+
+  if (error) throw new Error(error.message);
+
+  const written = rememberLogs((data as LogWithRelations[] | null) ?? []).filter(
+    (log) => (log.review ?? '').trim().length > 0
+  );
+  if (written.length < 2) return written;
+
+  const engagement = await getEngagement(
+    'log',
+    written.map((log) => log.id),
+    null
+  );
+
+  return written.sort((a, b) => (engagement[b.id]?.likes ?? 0) - (engagement[a.id]?.likes ?? 0));
 }
 
 /* -------------------------------------------------------------------------
@@ -900,7 +1018,7 @@ export async function getGameReviewList(
 
   if (error) throw new Error(error.message);
 
-  const written = ((data as LogWithRelations[] | null) ?? []).filter(
+  const written = rememberLogs((data as LogWithRelations[] | null) ?? []).filter(
     (log) => (log.review ?? '').trim().length > 0
   );
   if (written.length === 0) return [];

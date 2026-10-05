@@ -70,7 +70,7 @@ export default function GenreScreen() {
 
         {games.isLoading ? (
           <LoadingState />
-        ) : games.isError ? (
+        ) : games.isLoadingError ? (
           <ErrorState error={games.error} onRetry={() => games.refetch()} />
         ) : (
           <FlatList

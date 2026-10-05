@@ -474,7 +474,7 @@ export default function HomeScreen() {
               ))}
             </View>
           </HomeSection>
-        ) : reviews.isError ? (
+        ) : reviews.isLoadingError ? (
           <HomeSection title="Reviews">
             <BandError label="Reviews could not load." onRetry={() => reviews.refetch()} />
           </HomeSection>
@@ -513,7 +513,7 @@ export default function HomeScreen() {
         <HomeSection title="Releases" subtitle="Just out, and what's next." seeAll="/releases">
           {releases.isLoading || upcoming.isLoading ? (
             <CoverRailSkeleton inset={Spacing.x16} />
-          ) : releases.isError && upcoming.isError ? (
+          ) : releases.isLoadingError && upcoming.isLoadingError ? (
             <BandError
               label="Releases could not load."
               onRetry={() => {
@@ -533,7 +533,7 @@ export default function HomeScreen() {
               Array.from({ length: NEWS_PREVIEW }).map((_, index) => (
                 <Skeleton key={index} width="100%" height={newsCardHeight(width)} />
               ))
-            ) : news.isError ? (
+            ) : news.isLoadingError ? (
               <BandError label="News could not load." onRetry={() => news.refetch()} />
             ) : (
               (news.data ?? [])

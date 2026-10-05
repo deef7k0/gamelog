@@ -83,7 +83,7 @@ export function CommunitySimilarCard({
     );
   }
 
-  if (picks.isError) {
+  if (picks.isLoadingError) {
     return <ErrorState error={picks.error} onRetry={() => void picks.refetch()} />;
   }
 
@@ -252,7 +252,7 @@ export function CommunitySimilarSheet({
       ListEmptyComponent={
         picks.isPending ? (
           <LoadingState label="Loading picks…" />
-        ) : picks.isError ? (
+        ) : picks.isLoadingError ? (
           <ErrorState error={picks.error} onRetry={() => void picks.refetch()} />
         ) : sort === 'unrated' ? (
           <EmptyState
@@ -316,6 +316,7 @@ const PickRow = memo(function PickRow({
               heroUrl={pick.hero_url}
               title={pick.title}
               edition={(pick.edition_kind as EditionKind | null) ?? null}
+              gameId={pick.game_id}
               width={76}
               rounded="image"
             />

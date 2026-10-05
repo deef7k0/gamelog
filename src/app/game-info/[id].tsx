@@ -53,7 +53,7 @@ export default function GameInfoScreen() {
   const accent = useGameAccent(game.data?.coverUrl ?? game.data?.heroUrl, game.data?.genres);
 
   let body: ReactNode;
-  if (game.isError) {
+  if (game.isLoadingError) {
     /* The game itself did not load — GameLog's own request, so the app's own
        error state is the honest one here. */
     body = <ErrorState error={game.error} onRetry={() => game.refetch()} />;
@@ -78,7 +78,7 @@ export default function GameInfoScreen() {
     ) : (
       <EmptyState title="No additional information was found for the game." />
     );
-  } else if (info.isError) {
+  } else if (info.isLoadingError) {
     body = (
       <EmptyState
         title="Unable to load additional information"

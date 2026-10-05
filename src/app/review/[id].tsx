@@ -30,6 +30,7 @@ import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import { getEngagement, getLogById } from '@/lib/api';
+import { recallLog } from '@/lib/api/seen-logs';
 import type { CachedGame, LogWithRelations } from '@/lib/database.types';
 import { displayNameFor } from '@/lib/format';
 import { useAuth } from '@/store/auth';
@@ -78,6 +79,16 @@ export default function ReviewScreen() {
     queryKey: ['log', id],
     queryFn: () => getLogById(id!),
     enabled: !!id,
+    /*
+     * Start from the card that was tapped.
+     *
+     * Every list of reviews selects the same record this page asks for
+     * (`api/seen-logs.ts`), so the page opens on it instead of on "Loading
+     * review". The time it was loaded rides along, and past this query's
+     * `staleTime` it is refreshed behind what is already on screen.
+     */
+    initialData: () => recallLog(id)?.value,
+    initialDataUpdatedAt: () => recallLog(id)?.at,
   });
 
   /*
@@ -96,7 +107,7 @@ export default function ReviewScreen() {
     );
   }
 
-  if (log.isError) {
+  if (log.isLoadingError) {
     return (
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={log.error} onRetry={() => void log.refetch()} />

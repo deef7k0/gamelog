@@ -75,8 +75,20 @@ async function ensurePermission(Notifications: NotificationsApi): Promise<boolea
 }
 
 export type ScheduleResult =
-  | { ok: true; notificationId: string; firesAt: Date }
-  | { ok: false; reason: 'denied' | 'past' | 'unavailable' };
+  { ok: true; firesAt: Date } | { ok: false; reason: 'denied' | 'past' | 'unavailable' };
+
+/**
+ * The scheduled notification's id, made from the event's.
+ *
+ * One reminder per event, under a name that can be rebuilt from the event
+ * alone. It used to be the random id the scheduler hands back, kept in the
+ * RSVP control's state — so it was gone when the screen was left, and a
+ * reminder switched off on a later visit could not be found to cancel and went
+ * off anyway. Scheduling under the same id also replaces rather than stacks.
+ */
+function reminderId(eventId: string): string {
+  return `event-reminder:${eventId}`;
+}
 
 /**
  * Schedule a reminder ahead of an event.
@@ -87,6 +99,7 @@ export type ScheduleResult =
  * cannot schedule at all, which the UI states rather than retrying.
  */
 export async function scheduleEventReminder(
+  eventId: string,
   eventName: string,
   startsAt: string
 ): Promise<ScheduleResult> {
@@ -112,11 +125,12 @@ export async function scheduleEventReminder(
       });
     }
 
-    const notificationId = await Notifications.scheduleNotificationAsync({
+    await Notifications.scheduleNotificationAsync({
+      identifier: reminderId(eventId),
       content: {
         title: eventName,
         body: `Starts in ${LEAD_MINUTES} minutes.`,
-        data: { kind: 'event-reminder' },
+        data: { kind: 'event-reminder', eventId },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -125,19 +139,20 @@ export async function scheduleEventReminder(
       },
     });
 
-    return { ok: true, notificationId, firesAt };
+    return { ok: true, firesAt };
   } catch {
     // Scheduling is a nicety; a host that rejects it should not fail the RSVP.
     return { ok: false, reason: 'unavailable' };
   }
 }
 
-export async function cancelEventReminder(notificationId: string): Promise<void> {
+/** Cancel an event's reminder on this device, if it has one. */
+export async function cancelEventReminder(eventId: string): Promise<void> {
   const Notifications = await loadNotifications();
   if (!Notifications) return;
 
-  await Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => {
-    // Already fired or cancelled — nothing to undo.
+  await Notifications.cancelScheduledNotificationAsync(reminderId(eventId)).catch(() => {
+    // Already fired, cancelled, or never set on this device — nothing to undo.
   });
 }
 

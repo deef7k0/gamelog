@@ -134,7 +134,7 @@ export default function GamingAchievementsScreen() {
                 <Skeleton key={index} width="100%" height={64} radius={Radius.image} />
               ))}
             </View>
-          ) : progress.isError ? (
+          ) : progress.isLoadingError ? (
             <ErrorState error={progress.error} />
           ) : isPrivate ? (
             <EmptyState

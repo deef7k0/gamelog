@@ -1,8 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, FlatList, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  BackHandler,
+  FlatList,
+  Share,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { AwardShow } from '@/components/award-show';
 import { CollectionHeader, collectionCover } from '@/components/collection-header';
@@ -18,7 +26,8 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { Radius, Spacing, type ThemePalette } from '@/constants/theme';
+import { ArtRowWindow, CoverGridWindow } from '@/constants/list-window';
+import { ControlHeight, Radius, Spacing, type ThemePalette } from '@/constants/theme';
 import { useImmersiveBackground } from '@/hooks/use-immersive-background';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -27,6 +36,7 @@ import {
   getList,
   getProfile,
   removeFromList,
+  removeManyFromList,
   reorderList,
   setListCover,
   setListCoverStyle,
@@ -37,7 +47,17 @@ import type { ListCoverStyle } from '@/lib/database.types';
 import { sortGames, type GameSort } from '@/lib/games';
 import { useAuth } from '@/store/auth';
 
+/** A game's cover in a tier list's row, in dp. */
 const POSTER = 58;
+
+/** The mark on a tile while games are being chosen for removal. */
+const SELECT_MARK = 24;
+
+/**
+ * What the bar of the selection takes off the bottom of the list, so the last
+ * row can be scrolled clear of it: the button, and the bar's own padding.
+ */
+const SELECTION_BAR_SPACE = ControlHeight.medium + Spacing.x12 * 2 + Spacing.x16;
 
 /**
  * Three across — the app's portrait size (`PORTRAIT_COLUMNS`), and this is the
@@ -81,6 +101,17 @@ export default function ListDetailScreen() {
   const [sort, setSort] = useState<GameSort>('default');
   const [layout, setLayout] = useState<CollectionLayout>('grid');
   const [pickingCover, setPickingCover] = useState(false);
+  /*
+   * The games chosen for removal, by id. Empty means nobody is choosing.
+   *
+   * Removing was one game at a time — a cross on each row, and in the grid no
+   * way at all. Holding a game now starts a selection, every tap after that
+   * adds to it or takes from it, and one button at the foot of the screen
+   * removes the lot. A mode with no state of its own: it is on exactly while
+   * something is selected, so unticking the last game leaves it.
+   */
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const selecting = selected.size > 0;
 
   const { width } = useWindowDimensions();
   const gridWidth = gridItemWidth(width, GRID_COLUMNS, Spacing.x16, GRID_GAP);
@@ -107,9 +138,14 @@ export default function ListDetailScreen() {
 
   /*
    * The page's colour: a single cover's own tone, or the app's page for a
-   * mosaic of several. Read from the cover the header draws (`collectionCover`),
+   * mosaic of several. Read from the game the header draws (`collectionCover`),
    * above the early returns because it is a hook. The background only — every
    * control on this screen keeps its neutral fill.
+   *
+   * From that game's *box art*, even when the header is drawing its square
+   * art: the extractor decodes in JavaScript and only takes a thumbnail, and
+   * SteamGridDB's smallest is 400×400 — four times what it will read. The two
+   * are the same game's artwork and nearly always the same palette.
    */
   const cover = list.data ? collectionCover(list.data) : null;
   const pageColor = useImmersiveBackground(cover?.cover_url ?? cover?.hero_url ?? null);
@@ -134,6 +170,58 @@ export default function ListDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['game-lists', gameId] });
     },
   });
+
+  /* Stable, as the two under it are: every tile and row is handed these, and a
+     memoised tile only stays memoised while its handlers keep their identity. */
+  const toggleSelected = useCallback((gameId: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(gameId)) next.add(gameId);
+      return next;
+    });
+  }, []);
+
+  const openGame = useCallback(
+    (gameId: string) => router.push({ pathname: '/game/[id]', params: { id: gameId } }),
+    [router]
+  );
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  const removeSelected = useMutation({
+    mutationFn: (gameIds: string[]) => removeManyFromList(id!, gameIds),
+    onSuccess: (_result, gameIds) => {
+      clearSelection();
+      invalidate();
+      /* Each removed game's own page counts and lists the collections it is in,
+         keyed by game — the same two keys the single remove above refreshes. */
+      for (const gameId of gameIds) {
+        queryClient.invalidateQueries({ queryKey: ['game-list-count', gameId] });
+        queryClient.invalidateQueries({ queryKey: ['game-lists', gameId] });
+      }
+    },
+    onError: (error) =>
+      Alert.alert(
+        'Could not remove those games',
+        error instanceof Error ? error.message : 'Try again in a moment.'
+      ),
+  });
+
+  /*
+   * Android's back button leaves the selection before it leaves the screen.
+   * Subscribed only while something is selected, so back is otherwise the
+   * navigator's. The handler sets state; the effect itself does not.
+   */
+  useEffect(() => {
+    if (!selecting) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelected(new Set());
+      return true;
+    });
+    return () => subscription.remove();
+  }, [selecting]);
 
   /**
    * Move an item one slot up or down.
@@ -192,6 +280,9 @@ export default function ListDetailScreen() {
       setPickingCover(false);
     },
   });
+  /* TanStack keeps `mutate` on one identity for the life of the mutation. */
+  const { mutate: pickCover } = setCover;
+  const { mutate: removeGame } = remove;
 
   /*
    * Four covers or one. Choosing one with more than one game to choose from
@@ -262,7 +353,7 @@ export default function ListDetailScreen() {
     );
   }
 
-  if (list.isError) {
+  if (list.isLoadingError) {
     return (
       <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
         <ErrorState error={list.error} />
@@ -283,6 +374,14 @@ export default function ListDetailScreen() {
   const isTierList = data.kind === 'tier';
   const isAwards = data.kind === 'awards';
   const isCaptioned = data.kind === 'captioned';
+  /*
+   * Who can start a selection, and where. The owner, on the three shapes this
+   * file draws — a shelf as a grid or as rows, and a tier list. Not while a
+   * cover is being picked (a tap there already means something else), and never
+   * on an award show or a captioned board, which draw themselves: an award's
+   * `list_items` are written by a trigger from its ballot, not by this screen.
+   */
+  const canSelect = isOwner && !pickingCover && !isAwards && !isCaptioned;
 
   const header = (
     /* Cancels the list's horizontal padding so the hero reaches both edges and
@@ -311,7 +410,15 @@ export default function ListDetailScreen() {
             : undefined
         }
         onDelete={isOwner ? () => destroy.mutate() : undefined}
-        onPickCover={isOwner ? () => setPickingCover(true) : undefined}
+        onPickCover={
+          isOwner
+            ? () => {
+                /* One mode at a time: both change what a tap on a game does. */
+                clearSelection();
+                setPickingCover(true);
+              }
+            : undefined
+        }
         onSetDisplay={isOwner ? (display) => setDisplay.mutate(display) : undefined}
       />
 
@@ -370,15 +477,44 @@ export default function ListDetailScreen() {
    * answered. Curation is an argument (the About says so in the owner's own
    * words) and an argument nobody can reply to is a broadcast.
    *
-   * Not rendered while picking a cover: that mode turns every tile into a
-   * different control, and a composer underneath it is an invitation to tap
-   * something that does something else.
+   * Not rendered while picking a cover or choosing games to remove: both modes
+   * turn every tile into a different control, and a composer underneath them is
+   * an invitation to tap something that does something else.
    */
-  const footer = pickingCover ? null : (
-    <View style={styles.comments}>
-      <CommentSection targetType="list" targetId={data.id} />
+  const footer =
+    pickingCover || selecting ? null : (
+      <View style={styles.comments}>
+        <CommentSection targetType="list" targetId={data.id} />
+      </View>
+    );
+
+  /*
+   * The selection's one action, pinned to the foot of the screen while games
+   * are selected — on the page's own colour, so it reads as the bottom of this
+   * screen rather than as something floating over it. The count is in the
+   * button's own words because that is the number the press acts on.
+   *
+   * No "are you sure": each game was chosen by hand, the button says how many,
+   * and a removed game goes back in from "Add games".
+   */
+  const selectionBar = selecting ? (
+    <View
+      style={[
+        styles.selectionBar,
+        { backgroundColor: background ?? theme.background, borderTopColor: theme.border },
+      ]}>
+      <IconButton icon="close" accessibilityLabel="Cancel the selection" onPress={clearSelection} />
+      <View style={styles.selectionAction}>
+        <Button
+          title={`Remove from collection (${selected.size} selected)`}
+          variant="danger"
+          fullWidth
+          loading={removeSelected.isPending}
+          onPress={() => removeSelected.mutate([...selected])}
+        />
+      </View>
     </View>
-  );
+  ) : null;
 
   /*
    * Three layouts, one screen.
@@ -387,7 +523,7 @@ export default function ListDetailScreen() {
    * a game in them — so it reads `list_awards` rather than the items above and
    * lives in its own component. A tier list is a ranking: each entry needs its
    * tier badge, its position and its remove control, so it stays a row.
-   * Everything else is a shelf, and a four-across poster grid shows far more of
+   * Everything else is a shelf, and a grid of art three across shows far more of
    * it per screen — which is the whole point of a collection.
    *
    * The kind is not known until the list query resolves, which is why this
@@ -453,21 +589,26 @@ export default function ListDetailScreen() {
    * refuses to re-lay-out a `FlatList` whose column count changed. The `key` on
    * each list is what forces a clean remount when the toggle flips, which is the
    * documented way to change it at all.
+   *
+   * Not while a cover is being picked: that mode is drawn over the grid, where
+   * the choice is between pieces of artwork. In rows the hint said "tap a game
+   * to use its cover" and a tap opened the game.
    */
-  if (!isTierList && layout === 'rows') {
+  if (!isTierList && layout === 'rows' && !pickingCover) {
     return (
       <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
         <FlatList
           data={ordered}
           key="collection-rows"
           keyExtractor={(item) => item.game_id}
-          contentContainerStyle={styles.content}
+          {...ArtRowWindow}
+          /* The set is not in `data`, so the list is told it matters. */
+          extraData={selected}
+          contentContainerStyle={[styles.content, selecting && styles.underBar]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={header}
           ListFooterComponent={footer}
-          ItemSeparatorComponent={() => (
-            <View style={[styles.rowRule, { backgroundColor: theme.border }]} />
-          )}
+          ItemSeparatorComponent={RowRule}
           renderItem={({ item }) => (
             <CollectionRow
               item={item}
@@ -476,17 +617,13 @@ export default function ListDetailScreen() {
                  it. Unranked collections show none at all rather than numbering
                  a set, which would claim an order that is not there. */
               rank={data.is_ranked ? (rankOf.get(item.game_id) ?? null) : null}
-              trailing={
-                isOwner && !pickingCover ? (
-                  <IconButton
-                    icon="close"
-                    accessibilityLabel={`Remove ${item.game?.title ?? 'this game'}`}
-                    size="small"
-                    tone="plain"
-                    onPress={() => remove.mutate(item.game_id)}
-                  />
-                ) : null
-              }
+              selecting={selecting}
+              selected={selected.has(item.game_id)}
+              onToggle={toggleSelected}
+              onStartSelecting={canSelect ? toggleSelected : undefined}
+              /* One way to remove at a time: the row's own cross steps aside
+                 while a selection is being made. */
+              onRemove={isOwner && !selecting ? removeGame : undefined}
             />
           )}
           ListEmptyComponent={
@@ -500,6 +637,7 @@ export default function ListDetailScreen() {
             />
           }
         />
+        {selectionBar}
       </Screen>
     );
   }
@@ -514,62 +652,32 @@ export default function ListDetailScreen() {
           key="collection-grid"
           numColumns={GRID_COLUMNS}
           keyExtractor={(item) => item.game_id}
+          {...CoverGridWindow}
+          /* The set is not in `data`, so the list is told it matters. */
+          extraData={selected}
           columnWrapperStyle={styles.column}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, selecting && styles.underBar]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={header}
           ListFooterComponent={footer}
-          renderItem={({ item }) => {
-            const tile = (
-              <View style={{ width: gridWidth }}>
-                <Poster
-                  coverUrl={item.game?.cover_url}
-                  heroUrl={item.game?.hero_url}
-                  title={item.game?.title}
-                  width={gridWidth}
-                  rounded="image"
-                />
-                {data.is_ranked && !pickingCover && (
-                  <View style={[styles.rankPill, { backgroundColor: theme.scrim }]}>
-                    <Text variant="caption" color="onPrimary">
-                      {rankOf.get(item.game_id)}
-                    </Text>
-                  </View>
-                )}
-                {pickingCover && data.cover_game_id === item.game_id && (
-                  <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
-                    <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
-                  </View>
-                )}
-              </View>
-            );
-
-            /* In picking mode a tap chooses the cover instead of opening the
-               game — same target, different verb, so the grid does not have to
-               grow a second control on every tile. */
-            if (pickingCover) {
-              return (
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={`Use ${item.game?.title ?? 'this game'} as the preview`}
-                  scaleTo={0.95}
-                  onPress={() => setCover.mutate(item.game_id)}>
-                  {tile}
-                </PressableScale>
-              );
-            }
-
-            return (
-              <Link href={{ pathname: '/game/[id]', params: { id: item.game_id } }} asChild>
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={item.game?.title ?? 'Game'}
-                  scaleTo={0.95}>
-                  {tile}
-                </PressableScale>
-              </Link>
-            );
-          }}
+          renderItem={({ item }) => (
+            <GridTile
+              item={item}
+              width={gridWidth}
+              rank={data.is_ranked ? (rankOf.get(item.game_id) ?? null) : null}
+              /* One target, three verbs: in picking mode a tap chooses the
+                 cover, once a game is held it ticks or unticks, and otherwise
+                 it opens the game — so the grid never grows a second control
+                 on every tile. */
+              mode={pickingCover ? 'pick' : selecting ? 'select' : 'open'}
+              isCover={data.cover_game_id === item.game_id}
+              isSelected={selected.has(item.game_id)}
+              canSelect={canSelect}
+              onOpen={openGame}
+              onPick={pickCover}
+              onToggle={toggleSelected}
+            />
+          )}
           ListEmptyComponent={
             <EmptyState
               title="Nothing here yet"
@@ -581,6 +689,7 @@ export default function ListDetailScreen() {
             />
           }
         />
+        {selectionBar}
       </Screen>
     );
   }
@@ -590,7 +699,12 @@ export default function ListDetailScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.game_id}
-        contentContainerStyle={items.length === 0 ? styles.empty : styles.content}
+        {...ArtRowWindow}
+        extraData={selected}
+        contentContainerStyle={[
+          items.length === 0 ? styles.empty : styles.content,
+          selecting && styles.underBar,
+        ]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
@@ -610,38 +724,58 @@ export default function ListDetailScreen() {
               </View>
             )}
 
-            {pickingCover ? (
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={`Use ${item.game?.title ?? 'this game'} as the preview`}
-                scaleTo={0.96}
-                onPress={() => setCover.mutate(item.game_id)}>
-                <Poster
-                  coverUrl={item.game?.cover_url}
-                  heroUrl={item.game?.hero_url}
-                  title={item.game?.title}
-                  width={POSTER}
-                  rounded="image"
-                />
-                {data.cover_game_id === item.game_id && (
-                  <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
-                    <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
-                  </View>
-                )}
-              </PressableScale>
-            ) : (
-              <Link href={{ pathname: '/game/[id]', params: { id: item.game_id } }} asChild>
-                <PressableScale accessibilityRole="button" scaleTo={0.96}>
-                  <Poster
-                    coverUrl={item.game?.cover_url}
-                    heroUrl={item.game?.hero_url}
-                    title={item.game?.title}
-                    width={POSTER}
-                    rounded="image"
-                  />
-                </PressableScale>
-              </Link>
-            )}
+            {/* The art is the row's one pressable that is about the game: it
+                opens it, picks it as the cover, or — once a selection has been
+                started by holding one — ticks it. */}
+            <PressableScale
+              accessibilityRole={selecting ? 'checkbox' : 'button'}
+              accessibilityState={selecting ? { checked: selected.has(item.game_id) } : undefined}
+              accessibilityLabel={
+                pickingCover
+                  ? `Use ${item.game?.title ?? 'this game'} as the preview`
+                  : (item.game?.title ?? 'Game')
+              }
+              accessibilityHint={
+                canSelect && !selecting ? 'Hold to choose games to remove' : undefined
+              }
+              scaleTo={0.96}
+              onPress={
+                pickingCover
+                  ? () => setCover.mutate(item.game_id)
+                  : selecting
+                    ? () => toggleSelected(item.game_id)
+                    : () => router.push({ pathname: '/game/[id]', params: { id: item.game_id } })
+              }
+              onLongPress={
+                canSelect && !selecting ? () => toggleSelected(item.game_id) : undefined
+              }>
+              <Poster
+                coverUrl={item.game?.cover_url}
+                heroUrl={item.game?.hero_url}
+                title={item.game?.title}
+                width={POSTER}
+                rounded="image"
+              />
+              {pickingCover && data.cover_game_id === item.game_id && (
+                <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
+                  <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+                </View>
+              )}
+              {selecting && (
+                <View
+                  style={[
+                    styles.selectMark,
+                    selected.has(item.game_id)
+                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                      : { backgroundColor: theme.scrim, borderColor: theme.text },
+                  ]}
+                  pointerEvents="none">
+                  {selected.has(item.game_id) && (
+                    <Ionicons name="checkmark" size={15} color={theme.onPrimary} />
+                  )}
+                </View>
+              )}
+            </PressableScale>
 
             {/* The reference's row: a semibold title over a quiet regular
                 line, 2 apart. */}
@@ -685,7 +819,9 @@ export default function ListDetailScreen() {
               )}
             </View>
 
-            {isOwner && (
+            {/* The row's own controls step aside while a selection is being
+                made: one way to remove at a time. */}
+            {isOwner && !selecting && (
               <View style={styles.rowActions}>
                 {!isTierList && (
                   <>
@@ -732,8 +868,139 @@ export default function ListDetailScreen() {
           />
         }
       />
+      {selectionBar}
     </Screen>
   );
+}
+
+/** What a tap on a grid tile does. */
+type TileMode = 'open' | 'pick' | 'select';
+
+/**
+ * One game in the grid: its box, and whichever mark the mode in force draws on
+ * it.
+ *
+ * Portrait, as every game inside a collection is — the header over them is
+ * the one place its art goes square (`<CollectionHeader>`). No `gameId` on
+ * the `<Poster>`: a collection is one of the two surfaces where a cover never
+ * wears the Must Play badge.
+ *
+ * Memoised, and handed only primitives and handlers that keep their identity.
+ * The tile used to be built inside an inline `renderItem`, so ticking one game
+ * re-drew every cover in a collection of two hundred.
+ */
+const GridTile = memo(function GridTile({
+  item,
+  width,
+  rank,
+  mode,
+  isCover,
+  isSelected,
+  canSelect,
+  onOpen,
+  onPick,
+  onToggle,
+}: {
+  item: ListItem;
+  width: number;
+  /** The owner's number for it, or null for a collection that is not ranked. */
+  rank: number | null;
+  mode: TileMode;
+  /** This game is the collection's chosen cover. */
+  isCover: boolean;
+  isSelected: boolean;
+  /** Holding the tile may start a selection. */
+  canSelect: boolean;
+  onOpen: (gameId: string) => void;
+  onPick: (gameId: string) => void;
+  onToggle: (gameId: string) => void;
+}) {
+  const theme = useTheme();
+  const gameId = item.game_id;
+  const title = item.game?.title ?? 'this game';
+  const selecting = mode === 'select';
+
+  const tile = (
+    <View style={{ width }}>
+      <Poster
+        coverUrl={item.game?.cover_url}
+        heroUrl={item.game?.hero_url}
+        title={item.game?.title}
+        width={width}
+        rounded="image"
+      />
+      {rank !== null && mode === 'open' && (
+        <View style={[styles.rankPill, { backgroundColor: theme.scrim }]}>
+          <Text variant="caption" color="onPrimary">
+            {rank}
+          </Text>
+        </View>
+      )}
+      {mode === 'pick' && isCover && (
+        <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
+          <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+        </View>
+      )}
+      {selecting && (
+        <>
+          {/* The chosen tile is edged as well as ticked, so the selection reads
+              across a wall of art without hunting for marks; an unchosen one
+              keeps an empty ring that says it can be. */}
+          {isSelected && (
+            <View
+              style={[styles.selectedEdge, { borderColor: theme.primaryText }]}
+              pointerEvents="none"
+            />
+          )}
+          <View
+            style={[
+              styles.selectMark,
+              isSelected
+                ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                : { backgroundColor: theme.scrim, borderColor: theme.text },
+            ]}
+            pointerEvents="none">
+            {isSelected && <Ionicons name="checkmark" size={15} color={theme.onPrimary} />}
+          </View>
+        </>
+      )}
+    </View>
+  );
+
+  if (mode === 'pick') {
+    return (
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={`Use ${title} as the preview`}
+        scaleTo={0.95}
+        onPress={() => onPick(gameId)}>
+        {tile}
+      </PressableScale>
+    );
+  }
+
+  return (
+    <PressableScale
+      accessibilityRole={selecting ? 'checkbox' : 'button'}
+      accessibilityState={selecting ? { checked: isSelected } : undefined}
+      accessibilityLabel={item.game?.title ?? 'Game'}
+      accessibilityHint={canSelect && !selecting ? 'Hold to choose games to remove' : undefined}
+      scaleTo={0.95}
+      onPress={() => (selecting ? onToggle(gameId) : onOpen(gameId))}
+      onLongPress={canSelect && !selecting ? () => onToggle(gameId) : undefined}>
+      {tile}
+    </PressableScale>
+  );
+});
+
+/**
+ * The hairline between two rows. Declared once, here: written inline in the
+ * list's props it is a new component type on every render, and the list
+ * remounts every separator on screen each time.
+ */
+function RowRule() {
+  const theme = useTheme();
+  return <View style={[styles.rowRule, { backgroundColor: theme.border }]} />;
 }
 
 const styles = StyleSheet.create({
@@ -810,4 +1077,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowActions: { gap: Spacing.x4 },
+
+  /* Room for the last row to scroll clear of the selection's bar. */
+  underBar: { paddingBottom: Spacing.x48 + SELECTION_BAR_SPACE },
+  /* Pinned to the foot of the screen, above the system's own inset — the
+     `<Screen>` it sits in already ends there. A hairline on top is what
+     separates it from a list scrolling under it. */
+  selectionBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    paddingVertical: Spacing.x12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  selectionAction: { flex: 1 },
+  /* Top-right, clear of the rank pill and the cover mark, which are top-left. */
+  selectMark: {
+    position: 'absolute',
+    top: Spacing.x4,
+    right: Spacing.x4,
+    width: SELECT_MARK,
+    height: SELECT_MARK,
+    borderRadius: SELECT_MARK / 2,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /* Over the art rather than around it, so a chosen tile does not change size
+     and push the grid about. */
+  selectedEdge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: Radius.image,
+    borderWidth: 2,
+  },
 });

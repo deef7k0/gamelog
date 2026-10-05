@@ -322,6 +322,20 @@ export const Colors = {
     platinum: '#A9B6CC',
 
     /**
+     * The Must Play label's disc (0034): a moderator's pick, drawn as a badge on
+     * a cover and in the game page's stats strip.
+     *
+     * An alias of `identityJade`, not a new hex — a meaning joins the ramp, as
+     * `statusPaused` did. Green at the owner's direction (it was ember): the
+     * badge is the one thing in this app that sits *on* box art in a colour,
+     * and it has to hold on any cover — at 10.6:1 against the dark ring drawn
+     * round it, the disc reads on a white box and a black one alike. The face
+     * on it takes `readableInk` — near-black — so the mark is never a second
+     * hue, and its teeth take the opposite ink.
+     */
+    mustPlay: '#43D98C',
+
+    /**
      * Review prose, and only review prose.
      *
      * A muted grey rather than `textSecondary`. Body copy set in a serif at
@@ -379,6 +393,19 @@ export const Colors = {
      */
     glowCore: '#6B4C9A',
     glowEdge: '#3A2050',
+
+    /**
+     * The light ground under somebody else's logo — a platform's, a studio's —
+     * when nothing is known about it (`ui/logo-mark.tsx`).
+     *
+     * The fallback, no longer the rule. Those marks are drawn for white pages
+     * and every one used to sit on this plate; each is now measured once and
+     * drawn straight on the page, lightened when its ink would be lost, or on a
+     * plate of its *own* ground when it is not cut out at all. This is what is
+     * left for a logo that could not be measured: a plate the colour of `text`
+     * is legible whatever turns out to be on it.
+     */
+    logoPlate: '#F5F5F5',
 
     /** Scrim over hero artwork so text stays legible on any cover. */
     scrim: 'rgba(0, 0, 0, 0.6)',

@@ -76,7 +76,7 @@ export default function SubmissionsScreen() {
             <EmptyState title="Sign in to see your submissions" />
           ) : submissions.isLoading ? (
             <LoadingState />
-          ) : submissions.isError ? (
+          ) : submissions.isLoadingError ? (
             <ErrorState error={submissions.error} onRetry={() => void submissions.refetch()} />
           ) : (
             <EmptyState

@@ -58,7 +58,7 @@ export default function CopyScreen() {
 
   let body: React.ReactNode;
   if (copy.isLoading) body = <LoadingState />;
-  else if (copy.isError)
+  else if (copy.isLoadingError)
     body = <ErrorState error={copy.error} onRetry={() => void copy.refetch()} />;
   else if (!copy.data)
     body = <EmptyState title="That copy is gone" message="It may have been deleted." />;

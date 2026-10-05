@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
+import { scopeInfo } from '@/components/search/search-scopes';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
@@ -75,7 +76,7 @@ export function SearchHistory({
         <View key={`${entry.scope}:${entry.term}`} style={styles.row}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`Search ${entry.scope} for ${entry.term} again`}
+            accessibilityLabel={`Search ${scopeInfo(entry.scope).label.toLowerCase()} for ${entry.term} again`}
             onPress={() => onSelect(entry)}
             scaleTo={0.99}
             style={StyleSheet.flatten([styles.main])}>
@@ -88,11 +89,12 @@ export function SearchHistory({
                 {entry.term}
               </Text>
               {/* The scope only earns a line when it is not the default one.
-                  "Games" under every row would be noise; "People" is a fact the
-                  reader needs to understand why tapping it changes the tab. */}
-              {entry.scope === 'people' && (
+                  "Games" under every row would be noise; "in Studios" is a fact
+                  the reader needs to understand why tapping it changes what is
+                  being searched. */}
+              {entry.scope !== 'games' && (
                 <Text variant="caption" color="textMuted">
-                  in People
+                  in {scopeInfo(entry.scope).label}
                 </Text>
               )}
             </View>

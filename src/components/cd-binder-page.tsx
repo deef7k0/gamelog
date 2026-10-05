@@ -5,6 +5,7 @@ import { CdDisc } from '@/components/cd-disc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { CONDITION_LABEL, releaseLine } from '@/constants/physical';
+import { platformKeyForStored } from '@/constants/platform-family';
 import { withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { CopyWithRelations } from '@/lib/api';
@@ -109,6 +110,7 @@ function Sleeve({
           coverUrl={copy.game?.cover_url}
           heroUrl={copy.game?.hero_url}
           title={copy.game?.title ?? '?'}
+          platform={platformKeyForStored(copy.platform)}
           size={disc}
           holeColor={film}
           style={styles.disc}

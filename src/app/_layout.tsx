@@ -19,7 +19,7 @@ import { SourceSerif4_400Regular } from '@expo-google-fonts/source-serif-4/400Re
 import { SourceSerif4_600SemiBold } from '@expo-google-fonts/source-serif-4/600SemiBold';
 import { SourceSerif4_700Bold } from '@expo-google-fonts/source-serif-4/700Bold';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
@@ -30,21 +30,17 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { primeSteamArtwork } from '@/hooks/use-steam-artwork';
+import { queryClient } from '@/lib/query-client';
 import { useAuth } from '@/store/auth';
 
-SplashScreen.preventAutoHideAsync();
+/*
+ * What is drawn when a screen throws while rendering, in place of the app
+ * closing. Expo Router wraps this layout in it. See the component for why it
+ * also throws away the saved query cache.
+ */
+export { AppErrorBoundary as ErrorBoundary } from '@/components/app-error-boundary';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Steam's store API is rate limited and game metadata barely changes, so
-      // lean on the cache rather than refetching aggressively.
-      staleTime: 60_000,
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const session = useAuth((state) => state.session);
@@ -105,6 +101,8 @@ export default function RootLayout() {
 
   // Hold the splash screen until we know whether there is a session, otherwise
   // the sign-in screen flashes before the feed for an already-signed-in user.
+  // `isRestoring` also covers reading that account's saved queries back, so the
+  // feed that follows the splash is the one that was on screen last time.
   useEffect(() => {
     if (ready) {
       SplashScreen.hideAsync();
@@ -217,6 +215,15 @@ export default function RootLayout() {
                 <Stack.Screen name="collections" />
                 {/* Where Search's genre grid leads — one genre, ranked. */}
                 <Stack.Screen name="genre/[id]" />
+                {/* Where Search's hub leads that is not a list under the field:
+                  a platform's games, page by page; an event and what was shown
+                  at it; and the year's releases as a calendar. */}
+                <Stack.Screen name="platform/[id]" />
+                <Stack.Screen name="event/[id]" />
+                <Stack.Screen name="calendar" />
+                {/* Every game a moderator has labelled Must Play (0034) — where
+                  the badge's cell in a game's stats strip leads. */}
+                <Stack.Screen name="must-play" />
                 <Stack.Screen name="review/[id]" />
                 <Stack.Screen name="soundtrack/[id]" />
                 <Stack.Screen name="notifications/index" />
@@ -242,6 +249,8 @@ export default function RootLayout() {
                 {/* A picker, so it presents as a modal: you are choosing one thing
                   and returning, not navigating somewhere. */}
                 <Stack.Screen name="add-to-list/[id]" options={{ presentation: 'modal' }} />
+                {/* The moderators' picker behind the Must Play list's "+". */}
+                <Stack.Screen name="label-games" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="quick-log" options={{ presentation: 'modal' }} />
                 <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
               </Stack.Protected>

@@ -112,7 +112,7 @@ export default function GamingInventoryScreen() {
                 <Skeleton key={index} width="100%" height={64} radius={Radius.image} />
               ))}
             </View>
-          ) : inventory.isError ? (
+          ) : inventory.isLoadingError ? (
             <ErrorState error={inventory.error} />
           ) : !account.data ? (
             <EmptyState

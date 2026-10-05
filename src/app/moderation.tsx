@@ -202,7 +202,7 @@ export default function ModerationScreen() {
           ListEmptyComponent={
             queue.isLoading ? (
               <LoadingState />
-            ) : queue.isError ? (
+            ) : queue.isLoadingError ? (
               <ErrorState error={queue.error} onRetry={() => void queue.refetch()} />
             ) : (
               <EmptyState
@@ -227,7 +227,7 @@ export default function ModerationScreen() {
           ListEmptyComponent={
             reports.isLoading ? (
               <LoadingState />
-            ) : reports.isError ? (
+            ) : reports.isLoadingError ? (
               <ErrorState error={reports.error} onRetry={() => void reports.refetch()} />
             ) : (
               <EmptyState
@@ -252,7 +252,7 @@ export default function ModerationScreen() {
           ListEmptyComponent={
             suggestionReports.isLoading ? (
               <LoadingState />
-            ) : suggestionReports.isError ? (
+            ) : suggestionReports.isLoadingError ? (
               <ErrorState
                 error={suggestionReports.error}
                 onRetry={() => void suggestionReports.refetch()}
@@ -280,7 +280,7 @@ export default function ModerationScreen() {
           ListEmptyComponent={
             reviewReports.isLoading ? (
               <LoadingState />
-            ) : reviewReports.isError ? (
+            ) : reviewReports.isLoadingError ? (
               <ErrorState
                 error={reviewReports.error}
                 onRetry={() => void reviewReports.refetch()}
@@ -491,7 +491,7 @@ function ReviewReportCard({ entry }: { entry: ReviewReportQueueRow }) {
       /* Everywhere a review is printed, so the removed words go from this
          device at once rather than when each screen next goes stale. */
       queryClient.invalidateQueries({ queryKey: ['log', entry.log_id] });
-      queryClient.invalidateQueries({ queryKey: ['top-review', entry.game_id] });
+      queryClient.invalidateQueries({ queryKey: ['top-reviews', entry.game_id] });
       queryClient.invalidateQueries({ queryKey: ['game-reviews', entry.game_id] });
       queryClient.invalidateQueries({ queryKey: ['game-review-list', entry.game_id] });
       queryClient.invalidateQueries({ queryKey: ['review-stats', entry.game_id] });

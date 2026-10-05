@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -8,6 +9,8 @@ import { useAccent } from '@/hooks/use-accent';
 
 /** A glyph in the value row, drawn at the figure's height — per size. */
 const ICON_SIZE = 20;
+/** A drawn mark in the value row: the row's own height, so the labels stay level. */
+export const MARK_SIZE = Type.h2.lineHeight;
 const COMPACT_ICON_SIZE = 12;
 
 /**
@@ -36,6 +39,12 @@ export type StatsCell = {
    * The label still says it in words; the glyph is never the only carrier.
    */
   icon?: { name: keyof typeof Ionicons.glyphMap; color: string };
+  /**
+   * A drawn mark in place of the figure, for one the icon set does not hold —
+   * the Must Play badge. Sized by the caller to the value row (`MARK_SIZE`);
+   * the label under it still says it in words.
+   */
+  mark?: ReactNode;
   /**
    * The answer is not known. Drawn a size down and in the quiet ink, with a
    * sentence under it instead of a unit — see `StatCell`.
@@ -149,7 +158,9 @@ function StatCell({ cell, compact }: { cell: StatsCell; compact: boolean }) {
         scaled up by the OS text setting grows the row instead of being clipped.
       */}
       <View style={compact ? styles.compactValue : styles.value}>
-        {cell.icon ? (
+        {cell.mark ? (
+          cell.mark
+        ) : cell.icon ? (
           <Ionicons
             name={cell.icon.name}
             size={compact ? COMPACT_ICON_SIZE : ICON_SIZE}

@@ -1,4 +1,5 @@
 import { resolveMosaic, resolvePreview, SUMMARY_ITEMS, type SummaryRow } from './lists';
+import { rememberLogs } from './seen-logs';
 import type { ListSummary } from './types';
 import type { LogWithRelations, Profile } from '../database.types';
 import { supabase } from '../supabase';
@@ -59,7 +60,7 @@ export async function getPopularReviews(limit = 20): Promise<PopularReview[]> {
       ranked.map((row) => row.log_id)
     );
 
-  return unwrap(data as LogWithRelations[] | null, error)
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error))
     .map((log) => ({ ...log, likeCount: likesById.get(log.id) ?? 0 }))
     .sort((a, b) => b.likeCount - a.likeCount);
 }
@@ -219,12 +220,12 @@ export async function getHomeReviews(viewerId: string, limit = 10): Promise<Home
   if (followedRows?.error) throw new Error(followedRows.error.message);
   if (newestRows.error) throw new Error(newestRows.error.message);
 
-  const followed = (followedRows?.data ?? []) as LogWithRelations[];
+  const followed = rememberLogs((followedRows?.data ?? []) as LogWithRelations[]);
   const seen = new Set(followed.map((log) => log.id));
 
   return {
     followed,
-    newest: ((newestRows.data ?? []) as LogWithRelations[])
+    newest: rememberLogs((newestRows.data ?? []) as LogWithRelations[])
       .filter((log) => !seen.has(log.id))
       .slice(0, limit),
   };

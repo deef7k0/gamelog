@@ -4,7 +4,8 @@ import { memo } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { CD_TEMPLATE } from '@/constants/cd-template';
+import { discTemplateFor } from '@/constants/cd-template';
+import type { PlatformKey } from '@/constants/platform-cases';
 import { withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -12,6 +13,12 @@ export type CdDiscProps = {
   coverUrl?: string | null;
   heroUrl?: string | null;
   title: string;
+  /**
+   * The platform the copy is for. A PlayStation, PlayStation 2, Wii or Wii U
+   * disc is drawn as that console's own (`discTemplateFor`); every other
+   * platform, and a copy with none recorded, is the plain disc.
+   */
+  platform?: PlatformKey | null;
   /** Rendered diameter in dp — the outside of the rim. */
   size: number;
   /**
@@ -42,15 +49,17 @@ export const CdDisc = memo(function CdDisc({
   coverUrl,
   heroUrl,
   title,
+  platform = null,
   size,
   holeColor,
   cast = false,
   style,
 }: CdDiscProps) {
   const theme = useTheme();
-  const scale = size / (CD_TEMPLATE.outerRadius * 2);
-  const art = CD_TEMPLATE.artRadius * 2 * scale;
-  const hub = CD_TEMPLATE.hubRadius * 2 * scale;
+  const template = discTemplateFor(platform);
+  const scale = size / (template.outerRadius * 2);
+  const art = template.artRadius * 2 * scale;
+  const hub = template.hubRadius * 2 * scale;
   const source = coverUrl ?? heroUrl ?? null;
 
   return (
@@ -119,13 +128,13 @@ export const CdDisc = memo(function CdDisc({
       />
 
       <Image
-        source={CD_TEMPLATE.template}
+        source={template.template}
         style={{
           position: 'absolute',
-          width: CD_TEMPLATE.width * scale,
-          height: CD_TEMPLATE.height * scale,
-          left: -(CD_TEMPLATE.cx - CD_TEMPLATE.outerRadius) * scale,
-          top: -(CD_TEMPLATE.cy - CD_TEMPLATE.outerRadius) * scale,
+          width: template.width * scale,
+          height: template.height * scale,
+          left: -(template.cx - template.outerRadius) * scale,
+          top: -(template.cy - template.outerRadius) * scale,
         }}
         contentFit="fill"
         pointerEvents="none"

@@ -91,7 +91,7 @@ export default function AchievementsScreen() {
     );
   }
 
-  if (achievements.isError) {
+  if (achievements.isLoadingError) {
     return (
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={achievements.error} />

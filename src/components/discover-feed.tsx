@@ -6,6 +6,7 @@ import { CollectionsBand, ReviewsBand } from '@/components/discover-lists';
 import { CoverRailSkeleton, GameCoverRail } from '@/components/game-rail';
 import { GenreGrid } from '@/components/genre-grid';
 import { HomeSection } from '@/components/home-section';
+import { CalendarButton } from '@/components/search/calendar-button';
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -22,9 +23,9 @@ const RAIL_GAMES = 20;
 const RECOMMENDED_GAMES = 12;
 
 /**
- * Discover, before anything is typed: a way in by genre, what is popular, the
- * one rail built from your last review, what is highly rated, and the app's
- * most-liked writing and collections.
+ * Discover, before anything is typed: the door to the release calendar, a way
+ * in by genre, what is popular, the one rail built from your last review, what
+ * is highly rated, and the app's most-liked writing and collections.
  *
  * Lives in Search rather than News. It is the answer to "what should I play
  * next", and someone with that question opens Search — News is where you go for
@@ -124,8 +125,12 @@ export function DiscoverFeed() {
           tintColor={theme.primary}
         />
       }>
-      {/* First, before anything ranked: the only band that works for someone
-          with no particular game in mind. */}
+      {/* The release calendar: a page, not a search, so it is a door at the
+          top of the screen rather than a tab under the field. */}
+      <CalendarButton />
+
+      {/* First of the bands, before anything ranked: the only one that works
+          for someone with no particular game in mind. */}
       <HomeSection title="Browse by genre" subtitle="Ten ways into the catalogue.">
         <GenreGrid />
       </HomeSection>

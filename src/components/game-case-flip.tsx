@@ -14,7 +14,7 @@ import Animated, {
 import { caseHeightFor } from '@/components/game-case';
 import { GameCaseBack } from '@/components/game-case-back';
 import { GameCaseDisplay } from '@/components/game-case-display';
-import { hasCase, type PlatformKey } from '@/constants/platform-cases';
+import { PLATFORMS, hasCase, type PlatformKey } from '@/constants/platform-cases';
 import { PosterAspectRatio } from '@/constants/theme';
 import { labelFor } from '@/constants/score';
 import { STATUS_LABEL } from '@/constants/status';
@@ -141,15 +141,17 @@ export function GameCaseFlip({
    * face are the same rectangle, and neither needs an offset.
    *
    * **The height has to be asked per platform, and getting that wrong was a
-   * visible bug.** A case template is 540×680, so it renders at `width × 1.259`.
-   * A PC or mobile game has no case and renders a bare 2:3 poster, which is
-   * `width × 1.5` — 19% taller. This wrapper is a fixed-size box in a flex row,
+   * visible bug.** A standard case template renders at `width × 1.259`, and the
+   * others at their own proportions — a Switch 2 case 1.62×, a SNES box 0.62×
+   * (`caseHeightFor(width, platform)`). A PC or mobile game has no case and
+   * renders a bare 2:3 poster, which is `width × 1.5` — 19% taller than the
+   * standard case. This wrapper is a fixed-size box in a flex row,
    * so hard-coding `caseHeightFor` meant the poster overflowed it by
    * `width × 0.24` and drew straight over the platform buttons underneath: 36dp
    * of overlap at the 148dp the game page asks for on a 390dp phone. The layout
    * reserved a case and was handed a poster.
    */
-  const height = flippable ? caseHeightFor(width) : width / PosterAspectRatio;
+  const height = hasCase(platform) ? caseHeightFor(width, platform) : width / PosterAspectRatio;
 
   /*
    * Changing platform puts the case back on its front, instantly.
@@ -318,7 +320,7 @@ function describe({
   log: GameLog | null;
   flippable: boolean;
 }): string {
-  const object = [title, edition, platform.toUpperCase()].filter(Boolean).join(', ');
+  const object = [title, edition, PLATFORMS[platform].short].filter(Boolean).join(', ');
   if (!flippable) return object;
   if (!log) return `${object}. Not logged.`;
 

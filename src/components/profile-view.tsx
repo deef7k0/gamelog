@@ -373,7 +373,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
   );
 
   if (profile.isLoading) return <LoadingState />;
-  if (profile.isError) return <ErrorState error={profile.error} />;
+  if (profile.isLoadingError) return <ErrorState error={profile.error} />;
   if (!profile.data) return <EmptyState title="Profile not found" />;
 
   const person = profile.data;
@@ -596,7 +596,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
               </Text>
             )}
 
-            {!isSelf && (stats.isError || friendState.isError) && (
+            {!isSelf && (stats.isLoadingError || friendState.isLoadingError) && (
               <Text variant="bodySmall" color="textMuted">
                 Could not load your connection to {ownerName}. Pull down to retry.
               </Text>
@@ -660,7 +660,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
                     <FriendButton
                       state={friendState.data}
                       pending={friendAction.isPending}
-                      failed={friendState.isError}
+                      failed={friendState.isLoadingError}
                       onPress={(action) => friendAction.mutate(action)}
                     />
                   </View>
@@ -668,7 +668,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
                       a failed stats fetch made the Follow button *cease to
                       exist* with nothing said — the control vanished rather
                       than reporting it could not read its own state. */}
-                  {!stats.isError && (
+                  {!stats.isLoadingError && (
                     <View style={styles.actionSlot}>
                       <Button
                         title={stats.data?.isFollowing ? 'Following' : 'Follow'}

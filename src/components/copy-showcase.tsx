@@ -98,7 +98,9 @@ export function CopyShowcase({ copy, width, pageColor }: CopyShowcaseProps) {
      out beside it; capped so a wide phone does not get a case taller than the
      screen can hold with the facts below it. */
   const caseWidth = Math.round(Math.min(width * 0.54, 230));
-  const caseHeight = flippable ? caseHeightFor(caseWidth) : caseWidth / PosterAspectRatio;
+  const caseHeight = hasCase(platform)
+    ? caseHeightFor(caseWidth, platform)
+    : caseWidth / PosterAspectRatio;
   /* Small enough to hide completely behind the art when it is in. */
   const disc = Math.round(Math.min(caseHeight * 0.84, caseWidth * 0.98));
   const reveal = disc * REVEAL;
@@ -229,6 +231,7 @@ export function CopyShowcase({ copy, width, pageColor }: CopyShowcaseProps) {
               coverUrl={copy.game?.cover_url}
               heroUrl={copy.game?.hero_url}
               title={title}
+              platform={platform}
               size={disc}
               holeColor={pageColor}
               cast

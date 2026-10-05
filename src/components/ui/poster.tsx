@@ -3,9 +3,11 @@ import { memo, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
+import { MustPlayBadge } from '@/components/must-play-badge';
 import { Text } from '@/components/ui/text';
 import { editionLabel, type EditionKind } from '@/constants/game-editions';
 import { Elevation, PosterAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { useGameLabel } from '@/hooks/use-game-labels';
 import { useSteamArtwork } from '@/hooks/use-steam-artwork';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -19,6 +21,21 @@ import { useTheme } from '@/hooks/use-theme';
  * read it.
  */
 const BADGE_MIN_WIDTH = 72;
+
+/**
+ * The Must Play badge: below this width a cover goes without it, and its size
+ * otherwise.
+ *
+ * A mark, not a word, so it survives further down than the edition badge does —
+ * to the 56dp covers in a row, where it is 18dp across and still a face in a
+ * ring. Under that it is a dot. It grows with the cover to a quarter of its
+ * width and stops at 30: on a 180dp rail cover a larger badge starts to compete
+ * with the box's own logo, which is usually in the same corner.
+ */
+const MUST_PLAY_MIN_WIDTH = 56;
+const MUST_PLAY_RATIO = 0.25;
+const MUST_PLAY_MIN = 18;
+const MUST_PLAY_MAX = 30;
 
 /**
  * How far the artwork may slide inside its frame, as a fraction of the width.
@@ -77,6 +94,17 @@ export type PosterProps = {
    * for where the value comes from and why the vocabulary is only six words.
    */
   edition?: EditionKind | null;
+  /**
+   * The game's app-wide id (`igdb:1234`), for the Must Play badge.
+   *
+   * Given one, a game a moderator has labelled (0034) wears the badge in the
+   * top corner opposite the edition word. **Omitted, the cover never wears
+   * it** — which is how a surface opts out, and two do by the owner's rule:
+   * collections, where the cover is one tile of somebody's own arrangement, and
+   * reviews, where the art sits beside a writer's score and a second verdict on
+   * it would read as theirs.
+   */
+  gameId?: string | null;
   /**
    * Steam appid, when the game has a Steam listing.
    *
@@ -138,12 +166,14 @@ export const Poster = memo(function Poster({
   rounded = 'image',
   fillHeight = false,
   edition = null,
+  gameId = null,
   steamAppId = null,
   parallax = null,
   priority,
 }: PosterProps) {
   const theme = useTheme();
   const steam = useSteamArtwork(steamAppId);
+  const mustPlay = useGameLabel(gameId, 'must_play') && width >= MUST_PLAY_MIN_WIDTH;
   const [steamFailed, setSteamFailed] = useState(false);
   const height = width / PosterAspectRatio;
   const radius = Radius[rounded];
@@ -253,6 +283,25 @@ export const Poster = memo(function Poster({
             </Text>
           </View>
         )}
+
+        {/*
+          The Must Play badge, in the corner the edition word is not in.
+
+          A sibling of the artwork like the word above, so it stays put while a
+          parallax slides the art behind it. It is the one coloured thing this
+          component puts on a cover — the owner's call, and a narrow one: a
+          moderator's label is data about the game, drawn as a mark with a dark
+          ring round it rather than as a tint on the art.
+        */}
+        {mustPlay && (
+          <View style={styles.mustPlay} pointerEvents="none">
+            <MustPlayBadge
+              size={Math.round(
+                Math.min(MUST_PLAY_MAX, Math.max(MUST_PLAY_MIN, width * MUST_PLAY_RATIO))
+              )}
+            />
+          </View>
+        )}
       </View>
     </View>
   );
@@ -321,6 +370,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: Radius.image,
   },
+  /* `end`, for the reason the edition badge is `start`: the two are in
+     opposite corners in either reading direction. */
+  mustPlay: { position: 'absolute', top: Spacing.x4, end: Spacing.x4 },
   clip: { width: '100%', height: '100%', overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },

@@ -4,6 +4,7 @@ import { StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native'
 
 import { Text } from '@/components/ui/text';
 import { Radius, withAlpha } from '@/constants/theme';
+import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import type { ListCover } from '@/lib/api';
 import type { ListCoverStyle } from '@/lib/database.types';
@@ -31,6 +32,14 @@ export type CollectionMosaicProps = {
   display?: ListCoverStyle;
   /** The owner's chosen cover, for `display="single"`. */
   preview?: ListCover | null;
+  /**
+   * Draw the square slots with SteamGridDB's square art where there is any.
+   *
+   * **Off by default, and only the collection's own header turns it on.** A
+   * collection seen from outside — its row in a list, the picker — is its box
+   * art, by the owner's rule; see "Box art outside, square art in the header".
+   */
+  squareArt?: boolean;
   /** Outer edge length in dp. The mosaic is always square. */
   size: number;
   /** Fallback letter when the collection has no artwork at all. */
@@ -78,13 +87,35 @@ export type CollectionMosaicProps = {
  * square where art should be reads as a failed image load, and a collection with
  * three games is not broken.
  *
- * ## IGDB covers, cropped
+ * ## Box art outside, square art in the header
  *
- * Every tile is the game's IGDB box art, centre-cropped to its slot. It asked
- * SteamGridDB for square art for a while; that was taken out at the owner's
- * request — a community grid is somebody's redesign of the box, and a
- * collection is a shelf of the boxes themselves. The crop costs the top and
- * bottom sixth of each cover and keeps the one everybody recognises.
+ * Every tile is the game's IGDB box art, centre-cropped to its slot — that is
+ * what a collection looks like from outside: its row in a list (`<ListTile>`)
+ * and the picker's rows. The crop costs the top and bottom sixth of each cover
+ * and keeps the one everybody recognises.
+ *
+ * `squareArt` is the exception, and the header at the top of the collection's
+ * own screen is its only caller: there the 1:1 slots ask SteamGridDB for
+ * composed square art (`useSquareCover`) and fall back to the box, cropped,
+ * when there is none — the normal answer for most of the catalogue, and the
+ * only one on a build with no key.
+ *
+ * It has been every way. Square art was here first, was taken out for cropped
+ * box art, was put back for the tile and the header together — and the owner
+ * took it off the tile again: square art belongs to the hero you see after
+ * tapping in, where the art fades into the page, and nowhere before it. The
+ * preview outside is portrait covers and so are the games inside. Do not turn
+ * `squareArt` on anywhere else.
+ *
+ * **Even there, the tall slots keep the box art.** Two covers split the square
+ * into halves and three give the first a whole column — slots twice as tall as
+ * wide, where square art would lose half its width and a 2:3 cover loses a
+ * quarter.
+ *
+ * With `squareArt`, nothing is drawn in a square slot until the lookup has
+ * answered (`resolved`): painting the box and swapping it for the square is
+ * the flash the hook exists to prevent. The answer, a miss included, is on
+ * disk after a game's first sighting. Without it the lookup is never made.
  */
 export function CollectionMosaic({
   covers,
@@ -93,6 +124,7 @@ export function CollectionMosaic({
   rounded = 'image',
   display = 'mosaic',
   preview = null,
+  squareArt = false,
   award = false,
   blurRadius = 0,
   style,
@@ -139,7 +171,9 @@ export function CollectionMosaic({
         styles.clip,
         style,
       ]}>
-      {layout === 'single' && <Tile cover={art[0]} style={styles.fill} blurRadius={blurRadius} />}
+      {layout === 'single' && (
+        <Tile cover={art[0]} style={styles.fill} blurRadius={blurRadius} square={squareArt} />
+      )}
 
       {layout === 'halves' && (
         <View style={styles.row}>
@@ -154,19 +188,49 @@ export function CollectionMosaic({
             <>
               <Tile cover={art[0]} style={styles.half} blurRadius={blurRadius} />
               <View style={styles.half}>
-                <Tile cover={art[1]} style={styles.half} blurRadius={blurRadius} />
-                <Tile cover={art[2]} style={styles.half} blurRadius={blurRadius} />
+                <Tile
+                  cover={art[1]}
+                  style={styles.half}
+                  blurRadius={blurRadius}
+                  square={squareArt}
+                />
+                <Tile
+                  cover={art[2]}
+                  style={styles.half}
+                  blurRadius={blurRadius}
+                  square={squareArt}
+                />
               </View>
             </>
           ) : (
             <>
               <View style={styles.half}>
-                <Tile cover={art[0]} style={styles.half} blurRadius={blurRadius} />
-                <Tile cover={art[2]} style={styles.half} blurRadius={blurRadius} />
+                <Tile
+                  cover={art[0]}
+                  style={styles.half}
+                  blurRadius={blurRadius}
+                  square={squareArt}
+                />
+                <Tile
+                  cover={art[2]}
+                  style={styles.half}
+                  blurRadius={blurRadius}
+                  square={squareArt}
+                />
               </View>
               <View style={styles.half}>
-                <Tile cover={art[1]} style={styles.half} blurRadius={blurRadius} />
-                <Tile cover={art[3]} style={styles.half} blurRadius={blurRadius} />
+                <Tile
+                  cover={art[1]}
+                  style={styles.half}
+                  blurRadius={blurRadius}
+                  square={squareArt}
+                />
+                <Tile
+                  cover={art[3]}
+                  style={styles.half}
+                  blurRadius={blurRadius}
+                  square={squareArt}
+                />
               </View>
             </>
           )}
@@ -196,12 +260,19 @@ function Tile({
   cover,
   style,
   blurRadius = 0,
+  square = false,
 }: {
   cover: ListCover;
   style: ImageStyle;
   blurRadius?: number;
+  /** The slot is 1:1 and the caller asked for square art: take it when there is any. */
+  square?: boolean;
 }) {
-  const uri = cover.cover_url ?? cover.hero_url ?? '';
+  const art = useSquareCover({ gameId: cover.id, title: cover.title, enabled: square });
+  const box = cover.cover_url ?? cover.hero_url ?? '';
+  /* Nothing while the answer is unknown — the mosaic's own fill shows through —
+     and the box art once it is known there is no square. */
+  const uri = art.resolved ? (art.uri ?? box) : '';
 
   return (
     <Image

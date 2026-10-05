@@ -1,7 +1,7 @@
 import type { ListCoverStyle } from '../database.types';
 import type { Game } from '../games';
 import { supabase } from '../supabase';
-import { cacheGame } from './core';
+import { cacheGame, likeLiteral } from './core';
 import type { GameList, ListCover, ListKind, ListSummary, ListWithItems, Tier } from './types';
 
 function unwrap<T>(data: T | null, error: { message: string } | null): T {
@@ -434,6 +434,33 @@ export async function removeFromList(listId: string, gameId: string): Promise<vo
 }
 
 /**
+ * Take several games off a list in one request — the collection screen's
+ * "Remove from collection (3 selected)".
+ *
+ * One `delete … where game_id in (…)` rather than a request per game, so a
+ * selection of twenty leaves together or not at all as far as the reader can
+ * tell. `.in()` is safe here: these are the app's own game ids (`igdb:1234`),
+ * not text somebody typed — the case `inList()` in `lib/postgrest.ts` exists for.
+ *
+ * Never call this for an award show: its `list_items` rows are written by a
+ * trigger from the ballot (0016), and the collection screen does not offer the
+ * selection there.
+ */
+export async function removeManyFromList(
+  listId: string,
+  gameIds: readonly string[]
+): Promise<void> {
+  if (gameIds.length === 0) return;
+
+  const { error } = await supabase
+    .from('list_items')
+    .delete()
+    .eq('list_id', listId)
+    .in('game_id', [...gameIds]);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Persist a new ordering (and tier assignment) after a drag.
  *
  * Sent as one upsert rather than N updates so a reorder is a single round trip.
@@ -500,6 +527,51 @@ export async function toggleSingletonMembership(
     .eq('list_id', list.id);
 
   await addToList(list.id, game, { position: count ?? 0 });
+}
+
+/** Longest title query worth sending — the same cap a people search has. */
+const LIST_QUERY_MAX = 60;
+
+/**
+ * Collections by title, for Search.
+ *
+ * The four authored kinds (`SHELF_KINDS`) and never a favourites list or a
+ * wishlist: those are per-user state with the same fixed title on every
+ * account, and a search for "wish" would otherwise return everybody's.
+ *
+ * Ranked here, as people are and for the same reason: relevance to a typed word
+ * is not a column, so Postgres hands back an arbitrary thirty of the matches.
+ * An exact title leads, then titles that start with the term, then the rest —
+ * and inside each of those the collection with more in it, since an empty
+ * collection that happens to match is a draft.
+ */
+export async function searchLists(query: string, signal?: AbortSignal): Promise<ListSummary[]> {
+  const trimmed = query.trim().slice(0, LIST_QUERY_MAX);
+  if (!trimmed) return [];
+
+  const request = supabase
+    .from('lists')
+    .select(SUMMARY_SELECT)
+    .in('kind', SHELF_KINDS)
+    .ilike('title', `%${likeLiteral(trimmed)}%`)
+    .order('updated_at', { ascending: false })
+    .limit(60);
+
+  const { data, error } = await (signal ? request.abortSignal(signal) : request);
+  if (error) throw new Error(error.message);
+
+  const needle = trimmed.toLowerCase();
+  const rank = (title: string) => {
+    const lowered = title.toLowerCase();
+    if (lowered === needle) return 0;
+    if (lowered.startsWith(needle)) return 1;
+    return 2;
+  };
+
+  return ((data ?? []) as unknown as SummaryRow[])
+    .map(toSummary)
+    .sort((a, b) => rank(a.title) - rank(b.title) || b.itemCount - a.itemCount)
+    .slice(0, 30);
 }
 
 export async function getPublicLists(limit = 30): Promise<ListSummary[]> {

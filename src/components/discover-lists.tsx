@@ -74,7 +74,7 @@ export function DiscoverReviews() {
   const { reviews } = usePopularReviewsData();
 
   if (reviews.isLoading) return <LoadingState />;
-  if (reviews.isError)
+  if (reviews.isLoadingError)
     return <ErrorState error={reviews.error} onRetry={() => reviews.refetch()} />;
 
   return (
@@ -142,7 +142,7 @@ export function ReviewsBand({ limit = BAND_LIMIT }: { limit?: number }) {
   /* A band is supporting content, so it fails quietly: a hard error state here
      would replace someone's whole Discover feed because one section of it could
      not load. The full page behind "See all" reports properly. */
-  if (reviews.isError) return null;
+  if (reviews.isLoadingError) return null;
 
   const rows = (reviews.data ?? []).slice(0, limit);
   if (rows.length === 0) return null;
@@ -168,7 +168,7 @@ export function DiscoverCollections() {
   const { collections, engagement } = usePopularCollectionsData();
 
   if (collections.isLoading) return <LoadingState />;
-  if (collections.isError) {
+  if (collections.isLoadingError) {
     return <ErrorState error={collections.error} onRetry={() => collections.refetch()} />;
   }
 
@@ -208,7 +208,7 @@ export function DiscoverCollections() {
 export function CollectionsBand({ limit = BAND_LIMIT }: { limit?: number }) {
   const { collections, engagement } = usePopularCollectionsData();
 
-  if (collections.isError) return null;
+  if (collections.isLoadingError) return null;
 
   const rows = (collections.data ?? []).slice(0, limit);
   if (rows.length === 0) return null;

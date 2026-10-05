@@ -925,6 +925,21 @@ export type ModeratorRow = {
 };
 
 /**
+ * One label on one game (0034) — `must_play`. Readable by everyone; inserted
+ * and deleted by moderators only, which the table's policies enforce.
+ *
+ * `label` is text + CHECK in the database, and the vocabulary is `GAME_LABELS`
+ * in `constants/game-labels.ts`.
+ */
+export type GameLabelRow = {
+  game_id: string;
+  label: string;
+  /** The moderator who set it; null once their account is gone. */
+  added_by: string | null;
+  created_at: string;
+};
+
+/**
  * What the contribution RPCs answer.
  *
  * `exists` — the barcode is already canonical, and here is its release.
@@ -1329,6 +1344,18 @@ export type Database = {
         Insert: Insert<ModeratorRow, 'created_at'>;
         Update: Partial<ModeratorRow>;
         Relationships: [FK<'moderators_user_id_fkey', 'user_id', 'profiles', 'id'>];
+      };
+      // --- 0034 labels on games ----------------------------------------------
+      // The key is `(game_id, label)` and `label` is a word, not a reference,
+      // so PostgREST does not read this as a join table (the 0031/0032 trap).
+      game_labels: {
+        Row: GameLabelRow;
+        Insert: Insert<GameLabelRow, 'created_at'>;
+        Update: Partial<GameLabelRow>;
+        Relationships: [
+          FK<'game_labels_game_id_fkey', 'game_id', 'games', 'id'>,
+          FK<'game_labels_added_by_fkey', 'added_by', 'profiles', 'id'>,
+        ];
       };
       // --- 0009 linked gaming accounts ---------------------------------------
       // No Insert/Update reaches these from the client: they have no INSERT or

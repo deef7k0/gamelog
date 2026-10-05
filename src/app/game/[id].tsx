@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { memo, useCallback, useState, useSyncExternalStore } from 'react';
@@ -10,10 +10,16 @@ import { GameActions, formatReleaseDate } from '@/components/game-actions';
 import { caseHeightFor } from '@/components/game-case';
 import { GameCaseFlip } from '@/components/game-case-flip';
 import { GameDetailsSheet } from '@/components/game-details-sheet';
-import { GameEventsWidget, TimeToBeatWidget } from '@/components/game-insights';
+import {
+  CriticReviewsWidget,
+  GameEventsWidget,
+  MemberReviewsWidget,
+  TimeToBeatWidget,
+} from '@/components/game-insights';
 import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
 import { GameListsSheet } from '@/components/game-lists-sheet';
+import { GameModeratorCard } from '@/components/game-moderation';
 import { GamePlatforms } from '@/components/game-platforms';
 import { GameCoverRail } from '@/components/game-rail';
 import { CommunitySimilarCard, CommunitySimilarSheet } from '@/components/community-similar';
@@ -21,7 +27,6 @@ import { GameStatsStrip } from '@/components/game-stats-strip';
 import { ProgressSheet } from '@/components/progress-sheet';
 import { SoundtrackAlbums } from '@/components/soundtrack-section';
 import { StorePrices } from '@/components/store-prices';
-import { TopReviewCard } from '@/components/top-review-card';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
@@ -44,9 +49,10 @@ import { platformKeyForStored } from '@/constants/platform-family';
 import { Radius, Spacing } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { getAchievementsForGame, getCopies, getMyLog, getTopGameReview, setLiked } from '@/lib/api';
+import { getAchievementsForGame, getCopies, getMyLog } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
+import { recallGame } from '@/lib/games/seen-games';
 import { getCollectionGames, getFranchiseGames, getGameExtras } from '@/lib/games/igdb';
 import { wikidataLookupFor } from '@/lib/wikidata';
 import { useAuth } from '@/store/auth';
@@ -201,8 +207,6 @@ export default function GameDetailScreen() {
   const openLists = useCallback(() => sheets.set('lists'), [sheets]);
   const openProgress = useCallback(() => sheets.set('progress'), [sheets]);
 
-  const queryClient = useQueryClient();
-
   /*
    * One platform selection for the whole page.
    *
@@ -229,41 +233,25 @@ export default function GameDetailScreen() {
     enabled: !!id,
     // Store metadata is effectively static; do not refetch during a session.
     staleTime: 30 * 60_000,
+    /*
+     * Start from the record the list already downloaded.
+     *
+     * A game opened from search, a franchise rail, a platform's page or
+     * Surprise Me was fetched in full to draw its cover (`seen-games.ts`), so
+     * the page is on screen in the frame it opens instead of behind a spinner
+     * for a second request for the same thing. The time it was seen rides
+     * along: older than `staleTime`, it still paints at once and is refreshed
+     * behind. Ignored when the cache already holds this game — an earlier
+     * visit, or one restored from the last launch.
+     */
+    initialData: () => recallGame(id)?.value,
+    initialDataUpdatedAt: () => recallGame(id)?.at,
   });
 
   const myLog = useQuery({
     queryKey: ['my-log', userId, id],
     queryFn: () => getMyLog(userId!, id!),
     enabled: !!userId && !!id,
-  });
-
-  /*
-   * One review for the Overview card, not the list.
-   *
-   * The list lives in the sheet and is only fetched when it opens, so a visit
-   * that never taps through costs a single row rather than fifty.
-   */
-  const topReview = useQuery({
-    queryKey: ['top-review', id, userId],
-    queryFn: () => getTopGameReview(id!, userId ?? null),
-    enabled: !!id,
-    staleTime: 60_000,
-  });
-
-  const likeReview = useMutation({
-    mutationFn: (next: boolean) => setLiked(userId!, 'log', topReview.data!.log.id, next),
-    onMutate: async (next) => {
-      const key = ['top-review', id, userId];
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData(key);
-      queryClient.setQueryData(key, (old: typeof topReview.data) =>
-        old ? { ...old, likedByViewer: next, likes: old.likes + (next ? 1 : -1) } : old
-      );
-      return { previous, key };
-    },
-    onError: (_error, _next, context) => {
-      if (context) queryClient.setQueryData(context.key, context.previous);
-    },
   });
 
   const similar = useQuery({
@@ -385,7 +373,7 @@ export default function GameDetailScreen() {
     );
   }
 
-  if (game.isError) {
+  if (game.isLoadingError) {
     return (
       <Screen
         /* `edges={[]}` belongs to the success branch, whose artwork bleeds under
@@ -730,7 +718,7 @@ export default function GameDetailScreen() {
 
               {similar.isLoading ? (
                 <LoadingState />
-              ) : similar.isError ? (
+              ) : similar.isLoadingError ? (
                 /* `getSimilarTo` used to swallow every failure into an empty
                    array, so a dropped connection rendered as a statement about
                    IGDB's catalogue. It throws now; this tells the two apart. */
@@ -887,53 +875,27 @@ export default function GameDetailScreen() {
               )}
 
               {/*
-                What one person wrote. The way to everything anybody wrote is the
-                heading's More — it was a "See all reviews" row at the foot of
-                this card, which is the reference's More in the wrong place.
+                What people here wrote, as a rail of cards, most liked first.
+                The way to everything anybody wrote is the heading's More.
 
-                Only when somebody has written one. An empty card asking for the
-                first review repeated the masthead's review button, the one
+                Only when somebody has written one. An empty section asking for
+                the first review repeated the masthead's review button, the one
                 primary action on the page, and a section exists here only when
-                it has something in it — as Where to buy and Developers do. So
-                no skeleton either: a card drawn while loading and then
-                withdrawn would move everything under it twice.
+                it has something in it — as Where to buy and Developers do.
               */}
-              {topReview.data && (
-                <InfoCard
-                  title="Reviews"
-                  more={{
-                    accessibilityLabel: `See all reviews of ${data.title}`,
-                    onPress: openReviews,
-                  }}>
-                  <TopReviewCard
-                    /* `bare`: the card is already here. */
-                    bare
-                    /* Five, against the default three. This tab scrolls and this is
-                     the only review on it, so the clamp can afford to be a real
-                     sample rather than a taste — the three exists for Surprise Me,
-                     where the same card sits on a screen that must not scroll. */
-                    lines={5}
-                    review={topReview.data}
-                    loading={false}
-                    liked={topReview.data.likedByViewer}
-                    onToggleLike={() => {
-                      if (topReview.data && userId)
-                        likeReview.mutate(!topReview.data.likedByViewer);
-                    }}
-                    onOpenReview={() => {
-                      if (topReview.data) {
-                        router.push({
-                          pathname: '/review/[id]',
-                          params: { id: topReview.data.log.id },
-                        });
-                      }
-                    }}
-                    onWriteReview={() =>
-                      router.push({ pathname: '/log/[id]', params: { id: data.id } })
-                    }
-                  />
-                </InfoCard>
-              )}
+              <MemberReviewsWidget gameId={data.id} title={data.title} onSeeAll={openReviews} />
+
+              {/*
+                What the critics wrote, under what people here wrote: the two
+                kinds of review in the same card, the app's own first. A rail of
+                quotes at the size of "Featured in" below — absent, like that
+                one, for the many games it has nothing for.
+              */}
+              <CriticReviewsWidget
+                gameId={data.id}
+                title={data.title}
+                releaseYear={data.releaseYear}
+              />
 
               <TimeToBeatWidget gameId={data.id} />
               <GameEventsWidget gameId={data.id} />
@@ -1023,7 +985,7 @@ export default function GameDetailScreen() {
                   whole section with it — silently, and identically to a game that
                   genuinely tracks none. The count is the section's own claim, so
                   it cannot be rendered from a number the app never received. */}
-              {achievements.isError ? (
+              {achievements.isLoadingError ? (
                 <InfoCard title="Achievements">
                   <Text variant="body" color="textSecondary">
                     Could not load achievements. Pull to refresh, or try again later.
@@ -1046,6 +1008,10 @@ export default function GameDetailScreen() {
                   </InfoCardButton>
                 )
               )}
+
+              {/* A moderator's controls — the Must Play label. Draws nothing
+                  for anybody who is not one. */}
+              <GameModeratorCard game={data} />
 
               {data.storeUrl && (
                 <View style={{ paddingHorizontal: sections.inset }}>

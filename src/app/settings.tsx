@@ -130,6 +130,26 @@ export default function SettingsScreen() {
                 <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
               </PressableScale>
             </Link>
+
+            {/* The list the Must Play badge leads to, which is also where a
+                moderator adds to it and takes from it (0034). */}
+            <Link href="/must-play" asChild>
+              <PressableScale
+                accessibilityRole="link"
+                accessibilityLabel="Manage the Must Play games"
+                scaleTo={0.98}
+                pressedColor={theme.controlPressed}
+                style={StyleSheet.flatten([styles.row, { backgroundColor: theme.controlFill }])}>
+                <Ionicons name="thumbs-up-outline" size={20} color={theme.textSecondary} />
+                <View style={styles.rowText}>
+                  <Text variant="h5">Must Play games</Text>
+                  <Text variant="caption" color="textMuted">
+                    Label games, and take labels off
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+              </PressableScale>
+            </Link>
           </View>
         )}
 

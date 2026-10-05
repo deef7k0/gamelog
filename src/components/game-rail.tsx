@@ -103,6 +103,7 @@ function RailCover({
       heroUrl={game.heroUrl}
       title={game.title}
       edition={game.edition}
+      gameId={game.id}
       steamAppId={game.steamAppId}
       width={width}
       rounded="image"

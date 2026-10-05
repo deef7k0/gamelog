@@ -1,20 +1,22 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { Linking, StyleSheet, View } from 'react-native';
 
-import { PressableScale } from '@/components/ui/pressable-scale';
+import { ReviewQuote } from '@/components/review-quote';
 import { InfoCard } from '@/components/ui/info-card';
-import { ArtRail, Section } from '@/components/ui/section';
+import { ArtRail, Section, SectionMore } from '@/components/ui/section';
 import { StatsStrip } from '@/components/ui/stats-strip';
 import { Text } from '@/components/ui/text';
-import { ACCLAIM_THRESHOLD, ratingVerdict, scoreColor } from '@/constants/score';
+import { ratingVerdict, scoreColor } from '@/constants/score';
 import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { getRatingBreakdown } from '@/lib/api';
-import { getCriticReviews } from '@/lib/games/critics';
+import { getRatingBreakdown, getTopGameReviews } from '@/lib/api';
+import type { LogWithRelations } from '@/lib/database.types';
+import { displayNameFor } from '@/lib/format';
+import { getCriticSummary, quotedReviews, type CriticReview } from '@/lib/games/critics';
 import { getGameEvents, getTimeToBeat, type GameEvent } from '@/lib/games/igdb';
 import { parseGameId } from '@/lib/games';
 
@@ -61,19 +63,13 @@ const SECONDS_PER_HOUR = 3600;
  *
  * Renders nothing at all when nobody has rated the game. An empty histogram
  * under a real heading claims a distribution exists and that it is flat.
+ *
+ * It used to carry the critics too, as a fold-out list of outlets and scores.
+ * They have a section of their own now — `<CriticReviewsWidget>`, which quotes
+ * them — and this is the app's own ratings and nothing else.
  */
-export function RatingBreakdownGraph({ gameId, title }: { gameId: string; title: string }) {
+export function RatingBreakdownGraph({ gameId }: { gameId: string }) {
   const theme = useTheme();
-  const accent = useAccent();
-  const [criticsOpen, setCriticsOpen] = useState(false);
-
-  const critics = useQuery({
-    queryKey: ['critic-reviews', title],
-    queryFn: () => getCriticReviews(title),
-    enabled: !!title,
-    staleTime: 24 * 60 * 60_000,
-    retry: false,
-  });
 
   const breakdown = useQuery({
     queryKey: ['rating-breakdown', gameId],
@@ -86,7 +82,6 @@ export function RatingBreakdownGraph({ gameId, title }: { gameId: string; title:
 
   const peak = Math.max(...data.buckets);
   const verdict = ratingVerdict(data.average, data.total);
-  const acclaim = critics.data && critics.data.reviews.length > 0 ? critics.data : null;
 
   return (
     <InfoCard title="Rating breakdown">
@@ -132,87 +127,6 @@ export function RatingBreakdownGraph({ gameId, title }: { gameId: string; title:
           {data.total} {data.total === 1 ? 'rating' : 'ratings'} · {data.average} average
         </Text>
       </View>
-
-      {/*
-        Critics, when there are any.
-
-        A second, separate claim — this is the trade press, not the people here —
-        so it sits under its own rule rather than being mixed into the numbers
-        above. `Critically Acclaimed` is earned by the *average of outlets*
-        clearing `ACCLAIM_THRESHOLD`, never by one good review.
-
-        Renders nothing at all when OpenCritic has no record, or when the
-        `opencritic` function is not deployed: see `lib/games/critics.ts`. The
-        section is absent rather than empty, because "no critic scores" is not a
-        fact worth a heading.
-      */}
-      {acclaim && (
-        <View style={[styles.critics, { borderTopColor: theme.border }]}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityState={{ expanded: criticsOpen }}
-            accessibilityLabel={
-              criticsOpen
-                ? 'Hide critic scores'
-                : `Show ${acclaim.reviews.length} critic scores, average ${acclaim.average}`
-            }
-            onPress={() => setCriticsOpen((open) => !open)}
-            scaleTo={0.98}
-            hitSlop={Spacing.x8}
-            style={StyleSheet.flatten(styles.criticsHead)}>
-            <View style={styles.criticsHeadText}>
-              {acclaim.average !== null && acclaim.average >= ACCLAIM_THRESHOLD && (
-                <Text variant="h5" style={{ color: theme.identityGold }}>
-                  Critically Acclaimed
-                </Text>
-              )}
-              <Text variant="bodySmall" color="textMuted">
-                {acclaim.count} critic {acclaim.count === 1 ? 'review' : 'reviews'}
-                {acclaim.average !== null ? ` · ${acclaim.average} average` : ''}
-              </Text>
-            </View>
-
-            <Ionicons
-              name={criticsOpen ? 'chevron-up' : 'chevron-down'}
-              size={18}
-              color={theme.textMuted}
-            />
-          </PressableScale>
-
-          {criticsOpen && (
-            <View style={styles.criticRows}>
-              {acclaim.reviews.map((review) => (
-                <View key={`${review.outlet}-${review.score}`} style={styles.criticRow}>
-                  <View style={styles.criticLine}>
-                    <Text variant="body" numberOfLines={1} style={styles.criticOutlet}>
-                      {review.outlet}
-                    </Text>
-                    <Text variant="h5" style={{ color: scoreColor(review.score, theme) }}>
-                      {review.score}
-                    </Text>
-                  </View>
-
-                  {/* The score, drawn. A number and a bar of the same length say
-                      the same thing twice — which is the point: the bars make a
-                      column of outlets scannable as a shape, the way the
-                      histogram above is, without reading a single figure. */}
-                  <View style={[styles.criticTrack, { backgroundColor: accent.elevated }]}>
-                    <View
-                      style={[
-                        styles.criticFill,
-                        {
-                          width: `${Math.max(0, Math.min(100, review.score))}%`,
-                          backgroundColor: scoreColor(review.score, theme),
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
     </InfoCard>
   );
 }
@@ -297,6 +211,219 @@ function hoursFor(seconds: number): string {
   const hours = seconds / SECONDS_PER_HOUR;
   if (hours < 2) return `${Math.round(hours * 10) / 10} h`;
   return `${Math.round(hours)} h`;
+}
+
+// ---------------------------------------------------------------------------
+// Reviews — the app's own, then the critics'
+// ---------------------------------------------------------------------------
+
+/**
+ * How many lines of a review a card in a rail prints. Six of `reviewExcerpt`
+ * fill the frame; a card with a foot — a score, a name — gives one up to it.
+ */
+const QUOTE_LINES = 6;
+
+/**
+ * What people here wrote, as a rail of cards — the most liked first.
+ *
+ * The critics' rail directly under it, with the app's own writers in it: the
+ * same card (`<ReviewQuote>`), at the same size, with the writer's name where
+ * a critic's card has nothing, because that rail names its outlets underneath.
+ * The owner's direction. It was one review in a card of its own, with a heart,
+ * a platform mark and the hours played; a card is now the words, a name and a
+ * score, and a tap opens the review, where the rest is.
+ *
+ * The heading's More opens every review, in the sheet.
+ *
+ * Absent when nobody has written one — a section exists here only when it has
+ * something in it — and no skeleton, for the reason the critics' rail has
+ * none: a section drawn while loading and then withdrawn would move everything
+ * under it twice.
+ */
+export function MemberReviewsWidget({
+  gameId,
+  title,
+  onSeeAll,
+}: {
+  gameId: string;
+  title: string;
+  /** Open every review of the game. */
+  onSeeAll: () => void;
+}) {
+  const router = useRouter();
+
+  const top = useQuery({
+    queryKey: ['top-reviews', gameId],
+    queryFn: () => getTopGameReviews(gameId),
+    enabled: !!gameId,
+    staleTime: 60_000,
+  });
+
+  const reviews = top.data ?? [];
+  if (reviews.length === 0) return null;
+
+  return (
+    <Section
+      title="Reviews"
+      more={{ accessibilityLabel: `See all reviews of ${title}`, onPress: onSeeAll }}>
+      <ArtRail
+        data={reviews}
+        keyOf={(log) => log.id}
+        shape="wide"
+        renderArt={(log, size) => (
+          <ReviewQuote
+            text={log.review ?? ''}
+            byline={writerOf(log)}
+            score={log.rating}
+            /* Always a foot here: every card carries its writer's name. */
+            lines={QUOTE_LINES - 1}
+            spoiler={!!log.spoilers}
+            size={size}
+          />
+        )}
+        labelOf={(log) =>
+          [
+            `${writerOf(log)}’s review`,
+            log.rating !== null ? `scored it ${Math.round(log.rating)}` : null,
+            log.spoilers ? 'Contains spoilers' : (log.review ?? '').trim(),
+            'Opens the review.',
+          ]
+            .filter(Boolean)
+            .join('. ')
+        }
+        onPressItem={(log) => router.push({ pathname: '/review/[id]', params: { id: log.id } })}
+      />
+    </Section>
+  );
+}
+
+/** The name a review is signed with. */
+function writerOf(log: LogWithRelations): string {
+  return log.profile ? displayNameFor(log.profile) : 'Someone';
+}
+
+/**
+ * What the critics wrote, as a rail of quotes — one card per outlet.
+ *
+ * The trade press is a different claim from the people here, so it is its own
+ * section rather than a line in the app's own reviews: a sentence of the
+ * review, the outlet it ran in, and the score it gave. The cards are the size
+ * and rhythm of "Featured in" directly under it (`<ArtRail shape="wide">`),
+ * with the quote where the picture is, and a card opens the review it quotes.
+ *
+ * ## Where it comes from
+ *
+ * OpenCritic, through the `opencritic` Edge Function — IGDB has an averaged
+ * number and nothing an outlet wrote. The heading's More goes to the game's
+ * OpenCritic page, which is also the attribution their data asks for.
+ *
+ * ## It is absent far more often than it is present
+ *
+ * No section at all when OpenCritic does not know the game (everything before
+ * about 2013, and most small releases), when the function is not deployed, or
+ * when the deployed one predates snippets and has scores but nothing to quote.
+ * No skeleton either, for the reason the Reviews card has none: a section drawn
+ * while loading and then withdrawn would move everything under it twice.
+ */
+export function CriticReviewsWidget({
+  gameId,
+  title,
+  releaseYear,
+}: {
+  gameId: string;
+  title: string;
+  releaseYear: number | null;
+}) {
+  const accent = useAccent();
+
+  const critics = useQuery({
+    queryKey: ['critic-reviews', gameId],
+    queryFn: () => getCriticSummary({ title, year: releaseYear, gameId }),
+    enabled: !!title,
+    /* The function keeps its own answer for days; this only spares the round
+       trip while the app is open. */
+    staleTime: 24 * 60 * 60_000,
+    retry: false,
+  });
+
+  const summary = critics.data;
+  const reviews = useMemo(() => quotedReviews(summary), [summary]);
+  if (!summary || reviews.length === 0) return null;
+
+  const url = summary.url;
+  const facts = [
+    summary.average !== null ? `${summary.average} average` : null,
+    summary.count > 0 ? `${summary.count} ${summary.count === 1 ? 'review' : 'reviews'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <Section
+      title="Critic reviews"
+      action={
+        facts ? (
+          <Text variant="bodySmall" style={{ color: accent.quietInk }}>
+            {facts}
+          </Text>
+        ) : undefined
+      }
+      moreSlot={
+        url ? (
+          <SectionMore
+            label="OpenCritic"
+            accessibilityLabel={`See every critic review of ${title} on OpenCritic`}
+            onPress={() => {
+              Linking.openURL(url).catch(() => {
+                // No handler for the scheme; nothing useful to say about it.
+              });
+            }}
+          />
+        ) : undefined
+      }>
+      <ArtRail
+        data={reviews}
+        keyOf={(review) => `${review.outlet}-${review.url ?? review.score ?? ''}`}
+        shape="wide"
+        renderArt={(review, size) => (
+          /* The card is `<ReviewQuote>`, shared with the rail of members'
+             reviews above. No name inside it: the outlet is printed under the
+             card. An unscored review has no foot, and keeps the sixth line. */
+          <ReviewQuote
+            text={review.snippet ?? ''}
+            quoted
+            score={review.score}
+            lines={review.score !== null ? QUOTE_LINES - 1 : QUOTE_LINES}
+            size={size}
+          />
+        )}
+        titleOf={(review) => review.outlet}
+        subtitleOf={criticLine}
+        labelOf={(review) =>
+          [
+            review.outlet,
+            review.score !== null ? `scored it ${review.score}` : null,
+            review.snippet,
+            review.url ? 'Opens the review.' : null,
+          ]
+            .filter(Boolean)
+            .join('. ')
+        }
+        onPressItem={(review) => {
+          if (!review.url) return;
+          Linking.openURL(review.url).catch(() => {
+            // No handler for the scheme; nothing useful to say about it.
+          });
+        }}
+      />
+    </Section>
+  );
+}
+
+/** Under the outlet's name: who wrote it and what they gave it. */
+function criticLine(review: CriticReview): string | null {
+  const parts = [review.score !== null ? `${review.score} / 100` : 'Unscored', review.author];
+  return parts.filter(Boolean).join(' · ') || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -413,15 +540,6 @@ const styles = StyleSheet.create({
   bar: { width: '100%', borderRadius: Radius.xs },
 
   verdictRow: { gap: 1 },
-  critics: { paddingTop: Spacing.x12, borderTopWidth: StyleSheet.hairlineWidth, gap: Spacing.x8 },
-  criticsHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  criticsHeadText: { flex: 1, gap: 1 },
-  criticRows: { gap: Spacing.x12 },
-  criticRow: { gap: Spacing.x4 },
-  criticLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
-  criticOutlet: { flex: 1 },
-  criticTrack: { height: 4, borderRadius: Radius.pill, overflow: 'hidden' },
-  criticFill: { height: '100%', borderRadius: Radius.pill },
 
   eventFallback: { alignItems: 'center', justifyContent: 'center' },
   /* The app's box-art corner: the rail is SimpMusic's, the art is this app's. */

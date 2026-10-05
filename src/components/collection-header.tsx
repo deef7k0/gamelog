@@ -14,6 +14,7 @@ import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Text } from '@/components/ui/text';
 import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
+import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import { displayNameFor } from '@/lib/format';
 import type { Engagement, ListCover, ListItem, ListWithItems } from '@/lib/api';
@@ -37,11 +38,13 @@ const SCRIM_RATIO = 0.7;
 const META_ALPHA = 0.77;
 
 /**
- * Where a single cover is anchored in the banner, top to bottom.
+ * Where a single *box* is anchored in the banner, top to bottom — the stand-in
+ * for a game with no square art.
  *
  * A 2:3 cover in a banner this shape loses most of its height to the crop, and a
  * centred crop keeps the box's middle — usually a torso, or nothing. A cover's
  * subject and its logo sit high, so the crop is weighted a fifth of the way down.
+ * Square art is composed for a square and is drawn from its centre.
  */
 const SINGLE_ANCHOR = '22%';
 
@@ -144,6 +147,16 @@ export function CollectionHeader({
   const covers = coversFrom(items);
   const display = collection.cover_style ?? 'mosaic';
   const single = collectionCover(collection);
+  /*
+   * The single cover as square art, where SteamGridDB has any. This header is
+   * the one place a collection is drawn square, by the owner's rule: its row
+   * outside (`<ListTile>`) and the games under it are box art. Nothing is drawn
+   * until the lookup has answered, so the box is never painted and then
+   * swapped; a miss draws the box, anchored.
+   */
+  const square = useSquareCover({ gameId: single?.id, title: single?.title, enabled: !!single });
+  const singleArt =
+    single && square.resolved ? (square.uri ?? single.cover_url ?? single.hero_url) : null;
   const page = pageColor ?? theme.background;
   const isAwards = collection.kind === 'awards';
   const description = collection.description?.trim();
@@ -171,20 +184,22 @@ export function CollectionHeader({
 
           One cover when the owner chose one or there is only one to show:
           drawn straight into the banner with `cover` fit rather than as a
-          square mosaic of one, so the crop is the banner's shape and can be
-          anchored high (`SINGLE_ANCHOR`). Several otherwise: the square mosaic,
-          sized to the block's longer axis and centred — a centre crop rather
-          than a stretch.
+          square mosaic of one, so the crop is the banner's shape — square art
+          from its centre, a stand-in box anchored high (`SINGLE_ANCHOR`).
+          Several otherwise: the square mosaic, sized to the block's longer
+          axis and centred — a centre crop rather than a stretch.
         */}
         {single ? (
-          <Image
-            source={{ uri: (single.cover_url ?? single.hero_url)! }}
-            style={styles.single}
-            contentFit="cover"
-            contentPosition={{ top: SINGLE_ANCHOR, left: '50%' }}
-            transition={220}
-            accessibilityIgnoresInvertColors
-          />
+          singleArt && (
+            <Image
+              source={{ uri: singleArt }}
+              style={styles.single}
+              contentFit="cover"
+              contentPosition={square.uri ? 'center' : { top: SINGLE_ANCHOR, left: '50%' }}
+              transition={220}
+              accessibilityIgnoresInvertColors
+            />
+          )
         ) : (
           <View style={[styles.coverArt, { left: offsetX, top: offsetY }]}>
             <CollectionMosaic
@@ -192,6 +207,7 @@ export function CollectionHeader({
               size={mosaicSize}
               title={collection.title}
               rounded="none"
+              squareArt
               award={isAwards}
             />
           </View>
@@ -552,8 +568,8 @@ function coversFrom(items: ListItem[]): ListCover[] {
 
 /**
  * The one cover a collection shows, or null when it shows several. The screen
- * reads it too — the page colour comes from this image — so the two cannot
- * disagree about which cover it is.
+ * reads it too — the page colour comes from this game's box art — so the two
+ * cannot disagree about which game it is.
  *
  * One cover either because the owner chose it (`cover_style`, 0033) or because
  * the mosaic has only one to draw: a collection of one game, which the mosaic

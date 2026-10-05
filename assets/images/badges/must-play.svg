@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    GameLog's "Must Play" mark: a face with a quiff, stars for eyes and a grin
+    full of teeth, giving a thumbs up.
+
+    Two layers on a transparent ground, and the app tints each: #ink is every
+    line of the mark, #teeth is the white of the grin, drawn under it. The disc
+    and its ring are drawn by the app too, so every colour lives in the theme
+    and none in a file. Rasterise the layers one at a time, hiding the other:
+
+      printf '#teeth{display:none}' > ink.css
+      printf '#ink{display:none}'   > teeth.css
+      rsvg-convert -w 256 -h 256 -s ink.css   must-play.svg -o must-play.png
+      rsvg-convert -w 256 -h 256 -s teeth.css must-play.svg -o must-play-teeth.png
+  -->
+  <defs>
+    <g id="hand">
+      <!-- the thumb, up -->
+      <path d="M172 170 C168 146 174 122 186 102 C192 92 208 97 207 110 C206 126 201 142 201 158 Z"/>
+      <!-- the fist -->
+      <rect x="166" y="152" width="64" height="58" rx="17"/>
+    </g>
+
+    <!-- The head is cut away under the hand, and a halo around it, so the
+         solid hand sits in front of the face instead of fusing with it. -->
+    <mask id="behind-hand" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
+      <rect width="256" height="256" fill="#fff"/>
+      <g fill="#000" stroke="#000" stroke-width="18" stroke-linejoin="round"><use href="#hand"/></g>
+    </mask>
+
+    <!-- Two gaps across the fist: the fingers. -->
+    <mask id="fingers" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256">
+      <rect width="256" height="256" fill="#fff"/>
+      <g stroke="#000" stroke-width="6" stroke-linecap="round">
+        <line x1="192" y1="172" x2="236" y2="172"/>
+        <line x1="192" y1="190" x2="236" y2="190"/>
+      </g>
+    </mask>
+
+    <path id="mouth" d="M72 151 Q112 163 152 151 C150 176 134 189 112 189 C90 189 74 176 72 151 Z"/>
+    <clipPath id="in-mouth"><use href="#mouth"/></clipPath>
+  </defs>
+
+  <!-- Mirrored: the face looks the other way, the thumb is on its left. -->
+  <g transform="translate(256 0) scale(-1 1)">
+    <g transform="translate(128 126) scale(0.9) translate(-136 -128)">
+      <g id="teeth" fill="#fff">
+        <use href="#mouth"/>
+      </g>
+
+      <g id="ink">
+        <g mask="url(#behind-hand)">
+          <!-- head -->
+          <circle cx="112" cy="136" r="66" fill="none" stroke="#000" stroke-width="14"/>
+          <!-- hair: a quiff swept up and over -->
+          <path fill="#000" d="M41 116 C36 78 70 44 114 47 C138 28 178 38 182 74 C168 62 150 63 137 76 C110 70 80 84 69 112 C61 119 49 120 41 116 Z"/>
+          <!-- eyes: stars -->
+          <path fill="#000" d="M90.0 109.0 L94.7 120.5 L107.1 121.4 L97.6 129.5 L100.6 141.6 L90.0 135.0 L79.4 141.6 L82.4 129.5 L72.9 121.4 L85.3 120.5 Z"/>
+          <path fill="#000" d="M134.0 109.0 L138.7 120.5 L151.1 121.4 L141.6 129.5 L144.6 141.6 L134.0 135.0 L123.4 141.6 L126.4 129.5 L116.9 121.4 L129.3 120.5 Z"/>
+          <!-- the grin: its outline, the line where the teeth meet, and the
+               gaps between them -->
+          <use href="#mouth" fill="none" stroke="#000" stroke-width="8" stroke-linejoin="round"/>
+          <g clip-path="url(#in-mouth)" fill="none" stroke="#000" stroke-linecap="round">
+            <path stroke-width="5" d="M72 168 Q112 180 152 168"/>
+            <path stroke-width="4" d="M92 152 V192 M112 152 V192 M132 152 V192"/>
+          </g>
+        </g>
+
+        <g fill="#000" mask="url(#fingers)"><use href="#hand"/></g>
+      </g>
+    </g>
+  </g>
+</svg>

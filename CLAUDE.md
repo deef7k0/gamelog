@@ -45,8 +45,14 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # claim parsing and game lookup (lib/wikidata), the Commons
                    # logo licence check, the immersive page colour
                    # (Palette port, Oklab darkening), the PNG decoder (against
-                   # Node's zlib and a real Commons thumbnail) and the RSS
-                   # lightening (parsed before and after, field for field)
+                   # Node's zlib and a real Commons thumbnail), the RSS
+                   # lightening (parsed before and after, field for field),
+                   # the pager's page numbers and the count-by-probing search,
+                   # the release calendar's months and date precision, game
+                   # sorting, the game labels against 0034's CHECK, how a
+                   # logo is drawn from its pixels (lib/logo-ink), what the
+                   # saved query cache keeps and evicts (lib/query-persist-rules)
+                   # and the seen-records store (lib/seen)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -83,7 +89,11 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    Reviews tabs error. **Run `0032` straight after it**: 0031 alone makes every
    query that embeds a log's author fail (PGRST201 — see the gotcha on join
    tables), which is every list of reviews in the app. Without `0033` every
-   collection shows the mosaic and choosing "Show one cover" fails.
+   collection shows the mosaic and choosing "Show one cover" fails. `0034` is
+   labels on games — Must Play: without it no cover wears the badge, the Must
+   Play list says the migration is missing, and a moderator's toggle fails with
+   the same sentence. `0035` is the OpenCritic answer cache and is optional —
+   see step 7.
    `0006`, `0015`, `0019` and `0022` each add an enum value and must run
    **alone** — see the notes in those files.
    Moderators are rows in `public.moderators`, which no client can write; make
@@ -95,7 +105,10 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    nothing game-shaped works without it:
    `supabase secrets set TWITCH_CLIENT_ID=… TWITCH_CLIENT_SECRET=…` then
    `supabase functions deploy igdb`. `EXPO_PUBLIC_IGDB_ENABLED=false` no longer
-   degrades search to other providers — it disables search.
+   degrades search to other providers — it disables search. **Redeploy it after
+   pulling a change to its allowlist**: `games/count` is the newest entry, and
+   until the deployed function has it a platform's page counts its games with
+   a dozen small requests instead of one (it still works — see § Search).
 5. Optional: deploy the ITAD Edge Function for storefront prices —
    `supabase secrets set ITAD_API_KEY=…` then `supabase functions deploy itad`.
    Only the **API key** is used; ITAD's OAuth client id and secret are for
@@ -108,6 +121,14 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    `supabase functions deploy scandex`. The token is the one on your ScanDex
    developer account, pasted as issued (no `Bearer `). Without it, scanning
    still works against Gamelog's own releases and ends at "unknown" otherwise.
+7. Optional: deploy the OpenCritic Edge Function for the game page's **Critic
+   reviews** rail — `supabase secrets set OPENCRITIC_API_KEY=…` (a RapidAPI
+   key for OpenCritic's listing) then `supabase functions deploy opencritic`,
+   and run migration `0035`. Without the function the rail is absent; with a
+   deployment older than the rail (scores, no snippets) it is also absent,
+   because it has nothing to quote. Without `0035` it works and asks OpenCritic
+   every time — three upstream requests per game against a quota metered per
+   day — so run it.
 
 ## Adding a route
 
@@ -163,6 +184,20 @@ src/
                      this with the log form and ?mode=log raises the game
                      page's progress sheet over it (modal)
     surprise         Surprise Me: one dealt game, one song from it
+    platform/[id]    every game on one platform, ten to a page, with the pager
+                     over them. Opened from Search's Platforms
+    event/[id]       one showcase or award show, and the games shown at it.
+                     One still to come asks whether you will be watching and
+                     offers a reminder (`<EventRsvp>`). Opened from Search's Events
+    calendar         a year of releases, a month at a time: five rows of
+                     numbered days, then the month's games as covers — or a
+                     chosen day's as a list. Top releases behind today, most
+                     anticipated ahead of it. Opened from the Calendar
+                     button at the top of Search
+    must-play        every game a moderator has labelled Must Play (0034); the
+                     badge's cell in a game's stats strip opens it. Moderators
+                     add from here (label-games, a modal) and hold a cover to
+                     take the label off
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
                      ui/frosted-top-bar a floating 44dp disc of glass holding the
@@ -183,8 +218,11 @@ src/
                      ui/soft-glow       a radial glow — a native CSS gradient,
                                         no Skia; Surprise Me's bloom and edges
                      collection-mosaic  a collection's artwork: its first four
-                                        IGDB covers 2x2, or the owner's one cover
-                                        (0033), cropped — never SteamGridDB
+                                        covers 2x2, or the owner's one cover
+                                        (0033), as cropped box art. Square
+                                        art from SteamGridDB only with
+                                        `squareArt`, which the header alone
+                                        passes
                      ui/ambient-light   Home's soft light in the top-left
                                         corner (a native CSS gradient, no Skia)
                      surprise-deck / -bloom / -sheen / -page-wash
@@ -200,6 +238,11 @@ src/
                                         and `size="compact"` on a review card
                      review-cells       a review's playthrough as strip cells,
                                         shared by the review page and the card
+                     review-quote       a review as a card of its words: the
+                                        text, the writer bottom-left, the score
+                                        bottom-right. The critics' card and — on
+                                        the game page and in the reviews sheet —
+                                        the member's
                      log-card           the review card in every list, after
                                         Letterboxd: title + year left and the
                                         writer (name, avatar) right on the top
@@ -252,6 +295,34 @@ src/
                      game-platforms     the Overview's Platforms section: the
                                         case (and its turn-over) for the chosen
                                         platform, the dropdown, the price
+                     search/            what the Search tab looks through:
+                                        search-scopes (`SEARCH_SCOPE_INFO`, the
+                                        seven tabs' vocabulary), a results list
+                                        per scope — reviews, people,
+                                        collections, studios, events, and the
+                                        platform directory — and
+                                        calendar-button, the door at the top of
+                                        Discover. logo-tile is a platform or a
+                                        studio as a square with its name under
+                                        it. See § Search
+                     ui/pager           previous / next / the pages around you /
+                                        go to a number, for a list in pages
+                     ui/logo-mark       somebody else's logo — a platform's, a
+                                        studio's in a list — drawn on the page:
+                                        as it is, as a light silhouette, or on a
+                                        plate of its own ground. See § Search
+                     must-play-badge    the Must Play mark: a green disc, a dark
+                                        ring, a grinning face giving a thumbs
+                                        up. Two PNG layers, tinted; see § Must
+                                        Play
+                     game-moderation    a moderator's card at the foot of a
+                                        game's Overview: the Must Play box
+                     game-grid-tile     a cover with its title under it, for a
+                                        grid that is read (Must Play, an event)
+                     app-error-boundary what is drawn when a screen throws while
+                                        rendering — the root layout's
+                                        `ErrorBoundary`. Also empties the saved
+                                        query cache; see § Loading
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
@@ -260,7 +331,10 @@ src/
                      condition words), platform-media.ts (disc, cartridge…),
                      similarity.ts (the twelve reasons), reports.ts (what a
                      report can say, per kind), wikidata.ts (every Wikidata
-                     property the additional-information screen reads)
+                     property the additional-information screen reads),
+                     game-labels.ts (the labels a moderator can set — must_play),
+                     list-window.ts (how much of a long list is mounted at once;
+                     see § Gotchas, performance traps)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -288,6 +362,11 @@ src/
     use-square-cover    a game's 1:1 cover from SteamGridDB, persisted to
                         AsyncStorage. Returns `resolved` — do not draw the IGDB
                         cover before it is true; that is the swap it prevents
+    use-game-labels     which games carry a label, as one shared list of ids:
+                        a module store, because `<Poster>` asks for every cover
+    use-logo-ink        what an IGDB logo is made of (cut out? dark? its own
+                        ground?), measured once and kept on the device. Returns
+                        `resolved` — draw nothing before it is true
   lib/
     color.ts         contrast, mixing, luminance-preserving tint, readable ink
     artwork-color.ts dominant hue of a cover, decoded from the real pixels
@@ -296,8 +375,15 @@ src/
                      sort.ts for in-memory ordering, recommend.ts for
                      "Games for you" (your logs → IGDB similarity),
                      itad.ts for storefront prices,
-                     steamgriddb.ts for square (1:1) and per-platform cover
-                     art — artwork only, never a catalogue; see the note below
+                     steamgriddb.ts for square (1:1) cover art — artwork
+                     only, never a catalogue; see the note below.
+                     browse.ts for what is browsed rather than searched by
+                     title: the platform directory and a platform's games by
+                     page, studios by name, events, a year of releases.
+                     paging.ts (page numbers, counting by probing) and
+                     calendar.ts (months, days, date precision) are its pure
+                     halves, under `npm test`.
+                     critics.ts for OpenCritic's review snippets and scores
     wikidata/        the additional-information screen's data: finding a game's
                      item by exact id (lookup.ts), reading claims (claims.ts,
                      normalize.ts — pure, under `npm test`), and the Action API
@@ -307,7 +393,10 @@ src/
     immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
                      darkened in Oklab, and the scrim's stops. Pure, tested
     logo-luminance.ts   how light a logo's ink is, from a 250px thumbnail
-                     decoded in JavaScript
+                     decoded in JavaScript — and `measureLogoInk`, the same for
+                     an IGDB logo's `t_cover_small`
+    logo-ink.ts      what a logo's pixels say and how to draw it for them: as
+                     it is, a light silhouette, or a plate. Pure, tested
     png.ts           a PNG decoder (inflate after puff.c), for the above. Pure,
                      tested against Node's zlib
     news/feed-lighten.ts  RSS article bodies cut out before parsing. Pure,
@@ -315,6 +404,16 @@ src/
     barcode.ts       GTIN check digits, UPC-E expansion, normalising to GTIN-14
     review-facets.ts what the review list filters and tallies by. Pure
     postgrest.ts     `inList()`, the safe `in` filter for strings people typed
+    query-client.ts  the app's one QueryClient and its defaults. A module, not
+                     a value in the root layout: the auth store and the saved
+                     cache both need it. See § Loading
+    query-persist.ts the query cache kept on the device between launches — a
+                     row per query, per account — and its pure half,
+                     query-persist-rules.ts (what is written, in what
+                     envelope, evicted when; under `npm test`)
+    seen.ts          `createSeen()`: complete records remembered as a list
+                     downloads them, so their page opens without a request.
+                     games/seen-games.ts and api/seen-logs.ts are its two users
     platform-options.ts  a game's platforms as picker options
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements,
@@ -326,6 +425,8 @@ src/
       physical.ts    releases, barcode lookup, claims, moderation, copies
       similarity.ts  community similar games: pairs, votes, reports
       reports.ts     reports on suggestions and reviews, and their queues
+      labels.ts      labels on games (Must Play): who has one, and a
+                     moderator's set and unset
       notifications.ts
       songs.ts       the one starred track per profile
       storage.ts     image upload
@@ -350,11 +451,14 @@ supabase/
                      0030 each pick's top suggestion + suggester/agreer counts,
                      0031 reports on suggestions and reviews,
                      0032 those report tables keyed on their own id,
-                     0033 a collection's artwork: four covers or one
+                     0033 a collection's artwork: four covers or one,
+                     0034 labels on games (Must Play), moderators only,
+                     0035 the OpenCritic answer cache
                      (0006, 0015, 0019 and 0022 each add an enum value and must
                       run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
-  functions/opencritic/  per-outlet critic scores; IGDB has none
+  functions/opencritic/  what critics wrote and scored (snippets, per outlet);
+                     IGDB has none. Caches its answers in 0035
   functions/itad/    Edge Function proxying IsThereAnyDeal (prices)
   functions/scandex/ Edge Function proxying ScanDex (barcode → IGDB game)
 ```
@@ -393,14 +497,45 @@ for 2:3, so the crop cuts the logo. `lib/games/steamgriddb.ts` is not a provider
 and must never become one: nothing there may put a game *into* the app, only art
 onto a game already in it.
 
-**Exactly three surfaces use it**, all through `useSquareCover()`: a profile's
-Reviews tab (`<ReviewListRow>`, 80dp), Surprise Me, and a review's own page,
-which is built as Surprise Me is — the art at 84% of the width, its title and two
-round actions under it, the portrait at the same height when there is no square
-(`app/review/[id].tsx`). **Collections are not a square surface, by the owner's
-decision**: the mosaic used SteamGridDB per tile for a while and was taken back
-to cropped IGDB covers — a community grid is somebody's redesign of the box, and
-a collection is a shelf of the boxes themselves.
+**Exactly four surfaces use it**, all through `useSquareCover()`: a profile's
+Reviews tab (`<ReviewListRow>`, 80dp), Surprise Me, a review's own page — built
+as Surprise Me is: the art at 84% of the width, its title and two round actions
+under it, the portrait at the same height when there is no square
+(`app/review/[id].tsx`) — and **the hero at the top of a collection's own
+screen**: the single cover `<CollectionHeader>` draws, and the mosaic behind it
+(`<CollectionMosaic squareArt>`).
+
+**A collection is square in exactly one place — the hero you see after tapping
+in — by the owner's decision, the fourth one on this.** The picture used
+SteamGridDB first, was taken back to cropped IGDB covers, and the *inside* of
+the collection went square instead; the owner then reversed both: "the list of
+games is still portrait, but the image used for the thumbnail at the top with
+the fade should be square". That was read as the collection's picture
+everywhere — its row in a list included — and it was wrong: the owner meant the
+header and nothing else, and said so in capitals. So:
+
+- **Outside** — `<ListTile>` in every list of collections, the rows of the
+  add-to-collection picker — is box art, cropped to the mosaic's slots.
+  `<CollectionMosaic>` asks SteamGridDB for nothing unless it is passed
+  `squareArt`.
+- **The hero** — the art at the top of `list/[id]`, where it fades into the
+  page — is square art: `<CollectionHeader>` calls `useSquareCover` for a single
+  cover and passes `squareArt` to its mosaic. It is the only caller of either.
+- **Inside**, under the header — the grid, the rows, a tier list's rows, a
+  captioned board's tiles and an award's winner — is `<Poster>`s.
+
+Do not "finish the job" in any direction, and do not turn `squareArt` on for a
+tile so that "the small one matches the big one": they are meant to differ.
+Two details that are easy to undo:
+
+- **Only the square slots take square art.** A mosaic of two splits into
+  halves and a mosaic of three gives its first cover a whole column — slots
+  twice as tall as wide, where a square would lose half its width and a 2:3
+  box loses a quarter. Those keep the box art.
+- **The page colour is still read from the box art.** `useImmersiveBackground`
+  decodes in JavaScript and only takes a thumbnail; SteamGridDB's smallest is
+  400×400 (verified live: `…/thumb/<hash>.jpg`), four times what the extractor
+  will read. Same game, nearly always the same palette.
 
 **There is no per-platform lookup, and rebuilding one against this API will not
 work.** The game page briefly asked for the selected platform's own box front.
@@ -597,10 +732,279 @@ Commons — only ever a verified public-domain or CC0 file:
 - Everything fails to the name: no item, no free logo, a rate limit, no
   network, an image that will not load.
 
+## Search: seven tabs under one field, and three pages behind it
+
+The Search tab is **a field with seven tabs under it** (`<TabBar>`): Games,
+Reviews, People, Collections, Studios, Events, Platforms — always on screen,
+with Games chosen when the tab opens. `SEARCH_SCOPE_INFO`
+(`components/search/search-scopes.ts`) is the single statement of those seven:
+the tabs, the field's placeholder and the history's "in Studios" all read it, so
+an eighth scope is an entry there plus a results component.
+
+- **There is no menu in front of it, at the owner's direction.** For one pass
+  the tab rested on a "hub" — eight large buttons, one per scope and one for the
+  calendar, with the pills appearing only after a choice. The owner had it
+  removed: "just have them as tabs in the search screen that the user can cycle
+  between". Do not bring back a screen of buttons, and do not hide the tabs in
+  any state — they are there over Discover and over the recent searches too.
+- **The Calendar is a button at the top of Discover**, not a tab
+  (`<CalendarButton>`, the first thing in `<DiscoverFeed>`): a year of releases
+  has nothing to type into.
+- **Games untyped is Discover**: the Calendar button, Browse by genre, then the
+  rails. Typed, it is the results.
+- **Recent searches take the body while the field is focused** and nothing is
+  typed — never over Platforms, which records nothing. A tap on the Search tab
+  while it is open returns it to Games with the field empty.
+- **A tab can be tapped with the keyboard up** because `<TabBar>`'s scroller is
+  `keyboardShouldPersistTaps="handled"`; without it the first tap only closed
+  the keyboard.
+- **The genre grid is two across, and its `minWidth` is 35%, not 45%.** See the
+  gotcha on percentages in a wrapping row: at 45% every genre took a row to
+  itself on a 360dp phone.
+- **Reviews is a scope because the field can filter it.** It was a tab here
+  once and was taken out as a popularity chart the field ignored. Typed, it is
+  `searchReviews` — the game a review is about, its headline, or a word in it,
+  as **three requests merged**, never one `.or()`: user text inside PostgREST's
+  filter grammar is a 400 waiting for a comma (the same reason `searchProfiles`
+  is two). The game-title filter only narrows the logs because the embed is
+  `games!inner` — verified live. Untyped, it is the most-liked reviews, the
+  query Discover's band already holds.
+- **Every scope is its own component and takes the settled query** — except
+  Platforms, which takes the field's text as it stands, because it filters ~220
+  names already in memory.
+- **Verified against the deployed `igdb` function**, and each of these bit:
+  - `search "…"` works on five endpoints only — characters, collections, games,
+    platforms, themes. **Companies and events answer a 400**; both are matched
+    with `name ~ *"…"*`, which is unranked. `searchStudios` therefore ranks
+    itself: exact name, then prefix, then by how many games the company made,
+    over the fifty *lowest-id* matches that have any games ("naughty" returned
+    eight companies before Naughty Dog; ids are insertion order, and the studios
+    anyone means were added long ago).
+  - **`platforms.category` is now `platform_type`**, and a `where` on the old
+    name matches nothing instead of failing — `getPlatforms()` had been
+    returning an empty list to the award picker. Same rename as
+    `external_games.category` (§ Wikidata).
+  - **`offset` holds to at least 250,000** at the latency of offset 0.
+  - Nearly every event has an `event_logo` now; `youtubeThumbnail` is a second
+    rung, not the supply.
+- **Logos sit on the page, not on a plate** (`<LogoMark>`), at the owner's
+  direction — it was a light plate under every one. Platform and company logos
+  are drawn for white pages, so each is **measured once** (`useLogoInk`: a
+  ~2 KB `t_cover_small` PNG decoded in JavaScript, at most 8,100 pixels, kept
+  on the device for two months) and drawn one of three ways (`logoTreatment`,
+  pure and tested): as it is (Windows' blue), as a light silhouette (PS4's
+  black ink, the Series X's charcoal), or — when it is not cut out at all — on
+  a plate of its *own* ground (PS5's white-on-black rectangle gets a black
+  plate; nothing can make that one transparent). **In the Platforms and Studios
+  grids each is a `<LogoTile>`** — SimpMusic's library grid, read from
+  `GridLibraryPlaylist.kt` and `HomeItemContentPlaylist`: the logo on a square
+  tile (`<LogoMark tile>`, the app's control surface or the logo's own ground),
+  the name in `itemTitle` under it in up to two lines, then one quiet line. For
+  a studio that line is how many games it made, which its search already
+  returns. **For a platform it is the year it came out, not a count**: the year
+  rides in the directory's one request (`versions.platform_version_release_dates`),
+  and a count is `games/count` once per platform — 220 requests to fill a
+  directory against IGDB's four a second, shared by every user of the app.
+  All verified against the live catalogue, and three things there bit:
+  - **IGDB's `alpha_channel` flag is wrong often enough to ignore**: it says
+    "no alpha" of Windows' and Linux's logos, which are both cut out.
+  - **Measure `t_cover_small`, never `t_thumb` or `t_micro`.** Those are square
+    crops that cut a wordmark's ends off — and with them the corners the
+    "has its own ground" test reads. `t_cover_small` is fitted, not cropped.
+  - **Ask for `.png`** (`t_logo_med` to draw): IGDB flattens the alpha to black
+    in a JPEG.
+  Nothing is drawn until the measurement is known (`resolved`), for the reason
+  a square cover waits; an unmeasured logo falls back to the light plate
+  (`logoPlate`). The studio *page's* Commons logo is the same idea, older and
+  separate (§ Immersive pages).
+- **A platform's games are pages of ten, not a scroll** (`platform/[id]`,
+  `<Pager>`). The PC has a quarter of a million games; an endless list of that
+  has no middle. The pager shows first, last and the neighbours
+  (`pagerSlots`), takes any page by number, and a plain second one closes the
+  page. The previous ten stay on screen, dimmed, while the next arrive.
+- **The page count is `games/count`, with a fallback that needs no deploy.**
+  `countGames` asks the count endpoint and, when the deployed function refuses
+  it (an allowlist entry is inert until `supabase functions deploy igdb`), works
+  the same number out through `games` — `fields id` windows, doubling then
+  halving the offset (`countByProbing`): exact, about a dozen requests for ten
+  thousand games, kept for a day and keyed on the *clause*, since several
+  orderings share one set. "Top rated", "Newest", "Upcoming" and "Oldest" are
+  different sets and have their own counts (`platformQuery`).
+- **The calendar ranks by `hypes + total_rating_count`.** Follows before
+  release, ratings after: one number that reads as "most anticipated" ahead of
+  today and "top releases" behind it. The year is the union of the top of both
+  rankings — a third of the most-rated are not among the most-followed.
+- **A month is five rows of numbered days, not weeks** (`monthRows`): 1–7,
+  8–14 and so on, each square under its number, no weekday header and no
+  offset for the weekday the 1st falls on. The owner's direction — a release
+  calendar is read by date, and dropping the sixth row and the header is what
+  lets the squares be larger. Under it the month's games are **covers three
+  across** (`<GameGridTile>`, dated underneath); **touching a day turns that
+  into a list** of the day's games. Do not put the weekdays back.
+- **A release date has a precision, and IGDB does not put it in the date.** A
+  game known only as "2026" is stored as 31 December and one known as "November"
+  as the 30th. `precisionOf` reads `release_dates.date_format` (0 day, 1 month,
+  anything else no month) off the release row carrying the same timestamp:
+  only day-precise games go on a square, month-precise ones are in the month's
+  list, and year-only ones are in "No date yet". All calendar dates are read in
+  **UTC** — IGDB stores midnight UTC, and local time moves every game west of
+  Greenwich back a day.
+
+## Loading: SimpMusic's rules, on TanStack Query
+
+How the app loads was rebuilt after reading how SimpMusic does it — its source,
+not its screens: `HomeViewModel.kt`, `ArtistViewModel.kt`,
+`core/data/repository/HomeRepositoryImpl.kt`, `core/domain/utils/Resource.kt`,
+`SimpMusicApplication.kt` (its image loader) and `HomeScreen.kt`. SimpMusic is
+Compose and view models; this app is React Native and TanStack Query, so what
+was taken is the rules, each restated in this stack. Five of them:
+
+1. **A screen that has been seen opens with what it showed last; the network
+   overwrites it.** SimpMusic's Home serves its cached copy and then emits the
+   network's — "a stale frame costs nothing while a spinner does". Here every
+   query a screen loads is written to AsyncStorage and read back **before the
+   first screen mounts** (`lib/query-persist`), so a cold start is the feed that
+   was on screen last time, refetching behind itself, instead of a spinner on
+   every tab. A restored query keeps the time its data really arrived, so
+   `staleTime` decides whether it is refetched exactly as it does for any other.
+2. **An error never replaces content.** The same function, on failure: "Already
+   showing the cached copy — surfacing an error over it would replace working
+   content with an error state." A query's `isError` is true after a *refetch*
+   fails while its `data` is still there, so `if (query.isError) return
+   <ErrorState/>` threw away a loaded page on one bad request — and, with rule 1,
+   would do it on every launch without signal. **Guards on a query read
+   `isLoadingError`** (failed with nothing to show); eighty-two were moved.
+   `isError` is right only on a *mutation*, which has no `isLoadingError` — the
+   typechecker says which is which.
+3. **State outlives the screen.** SimpMusic's screens hold nothing; a view model
+   that outlives them holds the page, so going back is a re-draw. Here that is
+   `gcTime`: thirty minutes instead of TanStack's five (`lib/query-client`), so
+   a page left a while ago is still in memory when you return to it.
+4. **Never download the same record twice.** A list is fetched as whole records
+   and drawn as rows; the page a row opens then asked for that record again and
+   waited on a spinner for it. `lib/seen.ts` keeps complete records as lists
+   download them, and the page starts from one (`initialData` +
+   `initialDataUpdatedAt`): the **game page** from any list fetched with
+   `GAME_FIELDS` (`toFullGame` in `igdb.ts` → `games/seen-games.ts`), and the
+   **review page** from any list of reviews (`rememberLogs` → `api/seen-logs.ts`).
+   Both are on screen in the frame they open, with no request when the list was
+   loaded inside the page's `staleTime`.
+5. **The cache belongs to an account.** Rows are namespaced by user id, restored
+   only once the session is known (the auth store does it, and holds
+   `isRestoring` — and so the splash screen — until they are in), and **memory
+   and disk are both emptied whenever the account changes**. `['feed']` and
+   several other keys do not say whose they are; signing out used to leave the
+   last person's feed in memory for the next.
+
+What follows from them, and is easy to get wrong:
+
+- **Query data must be plain JSON, or it is not kept.** `isPlainJson` refuses a
+  `Date`, a `Map`, a `Set`, a class instance, `NaN`, and an `undefined` inside
+  an array — each comes back from disk as something else, and the screen that
+  reads it would throw at launch. Such a query still works; it just starts cold.
+  Return ISO strings and arrays from a `queryFn`.
+- **Bump `CACHE_VERSION` when a query's shape changes incompatibly** (a field
+  renamed, an array that became an object). Rows of another version are dropped
+  unread. Adding a field needs no bump.
+- **What is never written** is in `NEVER_PERSIST` (`query-persist-rules.ts`):
+  answers to something typed (`search`, `barcode`), queries that only *read* a
+  store the device already keeps (`search-history`, `log-draft`, the colour and
+  logo caches), sync status, and everything whose key starts with `surprise` —
+  a restored deal is last time's games. A new query of one of those kinds goes
+  in that list.
+- **One row per query, never one blob.** TanStack's own persister writes the
+  whole cache as a single value. Android reads a row through a 2 MB window — a
+  larger one is unreadable and takes the cache with it, silently — and
+  AsyncStorage's database is 6 MB in total, shared with every other store here.
+  So: a row per query (≤ 400 KB), 120 rows and 2 MB at most, oldest data evicted
+  first, written 1.5s after a query settles and at once when the app is left.
+- **Three things stop a bad row from becoming a crash loop.** Everything written
+  is checked and versioned; a launch that finds the previous one died within
+  four seconds of restoring drops the cache instead of restoring it again
+  (`BOOT_KEY`); and a render error anywhere reaches `<AppErrorBoundary>`, which
+  empties the cache before offering "Try again". There was no error boundary at
+  all before — a render error closed a release build.
+- **Only a complete record may be remembered** (rule 4). `STUDIO_FIELDS` and the
+  `similar_games` expansion ask for a third of a game's fields; remembering one
+  would hand the game page a game with no description and tell it that was
+  everything. A list of reviews selected with fewer columns than
+  `LOG_WITH_RELATIONS` must not go through `rememberLogs`.
+- **The first render of a page opened from a list is now the whole page**, not a
+  spinner — the same path a revisit already took. Anything that assumed a
+  loading frame first (an arrival animation, a measured layout) should be
+  checked against a revisit, which is the case that already existed.
+
+What SimpMusic also does and this app already did — left as it was: one image
+cache with explicit keys and a crossfade (`<Poster>`: `memory-disk`,
+`recyclingKey`, a 220ms transition; Glide's 250 MB disk cache), stable keys and
+windowed lists (§ Gotchas, list windows), requests in parallel and cancelled
+when superseded (`signal` through the IGDB `queryFn`s), negative answers cached
+with a TTL (the square-cover, Steam-artwork and logo stores), and ABI filters on
+the sideloaded build (§ APK size).
+
+**Two things it does that were deliberately not copied yet:**
+
+- **Screens that are not on top stop working.** Compose stops collecting state
+  for a destination that is not started; here every screen in the stack and all
+  four tabs stay subscribed and re-render when their queries change. The
+  equivalent is `freezeOnBlur: true` on the Stack and the Tabs. It was left out
+  because it cannot be seen working from this machine and it detaches refs
+  while a screen is frozen — `<Screen>`'s Android blur target is a ref held in
+  state (§ Gotchas), which is exactly what a freeze would disturb. It is two
+  lines; try it on a phone, alone, and open a screen with a floating back disc
+  after returning to it.
+- **A skeleton in the page's shape, cross-faded.** SimpMusic's loading state is
+  `HomeShimmer` under a `Crossfade`; `<LoadingState>` is a spinner. Rules 1, 3
+  and 4 mean a spinner is now rare — a page neither visited, restored nor seen
+  in a list — so this is polish, and it is design work on each screen.
+
+## Labels: Must Play (0034)
+
+A label is a mark a moderator puts on a game by hand. `must_play` is the first;
+`constants/game-labels.ts` is the vocabulary and must match 0034's CHECK
+(`npm test` reads the migration).
+
+- **Who can set one is the database's rule, not the app's.** `game_labels` is
+  readable by everyone and its insert and delete policies admit
+  `public.moderators` alone (`is_moderator()`), so a control shown to the wrong
+  person fails at the table. The app hides the controls from everyone else as
+  tidiness. Make a moderator in the SQL editor — the `insert into
+  public.moderators …` line under § Setup.
+- **Where a moderator sets it**: a card at the foot of any game's Overview
+  (`<GameModeratorCard>`, drawn for moderators only), and the Must Play list
+  itself — its "+" opens a picker that stays open (`label-games`), and holding
+  a cover removes the label after asking. Settings links to the list for
+  moderators.
+- **Where it shows**: as a badge in the top-right of the game's cover
+  (`<Poster gameId>`), and as the last cell of the game page's stats strip,
+  *in place of the age rating*, where it is a door to `must-play`. A game
+  without the label keeps the age rating.
+- **`<Poster>` wears the badge only when it is given `gameId`.** That is how a
+  surface opts out, and two do by the owner's rule: **collections** (every
+  tile, row and mosaic) and **reviews** (the card, the review page, a profile's
+  Reviews tab, the wall). Do not pass `gameId` there. It is also withheld on
+  Surprise Me's dealt card and on the Must Play list, where it would be on
+  every cover.
+- **The badge is the one coloured thing on box art.** A green disc (`mustPlay`,
+  an alias of `identityJade` — it was ember until the owner asked for green), a
+  ring and a face in `readableInk` of it, and the face's teeth in the opposite
+  ink. The face — a quiff, stars for eyes, a grin full of teeth, a thumb up on
+  its left — is two PNG layers in `assets/images/badges/`, each one colour on a
+  transparent ground and tinted at draw time: `must-play.png` (the lines) over
+  `must-play-teeth.png` (the white of the grin). One SVG beside them is the
+  source of both and says how to rasterise each (`rsvg-convert -s`, hiding the
+  other layer); the app has no SVG renderer, so the PNGs are what ship.
+  Everything else on a cover (the edition word) stays near-black, as before.
+- **Which games carry it is a module store** (`use-game-labels`), not a query:
+  one short list of ids shared by every cover on screen. A failed fetch or a
+  database before 0034 is an empty list — no badges, no error.
+
 ## Conventions
 
 - **State**: server data → TanStack Query; auth session → the zustand store.
-  Do not duplicate server data into zustand.
+  Do not duplicate server data into zustand. The client is `lib/query-client`;
+  how its cache is kept, restored and seeded is § Loading — read that before
+  adding a query whose data is not plain JSON, or a guard on `isError`.
 - **Query keys** are used for invalidation across screens — grep before renaming
   one. `['feed']`, `['my-log', userId, gameId]`, `['game-reviews', gameId]`,
   `['user-logs', userId]`, `['profile-stats', profileId]`,
@@ -609,7 +1013,13 @@ Commons — only ever a verified public-domain or CC0 file:
   `['similar-suggestions', pairId]`, and the reviews sheet's three:
   `['game-review-list', gameId, …]`, `['rating-breakdown', gameId]`,
   `['review-stats', gameId]` — anything that writes a log's status, completion,
-  score or co-op invalidates all three.
+  score or co-op invalidates all three. `['top-reviews', gameId]` is the game
+  page's rail of reviews: the log form and a moderator's removal invalidate it. Labels: `['labelled-games', label]`
+  (the list screen) and `['labelled-game-ids', label]` (the picker) — a label
+  write invalidates both and updates the badge store (`setGameLabelLocally`).
+  Browse: `['platform-directory']`, `['platform-games', id, sort, page]`,
+  `['platform-game-count', clause]`, `['events', term]`, `['event', id]`,
+  `['release-calendar', year]`, `['critic-reviews', gameId]`.
 - **Colours**: always `useTheme()`. Never hardcode a hex in a component; add the
   token to `Colors.dark` in `constants/theme.ts` — that object is the entire
   palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`
@@ -864,11 +1274,11 @@ Commons — only ever a verified public-domain or CC0 file:
   alone — several were already the reference's (16 on a selection card, 18 on a
   field) and art corners are this app's.
 - **A portrait is three across, and a row of games is the game page's
-  franchise rail.** Every box-art grid is `PORTRAIT_COLUMNS` (3) wide — the
-  collection, the studio, the library, and Search's results when their toolbar
-  is flipped to the grid (the collection's own `<CollectionToolbar>`, given
-  Search's sorts). At four a cover was ~84dp on a 360dp phone, a thumbnail of
-  the box. Every *row* of games — Home's "Games for you" and "Releases", the
+  franchise rail.** Every grid of games is `PORTRAIT_COLUMNS` (3) wide — the
+  collection, the studio, the library, Must Play, an event's games, a month of
+  the calendar, and Search's results when their toolbar's key flips them to the
+  grid. At four a cover was ~84dp on a 360dp
+  phone, a thumbnail of the box. Every *row* of games — Home's "Games for you" and "Releases", the
   studio's three rails, Search's "Most popular", "Similar to…" and "Highly
   rated" — is `<GameCoverRail>`: the franchise and editions rail from the game
   page, covers at the album height of the owner's reference with the title in
@@ -927,13 +1337,36 @@ Commons — only ever a verified public-domain or CC0 file:
   reuses `note` rather than adding a `caption` column. No sort row: the
   arrangement is authored, so re-ordering it by release year is not a view of the
   same thing.
-- **IGDB has no per-outlet critic scores.** `aggregated_rating` is one averaged
-  number and a count — nothing in the schema says "IGN gave this 90". The named
-  outlets come from OpenCritic through `functions/opencritic`, which needs
-  `OPENCRITIC_API_KEY`; undeployed, `getCriticReviews` returns empty and the
-  section is absent, exactly as ITAD prices are. The title is the only join
-  available, so the match threshold is deliberately tight — a near-miss would
-  print another game's reviews under this game's name.
+- **IGDB has no critic reviews; the game page's "Critic reviews" rail is
+  OpenCritic's.** `aggregated_rating` is one averaged number and a count —
+  nothing in the schema says "IGN gave this 90", let alone what IGN wrote.
+  `<CriticReviewsWidget>` quotes each outlet's snippet in a card the size of
+  "Featured in" (`<ArtRail shape="wide">`), the quote in the review serif
+  because it is review prose, the score in the score ramp, and a card opens the
+  review. **That card is `<ReviewQuote>`, and it is the member's review card
+  too**, at the owner's direction: the rail of the app's own reviews above the
+  critics' (`<MemberReviewsWidget>`, the most liked first) and every row of the
+  reviews sheet are the same object with the writer's name at the bottom left
+  and the score at the bottom right — text, a name and a score, and nothing
+  else. No platform mark, no hours, no heart, no flag: those are on the
+  review's page, which the card opens. In the sheet the name is led by the
+  writer's profile picture (`avatarUrl`), which the owner asked back. On the game page it takes the game's
+  dark tone; **in the sheet it takes the app's neutral `surface`**, not the
+  game's colour. A review flagged for spoilers prints the notice in place of
+  its words. Surprise Me keeps the older `<ReviewCard>`. It comes through `functions/opencritic` (`getCriticSummary`), which
+  needs `OPENCRITIC_API_KEY`; undeployed, or deployed from before snippets, the
+  summary has nothing to quote and the section is absent, exactly as ITAD
+  prices are. Three things are easy to undo:
+  - **The match is by title, so it is tight, and it checks the year.**
+    OpenCritic cross-references neither IGDB nor Steam. Its own edit distance
+    must be ≤ 0.15, and its release year within one of IGDB's — "Prey" is a 2006
+    game and a 2017 one, and OpenCritic only has the second. A near-miss prints
+    another game's reviews under this game's name.
+  - **Reviews keep OpenCritic's order, quoted ones first, one per outlet.**
+    Sorted by score, every well-reviewed game was a row of identical 100s.
+  - **The function caches (0035) and asks for a real user.** One game is three
+    upstream requests and RapidAPI meters per day; the anon key is a valid JWT
+    and ships in the bundle. Same two rules as `scandex`.
 - **`ratingVerdict()` grades a distribution; `labelFor()` grades one score.**
   They share a scale and make different claims, which is why the superlative
   bands ("Overwhelmingly Positive") need `CONSENSUS_FLOOR` ratings behind them.
@@ -945,7 +1378,9 @@ Commons — only ever a verified public-domain or CC0 file:
   IGDB categories into six words. The badge is near-black at 82% with white
   type, **never a hue** — colour on artwork belongs to the game itself, which is
   why `<Poster>` has no coloured-shadow prop either — and it is dropped under
-  72dp, where a word would not fit above the 10px type floor. Franchise rails
+  72dp, where a word would not fit above the 10px type floor. (The Must Play
+  badge in the opposite corner is the one exception, at the owner's direction:
+  see § Labels.) Franchise rails
   filter to originals (`ORIGINALS_ONLY`); the versions live on the parent's page
   under "Editions & extras", and a derivative's page swaps the franchise rail for
   its one original. `games.edition_kind` / `parent_game_id` (0017) carry the
@@ -967,10 +1402,13 @@ Commons — only ever a verified public-domain or CC0 file:
   in `position` order, or `single`, the owner's `cover_game_id` (the menu's
   "Choose the cover", which switching to one cover opens straight away), falling
   back to the first item. Tapping the small one must land on the big one showing
-  the *same* artwork, so the tile and the header resolve it the same way
-  (`resolvePreview` / `singleCover`). Every tile is IGDB box art centre-cropped;
-  the header's single cover is cropped to the banner and anchored a fifth of the
-  way down, where a box's subject and logo sit. The header itself is a
+  the *same games*, so the tile and the header resolve them the same way
+  (`resolvePreview` / `singleCover`) — but not the same picture of them: the
+  tile is IGDB box art, centre-cropped, and only the header's square slots take
+  SteamGridDB's square art (`squareArt`; see the SteamGridDB note above). Where
+  SteamGridDB has none the header falls back to the box too, its single one
+  cropped to the banner and
+  anchored a fifth of the way down, where a box's subject and logo sit. The header itself is a
   music-app playlist hero: ~44% of the display, the art tinted toward the page,
   then a long early fade into it, so there is no edge where the image stops. A
   database before 0033 has no `cover_style` at all, and every reader treats that
@@ -980,8 +1418,19 @@ Commons — only ever a verified public-domain or CC0 file:
   (`AlbumScreen.kt`): one column `bodyInset` in (32 to scale), the action row
   centred in it, then the description start-aligned across it — three lines and
   a More that opens in place — with "No description" in the same place and type
-  when nothing is written. The rows *inside* a collection are a list of games and
-  keep portrait box art.
+  when nothing is written. The games *inside* a collection are portrait box art
+  (`<Poster>`, see the SteamGridDB note above) — the grid, the rows and a tier
+  list's rows alike — and never wear the Must Play badge.
+- **Removing games from a collection is a selection, started by holding one.**
+  The owner long-presses a game in the grid, the rows or a tier list; from then
+  on a tap ticks or unticks instead of opening, and a bar at the foot of the
+  screen carries the one action — "Remove from collection (3 selected)" — and a
+  cross that cancels. The mode has no flag of its own: it is on exactly while
+  the set is non-empty, Android's back empties it, and picking a cover clears it
+  (both change what a tap means). One request (`removeManyFromList`), no "are
+  you sure" — each game was chosen by hand and the button states the count.
+  **Not offered on an award show or a captioned board**: an award's
+  `list_items` are the trigger's (0016), and a captioned board draws itself.
 - **Three ways to show a game, and they are not interchangeable.** `<GameCase />`
   on a game's own page; `<GameListItem />` for a row that needs a surface behind
   it (search results, feeds); `<CoverTile />` for a grid where the artwork *is*
@@ -1285,8 +1734,12 @@ that are easy to break:
   with a physical copy as physical only; digital is the Steam library plus
   logged games (not the backlog), each game once. So the profile's
   "128 digital · 14 physical" adds up to the collection.
-- **The disc is not the case's disc.** `<CdDisc>` draws `game_cd.png` over the
-  art, with its geometry in `constants/cd-template.ts` (measured from the file);
+- **The disc is not the case's disc.** `<CdDisc>` draws a disc template over
+  the art, with its geometry in `constants/cd-template.ts` (measured from the
+  file): `game_cd.png` for every platform, except the four whose discs are
+  their own — PlayStation, PlayStation 2, Wii and Wii U (`<key>_disc.png`,
+  `discTemplateFor(platform)`), with the console's printing on them. A copy's
+  platform is passed down; one with none recorded is the plain disc.
   `<GameDisc>` and `DISC_TEMPLATE` belong to the protected case feature and are
   untouched. The copy showcase *uses* `<GameCaseDisplay>` as it is and composes
   its own gesture — tap for the disc, drag to turn — because `<GameCaseFlip>`'s
@@ -1333,18 +1786,38 @@ was not this app's code. The rules that keep it that way:
   architecture listed costs its full size on every install, whichever phone it
   is. Store builds leave it unset — Play splits an `.aab` per device — and so
   should a build for an x86_64 emulator.
-- **R8 and resource shrinking are on for release builds** (`app.json`,
-  `expo-build-properties`). Every library here ships its keep rules; if a
-  release build ever crashes with a missing class that a debug build does not,
-  that is R8, and the fix is a keep rule, not turning it off.
+- **A release-only change is untested until it has run on a phone.** Expo Go
+  runs this app's JavaScript against *its own* native modules, so nothing about
+  the native build — what is linked, what R8 strips — is exercised in dev mode,
+  and this machine has no Android SDK to build with. Two such changes shipped
+  unrun and the first preview build closed on its splash screen. Change one
+  native thing per build, and say so when a change is of this kind.
+- **Never exclude `@expo/ui` from autolinking.** It is Jetpack Compose and it
+  is big, and nothing here renders its views — but `expo-router`'s Stack loads
+  its toolbar at import, that loads `@expo/ui/jetpack-compose`, and
+  `State/useNativeState.ts` and `ExpoUIModule.ts` there call
+  `requireNativeModule('ExpoUI')` **at module scope**. Unlinked, that throws
+  while the root layout is loading, and a release build exits on it. The
+  package's Android JS is its `src/` (see its `exports`), not `build/`, which
+  holds only type declarations for that half — reading `build/` is how this
+  was "verified" safe. The same goes for any module a dependency requires
+  eagerly: a native module may be dropped only when the *bundle* no longer
+  names it.
+- **R8 is off.** `enableMinifyInReleaseBuilds` / `enableShrinkResourcesInReleaseBuilds`
+  (`expo-build-properties`) would take roughly 10–15 MB of unused Java and
+  Kotlin out of the APK. They were on for the build above and are unproven:
+  that build never got far enough to say whether R8 was sound, and an
+  obfuscated, sideloaded APK is also the likeliest reason Play Protect began
+  warning about it. To try it: turn the two flags on **and nothing else**, add
+  `-dontobfuscate` through `extraProguardRules` so class names stay readable,
+  build `preview`, and open every screen. A crash that a debug build does not
+  have is a missing keep rule.
 - **A native module costs its full size whether or not anything calls it.**
   Autolinking links every Expo module in `node_modules`, transitive ones
-  included. `@expo/ui` (Jetpack Compose, Material 3, Material Components) comes
-  in through `expo-router`'s toolbar and is excluded on Android in
-  `package.json` (`expo.autolinking.android.exclude`) — safe because nothing
-  here renders a `Stack.Toolbar`, and its JS registers views lazily. Check
-  `npx expo-modules-autolinking resolve --platform android` after adding a
-  dependency; uninstall what nothing imports.
+  included. Uninstall what no bundled file imports (Skia, `react-native-svg`,
+  `expo-secure-store` and `expo-device` went this way — Metro fails the build
+  if anything still imports a package that is gone, which is the check). List
+  what is linked with `npx expo-modules-autolinking resolve --platform android`.
 - **Import fonts by weight path** — `@expo-google-fonts/inter/400Regular`,
   never the package. Each package's index requires every style it has, and
   Metro bundles every file a module requires: seven Inter weights and three
@@ -1409,6 +1882,18 @@ was not this app's code. The rules that keep it that way:
   sharp one has loaded, when it decodes from the disk cache that load filled.
   iOS coalesces the two already. Anything else that stacks a blurred copy over
   the same remote image needs the same order.
+- **A percentage `minWidth` in a wrapping row is measured against the wrong
+  box.** When Yoga breaks a `flexWrap` row into lines it resolves each child's
+  min and max against the row's *owner* (`FlexLine.cpp`, `mainAxisOwnerSize`) —
+  the full-width parent, before the row's own padding — not against the row's
+  inner width, as CSS does. `<GenreGrid>` forced two per row with
+  `minWidth: '45%'`: 162dp on a 360dp phone, so two tiles and the gap were 332
+  against the 330 inside a 15dp margin, and every genre wrapped onto its own
+  row. It had only ever fitted because the margin was 10. Nothing errors and a
+  wider phone hides it (393dp fits by a hair). Keep such a floor well clear of
+  the limit — just over `1 / (columns + 1)` forces the same wrap — or compute
+  the width from `useWindowDimensions`. Reproduced and fixed against
+  `yoga-layout` 3.2.1 at 320–800dp.
 - **A `<BlurView>` on Android does nothing without a `blurTarget`.** SDK 57
   changed the contract: `blurMethod: 'dimezisBlurView'` with no target silently
   falls back to `'none'` — a flat translucent slab, no blur, one console warning.
@@ -1438,6 +1923,14 @@ was not this app's code. The rules that keep it that way:
   Router reported `news.tsx` "missing the required default export", because the
   module had thrown before assigning any. `lib/reminders.ts` loads it with a
   lazy `import()` behind `remindersAvailable`; keep it that way.
+- **An event's reminder is scheduled under an id made from the event's**
+  (`event-reminder:igdb:1147`), never the random one the scheduler returns. That
+  one lived in the RSVP control's state, so it was gone when the screen was
+  left, and a reminder switched off on a later visit could not be found to
+  cancel — it went off anyway. `<EventRsvp>` is on News' event cards and on
+  `event/[id]`, and either can undo what the other set. Reminders are local
+  notifications: Expo Go on Android cannot schedule them at all, and the
+  control says so rather than hiding the fact.
 - **Preload icon fonts; do not let `@expo/vector-icons` fetch them lazily.**
   `createIconSet`'s `componentDidMount` does a bare `await Font.loadAsync(font)`
   with no `catch`, so each mounted icon fires its own request and each failure is
@@ -1455,17 +1948,40 @@ was not this app's code. The rules that keep it that way:
   ticks. Only Steam can be genuinely synced, via a Steam Web API key plus a
   public profile — and Steam's API returns an *error*, not an empty list, when
   the profile is private.
-- **A platform family is not an IGDB platform.** IGDB publishes 200+ platforms;
-  `PlatformKey` collapses them onto ~35 families a player would actually name,
-  through the substring table in `constants/platform-cases.ts`. **Order in
-  `PATTERNS` is load-bearing and a mistake there is silent** — every entry is a
-  valid key, so nothing type-errors. Two traps already caught: `'nes'` matches
-  inside "Ge**nes**is", so the Sega row must precede the NES row; and a bare
-  `'xbox'` is the *original* console, so "xbox series"/"xbox one" go first.
-  Verify a change by sweeping real IGDB platform names through `platformKeyFor`,
-  not by reading the table. An unmatched name becomes `other` rather than being
-  dropped — silently discarding it made the switcher claim a game was PC-only.
-  **Only the four console families have cases**; everything else renders the bare
+- **A platform family is not an IGDB platform.** IGDB publishes 220 platforms;
+  `PlatformKey` collapses them onto ~70 a player would actually name, through
+  the substring table in `constants/platform-cases.ts`. **Order in `PATTERNS`
+  is load-bearing and a mistake there is silent** — every entry is a valid key,
+  so nothing type-errors. Three traps already caught: `'nes'` matches inside
+  "Ge**nes**is", so the Sega rows must precede the NES row; a bare `'xbox'` is
+  the *original* console, so "xbox series"/"xbox one" go first; and `'pc'` is
+  inside "**PC** Engine", "**PC**-FX" and "Amstrad C**PC**", so those rows
+  precede the desktop one. Verify a change by sweeping real IGDB platform names
+  through `platformKeyFor`, not by reading the table — all 220 were, when the
+  pack's machines were added. An unmatched name becomes `other` rather than
+  being dropped — silently discarding it made the switcher claim a game was
+  PC-only.
+  **A platform has a case only when its template is in `assets/cases/`** —
+  fifty-eight today (`CASE_PLATFORMS`), each drawn at its own template's shape,
+  so anything that reserves room for one asks `caseHeightFor(width, platform)`,
+  never the bare `caseHeightFor(width)`. Most began as the front covers of the
+  owner's template pack — **only the front in each console's `cover/` folder**,
+  never a spine, a 3D box or an example — copied to `<key>_case.png` because
+  the pack's paths held spaces and colons; the pack is no longer in the repo
+  and `assets/cases/README.md` records which file each was. PS4, Switch 2,
+  Wii U and 3DS are the owner's own shells instead, and win over the pack's.
+  **A machine with its own box is its own platform**: every Sega cartridge used
+  to be `genesis` and every Atari but the 2600 `atari`, and a Game Gear game in
+  a Genesis box is in the wrong one. `xbox_case.png` is the 360's artwork
+  (`xbox` uses `xone_case.png`). PC has no case by the owner's decision.
+  **Run `scripts/case-templates.mjs` after replacing a file**: it measures
+  `templateSize` and `coverArea` from the pixels and says which entries
+  disagree — PS4 and PS5 were drawn squashed and inset for two months on
+  numbers left over from the placeholders they replaced. The window is the
+  see-through part: a clear rectangle, or the *inside* of a translucent shell.
+  **A template must be cropped to its case**: one drawn inside clear space
+  measures as the whole image, and a cover drawn across the whole image shows
+  past the case on every side — PS4's did. Everything else renders the bare
   cover, and `externalCategory`/`storeLabel` are `null` unless the id has been
   verified against the live API, because a wrong one sends people to the wrong
   storefront.
@@ -1630,6 +2146,20 @@ was not this app's code. The rules that keep it that way:
   in a small store `<GameSheets>` subscribes to. Performance warnings from Expo Go
   are measured in **dev mode**, several times slower than a release build — judge
   speed with `npx expo start --no-dev --minify`.
+- **A long list of artwork spreads a window from `constants/list-window.ts`.**
+  "VirtualizedList: You have a large list that is slow to update" means two
+  scroll events in a row arrived more than half a second late — the JS thread
+  was busy drawing rows. The list defaults are the cause more often than any
+  one row: ten rows a batch and **ten screens either side** kept mounted, which
+  for a grid of covers is every cover it has. `CoverGridWindow` (counted in
+  rows of three) and `ArtRowWindow` are on the collection, Search's results,
+  Must Play, an event's games, the library, the platform directory, events,
+  studios and the reviews sheet; the studio page's grid has its own, smaller.
+  A new list of covers or cards takes one. The other half is that **a row's
+  props must survive a render**: handlers keyed by id and handed down once
+  (`<CollectionRow>`, the collection's `GridTile`), never a closure or a JSX
+  element built per row — that defeats `memo` on every row at once, and ticking
+  one game re-drew the whole collection.
 - **The path contains a space** (`claude code app/`). Fine for Expo Go, but
   Android Gradle builds historically break on it. If you ever run
   `expo prebuild` / a local native build and see odd path errors, rename that

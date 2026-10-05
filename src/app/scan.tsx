@@ -466,7 +466,7 @@ function LookupResult({ code, onScanAgain }: { code: string; onScanAgain: () => 
     );
   }
 
-  if (lookup.isError || !lookup.data) {
+  if (lookup.isLoadingError || !lookup.data) {
     return (
       <View style={styles.result} accessibilityLiveRegion="polite">
         <Text variant="h3">Could not look that up</Text>

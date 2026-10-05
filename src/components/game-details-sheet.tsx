@@ -171,7 +171,7 @@ export function GameDetailsSheet({
                 </Text>
               )}
 
-              {details.isError && (
+              {details.isLoadingError && (
                 <Text variant="bodySmall" color="textMuted">
                   Could not load the details for this game.
                 </Text>

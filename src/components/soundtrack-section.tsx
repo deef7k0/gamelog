@@ -46,7 +46,7 @@ export function SoundtrackAlbums({ gameTitle, layout = 'rail' }: SoundtrackAlbum
 
   if (albums.isLoading) return isGrid ? <LoadingState /> : null;
 
-  if (albums.isError) {
+  if (albums.isLoadingError) {
     return isGrid ? <ErrorState error={albums.error} /> : null;
   }
 

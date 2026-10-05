@@ -111,7 +111,7 @@ export default function AddReleaseScreen() {
   } else if (params.contribution && existing.isLoading) {
     body = <LoadingState />;
   } else if (params.contribution && !existing.data) {
-    body = existing.isError ? (
+    body = existing.isLoadingError ? (
       <ErrorState error={existing.error} onRetry={() => void existing.refetch()} />
     ) : (
       <EmptyState title="That submission is gone" message="It may have been withdrawn." />
@@ -152,8 +152,8 @@ export default function AddReleaseScreen() {
     );
   } else if (game.isLoading) {
     body = <LoadingState />;
-  } else if (game.isError || !game.data) {
-    body = game.isError ? (
+  } else if (game.isLoadingError || !game.data) {
+    body = game.isLoadingError ? (
       <ErrorState error={game.error} onRetry={() => void game.refetch()} />
     ) : (
       <EmptyState title="Game not found" />

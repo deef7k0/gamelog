@@ -1,4 +1,5 @@
 import { Link } from 'expo-router';
+import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PlatformChip, platformSummary } from '@/components/ui/platform-chip';
@@ -93,8 +94,17 @@ export type GameListItemProps = {
  * PlayStation mark and one Xbox mark. See `constants/platform-family.ts`; the
  * generational distinction is real and belongs on the game's own page, where
  * the reader is choosing which version they own.
+ *
+ * Memoised: it is always in a list, and `game` comes straight out of query
+ * data. Without it every row re-ran its platform folding and rebuilt its chips
+ * whenever the list around it rendered — a sort, a filter, a query settling.
  */
-export function GameListItem({ game, badge, onPress, disabled }: GameListItemProps) {
+export const GameListItem = memo(function GameListItem({
+  game,
+  badge,
+  onPress,
+  disabled,
+}: GameListItemProps) {
   const theme = useTheme();
 
   /*
@@ -129,6 +139,7 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
         heroUrl={game.heroUrl}
         title={game.title}
         edition={game.edition}
+        gameId={game.id}
         steamAppId={game.steamAppId}
         width={POSTER_WIDTH}
         rounded="image"
@@ -205,7 +216,7 @@ export function GameListItem({ game, badge, onPress, disabled }: GameListItemPro
       {row}
     </Link>
   );
-}
+});
 
 const styles = StyleSheet.create({
   /* A rule, not a container — see the note on <Card>. Rows in a list are a

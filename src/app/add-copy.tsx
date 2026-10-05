@@ -118,7 +118,7 @@ export default function AddCopyScreen() {
   } else if (params.copy && existing.isLoading) {
     body = <LoadingState />;
   } else if (params.copy && !existing.data) {
-    body = existing.isError ? (
+    body = existing.isLoadingError ? (
       <ErrorState error={existing.error} onRetry={() => void existing.refetch()} />
     ) : (
       <EmptyState title="That copy is gone" message="It may have been deleted." />
@@ -133,7 +133,7 @@ export default function AddCopyScreen() {
     );
   } else if (game.isLoading || releases.isLoading || contribution.isLoading) {
     body = <LoadingState />;
-  } else if (game.isError || releases.isError) {
+  } else if (game.isLoadingError || releases.isLoadingError) {
     body = (
       <ErrorState
         error={game.error ?? releases.error}

@@ -59,7 +59,7 @@ export default function PlaythroughEditScreen() {
     body = <EmptyState title="Nothing to edit" />;
   } else if (game.isLoading || runs.isLoading) {
     body = <LoadingState />;
-  } else if (game.isError || runs.isError) {
+  } else if (game.isLoadingError || runs.isLoadingError) {
     body = <ErrorState error={game.error ?? runs.error} onRetry={() => void runs.refetch()} />;
   } else if (!game.data) {
     body = <EmptyState title="Game not found" />;

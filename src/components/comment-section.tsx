@@ -193,7 +193,7 @@ export function CommentSection({ targetType, targetId, title }: CommentSectionPr
         <Text variant="bodySmall" color="textMuted" style={styles.quiet}>
           Loading comments…
         </Text>
-      ) : comments.isError ? (
+      ) : comments.isLoadingError ? (
         <Text variant="bodySmall" color="textMuted" style={styles.quiet}>
           Comments could not be loaded.
         </Text>

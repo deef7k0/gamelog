@@ -1,8 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import { memo } from 'react';
 
-import { StatsStrip, StatsStripSkeleton, type StatsCell } from '@/components/ui/stats-strip';
+import { MustPlayBadge } from '@/components/must-play-badge';
+import {
+  MARK_SIZE,
+  StatsStrip,
+  StatsStripSkeleton,
+  type StatsCell,
+} from '@/components/ui/stats-strip';
+import { GAME_LABEL_TEXT } from '@/constants/game-labels';
 import { scoreColor } from '@/constants/score';
+import { useGameLabel } from '@/hooks/use-game-labels';
 import { useTheme } from '@/hooks/use-theme';
 import { getGameListCount, getRatingBreakdown } from '@/lib/api';
 import { parseGameId } from '@/lib/games';
@@ -77,7 +86,8 @@ export type GameStatsStripProps = {
  *   **How long is it** — the single most common reason a game is bounced off.
  *
  *   **Who is it for** — a board's verdict is frequently the only content warning
- *   a game page has.
+ *   a game page has. On a game a moderator has labelled Must Play this cell is
+ *   the label instead — see the note above `cells`.
  *
  * ## Four cells, always
  *
@@ -105,6 +115,8 @@ export const GameStatsStrip = memo(function GameStatsStrip({
   onOpenLists,
 }: GameStatsStripProps) {
   const theme = useTheme();
+  const router = useRouter();
+  const mustPlay = useGameLabel(gameId, 'must_play');
 
   const parsed = parseGameId(gameId);
   const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
@@ -232,7 +244,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
      * data" and "something between here and IGDB is broken".
      */
     length ??
-      (times.isError
+      (times.isLoadingError
         ? {
             key: 'length',
             value: EMPTY,
@@ -248,30 +260,50 @@ export const GameStatsStrip = memo(function GameStatsStrip({
             a11y: 'Nobody has submitted a completion time for this game.',
           }),
 
-    board
+    /*
+     * The fourth cell is the age rating — unless a moderator has labelled the
+     * game Must Play (0034), which takes the cell over.
+     *
+     * In place of the rating rather than as a fifth cell: the strip is four
+     * across so that two games compare at a glance, and of the four this is the
+     * one fact that is also printed in full somewhere else — every board a game
+     * carries is under About's Details. The label is a door, and it says so the
+     * way every door in this strip does, with its words in the accent: it opens
+     * the list of everything else that carries it.
+     */
+    mustPlay
       ? {
-          key: 'board',
-          value: board.rating,
-          label: board.organization.toUpperCase(),
-          a11y: `Rated ${board.rating} by ${board.organization}`,
+          key: 'label',
+          value: GAME_LABEL_TEXT.must_play.title,
+          label: GAME_LABEL_TEXT.must_play.title,
+          mark: <MustPlayBadge size={MARK_SIZE} labelled={false} />,
+          onPress: () => router.push('/must-play'),
+          a11y: `${GAME_LABEL_TEXT.must_play.spoken}. Opens every Must Play game.`,
         }
-      : details.isError
+      : board
         ? {
-            /* Same distinction as the cell above: a failed request is not a game
-               no board has looked at. */
             key: 'board',
-            value: EMPTY,
-            label: 'Age rating unavailable',
-            empty: true,
-            a11y: 'Age ratings could not be loaded.',
+            value: board.rating,
+            label: board.organization.toUpperCase(),
+            a11y: `Rated ${board.rating} by ${board.organization}`,
           }
-        : {
-            key: 'board',
-            value: EMPTY,
-            label: 'No age rating',
-            empty: true,
-            a11y: 'No rating board has classified this game.',
-          },
+        : details.isLoadingError
+          ? {
+              /* Same distinction as the cell above: a failed request is not a game
+               no board has looked at. */
+              key: 'board',
+              value: EMPTY,
+              label: 'Age rating unavailable',
+              empty: true,
+              a11y: 'Age ratings could not be loaded.',
+            }
+          : {
+              key: 'board',
+              value: EMPTY,
+              label: 'No age rating',
+              empty: true,
+              a11y: 'No rating board has classified this game.',
+            },
   ];
 
   /*

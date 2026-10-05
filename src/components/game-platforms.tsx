@@ -82,9 +82,9 @@ export type GamePlatformsProps = {
  *
  * **The slot is the height of the tallest shape this game can show**, with the
  * object standing at its foot, as boxes of different heights stand on one
- * shelf. A case is 1.26× its width and a plain cover 1.5×, so without the
- * reservation switching PS5 → PC would push everything under the section down
- * by a fifth of the box.
+ * shelf. A PS5 case is 1.25× its width, a plain cover 1.5×, a Switch 2 case
+ * 1.62× and a SNES box 0.62×, so without the reservation switching platform
+ * would move everything under the section.
  */
 export function GamePlatforms({
   game,
@@ -100,9 +100,13 @@ export function GamePlatforms({
 
   if (platforms.length === 0) return null;
 
-  const slotHeight = platforms.some((key) => !hasCase(key))
-    ? artWidth / PosterAspectRatio
-    : caseHeightFor(artWidth);
+  /* The tallest shape this game can show: each platform's own case — they are
+     not one proportion — or the plain cover where a platform has none. */
+  const slotHeight = Math.max(
+    ...platforms.map((key) =>
+      hasCase(key) ? caseHeightFor(artWidth, key) : artWidth / PosterAspectRatio
+    )
+  );
 
   const options: DropdownOption<PlatformKey>[] = platforms.map((key) => ({
     value: key,

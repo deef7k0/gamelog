@@ -64,7 +64,7 @@ export function SurpriseSoundtrackPanel({ game, trackMode }: SurpriseSoundtrackP
       <SurpriseSoundtrack
         {...IDLE}
         soundtrack={found}
-        failed={soundtrack.isError}
+        failed={soundtrack.isLoadingError}
         onRetry={retry}
       />
     );

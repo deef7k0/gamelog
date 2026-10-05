@@ -145,6 +145,7 @@ export const FavoritesWidget = memo(function FavoritesWidget({
                 coverUrl={item.game?.cover_url}
                 heroUrl={item.game?.hero_url}
                 title={item.game?.title}
+                gameId={item.game_id}
                 width={posterWidth}
                 rounded="image"
               />

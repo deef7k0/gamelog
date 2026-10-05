@@ -12,6 +12,7 @@ export * from './events';
 export * from './friends';
 export * from './gaming';
 export * from './wall';
+export * from './labels';
 export * from './lists';
 export * from './notifications';
 export * from './physical';

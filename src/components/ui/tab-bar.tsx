@@ -216,6 +216,10 @@ export function TabBar<T extends string>({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      /* A tab is tapped with a keyboard up on Search, where the row sits under
+         a focused field. Without this the first tap only puts the keyboard
+         away and the tab needs a second. */
+      keyboardShouldPersistTaps="handled"
       accessibilityRole="tablist"
       accessibilityLabel={label}
       contentContainerStyle={[styles.content, align === 'center' && styles.contentCenter]}>

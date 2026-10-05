@@ -18,8 +18,25 @@ const PREFIX = 'gamelog:search-history';
 /** How many entries survive. Beyond this it stops being "recent". */
 const MAX_ENTRIES = 8;
 
-/** Which side of the Search screen a term was typed on. */
-export type SearchScope = 'games' | 'people';
+/**
+ * What the Search field was looking through when a term was typed.
+ *
+ * Seven kinds, and each is a tab under the field. `platforms` is
+ * here because it is a scope of the field, but it is never *recorded*: its
+ * search is a filter over a list already in memory, and "play" on the way to
+ * "PlayStation 5" is not a search anyone made.
+ */
+export const SEARCH_SCOPES = [
+  'games',
+  'reviews',
+  'people',
+  'collections',
+  'studios',
+  'events',
+  'platforms',
+] as const;
+
+export type SearchScope = (typeof SEARCH_SCOPES)[number];
 
 export type SearchHistoryEntry = {
   term: string;
@@ -45,7 +62,14 @@ export async function loadSearchHistory(userId: string): Promise<SearchHistoryEn
     const raw = await AsyncStorage.getItem(keyFor(userId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as SearchHistoryEntry[];
-    return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry?.term === 'string') : [];
+    return Array.isArray(parsed)
+      ? parsed.filter(
+          (entry) =>
+            typeof entry?.term === 'string' &&
+            /* A scope this build does not have would restore to nothing. */
+            (SEARCH_SCOPES as readonly string[]).includes(entry.scope)
+        )
+      : [];
   } catch {
     return [];
   }

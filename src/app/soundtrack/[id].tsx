@@ -131,7 +131,7 @@ export default function SoundtrackScreen() {
     );
   }
 
-  if (tracks.isError) {
+  if (tracks.isLoadingError) {
     return (
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={tracks.error} />

@@ -20,7 +20,7 @@ function igdbImage(imageId: string | undefined, size: string): string | null {
   return imageId ? `https://images.igdb.com/igdb/image/upload/t_${size}/${imageId}.jpg` : null;
 }
 
-type IgdbGameLite = {
+export type IgdbGameLite = {
   id: number;
   name?: string;
   first_release_date?: number;
@@ -46,7 +46,7 @@ function developerOf(raw: IgdbGameLite): string | null {
   );
 }
 
-function toSearchResult(raw: IgdbGameLite): GameSearchResult {
+export function toSearchResult(raw: IgdbGameLite): GameSearchResult {
   return {
     id: makeGameId('igdb', raw.id),
     source: 'igdb',
@@ -119,7 +119,7 @@ function toSearchResult(raw: IgdbGameLite): GameSearchResult {
  * saving before this was measured in bytes and paid for in the app looking like
  * two different apps.
  */
-const LITE_FIELDS = `
+export const LITE_FIELDS = `
   fields name, first_release_date, total_rating,
          game_type, parent_game, version_parent, version_title,
          external_games.category, external_games.uid,

@@ -62,7 +62,7 @@ export function DiscoverPeople() {
    * mistake was found and argued out in `lib/games/index.ts`; this is the other
    * place it was live.
    */
-  if (reviewers.isError || popular.isError) {
+  if (reviewers.isLoadingError || popular.isLoadingError) {
     return (
       <ErrorState
         error={reviewers.error ?? popular.error}

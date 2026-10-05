@@ -111,7 +111,11 @@ export type GameCaseBackProps = {
 export function GameCaseBack({ platform, log, width }: GameCaseBackProps) {
   const theme = useTheme();
 
-  const height = (width / CASE_TEMPLATE_SIZE.width) * CASE_TEMPLATE_SIZE.height;
+  /* The front's own height, so the two faces are one rectangle: each platform's
+     case is drawn at its template's proportions. */
+  const size = hasCase(platform) ? CASE_TEMPLATES[platform].templateSize : CASE_TEMPLATE_SIZE;
+  const height = (width / size.width) * size.height;
+  const shape = shapeOf(width, height);
   const pad = SIZES.pad(width);
   const radius = SIZES.radius(width);
 
@@ -142,7 +146,7 @@ export function GameCaseBack({ platform, log, width }: GameCaseBackProps) {
 
       <View style={[styles.body, { padding: pad }]}>
         {log ? (
-          <Record log={log} score={score} width={width} />
+          <Record log={log} score={score} width={width} shape={shape} />
         ) : (
           <View style={styles.blank}>
             <Ionicons
@@ -176,8 +180,45 @@ export function GameCaseBack({ platform, log, width }: GameCaseBackProps) {
   );
 }
 
+/**
+ * How much of the record a face has room to print.
+ *
+ * Every size on this face is a fraction of its *width*, and the layout was
+ * drawn for the standard case, 1.26× as tall as it is wide. The boxes are not
+ * all that shape:
+ *
+ *  - `tall` — a keep case, and anything near it (PS3's is 1.15×). The full
+ *    record: status, the blurb, the score, the played-on line.
+ *  - `short` — nearly square (3DS, Game Boy). The blurb is the 47dp-in-162 that
+ *    does not fit, and it is the part that is quoted from the review anyway, so
+ *    it goes and everything else keeps its place.
+ *  - `wide` — on its side (SNES, a GBA cartridge), about 0.6×. There is no
+ *    column to stack in, so the status and the score sit side by side, and the
+ *    played-on line goes too.
+ *
+ * Nothing is lost to a reader either way: `<GameCaseFlip>`'s label announces
+ * the whole record, and the page prints all of it at interface size.
+ */
+type BackShape = 'tall' | 'short' | 'wide';
+
+function shapeOf(width: number, height: number): BackShape {
+  if (height < width * 0.8) return 'wide';
+  if (height < width * 1.1) return 'short';
+  return 'tall';
+}
+
 /** Everything the viewer put on record, in the order a reader wants it. */
-function Record({ log, score, width }: { log: GameLog; score: number | null; width: number }) {
+function Record({
+  log,
+  score,
+  width,
+  shape,
+}: {
+  log: GameLog;
+  score: number | null;
+  width: number;
+  shape: BackShape;
+}) {
   const theme = useTheme();
   const tint = statusColor(log.status, theme);
 
@@ -192,8 +233,8 @@ function Record({ log, score, width }: { log: GameLog; score: number | null; wid
     .join(' · ');
 
   return (
-    <View style={styles.record}>
-      <View style={styles.statusRow}>
+    <View style={shape === 'wide' ? styles.recordWide : styles.record}>
+      <View style={[styles.statusRow, shape === 'wide' && styles.statusRowWide]}>
         {/* Glyph as well as hue, for the same reason the page's log block
             carries one: four states told apart by colour alone fails the
             green/rust pair for roughly one man in twelve. */}
@@ -243,7 +284,7 @@ function Record({ log, score, width }: { log: GameLog; score: number | null; wid
         character truncation, so the cut lands on the rendered line box at
         whatever width the caller asked for.
       */}
-      {(log.review_title?.trim() || log.review?.trim()) && (
+      {shape === 'tall' && (log.review_title?.trim() || log.review?.trim()) && (
         <View style={styles.blurb}>
           {log.review_title?.trim() && (
             <Text
@@ -272,7 +313,7 @@ function Record({ log, score, width }: { log: GameLog; score: number | null; wid
       )}
 
       {score !== null && (
-        <View style={styles.scoreBlock}>
+        <View style={shape === 'wide' ? styles.scoreBlockWide : styles.scoreBlock}>
           <Text
             style={[
               styles.score,
@@ -288,7 +329,7 @@ function Record({ log, score, width }: { log: GameLog; score: number | null; wid
         </View>
       )}
 
-      {footer.length > 0 && (
+      {shape !== 'wide' && footer.length > 0 && (
         <View style={[styles.footerRule, { borderTopColor: PLASTIC.rule }]}>
           <Text
             style={[styles.footer, { fontSize: SIZES.footer(width), color: theme.textSecondary }]}
@@ -325,7 +366,17 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1 },
   record: { flex: 1, justifyContent: 'flex-start' },
+  /* A face on its side: the status at the left, the score at the right, both
+     centred on the face's short height. */
+  recordWide: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statusRowWide: { flexShrink: 1 },
   statusWord: { fontFamily: FontFamily.bold, letterSpacing: 0.5, flexShrink: 1 },
   /* Literals, like every other measurement on this object — see the note on
      `SIZES`. 5 above sets the blurb off from the status row; 2 between the
@@ -334,6 +385,7 @@ const styles = StyleSheet.create({
   reviewTitle: { fontFamily: FontFamily.bold, letterSpacing: 0.1 },
   reviewBody: { fontFamily: FontFamily.regular, letterSpacing: 0.1 },
   scoreBlock: { marginTop: 'auto' },
+  scoreBlockWide: { alignItems: 'flex-end' },
   score: { fontFamily: FontFamily.bold, letterSpacing: -0.5 },
   verdict: { fontFamily: FontFamily.medium, letterSpacing: 0.7 },
   footerRule: {

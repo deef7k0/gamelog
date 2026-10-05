@@ -121,7 +121,7 @@ export default function CopiesScreen() {
         ListEmptyComponent={
           copies.isLoading ? (
             <LoadingState />
-          ) : copies.isError ? (
+          ) : copies.isLoadingError ? (
             <ErrorState error={copies.error} onRetry={() => void copies.refetch()} />
           ) : (
             <EmptyState

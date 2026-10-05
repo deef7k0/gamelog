@@ -82,7 +82,7 @@ export default function SimilarPairScreen() {
   let body: React.ReactNode;
   if (!id || !gameId) body = <EmptyState title="Nothing to show" />;
   else if (pair.isLoading) body = <LoadingState />;
-  else if (pair.isError)
+  else if (pair.isLoadingError)
     body = <ErrorState error={pair.error} onRetry={() => void pair.refetch()} />;
   else if (!pair.data)
     body = (
@@ -232,6 +232,7 @@ function PairDetail({ pair, gameId }: { pair: CommunitySimilarGame; gameId: stri
               heroUrl={pair.hero_url}
               title={pair.title}
               edition={(pair.edition_kind as EditionKind | null) ?? null}
+              gameId={pair.game_id}
               width={88}
               rounded="image"
             />
@@ -384,7 +385,7 @@ function PairDetail({ pair, gameId }: { pair: CommunitySimilarGame; gameId: stri
       ListEmptyComponent={
         suggestions.isPending ? (
           <LoadingState label="Loading suggestions…" />
-        ) : suggestions.isError ? (
+        ) : suggestions.isLoadingError ? (
           <ErrorState error={suggestions.error} onRetry={() => void suggestions.refetch()} />
         ) : (
           <Text variant="body" color="textSecondary" style={styles.none}>

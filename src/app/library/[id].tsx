@@ -22,6 +22,7 @@ import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { STATUS_LABEL } from '@/constants/status';
+import { CoverGridWindow } from '@/constants/list-window';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
@@ -241,6 +242,7 @@ export default function LibraryScreen() {
           key={`grid-${COLUMNS}`}
           numColumns={COLUMNS}
           keyExtractor={(entry) => entry.key}
+          {...CoverGridWindow}
           renderItem={({ item }) => <LibraryCard entry={item} width={tileWidth} />}
           columnWrapperStyle={styles.column}
           contentContainerStyle={styles.grid}
@@ -250,7 +252,7 @@ export default function LibraryScreen() {
               <LibraryStats
                 stats={collection.data}
                 loading={collection.isLoading}
-                failed={collection.isError}
+                failed={collection.isLoadingError}
                 onRetry={() => void collection.refetch()}
               />
             ) : /* Search and sort are Steam's, so they appear on Steam's tab. The
@@ -389,6 +391,7 @@ function LibraryCard({ entry, width }: { entry: LibraryEntry; width: number }) {
         coverUrl={entry.coverUrl}
         heroUrl={entry.heroUrl}
         title={entry.title}
+        gameId={entry.gameId}
         steamAppId={entry.steamAppId}
         width={width}
         rounded="image"

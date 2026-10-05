@@ -118,15 +118,25 @@ const styles = StyleSheet.create({
   /*
    * Two per row, without hard-coding a width.
    *
-   * `minWidth` just over 45% is what forces the wrap — three tiles cannot fit —
-   * and `flexGrow` then shares out whatever the gap leaves, so the pair lines up
-   * flush with the covers below at every display width. A literal `width: '48%'`
-   * would leave a different sliver on every device.
+   * `minWidth` is what forces the wrap and `flexGrow` then shares out whatever
+   * the gap leaves, so the pair lines up flush with the covers below at every
+   * display width. A literal `width: '48%'` would leave a different sliver on
+   * every device.
+   *
+   * **The floor is just over a third, not just under a half.** Yoga breaks a
+   * wrapping row's lines with each child's `minWidth` resolved against the
+   * *row's owner* — the full-width section, page margins included — not
+   * against the row's own inner width (`FlexLine.cpp`, `mainAxisOwnerSize`).
+   * At 45% that is 162dp on a 360dp phone: two tiles and the gap came to 332
+   * against the 330 inside a 15dp margin, so every tile took a row to itself.
+   * It had fitted only because the margin used to be 10. Just over a third
+   * still keeps a third tile out — three floors alone are wider than the
+   * display — and leaves two a comfortable fit at any margin.
    */
   tile: {
     flexGrow: 1,
     flexBasis: 0,
-    minWidth: `${100 / COLUMNS - 5}%`,
+    minWidth: `${Math.ceil(100 / (COLUMNS + 1)) + 1}%`,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

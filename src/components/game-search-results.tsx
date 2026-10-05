@@ -3,23 +3,25 @@ import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import {
-  CollectionToolbar,
-  type CollectionLayout,
-  type ToolbarSort,
-} from '@/components/collection-toolbar';
+import type { CollectionLayout } from '@/components/collection-toolbar';
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { GameListItem } from '@/components/game-list-item';
+import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState } from '@/components/ui/screen';
-import { SortBar } from '@/components/ui/sort-bar';
 import { useTabBarClearance } from '@/components/app-tab-bar';
-import { Radius, Spacing } from '@/constants/theme';
+import {
+  PLATFORM_FAMILIES,
+  platformFamilies,
+  type PlatformFamilyKey,
+} from '@/constants/platform-family';
+import { ArtRowWindow, CoverGridWindow } from '@/constants/list-window';
+import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   enabledProviders,
-  gameSortOptions,
   searchGames,
   sortGames,
   type GameSearchResult,
@@ -30,27 +32,34 @@ import {
 export const MIN_QUERY_LENGTH = 2;
 
 /**
+ * How the results can be ordered, as the menu lists them and as the button
+ * names the one in force.
+ *
  * Relevance leads and is the default: IGDB's own ranking for a title query is
  * better than anything derivable here, and a search for "zelda" wants the Zelda
  * games, not the highest-rated game with a Z in it. The rest exist for the
  * searches relevance handles badly — a franchise name, or a genre word that
- * matches forty things.
+ * matches forty things. Release date is two entries rather than one with a
+ * direction toggle: "newest" and "oldest" are the two things anyone asks for,
+ * and a menu row each is one tap.
  */
-const SORTS = gameSortOptions(['default', 'newest', 'rating', 'title'], {
-  default: 'Relevance',
-});
-
-/**
- * The same four as glyphs, for the collection's toolbar when the results can
- * be drawn as a grid — relevance in the slot where a collection keeps its own
- * order, since it is the results' own order.
- */
-const TOOLBAR_SORTS: readonly ToolbarSort[] = [
-  { value: 'default', icon: 'reorder-three', label: 'Relevance' },
-  { value: 'newest', icon: 'arrow-down', label: 'Newest first' },
-  { value: 'rating', icon: 'star', label: 'Highest rated' },
-  { value: 'title', icon: 'text', label: 'A to Z' },
+const SORT_OPTIONS: readonly DropdownOption<GameSort>[] = [
+  { value: 'default', label: 'Relevance' },
+  { value: 'newest', label: 'Release date, newest first', short: 'Newest' },
+  { value: 'oldest', label: 'Release date, oldest first', short: 'Oldest' },
+  { value: 'rating', label: 'Rating, highest first', short: 'Top rated' },
+  { value: 'title', label: 'Title, A to Z', short: 'A–Z' },
 ];
+
+/** Every platform, or one family of them — or the games that fit no family. */
+type PlatformFilter = 'all' | PlatformFamilyKey | 'other';
+
+const ALL_PLATFORMS: DropdownOption<PlatformFilter> = { value: 'all', label: 'All platforms' };
+const OTHER_PLATFORMS: DropdownOption<PlatformFilter> = {
+  value: 'other',
+  label: 'Other platforms',
+  short: 'Other',
+};
 
 /** Between covers in the grid, across and down — the collection grid's. */
 const GRID_GAP = Spacing.x12;
@@ -73,16 +82,17 @@ export type GameSearchResultsProps = {
   /** Shown before the query is long enough to run. */
   prompt?: { title: string; message?: string };
   /**
-   * Offer the collection's grid: the same toolbar, and three big covers across
-   * when it is flipped. The Search tab's; a picker keeps the list, whose rows
-   * carry the "Added" badges and disabled states a cover has no room for.
+   * Offer the collection's grid: a key at the end of the toolbar, and three big
+   * covers across when it is flipped. The Search tab's; a picker keeps the
+   * list, whose rows carry the "Added" badges and disabled states a cover has
+   * no room for.
    */
   layoutToggle?: boolean;
 };
 
 /**
- * Game search results, from the query down: the sort row, the four load states
- * and the list itself.
+ * Game search results, from the query down: the sort and platform menus, the
+ * four load states and the list itself.
  *
  * Deliberately does *not* own the text field. The Search tab shares one field
  * between its Games and People modes, so lifting the input in here would either
@@ -99,6 +109,7 @@ export function GameSearchResults({
 }: GameSearchResultsProps) {
   const clearance = useTabBarClearance();
   const [sort, setSort] = useState<GameSort>('default');
+  const [platform, setPlatform] = useState<PlatformFilter>('all');
   const [layout, setLayout] = useState<CollectionLayout>('rows');
   const { width } = useWindowDimensions();
   const isQueryable = query.length >= MIN_QUERY_LENGTH;
@@ -124,7 +135,64 @@ export function GameSearchResults({
     placeholderData: keepPreviousData,
   });
 
-  const ordered = useMemo(() => sortGames(games.data ?? [], sort), [games.data, sort]);
+  /*
+   * The platforms these results are actually on, as the filter's choices.
+   *
+   * Read off the results rather than offered as a fixed list, so the menu never
+   * holds a platform that would empty the page: a search for "halo" does not
+   * offer Switch. Families, not consoles — PlayStation is one entry whichever
+   * generations the games are on, which is how the result rows already show
+   * them. A game on none of the six families (a Saturn or a 3DS exclusive) is
+   * reachable under "Other" rather than dropped from every filter.
+   */
+  const platformOptions = useMemo(() => {
+    const present = new Set<PlatformFamilyKey>();
+    let other = false;
+    for (const game of games.data ?? []) {
+      const families = platformFamilies(game.platforms);
+      if (families.length === 0) other = true;
+      for (const family of families) present.add(family.key);
+    }
+
+    const options: DropdownOption<PlatformFilter>[] = [ALL_PLATFORMS];
+    for (const family of PLATFORM_FAMILIES) {
+      if (present.has(family.key)) {
+        options.push({ value: family.key, label: family.name, icon: family.icon });
+      }
+    }
+    if (other && options.length > 1) options.push(OTHER_PLATFORMS);
+    return options;
+  }, [games.data]);
+
+  /*
+   * The menu is only worth drawing with a real choice in it: "All" plus one
+   * platform filters nothing, because every result is already on it.
+   *
+   * And a filter is only *applied* while its menu is on screen. One chosen for
+   * an earlier search may not exist in this one's results, or may be the only
+   * platform left; it then reads as "all" — never a filter in force with no
+   * control showing it — without being forgotten, so a search that brings the
+   * choice back brings the filter back with it.
+   */
+  const canFilter = platformOptions.length > 2;
+  const activePlatform =
+    canFilter && platformOptions.some((option) => option.value === platform) ? platform : 'all';
+
+  const ordered = useMemo(() => {
+    const all = games.data ?? [];
+    const filtered =
+      activePlatform === 'all'
+        ? all
+        : all.filter((game) => {
+            const families = platformFamilies(game.platforms);
+            return activePlatform === 'other'
+              ? families.length === 0
+              : families.some((family) => family.key === activePlatform);
+          });
+    return sortGames(filtered, sort);
+  }, [games.data, sort, activePlatform]);
+
+  const resultCount = games.data?.length ?? 0;
 
   /* Empty only when the provider list is empty — i.e. IGDB disabled. Naming no
      source at all read as "Nothing on  for zelda", with the gap where the
@@ -150,7 +218,8 @@ export function GameSearchResults({
      fully known before the response arrives, so the wait can show what is
      coming instead of only that something is. */
   if (games.isLoading) return <ResultsSkeleton />;
-  if (games.isError) return <ErrorState error={games.error} onRetry={() => games.refetch()} />;
+  if (games.isLoadingError)
+    return <ErrorState error={games.error} onRetry={() => games.refetch()} />;
 
   return (
     <FlatList
@@ -161,6 +230,7 @@ export function GameSearchResults({
       numColumns={grid ? PORTRAIT_COLUMNS : 1}
       columnWrapperStyle={grid ? styles.gridRow : undefined}
       keyExtractor={(game) => game.id}
+      {...(grid ? CoverGridWindow : ArtRowWindow)}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
         styles.content,
@@ -181,6 +251,7 @@ export function GameSearchResults({
                 heroUrl={item.heroUrl}
                 title={item.title}
                 edition={item.edition}
+                gameId={item.id}
                 steamAppId={item.steamAppId}
                 width={tileWidth}
                 rounded="image"
@@ -197,30 +268,46 @@ export function GameSearchResults({
         )
       }
       ListHeaderComponent={
-        layoutToggle && ordered.length > 0 ? (
-          /* The collection's toolbar: the sorts as glyphs, and at the far end
-             the button that draws the results as big covers — or back as rows.
-             The sorts only once there is more than one result to reorder. */
-          <View style={styles.sorts}>
-            <CollectionToolbar
-              sorts={TOOLBAR_SORTS}
-              sort={sort}
-              onSort={setSort}
-              layout={layout}
-              onLayout={setLayout}
-              showSort={ordered.length > 1}
-            />
-          </View>
-        ) : // Only once there is more than one result to reorder — a sort row
-        // above a single hit is chrome that does nothing.
-        ordered.length > 1 ? (
-          <View style={styles.sorts}>
-            <SortBar
-              options={SORTS}
+        /*
+         * Two menus and, on the Search tab, the layout key.
+         *
+         * `<DropdownButton>` each: the order and the platform are both "one of
+         * a short list", and a button that shows the choice in force and opens
+         * the rest from itself costs one line where the old pills cost two and
+         * the glyph keys said nothing about what they sorted by. Only once
+         * there is more than one result — a toolbar above a single hit is
+         * chrome that does nothing — and the platform menu only when the
+         * results are on more than one platform (`canFilter`).
+         */
+        resultCount > 1 ? (
+          <View style={styles.toolbar}>
+            <DropdownButton
+              label="Sort by"
               value={sort}
+              options={SORT_OPTIONS}
               onChange={setSort}
-              accessibilityLabel="Sort search results"
             />
+            {canFilter && (
+              <DropdownButton
+                label="Platform"
+                value={activePlatform}
+                options={platformOptions}
+                onChange={setPlatform}
+              />
+            )}
+
+            {layoutToggle && (
+              <>
+                <View style={styles.spacer} />
+                {/* Shows the layout you would *get*, not the one you are in. */}
+                <IconButton
+                  icon={layout === 'grid' ? 'list' : 'grid'}
+                  accessibilityLabel={layout === 'grid' ? 'Show as a list' : 'Show as a grid'}
+                  size="small"
+                  onPress={() => setLayout(layout === 'grid' ? 'rows' : 'grid')}
+                />
+              </>
+            )}
           </View>
         ) : null
       }
@@ -277,7 +364,17 @@ const styles = StyleSheet.create({
      top — `EmptyState` fills its parent, and a content-sized container gave it
      nothing to fill. */
   content: { padding: Spacing.x16, gap: Spacing.x8, paddingBottom: Spacing.x48, flexGrow: 1 },
-  sorts: { paddingBottom: Spacing.x4 },
+  /* Wraps rather than squeezing: two menus and a key fit a 360dp phone with a
+     few points to spare, and a long platform name must not push the key off. */
+  toolbar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: Spacing.x8,
+    minHeight: TapTarget,
+    paddingBottom: Spacing.x4,
+  },
+  spacer: { flex: 1 },
   /* The grid sets its own rhythm: covers `GRID_GAP` apart both ways. */
   gridContent: { gap: GRID_GAP },
   gridRow: { gap: GRID_GAP },

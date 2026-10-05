@@ -108,7 +108,7 @@ export default function LogGameScreen() {
     );
   }
 
-  if (game.isError) {
+  if (game.isLoadingError) {
     return (
       <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
         <ErrorState error={game.error} />
@@ -374,6 +374,8 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     queryClient.invalidateQueries({ queryKey: ['completions', userId] });
     // The reviews sheet: its list, its histogram and its breakdown all read this log.
     queryClient.invalidateQueries({ queryKey: ['game-review-list', game.id] });
+    /* The game page's rail of reviews: a new one, or new words, shows at once. */
+    queryClient.invalidateQueries({ queryKey: ['top-reviews', game.id] });
     queryClient.invalidateQueries({ queryKey: ['rating-breakdown', game.id] });
     queryClient.invalidateQueries({ queryKey: ['review-stats', game.id] });
     // The library's head: logged, reviewed, averages, best and worst.

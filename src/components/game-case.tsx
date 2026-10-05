@@ -7,6 +7,7 @@ import { Text } from '@/components/ui/text';
 import {
   CASE_TEMPLATE_SIZE,
   CASE_TEMPLATES,
+  PLATFORMS,
   type CasePlatformKey,
 } from '@/constants/platform-cases';
 import { useTheme } from '@/hooks/use-theme';
@@ -24,9 +25,15 @@ const WIDTHS: Record<GameCaseSize, number> = {
  * How tall a case face renders at a given width.
  *
  * For callers that have to reserve or overlap space before the case mounts.
+ * **Pass the platform**: the boxes are not one shape — a Switch 2 case is 1.62×
+ * its width and a SNES box 0.62× — and each is drawn at its own template's
+ * proportions. Without one, the answer is the standard keep case
+ * (`CASE_TEMPLATE_SIZE`), for a caller that wants a nominal case and no
+ * particular game's.
  */
-export function caseHeightFor(width: number): number {
-  return (width / CASE_TEMPLATE_SIZE.width) * CASE_TEMPLATE_SIZE.height;
+export function caseHeightFor(width: number, platform?: CasePlatformKey): number {
+  const size = platform ? CASE_TEMPLATES[platform].templateSize : CASE_TEMPLATE_SIZE;
+  return (width / size.width) * size.height;
 }
 
 export type GameCaseProps = {
@@ -147,7 +154,9 @@ export const GameCase = memo(function GameCase({
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={[title, edition, platform?.toUpperCase()].filter(Boolean).join(', ')}
+      /* The platform's short name — "PS5", "3DS" — not its key: the key reads
+         the same for the first four cases and is `threeds` for the fifth. */
+      accessibilityLabel={[title, edition, PLATFORMS[platform]?.short].filter(Boolean).join(', ')}
       style={[styles.wrapper, { width }]}>
       <View
         style={[

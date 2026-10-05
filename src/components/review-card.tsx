@@ -34,10 +34,11 @@ export type ReviewCardProps = {
 /**
  * One person's review, without the game.
  *
- * Used on the three surfaces where **you already know what game this is**: the
- * Overview tab of that game's page, the "see all reviews" sheet opened from it,
- * and Surprise Me, where the game is the 328dp cover directly above. Printing
- * the game's title there is printing the name of the screen you are on.
+ * Used where **you already know what game this is**: Surprise Me, where the
+ * game is the 328dp cover directly above. Printing the game's title there is
+ * printing the name of the screen you are on. It was the game page's card and
+ * the reviews sheet's row as well; at the owner's direction those two are
+ * `<ReviewQuote>` now — the critics' card, with the words, a name and a score.
  *
  * ## The shape
  *

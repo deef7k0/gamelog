@@ -2,11 +2,12 @@
 
 ## Why these exist
 
-Three secrets can never ship in an Expo bundle, because anyone can unzip an APK:
+These secrets can never ship in an Expo bundle, because anyone can unzip an APK:
 
 - the Twitch `client_secret` IGDB authenticates with (`igdb`)
 - the Steam Web API key (`steam-auth`, `steam-sync`)
 - the IsThereAnyDeal API key (`itad`)
+- the ScanDex access token (`scandex`) and the OpenCritic key (`opencritic`)
 
 And one operation can never be trusted to a client at all: verifying a Steam
 OpenID assertion. A client that skipped verification could claim any SteamID64
@@ -25,11 +26,13 @@ supabase secrets set TWITCH_CLIENT_ID=xxx TWITCH_CLIENT_SECRET=yyy
 supabase secrets set STEAM_API_KEY=zzz
 supabase secrets set ITAD_API_KEY=aaa
 supabase secrets set SCANDEX_API_TOKEN=bbb
+supabase secrets set OPENCRITIC_API_KEY=ccc
 
 # Functions
 supabase functions deploy igdb        --project-ref <ref> --use-api
 supabase functions deploy itad        --project-ref <ref> --use-api
 supabase functions deploy scandex     --project-ref <ref> --use-api
+supabase functions deploy opencritic  --project-ref <ref> --use-api
 supabase functions deploy steam-sync  --project-ref <ref> --use-api
 supabase functions deploy steam-auth  --project-ref <ref> --use-api --no-verify-jwt
 ```
@@ -70,6 +73,42 @@ claims know nothing about a barcode, and falls back to "unknown" when it fails �
 so an undeployed function or a missing token costs identification, never the
 scan. Verify a deploy by scanning (or typing) `0711719577966`, which ScanDex's
 docs give as Super Mario Odyssey on Switch.
+
+### Where the OpenCritic key comes from
+
+OpenCritic's API is on RapidAPI: subscribe to the **OpenCritic API** listing and
+copy the key RapidAPI shows for it into `OPENCRITIC_API_KEY`. It feeds the game
+page's "Critic reviews" rail — each outlet's score and a snippet of what it
+wrote, which IGDB does not have.
+
+Three things about it:
+
+- **The plans are metered per day and the free one is small.** One game costs
+  three upstream requests (find it, its summary, its reviews), so the function
+  keeps its answers in `critic_review_cache` — run migration **0035**. Without
+  the table it still works and simply asks OpenCritic every time; with it, the
+  first person to open a game pays and everyone after reads a row. A settled
+  game is kept two weeks, a new release two days, "OpenCritic has nothing" three.
+- **It only serves signed-in users**, for the reason `scandex` does: the anon
+  key is a valid JWT and ships in the bundle.
+- **A deployment from before the rail still answers, with scores and no
+  snippets.** The app then has nothing to quote and leaves the section out, so
+  redeploy after pulling the change. Verify by opening a recent, well-reviewed
+  game — the rail sits under Reviews on its Overview.
+
+### The `igdb` allowlist is checked in the deployed function
+
+`ALLOWED_ENDPOINTS` in `igdb/index.ts` does nothing until the function is
+redeployed. The newest entry is `games/count`, the page count on a platform's
+games; until it is deployed the app works the count out through `games` in a
+dozen small requests instead of one. Check with the anon key as the bearer:
+
+```bash
+curl -s -X POST "$SUPABASE_URL/functions/v1/igdb" \
+  -H "Authorization: Bearer $ANON_KEY" -H "Content-Type: application/json" \
+  -d '{"endpoint":"games/count","query":"where platforms = (167);"}'
+# {"count": 12345} once deployed; {"error":"Endpoint \"games/count\" is not allowed."} before
+```
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
 by the platform — do **not** set them as secrets.

@@ -36,9 +36,11 @@ const REMINDER_FAILURE: Record<'denied' | 'past' | 'unavailable', string> = {
 /**
  * RSVP controls for an event: how you are attending, plus a device reminder.
  *
- * The reminder is a local notification, so its id has to live somewhere on the
- * device to be cancellable. Keeping it in component state is enough for a
- * session; `event_attendance.reminder_at` is what persists the *fact* of a
+ * On a News event card, and on the event's own page (`event/[id]`).
+ *
+ * The reminder is a local notification scheduled under an id made from the
+ * event's (`lib/reminders`), so it can be cancelled from any screen on any
+ * later visit; `event_attendance.reminder_at` is what persists the *fact* of a
  * reminder across launches so the toggle renders correctly.
  *
  * RSVP and reminders are deliberately independent. Expo Go on Android cannot
@@ -52,7 +54,6 @@ export function EventRsvp({ event }: { event: GameEvent }) {
   const userId = useAuth((state) => state.session?.user.id);
   const eventId = `igdb:${event.id}`;
 
-  const [notificationId, setNotificationId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const attendance = useQuery({
@@ -73,10 +74,7 @@ export function EventRsvp({ event }: { event: GameEvent }) {
 
       if (mode === null) {
         // Cancelling attendance should not leave an orphaned reminder firing.
-        if (notificationId) {
-          await cancelEventReminder(notificationId);
-          setNotificationId(null);
-        }
+        await cancelEventReminder(eventId);
         await cancelAttendance(userId, eventId);
         return;
       }
@@ -93,8 +91,7 @@ export function EventRsvp({ event }: { event: GameEvent }) {
 
       // Toggling off.
       if (attendance.data?.mine?.reminder_at) {
-        if (notificationId) await cancelEventReminder(notificationId);
-        setNotificationId(null);
+        await cancelEventReminder(eventId);
         await setReminder(userId, eventId, null);
         return;
       }
@@ -104,13 +101,12 @@ export function EventRsvp({ event }: { event: GameEvent }) {
         return;
       }
 
-      const result = await scheduleEventReminder(event.name, event.startsAt);
+      const result = await scheduleEventReminder(eventId, event.name, event.startsAt);
       if (!result.ok) {
         setNotice(REMINDER_FAILURE[result.reason]);
         return;
       }
 
-      setNotificationId(result.notificationId);
       await setReminder(userId, eventId, result.firesAt.toISOString());
     },
     onSuccess: invalidate,
@@ -175,6 +171,14 @@ export function EventRsvp({ event }: { event: GameEvent }) {
       {notice && (
         <Text variant="caption" color="textMuted">
           {notice}
+        </Text>
+      )}
+
+      {/* Where the button above cannot be offered, say why once somebody has
+          said they are going — otherwise the reminder is simply missing. */}
+      {mine && !remindersAvailable && (
+        <Text variant="caption" color="textMuted">
+          Reminders need the installed app. Expo Go on Android cannot schedule them.
         </Text>
       )}
 

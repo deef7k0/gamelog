@@ -82,6 +82,14 @@ colors:
   glowCore: "#6B4C9A"
   glowEdge: "#3A2050"
   platinum: "#A9B6CC"
+  # The Must Play label's disc (0034) — a moderator's pick, the one coloured
+  # mark this app puts on box art. = identityJade; a meaning joins the ramp.
+  # Green at the owner's direction; it was identityEmber.
+  mustPlay: "#43D98C"
+  # The light ground under a platform's or studio's logo that could not be
+  # measured. Logos are otherwise drawn straight on the page (ui/logo-mark),
+  # lightened when their ink would be lost. Never an app surface.
+  logoPlate: "#F5F5F5"
   # Review prose, and only review prose: a muted grey, quieter than
   # `textSecondary` and carrying the surfaces' cool trace (it was blue-green
   # when the room was). 6.29:1 on the page. See § Typography — the serif block.
@@ -741,6 +749,8 @@ control, muted steps up to secondary: it is 4.32:1 on the accent's wash.
 | `borderStrong`     | `rgba(255,255,255,.12)`  | Strong edge, unchecked box and radio rings    |
 | `scrim`            | `rgba(0,0,0,.6)`         | Overlay on hero artwork                       |
 | `platinum`         | `#A9B6CC`                | Platinum trophy marker                        |
+| `mustPlay`         | `#43D98C`                | The Must Play badge's disc (= `identityJade`) |
+| `logoPlate`        | `#F5F5F5`                | The plate under a logo that could not be measured |
 
 ## 1.5 Colour that carries meaning
 
@@ -1041,8 +1051,12 @@ everywhere destroys that.
 ## 4.1.3 Platform eligibility — console only
 
 ```ts
-type CasePlatformKey = 'ps5' | 'ps4' | 'xbox' | 'switch';
-const CASE_PLATFORMS = ['ps5', 'ps4', 'xbox', 'switch'];
+type CasePlatformKey =
+  | 'ps5' | 'ps4' | 'ps3' | 'ps2'
+  | 'xbox' | 'xbox360'
+  | 'switch2' | 'switch' | 'wiiu' | 'wii' | 'gamecube'
+  | 'threeds' | 'gba' | 'gameboy' | 'snes' | 'nes'
+  | 'atari2600';
 ```
 
 Console only, and that is the whole rule: a boxed copy is a real object you could
@@ -1050,10 +1064,22 @@ have put on a shelf. PC has been digital-first for a decade and mobile never had
 a box at all, so rendering one there is a prop, not a memory — those platforms
 show the bare cover art instead.
 
+A console has a case once its artwork is in `assets/cases/`. The ones still
+without — PS1, PSP, Vita, the original Xbox, N64, DS, Game Boy Color, Sega's —
+show the bare cover; nothing is ever drawn in another console's box. That is why
+the Atari 2600 is its own platform, apart from the rest of the Atari family: the
+template is the 2600's, and a Jaguar game does not belong in it. `xbox` (Series
+X|S, One and cloud together) wears the Xbox One box, there being no Series
+template.
+
 ## 4.1.4 Dimensions
 
-Every case template PNG is authored at a single size, so one ratio describes them
-all:
+**The boxes are not one shape.** Each template carries its own `templateSize` —
+the real pixel dimensions of its PNG — and is drawn at those proportions: a
+modern keep case about 1.25–1.43× as tall as it is wide, a Switch 2 case 1.62×,
+a 3DS or Game Boy box nearly square, a SNES box and a GBA cartridge on their
+side at ~0.6×. The standard keep case is the nominal size, for a caller that
+wants "a case" and no particular game's:
 
 ```ts
 CASE_TEMPLATE_SIZE = { width: 540, height: 680 }
@@ -1068,8 +1094,14 @@ WIDTHS = { small: 108, medium: 168, large: 232 }
 Height is always derived, never authored:
 
 ```ts
-caseHeightFor(width) = (width / 540) * 680
+caseHeightFor(width, platform) = (width / templateSize.width) * templateSize.height
+caseHeightFor(width)           = (width / 540) * 680      // the nominal case
 ```
+
+Anything that reserves space for a case — the flip wrapper, both back faces, the
+copy showcase, the Platforms section's slot — asks with the platform. Asking
+without one for a real case is the bug that put a poster on top of the controls
+under it.
 
 A caller that knows the viewport passes a **measured width** instead of a named
 size. The three named sizes are fixed dp, which on a 320pt phone made the large
@@ -1084,14 +1116,42 @@ scale = renderedWidth / templateSize.width
 
 ## 4.1.5 Per-platform template geometry & materials
 
-`coverArea` is the transparent window in the template PNG, in template pixels.
+`coverArea` is the transparent window in the template PNG, in template pixels —
+**measured from the file**: the bounding box of its largest transparent region,
+widened 2px wherever there is chrome for the cover to slide under. A window need
+not be a rectangle (the NES box's is slanted, the GBA cartridge's rounded); the
+cover is drawn beneath and the template's own pixels do the cutting.
 
-| Platform | coverArea (x, y, w, h) | spineColor | accent    |
-| -------- | ---------------------- | ---------- | --------- |
-| `ps5`    | 16, 58, 508, 606       | `#0D47A1`  | `#1565C0` |
-| `ps4`    | 16, 52, 508, 612       | `#0D47A1`  | `#1565C0` |
-| `xbox`   | 14, 62, 512, 604       | `#107C10`  | `#107C10` |
-| `switch` | 14, 46, 512, 620       | `#E60012`  | `#E60012` |
+| Platform    | File                      | templateSize | coverArea (x, y, w, h) | spineColor |
+| ----------- | ------------------------- | ------------ | ---------------------- | ---------- |
+| `ps5`       | `ps5_case.png`            | 549×688      | 0, 78, 549, 610        | `#0D47A1`  |
+| `ps4`       | `ps4_case.png`            | 485×678      | 0, 0, 485, 678         | `#0D47A1`  |
+| `ps3`       | `ps3_case.png`            | 573×660      | 0, 56, 573, 604        | `#2A2A2E`  |
+| `ps2`       | `ps2_case.png`            | 394×562      | 0, 63, 385, 490        | `#00308F`  |
+| `xbox`      | `xone_case.png`           | 516×730      | 0, 88, 516, 642        | `#107C10`  |
+| `xbox360`   | `xbox_case.png`           | 610×870      | 0, 104, 610, 766       | `#107C10`  |
+| `switch2`   | `switch2_case.png`        | 392×636      | 0, 11, 375, 614        | `#E60012`  |
+| `switch`    | `switch_case.png`         | 540×680      | 14, 46, 512, 620       | `#E60012`  |
+| `wiiu`      | `wiiu_case.png`           | 523×732      | 0, 0, 509, 732         | `#007FAE`  |
+| `wii`       | `wii_case.png`            | 513×731      | 0, 21, 513, 710        | `#6E7176`  |
+| `gamecube`  | `gamecube_case.png`       | 517×732      | 0, 45, 517, 687        | `#4B4391`  |
+| `threeds`   | `3ds_case.png`            | 572×523      | 2, 13, 497, 496        | `#CE181E`  |
+| `gba`       | `gameboyadvance_case.png` | 640×375      | 93, 87, 458, 235       | `#3F3A96`  |
+| `gameboy`   | `gameboy_case.png`        | 631×621      | 123, 0, 508, 621       | `#2B3287`  |
+| `snes`      | `snes_case.png`           | 822×507      | 88, 0, 665, 414        | `#C8102E`  |
+| `nes`       | `nes_case.png`            | 467×639      | 46, 44, 376, 321       | `#C4161C`  |
+| `atari2600` | `atari2600_case.png`      | 529×697      | 36, 323, 463, 336      | `#D40000`  |
+
+`xbox_case.png` is the Xbox 360's artwork despite its name, and was the `xbox`
+entry's file until the Xbox One template arrived. The PS4 window is the whole
+face: its shell is translucent blue plastic and the cover shows through to the
+edge. `spineColor` is always deep enough for the back's white type — the Wii's
+own band is white, so it takes its logo's grey.
+
+**The back follows the front's shape.** It is laid out for a keep case; a
+near-square face (3DS, Game Boy) drops the review blurb, and a face on its side
+(SNES, GBA) sets the status and the score side by side and drops the played-on
+line. The copy's back prints a one-line title and as many whole rows as fit.
 
 **`spineColor` no longer paints a spine.** Nothing draws one. The field survives
 because `<GameCaseBack>` uses it for the branding band across the head of the

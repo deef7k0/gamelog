@@ -112,7 +112,7 @@ export default function CommentsScreen() {
     );
   }
 
-  if (comments.isError) {
+  if (comments.isLoadingError) {
     return (
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
         <ErrorState error={comments.error} />

@@ -56,7 +56,7 @@ export default function UpcomingScreen() {
                 <Skeleton key={index} width={tileWidth} height={tileWidth / (2 / 3)} />
               ))}
             </View>
-          ) : upcoming.isError ? (
+          ) : upcoming.isLoadingError ? (
             <ErrorState error={upcoming.error} />
           ) : (
             <EmptyState title="Nothing announced" message="IGDB has no dated releases coming up." />

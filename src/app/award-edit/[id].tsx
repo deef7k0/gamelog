@@ -51,7 +51,7 @@ export default function AwardEditScreen() {
      lives in a child keyed on the loaded value, which is the pattern
      `app/log/[id].tsx` established — see the no-setState-in-effects rule. */
   const initial = isNote ? (award?.note ?? '') : (award?.label ?? '');
-  const ready = isNew || !!award || ballot.isError;
+  const ready = isNew || !!award || ballot.isLoadingError;
 
   const save = useMutation({
     mutationFn: async (value: string) => {

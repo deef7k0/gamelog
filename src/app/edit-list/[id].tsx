@@ -52,7 +52,7 @@ export default function EditListScreen() {
     );
   }
 
-  if (list.isError || !list.data) {
+  if (list.isLoadingError || !list.data) {
     return (
       <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
         <ErrorState error={list.error ?? new Error('That collection no longer exists.')} />

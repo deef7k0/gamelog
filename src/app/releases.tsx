@@ -57,7 +57,7 @@ export default function ReleasesScreen() {
                 <Skeleton key={index} width={tileWidth} height={tileWidth / (2 / 3)} />
               ))}
             </View>
-          ) : releases.isError ? (
+          ) : releases.isLoadingError ? (
             <ErrorState error={releases.error} />
           ) : (
             <EmptyState title="Nothing new" message="IGDB has no recent releases listed." />

@@ -300,6 +300,7 @@ export default function StudioScreen() {
                   heroUrl={item.heroUrl}
                   title={item.title}
                   edition={item.edition}
+                  gameId={item.id}
                   width={tileWidth}
                   rounded="image"
                   /* Behind the banner and the rails in the download queue:
@@ -473,7 +474,7 @@ export default function StudioScreen() {
                 />
               ))}
             </View>
-          ) : games.isError ? (
+          ) : games.isLoadingError ? (
             <ErrorState error={games.error} />
           ) : (
             <EmptyState title="No games found" message="IGDB has no catalogue for this studio." />

@@ -15,7 +15,7 @@ import { useTabBarClearance } from '@/components/app-tab-bar';
 import { ConnectAccountCard } from '@/components/gaming/connect-card';
 import { SteamSection } from '@/components/gaming/steam-section';
 import { ListTile } from '@/components/list-tile';
-import { ReviewListRow } from '@/components/review-list-row';
+import { LogCard } from '@/components/log-card';
 import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
 import { FavoritesWidget } from '@/components/profile-widgets';
 import { StarredSongWidget } from '@/components/starred-song-widget';
@@ -349,18 +349,14 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
     ({ item }: { item: ProfileRow }) =>
       item.kind === 'header' ? (
         <DateGroupHeader label={item.label} />
-      ) : /*
-           Reviews are an index here, not a feed.
-
-           `<ReviewListRow>` carries its own gutter and hairline, so it is *not*
-           wrapped in `styles.rowWrap` — the rule has to reach both edges of the
-           display to read as a list rather than as a stack of inset cards.
-         */
-      item.kind === 'log' ? (
-        <ReviewListRow log={item.log} />
       ) : (
         <View style={styles.rowWrap}>
-          {item.kind === 'list' ? (
+          {item.kind === 'log' ? (
+            /* The review card every list of reviews uses. It was a row of its
+               own here — square art, the title, the score — until the owner
+               had the Home card replace the rest. */
+            <LogCard log={item.log} />
+          ) : item.kind === 'list' ? (
             <ListTile list={item.list} engagement={listEngagement?.[item.list.id]} />
           ) : item.item.type === 'post' ? (
             <WallPostRow post={item.item.post} />

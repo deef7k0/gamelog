@@ -4,9 +4,11 @@
  * Each `@expo-google-fonts` package's index `require()`s every style it has,
  * and Metro bundles every file a module requires whether or not its export is
  * used: importing seven weights from `@expo-google-fonts/inter` shipped all
- * eighteen, and three from Source Serif 4 shipped all sixteen — 10.5 MB of
- * fonts in every APK, 7.1 MB of them never drawn. The subpaths require one
- * file each.
+ * eighteen — megabytes of fonts in every APK that were never drawn. The
+ * subpaths require one file each.
+ *
+ * Inter only. Source Serif 4 set reviews until the owner had it removed; see
+ * `FontFamily` in `constants/theme.ts`.
  */
 import { Inter_300Light } from '@expo-google-fonts/inter/300Light';
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
@@ -15,9 +17,6 @@ import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_600SemiBold_Italic } from '@expo-google-fonts/inter/600SemiBold_Italic';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import { SourceSerif4_400Regular } from '@expo-google-fonts/source-serif-4/400Regular';
-import { SourceSerif4_600SemiBold } from '@expo-google-fonts/source-serif-4/600SemiBold';
-import { SourceSerif4_700Bold } from '@expo-google-fonts/source-serif-4/700Bold';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
@@ -77,22 +76,9 @@ export default function RootLayout() {
     /*
      * Inter Light, for exactly one thing: the release year beside a review's
      * game title. The brief calls for Graphik Light there, and a year sitting
-     * next to a bold serif title has to recede without shrinking.
+     * next to a bold title has to recede without shrinking.
      */
     Inter_300Light,
-    /*
-     * Source Serif 4 — the **review** typeface, and nothing else in the app.
-     *
-     * The brief asks for Tiempos Text / Tiempos Headline, which is Klim's and
-     * cannot ship in a bundle. Source Serif 4 is the closest thing with an open
-     * licence: a Times-descended modern serif drawn for screen text, with the
-     * same large x-height and low stroke contrast that make Tiempos hold at
-     * body sizes. Three weights, because a magazine needs a headline, a body
-     * and a byline weight and Android synthesises none of them.
-     */
-    SourceSerif4_400Regular,
-    SourceSerif4_600SemiBold,
-    SourceSerif4_700Bold,
   });
 
   // Boot anyway if the font cannot be fetched — tofu glyphs beat a dead splash

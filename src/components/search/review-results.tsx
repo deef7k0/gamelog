@@ -61,8 +61,8 @@ export function ReviewResults({ query }: { query: string }) {
       contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
       ItemSeparatorComponent={CardGap}
       renderItem={renderReview}
-      /* `<LogCard>` is the tallest row in the app; a screenful, and a few
-         either side. The numbers are the popular-reviews page's. */
+      /* `<LogCard>` is a tall row; a screenful, and a few either side. The
+         numbers are the popular-reviews page's. */
       initialNumToRender={6}
       maxToRenderPerBatch={6}
       windowSize={7}
@@ -103,5 +103,5 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x8, flexGrow: 1 },
   heading: { paddingTop: Spacing.x8, paddingBottom: Spacing.x16 },
   /* The interval Home's Reviews band and the popular-reviews page keep. */
-  cardGap: { height: Spacing.x24 },
+  cardGap: { height: Spacing.x12 },
 });

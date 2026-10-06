@@ -257,7 +257,7 @@ function ReviewReport({
          it may have tapped the flag without uncovering it, and this is no
          place to give the ending away. */
       quote={review?.spoilers ? null : prose}
-      serif
+      asReview
       aside={
         review?.spoilers && prose ? 'Marked as containing spoilers, so not quoted here.' : null
       }
@@ -280,7 +280,7 @@ function ReportForm<R extends string>({
   title,
   context,
   quote = null,
-  serif = false,
+  asReview = false,
   aside = null,
   choices,
   send,
@@ -292,8 +292,8 @@ function ReportForm<R extends string>({
   context: string | null;
   /** The words being reported, if there are any to show. */
   quote?: string | null;
-  /** A review's words are set in the review's own face (CLAUDE.md § Two families). */
-  serif?: boolean;
+  /** A review's words keep the review's own type step and its quieter ink. */
+  asReview?: boolean;
   /** A line under the quote — why there is none, when there is none. */
   aside?: string | null;
   choices: readonly Choice<R>[];
@@ -335,8 +335,8 @@ function ReportForm<R extends string>({
                you meant. */
             <View style={[styles.quote, { borderLeftColor: theme.borderStrong }]}>
               <Text
-                variant={serif ? 'reviewExcerpt' : 'bodySmall'}
-                color={serif ? 'proseInk' : 'textSecondary'}
+                variant={asReview ? 'reviewExcerpt' : 'bodySmall'}
+                color={asReview ? 'proseInk' : 'textSecondary'}
                 numberOfLines={QUOTE_LINES}>
                 {quote}
               </Text>

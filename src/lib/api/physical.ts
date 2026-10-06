@@ -15,6 +15,7 @@ import type {
 import { makeGameId, type Game } from '../games';
 import { supabase } from '../supabase';
 import { cacheGame } from './core';
+import { rememberCopies } from './seen-copies';
 import { uploadImage } from './storage';
 
 /**
@@ -413,7 +414,7 @@ export async function getCopies(userId: string, gameId?: string): Promise<CopyWi
 
   const { data, error } = await query.order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as CopyWithRelations[];
+  return rememberCopies((data ?? []) as CopyWithRelations[]);
 }
 
 export async function getCopy(copyId: string): Promise<CopyWithRelations | null> {
@@ -424,7 +425,9 @@ export async function getCopy(copyId: string): Promise<CopyWithRelations | null>
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return data as CopyWithRelations | null;
+  const copy = data as CopyWithRelations | null;
+  if (copy) rememberCopies([copy]);
+  return copy;
 }
 
 export type CopyInput = {
@@ -471,6 +474,23 @@ export async function addCopy(userId: string, game: Game, input: CopyInput): Pro
 export async function updateCopy(copyId: string, input: CopyInput): Promise<void> {
   const { error } = await supabase.from('owned_copies').update(copyColumns(input)).eq('id', copyId);
   if (error) throw new Error(error.message);
+}
+
+/** The longest note a copy can carry — `owned_copies.notes`' CHECK in 0024. */
+export const COPY_NOTES_MAX = 500;
+
+/**
+ * Write a copy's notes and nothing else.
+ *
+ * The copy's own screen edits the note in place; everything else about the copy
+ * is still the copy form's (`updateCopy`), which writes every column at once
+ * and would need the whole record to change one. Blank is stored as null.
+ */
+export async function updateCopyNotes(copyId: string, notes: string): Promise<string | null> {
+  const value = notes.trim() || null;
+  const { error } = await supabase.from('owned_copies').update({ notes: value }).eq('id', copyId);
+  if (error) throw new Error(error.message);
+  return value;
 }
 
 export async function deleteCopy(copyId: string): Promise<void> {

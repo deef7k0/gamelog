@@ -7,7 +7,7 @@ import Animated, { useAnimatedRef } from 'react-native-reanimated';
 
 import { CoverRailSkeleton, GameCoverRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
-import { LogCard } from '@/components/log-card';
+import { LOG_CARD_HEIGHT, LogCard } from '@/components/log-card';
 import { ArticleCard } from '@/components/news-cards';
 import { SurpriseEntry } from '@/components/surprise-entry';
 import { Avatar } from '@/components/ui/avatar';
@@ -176,7 +176,7 @@ export default function HomeScreen() {
   });
 
   /* No likes batch for the Reviews band: the review card carries no like row
-     any more (see `<LogCard>`), so a count for each card would be a request
+     (see `<LogCard>`), so a count for each card would be a request
      whose answer is never drawn. Liking happens on the review's own page. */
 
   const news = useQuery({
@@ -470,7 +470,7 @@ export default function HomeScreen() {
           <HomeSection title="Reviews" subtitle="From your circle, and everyone else.">
             <View style={styles.stack}>
               {Array.from({ length: REVIEW_PREVIEW }).map((_, index) => (
-                <Skeleton key={index} width="100%" height={REVIEW_CARD_HEIGHT} />
+                <Skeleton key={index} width="100%" height={LOG_CARD_HEIGHT} />
               ))}
             </View>
           </HomeSection>
@@ -602,8 +602,6 @@ function BandError({ label, onRetry }: { label: string; onRetry: () => void }) {
  * radius — the rail is the last thing in its band, so the understatement moved
  * one section instead of four.
  */
-/** A `<LogCard>`: 15 of padding, the title row (the 26dp avatar), 10, the 124dp art, 15. */
-const REVIEW_CARD_HEIGHT = 191;
 
 /** Lifts a one-line inline link to the platform floor without moving the text. */
 const FOOTER_SLOP = { top: 14, bottom: 14, left: 8, right: 8 };

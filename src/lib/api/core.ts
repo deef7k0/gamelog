@@ -163,6 +163,25 @@ export async function getMyLog(userId: string, gameId: string) {
   return data;
 }
 
+/**
+ * One person's log of one game, with the game and the person — for a screen
+ * that shows their review of it as a card (a copy's own screen).
+ *
+ * `getMyLog` is the bare row; this is the same lookup with what a card needs to
+ * sign it. Null when they have not logged the game.
+ */
+export async function getLogOf(userId: string, gameId: string): Promise<LogWithRelations | null> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .eq('user_id', userId)
+    .eq('game_id', gameId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data as LogWithRelations | null;
+}
+
 /** One log with its game and author — what the full review screen renders. */
 export async function getLogById(logId: string): Promise<LogWithRelations | null> {
   const { data, error } = await supabase

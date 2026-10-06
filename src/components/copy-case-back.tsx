@@ -21,8 +21,11 @@ import { maskBarcode } from '@/lib/barcode';
  * protected from edits. The two backs must match exactly: they are the same
  * object with different things printed on it, and a second shade of plastic would
  * make the showcase's case look like a different product from the game page's.
+ *
+ * Exported for the rest of the showcase's case — its edges, its tray, the
+ * inside of its cover — which are the same plastic seen from other sides.
  */
-const PLASTIC = {
+export const PLASTIC = {
   top: '#17181A',
   bottom: '#0E0F11',
   rule: 'rgba(255,255,255,0.07)',
@@ -47,6 +50,13 @@ export type CopyCaseBackProps = {
   copy: CopyWithRelations;
   platform: PlatformKey;
   width: number;
+  /**
+   * The face's height, when it is not a case's. A platform with a case is
+   * drawn at its template's proportions and needs nothing here; a copy shown
+   * as bare box art has no template, and its back has to be the same rectangle
+   * as the art in front of it.
+   */
+  height?: number;
 };
 
 /**
@@ -59,14 +69,18 @@ export type CopyCaseBackProps = {
  *
  * Only what the owner filled in is printed. An unrecorded condition is left off
  * rather than printed as "Not recorded", which is a fact about the form and not
- * about the box. Everything here is also in the readable list under the case —
- * this face is the object's, that list is the one to read.
+ * about the box.
+ *
+ * **This face is the only place the edition is printed.** There was a readable
+ * list of the same facts under the case; the owner removed it — "the
+ * information for the physical edition should only be displayed at the back of
+ * the case" — so the case is drawn larger than it was, to be read here.
  */
-export function CopyCaseBack({ copy, platform, width }: CopyCaseBackProps) {
+export function CopyCaseBack({ copy, platform, width, height: given }: CopyCaseBackProps) {
   /* The front's own height: each platform's case is drawn at its template's
      proportions, and the two faces must be one rectangle. */
   const size = hasCase(platform) ? CASE_TEMPLATES[platform].templateSize : CASE_TEMPLATE_SIZE;
-  const height = (width / size.width) * size.height;
+  const height = given ?? (width / size.width) * size.height;
   const pad = SIZES.pad(width);
   /*
    * A face shorter than a keep case — a near-square 3DS box, a SNES box on its
@@ -74,7 +88,7 @@ export function CopyCaseBack({ copy, platform, width }: CopyCaseBackProps) {
    * cut in half by the shell's edge reads as a fault. So a short face prints a
    * one-line title, as many whole rows as fit, and no note. The estimate is of
    * the type's own line boxes, a little generous so it errs toward one row
-   * fewer. Everything is in the readable list under the case either way.
+   * fewer. What does not fit is still in the showcase's spoken label.
    */
   const short = height < width * 1.1;
   const rowHeight = SIZES.label(width) * 1.3 + 1 + SIZES.value(width) * 1.35 + 5;

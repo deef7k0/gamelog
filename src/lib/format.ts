@@ -23,6 +23,20 @@ export function timeAgo(iso: string, now: number = Date.now()): string {
   });
 }
 
+/**
+ * When something was posted, for a card's corner: "now", "12h ago", "3d ago",
+ * then the date once it is more than a week old.
+ *
+ * `timeAgo` with the word "ago" on the counts, because a bare "12h" beside
+ * nothing else reads as a duration — how long somebody played — and on a card
+ * whose subject is a game that is a real ambiguity. A date and "now" are
+ * already unambiguous and take no suffix.
+ */
+export function timeAgoPosted(iso: string, now: number = Date.now()): string {
+  const short = timeAgo(iso, now);
+  return /^\d+[mhd]$/.test(short) ? `${short} ago` : short;
+}
+
 /** The units `timeAgoLong` counts in, largest first. */
 const LONG_UNITS: readonly { ms: number; one: string; many: string }[] = [
   { ms: 365 * DAY, one: 'a year', many: 'years' },

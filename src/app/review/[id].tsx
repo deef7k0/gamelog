@@ -314,9 +314,9 @@ function ReviewPage({ review }: { review: LogWithRelations }) {
           )}
 
           {/*
-            The article, in the review's own face.
+            The article, in the review's own measure.
 
-            `reviewProse` is the serif at 14/23 and `proseInk` a quieter ink than
+            `reviewProse` is Inter at 14/22 and `proseInk` a quieter ink than
             the interface's: a thousand words at interface brightness is a wall,
             and this is the one block in the app somebody actually reads.
           */}

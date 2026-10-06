@@ -81,6 +81,12 @@ colors:
   # The ambient page glow. A gradient, never an image.
   glowCore: "#6B4C9A"
   glowEdge: "#3A2050"
+  # The fill of a review card in a list (log-card), and nothing else's: the
+  # page three levels darker in each channel, 1.03:1 against it — a flat card
+  # "almost the same but ever so slightly different" (the owner). Not `surface`,
+  # which is a step above the page; this is a step below. It follows the page:
+  # move `background` / `homeBackground` and move this with them.
+  reviewCard: "#111419"
   platinum: "#A9B6CC"
   # The Must Play label's disc (0034) — a moderator's pick, the one coloured
   # mark this app puts on box art. = identityJade; a meaning joins the ramp.
@@ -92,7 +98,7 @@ colors:
   logoPlate: "#F5F5F5"
   # Review prose, and only review prose: a muted grey, quieter than
   # `textSecondary` and carrying the surfaces' cool trace (it was blue-green
-  # when the room was). 6.29:1 on the page. See § Typography — the serif block.
+  # when the room was). 6.29:1 on the page. See § Typography — the review steps.
   proseInk: "#958F9D"
   # A liked review's heart. Deliberately not `danger`: a like is an endorsement,
   # `danger` means something is about to be destroyed. 8.67:1 on the page.
@@ -243,40 +249,37 @@ typography:
   # ---------------------------------------------------------------------------
   # Reviews, and nothing else in the app.
   #
-  # The serif is the rule and these eight steps are its whole extent: serif for
-  # the editorial content (a review's game title, its prose, the writer's
-  # headline on a feed card), sans for everything *about* it (byline, year,
-  # playthrough facts, like count). The feed card's three-line excerpt is sans:
-  # beside a score and a strip it previews the prose rather than being it, and
-  # the serif headline above it carries the distinction. A review is the one
-  # thing in this product a person wrote, and the split is what makes it read as
-  # writing rather than as app output.
-  #
-  # Source Serif 4 stands in for Tiempos, which is commercial and cannot ship.
-  # Inter stands in for Graphik on the sans side, and is already here.
+  # Inter, like the rest. These steps were set in Source Serif 4 until the owner
+  # removed it ("remove the specific font for reviews and just use the normal
+  # one"); the steps stayed, as the sizes of a review surface. A review is told
+  # apart by `proseInk`, the looser leading of `reviewProse` and the page it is
+  # on — not by a second typeface. Do not bring a serif back.
   # ---------------------------------------------------------------------------
   reviewTitle:
-    fontFamily: "SourceSerif4_700Bold"
+    fontFamily: "Inter_700Bold"
     fontSize: "20px"
     fontWeight: 700
     lineHeight: "24px"
+    letterSpacing: "-0.22px"
   reviewTitleSmall:
-    fontFamily: "SourceSerif4_700Bold"
+    fontFamily: "Inter_700Bold"
     fontSize: "16px"
     fontWeight: 700
     lineHeight: "20px"
   reviewHeadlineSmall:
-    fontFamily: "SourceSerif4_700Bold"
+    fontFamily: "Inter_700Bold"
     fontSize: "11px"
     fontWeight: 700
     lineHeight: "15px"
+  # 14/22, the reading step. It ran 14/23 as a serif; Inter holds its lines
+  # apart on less.
   reviewProse:
-    fontFamily: "SourceSerif4_400Regular"
+    fontFamily: "Inter_400Regular"
     fontSize: "14px"
     fontWeight: 400
-    lineHeight: "23px"
+    lineHeight: "22px"
   reviewExcerpt:
-    fontFamily: "SourceSerif4_400Regular"
+    fontFamily: "Inter_400Regular"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: "20px"
@@ -1370,14 +1373,99 @@ case's ceiling on every axis.
   pages a spread; a turned page carries the next spread on its back. Sleeves
   are film — a faint wash, a hairline, a heavier lip over the disc's lower
   third — and discs in sleeves do not cast; the binder does.
-- **The showcase** (`copy/[id]`) is a collection screen in § 4.1.2's sense: the
-  copy's case for its platform, its disc sliding out ~58% from under it on a
-  tap, and a drag turning the case to a back that prints the copy (release, what
-  is in the box, condition, when it was got, the masked barcode).
+- **The showcase** (`copy/[id]`) is a collection screen in § 4.1.2's sense, and
+  the one place a case is an object with a depth and an inside. See § 4.3.1.
 
 **Where they may appear:** the library's Physical tab and the copy showcase.
 Nowhere else — a profile shows the digital / physical *count*, not the binder.
-No colour of their own: everything is the surface ladder and the artwork.
+No colour of their own: everything is the surface ladder and the artwork —
+and, on the showcase's floor, the artwork's own hue as light.
+
+## 4.3.1 The copy's stage
+
+The copy stands alone under a lamp and drifts round until a finger takes over.
+Its case is a **box** — cover, back, spine, opening edge, and, open, a tray and
+the inside of the cover — turned by hand, opened about its spine on the disc in
+its tray, and emptied: the disc comes out to stand there alone. The back prints
+the copy (release, what is in the box, condition, when it was got, the masked
+barcode) and is the only place that is printed.
+
+> **This case is the showcase's own drawing, by the owner's exception to
+> § 4.1.** `<GameCase>` and the rest of the protected feature are not edited
+> and are unchanged everywhere else. The cover is § 4.1.6's layering restated
+> from the same templates by the same scale factor. Nothing in this section
+> licenses a change to § 4.1.
+
+What this drawing does that § 4.1's does not:
+
+| | `<GameCase>` (§ 4.1) | the showcase's box |
+| --- | --- | --- |
+| **shadow** | on the object, 0.45 / r18 / (6, 12) | none on any face; the box casts once, on the floor |
+| **rest** | square, at 0 | square on a face whenever it is let go; otherwise turning |
+| **gloss** | fixed diagonal, 0.20 peak | the same, plus a reflection that moves |
+| **depth** | a face | 0.104 of its shorter side for a keep case, 0.08 a jewel case, 0.20 a cartridge box, 0.21 a clamshell |
+| **spine** | never drawn | drawn: it is a side of a box, absent while the cover is square on |
+| **artwork** | `t_cover_big`, 264px | `t_1080p`, 811px, over the small one |
+
+**The room.** The page is flat, in the game's own tone (`accent.page`). Two
+things are on it, both native gradients, each ending on its own colour at zero
+alpha:
+
+- **The lamp** — one soft field up and to the left of the object, the side
+  § 4.1.7's shadow has always fallen away from, in M3's `primary` for that
+  game. Peak 0.20.
+- **The shadow** — `shadowInk`, 0.62 at its centre, lying flat under the
+  object and narrowing as it turns edge-on.
+
+> **Nothing else is under the copy.** It was first drawn on a ring of light —
+> a turntable's platter, with a pool inside it and marks that went round with
+> the object — and the owner had it removed the first time they saw it run.
+> No platter, ring or base of any kind: the shadow is what stands the object
+> on the floor.
+
+**The light on a face.** A face loses up to 0.50 to `shadowInk` as it turns from
+the lamp (0.35 on a disc) — that, not an outline, is what makes the spine a
+different side from the cover. Its reflection is a soft leaning band at **0.20,
+the case's own gloss and no brighter**, with an echo at 0.11; at rest it waits
+off the face, and it crosses as the face comes round to square or as the phone
+is tilted. A sealed copy's film takes it to 0.30, and is the only thing that
+does.
+
+**Sizes are real objects'.** The case is the smaller of 82% of the display's
+width and 58% of its height, with no fixed ceiling. A disc is 120/135 of its
+case's width; a GameCube's is 80/135, a UMD's 64/104, and 120/142 in a jewel
+case. An open case steps back to 0.9 and its cover stands 100° open, leaving by
+the left of the display: an open case is twice as wide as a shut one and a
+phone is not.
+
+**Motion.** § 22's "subtle, short" is about the interface. This is an object,
+and it has the one continuous animation in the app: a lap in about twenty-four
+seconds, slowing on the cover and the back and never stopping on either. It
+stops at a touch, waits six seconds, and stays put while the case is open or
+after it has been left on its back. A let-go turn carries its momentum and
+settles square on a face. The phone's tilt leans the object 5° at most; it is
+the light that moves. Reduce Motion and a screen reader get an object that
+stands still and turns only when asked.
+
+**The disc's other side** (`<CdDiscUnderside>`) is a mirror with a rainbow in
+it: four soft bars of the identity ramp fanned through the hub, swinging round
+as the light moves. Its greys are material, stated in the component as the
+case's plastic is, and nothing in the interface borrows them.
+
+**Under the stage**, centred on its axis: the game's name, one line that
+follows the side facing the reader, and the keys (`<StageKey>`) — the round
+tonal key a review and Surprise Me put under their art (`<RoundAction>`), with
+its word under it, lit with `primaryContainer` when it has put the copy in a
+state. A key the copy can never use is not drawn; one that cannot
+act now is dimmed where it stands.
+
+**What stays true.** A sealed copy does not open. A cartridge or card copy
+turns and no more, until its console has a cartridge of its own drawn. The
+inside of an open case holds what the owner recorded and nothing else.
+
+> Built without a device to run it on: the geometry is under test and was
+> checked on a still, and none of it has been seen moving. The lamp's strength,
+> the springs and the direction of the tilt are to be tuned on a phone.
 
 ---
 

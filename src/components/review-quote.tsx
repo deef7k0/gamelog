@@ -74,9 +74,10 @@ export type ReviewQuoteProps = {
  * name is led by the writer's picture (`avatarUrl`), at the owner's request:
  * a list of everything written about one game is a list of people.
  *
- * The serif is here on purpose: this is review prose, the one thing Source
- * Serif 4 is for in this app, in `proseInk`. The score is in the score ramp's
- * colour, because good, mixed and bad are read before the digits are.
+ * The words are set in `reviewExcerpt` and `proseInk`: review prose keeps its
+ * own step and its own quieter ink, in the same family as everything else. The
+ * score is in the score ramp's colour, because good, mixed and bad are read
+ * before the digits are.
  */
 export const ReviewQuote = memo(function ReviewQuote({
   text,

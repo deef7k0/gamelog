@@ -338,13 +338,17 @@ export const Colors = {
     /**
      * Review prose, and only review prose.
      *
-     * A muted grey rather than `textSecondary`. Body copy set in a serif at
-     * reading length wants to be *quieter* than interface text, not the same
-     * brightness — a thousand words at `text` is a wall, and at `textSecondary`
-     * it still reads as a UI string that happens to be long. This is the colour
-     * of ink on a page: present, unemphatic, and carrying the same violet trace
-     * as the surface under it (it was #8A949A, blue-green, when the room was).
+     * A muted grey rather than `textSecondary`. Body copy at reading length
+     * wants to be *quieter* than interface text, not the same brightness — a
+     * thousand words at `text` is a wall, and at `textSecondary` it still reads
+     * as a UI string that happens to be long. This is the colour of ink on a
+     * page: present, unemphatic, and carrying the same violet trace as the
+     * surface under it (it was #8A949A, blue-green, when the room was).
      * Same luminance as before: 6.29:1 on the page, 5.90:1 on a card.
+     *
+     * It was chosen for a serif and outlived it: now that a review is set in
+     * Inter like everything else, this ink is what still tells a page of
+     * somebody's writing from a page of the app's own text.
      */
     proseInk: '#958F9D',
 
@@ -393,6 +397,27 @@ export const Colors = {
      */
     glowCore: '#6B4C9A',
     glowEdge: '#3A2050',
+
+    /**
+     * The fill of a review card in a list (`log-card.tsx`), and nothing else's.
+     *
+     * **Almost the page**: `background` three levels darker in each channel,
+     * 1.03:1 against it. The owner's direction — "closer to the background
+     * color, almost the same but ever so slightly different" — and then "only
+     * a solid background color". So the card is a flat piece of the page's own
+     * colour, a shade under it, and what separates it from the page is that
+     * shade and its shadow.
+     *
+     * It is not `surface`, which is a step *above* the page (1.08:1) and is
+     * what every other card in the app is filled with. This sits a step below.
+     *
+     * **It follows the page.** The card is on Home (`homeBackground`, the
+     * colour the owner tries things on) and on every other list of reviews
+     * (`background`); the two are the same hex today. Move either and this
+     * moves with it, the same three levels under — `review-card.test.ts` fails
+     * if the card drifts from either page or meets it.
+     */
+    reviewCard: '#111419',
 
     /**
      * The light ground under somebody else's logo — a platform's, a studio's —
@@ -786,28 +811,23 @@ function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
  * only place they appear, and body copy is regular or bold.
  */
 /**
- * The app's two families, and the line between them is a rule.
+ * The app's one family: Inter, for everything.
  *
- * **Sans is the interface. Serif is the writing.** Inter carries every label,
- * button, tab, count and caption in the app — it is the voice of the software.
- * Source Serif 4 carries **reviews and nothing else**: the game's title on a
- * review, the review's own prose, and the pull quote in a feed card. That
- * contrast is the whole point — it is what makes a review read as something a
- * person wrote rather than as another screen of app chrome.
- *
- * The brief this came from names Tiempos and Graphik. Both are commercial
- * (Klim / Commercial Type) and cannot ship in a bundle. Inter stands in for
- * Graphik — a neo-grotesque at the same width and colour, and already here.
- * Source Serif 4 stands in for Tiempos: Times-descended, drawn for screens,
- * large x-height, low stroke contrast. Neither is a tracing; both do the job the
- * brief is actually asking for, which is the sans/serif split above.
+ * **There were two, and the owner took the second out.** Source Serif 4 set
+ * reviews and nothing else — a review's title, its prose, the pull quote on a
+ * card — on the argument that a serif is what makes a review read as something
+ * a person wrote. The owner's direction: "remove the specific font for reviews
+ * and just use the normal one". A review is told apart now by its ink
+ * (`proseInk`), its measure and its leading — the `review*` steps in `Type` —
+ * and by where it is, not by a second typeface. Do not bring a serif back for
+ * "editorial" surfaces; three font files left the build with it.
  *
  * **Every weight is its own family name.** Android will not synthesise a bold or
  * an oblique from a custom font, so `fontWeight: '700'` on Inter silently
  * renders regular. Reach for a family, never a weight.
  *
  * `light` exists for one thing: the release year beside a review's title, where
- * a year has to recede from a bold serif without getting smaller.
+ * a year has to recede from a bold title without getting smaller.
  */
 export const FontFamily = {
   light: 'Inter_300Light',
@@ -817,13 +837,6 @@ export const FontFamily = {
   bold: 'Inter_700Bold',
   italic: 'Inter_400Regular_Italic',
   boldItalic: 'Inter_600SemiBold_Italic',
-
-  /** Review prose. Regular weight, body sizes. */
-  serif: 'SourceSerif4_400Regular',
-  /** A review's byline and pull quotes. */
-  serifSemibold: 'SourceSerif4_600SemiBold',
-  /** The game's title on a review page — the one headline in the app. */
-  serifBold: 'SourceSerif4_700Bold',
 } as const;
 
 export const Fonts = Platform.select({
@@ -1068,46 +1081,51 @@ export const Type = {
   /* -------------------------------------------------------------------------
    * Reviews, and nothing else in the app.
    *
-   * **The serif is the rule and these seven steps are its whole extent.** A
-   * review is the one thing in this product a person *wrote*, and setting it in
-   * the same grotesque as the tab bar makes it read as another screen of app
-   * output. The sans/serif split is what makes it read as a piece of writing —
-   * which is the entire argument for having a second family at all.
+   * **Inter, like the rest.** These steps were the serif's whole extent — a
+   * review's title, its prose, the headline and excerpt on a card were set in
+   * Source Serif 4 so that writing read as writing. The owner removed the
+   * serif (see `FontFamily`), and the steps stayed: they are still the
+   * *sizes* of a review surface, and every review screen already asks for them
+   * by name. What sets a review apart now is `proseInk`, the looser leading of
+   * `reviewProse`, and the page it is on.
    *
-   * So: serif for the editorial content (the game's title on a review, the
-   * prose, the writer's headline on a feed card) and sans for everything *about*
-   * it (the byline, the year, the playthrough facts, the like count). The feed
-   * card's excerpt is sans since its redesign: at three lines and 11px beside a
-   * score and a strip it is a preview of the prose, not the prose — the serif
-   * headline over it is what says "somebody wrote this". Do not reach for
-   * any of these outside a review surface; a serif game title in a search result
-   * would spend the distinction for nothing.
+   * Still not for use outside a review surface — not because of the face any
+   * more, but because a game's title in a search result is a row's title
+   * (`itemTitle`), not a headline.
    * ---------------------------------------------------------------------- */
 
-  /** The game's name on a review page. The one headline in the app. */
-  reviewTitle: { fontSize: 20, lineHeight: 24, fontFamily: FontFamily.serifBold },
+  /**
+   * The game's name on a review page. The one headline in the app — `h2`'s
+   * size and tracking on a line one tighter, because it stands alone beside a
+   * score rather than over a section.
+   */
+  reviewTitle: {
+    fontSize: 20,
+    lineHeight: 24,
+    fontFamily: FontFamily.bold,
+    letterSpacing: -0.22,
+  },
   /** The same, on a feed card, where it shares a column with the artwork. */
-  reviewTitleSmall: { fontSize: 16, lineHeight: 20, fontFamily: FontFamily.serifBold },
+  reviewTitleSmall: { fontSize: 16, lineHeight: 20, fontFamily: FontFamily.bold },
   /**
    * The writer's own headline on a feed card — "One of the best games of all
    * time" — closing the header block beside the box art, under the score and
-   * the date. The card's design sets it at ~10.5; 11 is the nearest a bold
-   * serif stays legible, one step over the sans floor because a serif at the
-   * floor fills in.
+   * the date. 11 bold: the sans floor is 10, and a headline is one step over a
+   * badge.
    */
-  reviewHeadlineSmall: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.serifBold },
+  reviewHeadlineSmall: { fontSize: 11, lineHeight: 15, fontFamily: FontFamily.bold },
   /*
-   * The prose. Deliberately looser than `prose`: 26 on 16 is a 1.63 ratio where
-   * the sans body runs 1.6 on 15 — a serif at reading length needs the extra
-   * leading to keep the lines from knitting together, and this is the one block
-   * in the app somebody reads rather than scans.
+   * The prose: 14 on 22, the reading step (`prose`).
+   *
+   * It ran 14/23 while it was a serif, which needs the extra leading to keep
+   * its lines from knitting together at length. Inter's x-height is larger and
+   * its lines hold apart on less; at 23 a page of it reads as double-spaced.
+   * 22 on 14 is 1.57 — still the loosest block in the app, as the one thing in
+   * it somebody reads rather than scans should be.
    */
-  /* 14/23, down from 15/24. The ratio is what the note above is about and it is
-     preserved — 23 on 14 is 1.64 against the old 1.60, so the serif keeps the
-     extra leading that stops its lines knitting together at reading length. */
-  reviewProse: { fontSize: 14, lineHeight: 23, fontFamily: FontFamily.serif },
+  reviewProse: { fontSize: 14, lineHeight: 22, fontFamily: FontFamily.regular },
   /** The excerpt on a feed card, beside the artwork. */
-  reviewExcerpt: { fontSize: 13, lineHeight: 20, fontFamily: FontFamily.serif },
+  reviewExcerpt: { fontSize: 13, lineHeight: 20, fontFamily: FontFamily.regular },
   /** The release year beside a review's title. Recedes without shrinking. */
   reviewYear: { fontSize: 14, lineHeight: 19, fontFamily: FontFamily.light },
   /** "Review by <name>". Sans, because it is a fact about the piece. */
@@ -1118,7 +1136,7 @@ export const Type = {
    * 13/18, up from 11/16. These are the facts somebody checks *before* deciding
    * whether to read the review — what it was played on, for how long, how far
    * through — and at 11 they were the quietest type on a page whose masthead is
-   * a 20px serif title beside a score tile. They are the one part of that
+   * a 20px title beside a score tile. They are the one part of that
    * masthead that is information rather than identity, so they get the step.
    *
    * Still under the title and the score, which is the constraint: this reads

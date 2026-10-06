@@ -1,293 +1,310 @@
-import { memo } from 'react';
 import { Link, useRouter } from 'expo-router';
+import { memo, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { SpoilerNotice } from '@/components/spoiler-notice';
 import { Avatar } from '@/components/ui/avatar';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import {
-  COMPACT_NUMBER_LINE,
-  COMPACT_NUMBER_SIZE,
-  ScoreReadout,
-} from '@/components/ui/score-meter';
-import { Card } from '@/components/ui/surface';
+import { RichText } from '@/components/ui/rich-text';
+import { ScoreTile } from '@/components/ui/score-tile';
 import { Text } from '@/components/ui/text';
 import { labelFor } from '@/constants/score';
 import { STATUS_LABEL, statusColor } from '@/constants/status';
-import { FontFamily, PosterAspectRatio, Spacing, Type } from '@/constants/theme';
+import { Elevation, PosterAspectRatio, Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { LogWithRelations } from '@/lib/database.types';
-import { displayNameFor } from '@/lib/format';
+import { displayNameFor, timeAgoPosted } from '@/lib/format';
+
+/** The writer's picture, leading the top row. */
+const AVATAR = 28;
+
+/** The title may take two lines; the review gets three and ends in "…". */
+const TITLE_LINES = 2;
+const EXCERPT_LINES = 3;
+
+/** Between the title and the developer line under it. */
+const TITLE_GAP = 2;
+/** Three lines of review: what a spoiler notice has to stand in for. */
+const EXCERPT_HEIGHT = EXCERPT_LINES * Type.body.lineHeight;
 
 /**
- * Lines of review beside the art, and the pitch they are set on: 14 on 20,
- * measured from the card's design. `prose` is the 14; its own 22 is for a page
- * somebody reads, and five lines of it would not fit beside the art.
+ * The box art, sized by what stands beside it.
+ *
+ * Exactly as tall as the fullest column the card can hold: a two-line title,
+ * the developer line, the gap, and three lines of review. So the last line of
+ * a full review ends on the art's bottom edge, and every card in the stack is
+ * the same height whatever the title's length. 124dp tall and 83 wide at 2:3.
+ * Fixed dp, as all art is
+ * (CLAUDE.md, "Artwork does not ride the ladder") — a larger system font grows
+ * the column past the art, never the art.
  */
-const EXCERPT_LINES = 5;
-const EXCERPT_LINE = 20;
+const ART_HEIGHT =
+  TITLE_LINES * Type.h4.lineHeight +
+  TITLE_GAP +
+  Type.bodySmall.lineHeight +
+  Spacing.x8 +
+  EXCERPT_HEIGHT;
+const ART_WIDTH = Math.round(ART_HEIGHT * PosterAspectRatio);
+
+/** The card's height at the default font size, for the skeleton that stands in for it. */
+export const LOG_CARD_HEIGHT = 2 * Spacing.x16 + AVATAR + Spacing.x12 + ART_HEIGHT;
 
 /**
- * Inter Bold's vertical metrics, in ems, from the font file (its `hhea` and
- * OS/2 typo metrics agree, and the typo metrics are flagged for use).
+ * The writer's link is a 28dp row against a 44 (iOS) / 48 (Android) floor.
+ * Slop rather than padding, so the top row keeps its height; ten each way
+ * stays clear of the art below it, which begins twelve under the row.
  */
-const INTER_ASCENDER = 1984 / 2048;
-const INTER_DESCENDER = 494 / 2048;
-
-/**
- * How far the score's line box runs below its baseline: the font's descent,
- * plus half the leading its line height adds — React Native splits it evenly,
- * as CSS does. About 4.9dp at 21 on 25. The score is pulled down by this much
- * so its *baseline*, not the bottom of its box, stands on the art's bottom edge.
- */
-const SCORE_DESCENT =
-  COMPACT_NUMBER_SIZE * INTER_DESCENDER +
-  (COMPACT_NUMBER_LINE - COMPACT_NUMBER_SIZE * (INTER_ASCENDER + INTER_DESCENDER)) / 2;
-
-/** Between the last line of the review and the score's figures. */
-const SCORE_GAP = Spacing.x4;
-
-/**
- * The box art, sized by what stands beside it: five lines of review, the gap,
- * and the score from its baseline up — so the score's baseline and the art's
- * bottom edge are one line, and the review can never run into the score.
- * 124dp tall and 83 wide at 2:3, the design's measure. Fixed dp, as all art is
- * (CLAUDE.md, "Artwork does not ride the ladder").
- */
-const BOX_ART_HEIGHT =
-  EXCERPT_LINES * EXCERPT_LINE + SCORE_GAP + (COMPACT_NUMBER_LINE - SCORE_DESCENT);
-const BOX_ART_WIDTH = Math.round(BOX_ART_HEIGHT * PosterAspectRatio);
-
-/** The author's avatar, at the right end of the top row. */
-const AVATAR = 26;
-
-/**
- * The author link is one line of small type beside a 26dp avatar, against a
- * 44 (iOS) / 48 (Android) floor. Slop rather than padding, so the row keeps
- * its height.
- */
-const AUTHOR_SLOP = { top: 11, bottom: 11, left: 8, right: 0 };
+const WRITER_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
 
 export type LogCardProps = {
   log: LogWithRelations;
-  /** Hide the author on a profile, where every card has the same author. */
-  showAuthor?: boolean;
+  /**
+   * What goes between the writer's name and the time.
+   *
+   * **Nothing, today.** Badges are a feature for later; this is where they will
+   * sit, in a row that already gives them the room.
+   */
+  badges?: ReactNode;
 };
 
 /**
- * A review, everywhere it appears in a list: the feed, Home, a profile, the
- * popular-reviews tab.
+ * A review, everywhere it appears in a list: Home, a profile's Reviews tab,
+ * Search, the most-liked page.
  *
  * ## The shape
  *
  * ```text
- *   Portal 2  2011                         user_05a7 (av)
- *   ┌──────┐  The morality of the show wasn't
- *   │      │  questioned until he caught someone
- *   │ art  │  who was rich and powerful. You see
- *   │      │  how this looks, right? And then the…
- *   │      │
- *   └──────┘┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄84 GREAT
+ *   (av) @drgugglismitz  [badges]                    12h ago
+ *   ┌──────┐  Hollow Knight                         ┌────┐
+ *   │      │  Team Cherry · 2017                    │ 92 │
+ *   │ art  │                                        └────┘
+ *   │      │  Gorgeous and lonely, and far too long for
+ *   │      │  what it has to say about either of them,
+ *   └──────┘  which is most of what there is to say…
  * ```
  *
- * The owner's design, after Letterboxd's review list: the game's title and
- * year on the left of the top row and the writer on the right — name, then
- * avatar; the box art under the title with the review beside it; and the
- * score at the bottom right, under the avatar, its baseline on the art's
- * bottom edge (the dotted line).
+ * The owner's design, from a reference they supplied. Who and when across the
+ * top; then the box art, with the game's title, its developer and year, and
+ * the score beside it; then up to three lines of the review.
  *
- * **The review never runs into the score.** It is five lines at most and ends
- * in "…" when there is more, always at the end of its fifth line; the art is
- * exactly tall enough for those five lines, a small gap and the score's
- * figures (see `BOX_ART_HEIGHT`), so the score sits under the text, never
- * beside it. At a larger system font size the lines grow and the score moves
- * down with them rather than into them.
+ * ## One card for lists, one for a game's own screens
  *
- * Nothing else is on the card — no headline, no playthrough strip, no date, no
- * likes, no report flag. They are on the review's own page, which is where
- * every tap on the writing goes.
+ * This began on Home alone, as a look being tried; the owner then had it
+ * replace "the rest of the review cards in the app". It took the place of the
+ * Letterboxd-style card this file used to hold (title and year over the art,
+ * five lines of review, the score on the art's baseline) and of the profile's
+ * square-art review rows. **A game's own screens keep theirs**: the game page's
+ * rail, the reviews sheet and a copy's screen draw `<ReviewQuote>` — text, a
+ * name and a score — because there the game is already the subject and this
+ * card would only say it again. Surprise Me keeps its own (`<ReviewCard>`) for
+ * the same reason.
  *
- * ## Four targets
+ * ## A flat card, almost the colour of the page
  *
- * The title and the writing open the review, the art opens the game, the name
- * and avatar open the person. A log with no writing has no review to open, so
- * its title and text open the game.
+ * One solid fill (`reviewCard`) a shade under the page, corners just taken
+ * off, and the card shadow. Nothing else is drawn on it.
+ *
+ * It got there in three steps, and the first two are not to be rebuilt. It
+ * was a plate of *black chrome*: near-black metal with a spotlight at its top
+ * centre, a sideways streak and a violet fringe, from the reference's silver
+ * foil. The owner first had the metal brought up to nearly the page's colour,
+ * then took the chrome off altogether — "make it only a solid background
+ * color" — and with it the darker box the review sat in. So: no gradient, no
+ * light, no rim, no recessed strip behind the words.
+ *
+ * ## What is on it, and what is not
+ *
+ * A time, in its corner, because the owner asked for it. No like, no headline,
+ * no playthrough strip and no report flag — those are on the review's own
+ * page, which is where every tap on the writing goes.
+ *
+ * ## Type
+ *
+ * One family. The title and the score are bold; everything else is regular.
+ * `text` for the name, the title and the review; `textSecondary` for the
+ * developer line and `textMuted` for the time, the quietest thing on the card,
+ * as it is in the reference. Upright, with no quotation marks: the reference
+ * sets a one-line quip in italics, and three lines of italic at 13 are harder
+ * to read than the same three upright.
+ *
+ * ## Three targets
+ *
+ * The picture and name open the person, the art opens the game, and the title
+ * and the writing open the review. A log with no writing has no review to
+ * open, so its title and text open the game.
+ *
+ * Memoised: it is always in a list, and `log` comes straight out of query
+ * data, so its reference is stable until the query itself changes.
  */
-/**
- * Memoised: it is always in a list, and `log` comes straight out of query data,
- * so its reference is stable until the query itself changes.
- */
-export const LogCard = memo(function LogCard({ log, showAuthor = true }: LogCardProps) {
+export const LogCard = memo(function LogCard({ log, badges }: LogCardProps) {
   const theme = useTheme();
   const router = useRouter();
   const { game, profile } = log;
 
   const title = game?.title ?? 'Unknown game';
-  const year = game?.release_year ?? null;
+  /* Either half can be missing — IGDB has games with no company and games with
+     no date — and the line says whichever it has rather than a dangling dot. */
+  const credit = [game?.developer, game?.release_year].filter(Boolean).join(' · ');
   const review = log.review?.trim() || null;
   const headline = log.review_title?.trim() || null;
-  const hasArticle = review !== null;
+  const blurb = review ?? headline;
   const rating = log.rating === null ? null : Math.round(log.rating);
-  const author = profile ? displayNameFor(profile) : null;
+
+  const name = profile ? displayNameFor(profile) : null;
+  const handle = profile?.username ? `@${profile.username}` : name;
+  const posted = timeAgoPosted(log.created_at);
 
   const gameHref = { pathname: '/game/[id]' as const, params: { id: log.game_id } };
   const reviewHref = { pathname: '/review/[id]' as const, params: { id: log.id } };
-  const openHref = hasArticle ? reviewHref : gameHref;
+  const openHref = review !== null ? reviewHref : gameHref;
 
-  /* A log with no writing still says something beside its art: its own
-     headline when it has one, and otherwise where the writer is with the game,
-     in that status's colour. */
-  const blurb = review ?? headline;
   const scoreLabel = rating !== null ? `Rated ${rating} out of 100, ${labelFor(rating)}` : null;
-  const readLabel = [
-    hasArticle ? `Read ${author ? `${author}'s review` : 'the review'} of ${title}` : title,
-    scoreLabel,
-  ]
-    .filter(Boolean)
-    .join('. ');
-
-  const score = rating !== null && (
-    <View style={styles.score}>
-      <ScoreReadout score={rating} size="compact" />
-    </View>
-  );
+  const headerLabel = [title, credit, scoreLabel].filter(Boolean).join('. ');
+  const readLabel =
+    review !== null ? `Read ${handle ? `${handle}'s review` : 'the review'} of ${title}` : title;
 
   return (
-    <Card padded={false}>
-      <View style={styles.root}>
-        <View style={styles.top}>
+    <View style={[styles.card, { backgroundColor: theme.reviewCard }]}>
+      <View style={styles.top}>
+        {profile && handle && (
+          <Link href={{ pathname: '/profile/[id]', params: { id: profile.id } }} asChild>
+            <PressableScale
+              accessibilityRole="link"
+              accessibilityLabel={`${name ?? handle}'s profile`}
+              hitSlop={WRITER_SLOP}
+              style={StyleSheet.flatten(styles.writer)}
+              scaleTo={0.97}>
+              <Avatar uri={profile.avatar_url} name={name} size={AVATAR} />
+              <Text variant="body" numberOfLines={1} style={styles.handle}>
+                {handle}
+              </Text>
+            </PressableScale>
+          </Link>
+        )}
+
+        <View style={styles.badges}>{badges}</View>
+
+        {posted !== '' && (
+          <Text variant="caption" color="textMuted">
+            {posted}
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.body}>
+        <Link href={gameHref} asChild>
+          <PressableScale
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${title}`}
+            style={StyleSheet.flatten(styles.art)}
+            scaleTo={0.97}>
+            {/* No `gameId`: a review never wears the Must Play badge. */}
+            <Poster
+              coverUrl={game?.cover_url}
+              heroUrl={game?.hero_url}
+              title={game?.title}
+              width={ART_WIDTH}
+              rounded="image"
+            />
+          </PressableScale>
+        </Link>
+
+        <View style={styles.column}>
           <Link href={openHref} asChild>
             <PressableScale
               accessibilityRole="link"
-              accessibilityLabel={[title, year].filter(Boolean).join(', ')}
-              style={StyleSheet.flatten(styles.titleLink)}
+              accessibilityLabel={headerLabel}
+              style={StyleSheet.flatten(styles.header)}
               scaleTo={0.99}>
-              <Text variant="h3" numberOfLines={1} style={styles.title}>
-                {title}
-              </Text>
-              {year !== null && (
-                <Text variant="bodySmall" color="textSecondary">
-                  {year}
+              <View style={styles.titles}>
+                <Text variant="h4" numberOfLines={TITLE_LINES}>
+                  {title}
                 </Text>
-              )}
+                {credit !== '' && (
+                  <Text variant="bodySmall" color="textSecondary" numberOfLines={1}>
+                    {credit}
+                  </Text>
+                )}
+              </View>
+              {rating !== null && <ScoreTile score={rating} size="small" />}
             </PressableScale>
           </Link>
 
-          {showAuthor && profile && author && (
-            <Link href={{ pathname: '/profile/[id]', params: { id: profile.id } }} asChild>
-              <PressableScale
-                accessibilityRole="link"
-                accessibilityLabel={`${author}'s profile`}
-                hitSlop={AUTHOR_SLOP}
-                style={StyleSheet.flatten(styles.author)}
-                scaleTo={0.97}>
-                <Text
-                  variant="caption"
-                  color="textMuted"
-                  numberOfLines={1}
-                  style={styles.authorName}>
-                  {author}
-                </Text>
-                <Avatar uri={profile.avatar_url} name={author} size={AVATAR} />
-              </PressableScale>
-            </Link>
-          )}
-        </View>
-
-        <View style={styles.body}>
-          <Link href={gameHref} asChild>
-            <PressableScale
-              accessibilityRole="link"
-              accessibilityLabel={`Open ${title}`}
-              style={StyleSheet.flatten(styles.art)}
-              scaleTo={0.97}>
-              <Poster
-                coverUrl={game?.cover_url}
-                heroUrl={game?.hero_url}
-                title={game?.title}
-                width={BOX_ART_WIDTH}
-                rounded="image"
-              />
-            </PressableScale>
-          </Link>
-
-          {review && log.spoilers ? (
-            /* The notice takes the writing's place, as the reference's does.
-               Not inside a link: it is its own button, and a button in a link
-               would announce twice. */
-            <View style={styles.column}>
-              <SpoilerNotice
-                onPress={() => router.push(reviewHref)}
-                minHeight={EXCERPT_LINES * EXCERPT_LINE}
-              />
-              {score}
-            </View>
+          {review !== null && log.spoilers ? (
+            /* The notice takes the writing's place. Not inside a link: it is its
+               own button, and a button in a link would announce twice. */
+            <SpoilerNotice onPress={() => router.push(reviewHref)} minHeight={EXCERPT_HEIGHT} />
           ) : (
             <Link href={openHref} asChild>
               <PressableScale
                 accessibilityRole="link"
                 accessibilityLabel={readLabel}
-                style={StyleSheet.flatten(styles.column)}
+                style={StyleSheet.flatten(styles.words)}
                 scaleTo={0.99}>
                 {blurb ? (
-                  <Text
-                    variant="prose"
-                    color="textSecondary"
-                    numberOfLines={EXCERPT_LINES}
-                    ellipsizeMode="tail"
-                    style={styles.excerpt}>
+                  <RichText variant="body" numberOfLines={EXCERPT_LINES} ellipsizeMode="tail">
                     {blurb}
-                  </Text>
+                  </RichText>
                 ) : (
                   <Text variant="h5" style={{ color: statusColor(log.status, theme) }}>
                     {STATUS_LABEL[log.status]}
                   </Text>
                 )}
-                {score}
               </PressableScale>
             </Link>
           )}
         </View>
       </View>
-    </Card>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
-  /* The design's inset: 15 around, 10 between the top row and the art. */
-  /* 15 in, a card's inset in the reference (`Spacing.x16`). */
-  root: { padding: Spacing.x16, gap: Spacing.x16 },
-
-  top: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
-  /* The title gives way before the year does, and the whole link before the
-     author: `minWidth: 0` is what lets a long title shrink instead of pushing
-     the avatar off the card. */
-  titleLink: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Spacing.x8,
+  /* 15 in, a card's inset in the reference (`Spacing.x16`); 12 between the top
+     row and the art. "Slightly rounded": half the app's card corner, the score
+     tile's own. A flat fill and the card shadow — nothing drawn on it. */
+  card: {
+    padding: Spacing.x16,
+    gap: Spacing.x12,
+    borderRadius: Radius.lg,
+    ...Elevation.card,
   },
-  title: { flexShrink: 1 },
-  author: {
+
+  top: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  /* The name gives way before the time does: `minWidth: 0` is what lets a long
+     handle shrink to "…" instead of pushing the time off the card. */
+  writer: {
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    maxWidth: '50%',
   },
-  /* Semibold at the floor — a name is a label here, not a heading. */
-  authorName: { flexShrink: 1, fontFamily: FontFamily.semibold },
+  handle: { flexShrink: 1 },
+  /* Everything left between the name and the time. Empty today, and drawn as
+     nothing: the time is at the far right because this is what pushes it there. */
+  badges: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x4,
+  },
 
-  /* The art and the writing side by side, stretched to the same height: the
-     taller one — the art, at the default font size — sets it. */
+  /* The art and the column side by side: the art sets the height at the
+     default font size. */
   body: { flexDirection: 'row', gap: Spacing.x12 },
   /* Hung from the top, so its link is only ever as tall as the art. */
   art: { alignSelf: 'flex-start' },
-  column: { flex: 1, minWidth: 0 },
-  excerpt: { lineHeight: EXCERPT_LINE, fontSize: Type.prose.fontSize },
-  /* At the foot of the column, right-aligned under the avatar, and pulled down
-     by its own descent so its baseline is the art's bottom edge. */
-  score: { marginTop: 'auto', alignSelf: 'flex-end', marginBottom: -SCORE_DESCENT },
+  column: { flex: 1, minWidth: 0, gap: Spacing.x8 },
+
+  /* The score at the far end of the title's row, level with its first line. */
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x8 },
+  titles: { flex: 1, minWidth: 0, gap: TITLE_GAP },
+
+  /* The review, straight on the card under the title. It takes the rest of the
+     column so the whole space beside the art opens the review, not only the
+     lines that happen to have words on them. */
+  words: { flexGrow: 1 },
 });

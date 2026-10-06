@@ -51,8 +51,16 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # the release calendar's months and date precision, game
                    # sorting, the game labels against 0034's CHECK, how a
                    # logo is drawn from its pixels (lib/logo-ink), what the
-                   # saved query cache keeps and evicts (lib/query-persist-rules)
-                   # and the seen-records store (lib/seen)
+                   # saved query cache keeps and evicts (lib/query-persist-rules),
+                   # the seen-records store (lib/seen), the "12h ago" time
+                   # (lib/format), the review card's colour against the
+                   # page and the inks set on it (constants/review-card), and
+                   # the copy showcase: its camera against the projection it
+                   # stands in for, the idle turn and the lamp
+                   # (lib/stage-geometry), how large a case stands, how deep it
+                   # is, its disc's size and which cases open
+                   # (constants/copy-stage), and the 1080p cover
+                   # (lib/games/sharp-cover)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -159,9 +167,12 @@ src/
     playthroughs/[game]  your runs of one game; playthrough/[id] edits one (modal)
     library/[id]     a person's games: All (stats header + grid), Physical
                      (the CD binder), Logged, Favourites, Steam. Takes ?tab=
-    copies/[user]    a physical collection as a plain list; copy/[id] one copy,
-                     showcased — its case, its disc, its back; add-copy the
-                     copy form (modal)
+    copies/[user]    a physical collection as a plain list; copy/[id] one copy
+                     on a stage of its own — its case as a box that turns by
+                     itself and by hand, is opened, and has its disc taken out,
+                     under a lamp the phone's tilt moves — then the game's
+                     name, the owner's notes as a field, and their review of
+                     the game; add-copy the copy form (modal)
     scan             barcode camera (full-screen modal), with typed entry as the
                      fallback for a denied or missing camera
     add-release      submit or edit a barcode's release claim (modal)
@@ -243,36 +254,28 @@ src/
                                         bottom-right. The critics' card and — on
                                         the game page and in the reviews sheet —
                                         the member's
-                     log-card           the review card in every list, after
-                                        Letterboxd: title + year left and the
-                                        writer (name, avatar) right on the top
-                                        row; 83dp box art with five lines of the
-                                        review beside it; the score bottom-right,
-                                        its baseline on the art's bottom edge.
-                                        No likes, date or report flag on the
-                                        card — those are on the review page
-                     ui/selectable      `useSelectable()`: the one selected
-                                        state (accent wash + edge + label) for
-                                        any control that draws its own shape
-                     ui/selection-marks <Checkbox> and <RadioMark>, the drawn
-                                        state inside a checkbox or radio row
-                     ui/selection-card  <SelectionCard>: one choice as the
-                                        owner's reference draws it — the 34dp
-                                        circle first, name, hint. Every
-                                        single-choice list with words uses it
-                     ui/score-meter     a score's readout and bar, shared by the
-                                        review page and the log form's input
-                     progress-sheet     the seven progress choices + details
-                     community-similar  the Similar tab's card, and the sortable
-                                        sheet of community picks it opens
-                     report-flag        the flag on a suggestion or a review,
-                                        and `reportHref()` for anything else
-                     review-breakdown   the reviews sheet's split averages
-                     choice-chips       one (or several) of a short vocabulary
-                     game-picker        search-and-tap, for forms that need a game
+                     log-card           the review card in every list — Home, a
+                                        profile, Search, the most-liked page: a
+                                        flat card a shade under the page, who
+                                        and when across the top, the art with
+                                        the title, developer · year and the
+                                        square score beside it, then three lines
+                                        of the review. See § Review cards
                      cd-binder / cd-binder-page  the zip binder of discs
                      cd-disc            a game's art printed on game_cd.png
-                     copy-showcase / copy-case-back  a copy's case, disc and back
+                     copy-showcase      a copy on its stage: the object, its
+                                        gestures and its idle turn. The case is
+                                        this screen's own box — copy-case-front
+                                        / -back / -edge / -inside — and each
+                                        side of it a copy-stage-face, placed by
+                                        lib/stage-geometry. copy-stage-floor is
+                                        the lamp and the shadow, copy-stage-tilt
+                                        the phone's sensor, copy-stage-key the
+                                        keys under it. The back is the only
+                                        place a copy's edition is printed. See
+                                        § Progress, physical…
+                     cd-disc-underside  the disc's mirrored side; the showcase
+                                        alone turns a disc over
                      library-stats      the head of a library (0028)
                      game-info-sections the Wikidata screen's cards — awards,
                                         cast, budget, credits, people
@@ -329,6 +332,9 @@ src/
                      stores.ts (storefront brand marks), progress.ts (the seven
                      progress choices), physical.ts (region / completeness /
                      condition words), platform-media.ts (disc, cartridge…),
+                     copy-stage.ts (the copy showcase's measurements: how large
+                     a case stands, how deep it is, its disc's size, which
+                     cases open),
                      similarity.ts (the twelve reasons), reports.ts (what a
                      report can say, per kind), wikidata.ts (every Wikidata
                      property the additional-information screen reads),
@@ -383,7 +389,9 @@ src/
                      paging.ts (page numbers, counting by probing) and
                      calendar.ts (months, days, date precision) are its pure
                      halves, under `npm test`.
-                     critics.ts for OpenCritic's review snippets and scores
+                     critics.ts for OpenCritic's review snippets and scores.
+                     sharp-cover.ts for a cover at 1080p — the copy showcase
+                     only, the one slot that draws it that large
     wikidata/        the additional-information screen's data: finding a game's
                      item by exact id (lookup.ts), reading claims (claims.ts,
                      normalize.ts — pure, under `npm test`), and the Action API
@@ -399,6 +407,9 @@ src/
                      it is, a light silhouette, or a plate. Pure, tested
     png.ts           a PNG decoder (inflate after puff.c), for the above. Pure,
                      tested against Node's zlib
+    stage-geometry.ts  the copy showcase's camera: how a flat view is drawn to
+                     be one side of a turning box, the idle turn's pace, the
+                     lamp. Pure, tested. See § Progress, physical copies…
     news/feed-lighten.ts  RSS article bodies cut out before parsing. Pure,
                      tested
     barcode.ts       GTIN check digits, UPC-E expansion, normalising to GTIN-14
@@ -413,7 +424,8 @@ src/
                      envelope, evicted when; under `npm test`)
     seen.ts          `createSeen()`: complete records remembered as a list
                      downloads them, so their page opens without a request.
-                     games/seen-games.ts and api/seen-logs.ts are its two users
+                     games/seen-games.ts, api/seen-logs.ts and
+                     api/seen-copies.ts are its three users
     platform-options.ts  a game's platforms as picker options
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements,
@@ -497,12 +509,11 @@ for 2:3, so the crop cuts the logo. `lib/games/steamgriddb.ts` is not a provider
 and must never become one: nothing there may put a game *into* the app, only art
 onto a game already in it.
 
-**Exactly four surfaces use it**, all through `useSquareCover()`: a profile's
-Reviews tab (`<ReviewListRow>`, 80dp), Surprise Me, a review's own page — built
-as Surprise Me is: the art at 84% of the width, its title and two round actions
-under it, the portrait at the same height when there is no square
-(`app/review/[id].tsx`) — and **the hero at the top of a collection's own
-screen**: the single cover `<CollectionHeader>` draws, and the mosaic behind it
+**Exactly three surfaces use it**, all through `useSquareCover()`: Surprise Me,
+a review's own page — built as Surprise Me is: the art at 84% of the width, its
+title and two round actions under it, the portrait at the same height when
+there is no square (`app/review/[id].tsx`) — and **the hero at the top of a
+collection's own screen**: the single cover `<CollectionHeader>` draws, and the mosaic behind it
 (`<CollectionMosaic squareArt>`).
 
 **A collection is square in exactly one place — the hero you see after tapping
@@ -885,9 +896,11 @@ was taken is the rules, each restated in this stack. Five of them:
    waited on a spinner for it. `lib/seen.ts` keeps complete records as lists
    download them, and the page starts from one (`initialData` +
    `initialDataUpdatedAt`): the **game page** from any list fetched with
-   `GAME_FIELDS` (`toFullGame` in `igdb.ts` → `games/seen-games.ts`), and the
-   **review page** from any list of reviews (`rememberLogs` → `api/seen-logs.ts`).
-   Both are on screen in the frame they open, with no request when the list was
+   `GAME_FIELDS` (`toFullGame` in `igdb.ts` → `games/seen-games.ts`), the
+   **review page** from any list of reviews (`rememberLogs` → `api/seen-logs.ts`),
+   and a **copy's screen** from the binder, the copies list or the game page
+   (`getCopies` → `api/seen-copies.ts`).
+   Each is on screen in the frame it opens, with no request when the list was
    loaded inside the page's `staleTime`.
 5. **The cache belongs to an account.** Rows are namespaced by user id, restored
    only once the session is known (the auth store does it, and holds
@@ -957,6 +970,68 @@ the sideloaded build (§ APK size).
   `HomeShimmer` under a `Crossfade`; `<LoadingState>` is a spinner. Rules 1, 3
   and 4 mean a spinner is now rare — a page neither visited, restored nor seen
   in a list — so this is polish, and it is design work on each screen.
+
+## Review cards
+
+**Two styles, and where each goes is the rule.** A review in a *list of
+reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
+`<ReviewQuote>`.
+
+- **`<LogCard>` is every list**: Home's band, a profile's Reviews tab, Search's
+  Reviews, the most-liked page. It began on Home alone, as the owner's new
+  look; they then had it "replace the rest of the review cards in the app". It
+  took the place of the Letterboxd-style card `log-card.tsx` used to hold and
+  of the profile's square-art rows (`review-list-row`, deleted — which is why
+  SteamGridDB has three surfaces now, not four). Cards stack `Spacing.x12`
+  apart everywhere.
+- **`<ReviewQuote>` is a game's own screens** — "keep the review style from the
+  game pages": the game page's rail, the reviews sheet, and a copy's screen.
+  Text, a name and a score; the game is already the subject there, and the list
+  card would only say it again. Surprise Me keeps `<ReviewCard>` for the same
+  reason.
+- **A flat card, almost the colour of the page.** One solid fill (`reviewCard`,
+  `#111419`) — the page three levels darker in each channel, 1.03:1 — corners
+  just taken off (`Radius.lg`, half the app's card corner) and the card shadow.
+  Nothing is drawn on it. It is *not* `surface`, which sits a step above the
+  page; this sits a step below.
+- **It was "black chrome" for one pass, and the owner took it off. Do not
+  rebuild it.** The first build was a plate of near-black metal with a
+  spotlight at its top centre, a sideways streak and a violet fringe, as one
+  native gradient background (`ui/chrome-plate`, `lib/chrome-plate` — both
+  deleted), with the review on a darker strip sunk into it. Two directions
+  followed, in order: "make the color closer to the background color, almost
+  the same but ever so slightly different", then "remove the chrome from it,
+  make it only a solid background color. Also, remove the black box that the
+  review text has." So: no gradient, no light, no rim, no hairline edge, and no
+  box behind the words.
+- **The colour follows the page.** The card is on Home (`homeBackground`, the
+  colour the owner tries things on) and everywhere else (`background`); the two
+  are the same hex today. Move either and move `reviewCard` with it, the same
+  three levels under; `review-card.test.ts` fails if the card drifts past
+  1.04:1 from either page or meets it, and checks the three inks on it at AA.
+- **The layout** — top row: picture, `@username`, the badge slot, the time
+  ("now", "12h ago", then a date after a week: `timeAgoPosted`). Body: 83×124
+  box art; beside it the title (bold, two lines at most), developer · year, and
+  `<ScoreTile size="small">` at the far end of that row; under them up to three
+  lines of the review, straight on the card. **The art is exactly as tall as
+  the fullest column** (`ART_HEIGHT`), so a full review ends on the art's bottom
+  edge and every card is 194dp at the default font size (`LOG_CARD_HEIGHT`,
+  which Home's skeleton uses).
+- **Type**: `text` for the name, the title and the review; `textSecondary` for
+  the developer line; `textMuted` for the time, the quietest thing on the card.
+  Bold is the title and the score only. Upright, no quotation marks — the
+  reference sets a one-line quip in italics, and three lines of 13sp italic are
+  harder to read than the same three upright.
+- **The badge slot is real and empty.** `badges` is a prop that renders between
+  the name and the time; nothing is drawn today and no space is visibly
+  reserved — the gap is what pushes the time to the far end.
+- **It carries a time, and nothing else about the response to it.** No like,
+  headline, playthrough strip or report flag — those are on the review's page.
+- **Three targets**: picture and name open the person, the art opens the game,
+  the title and the writing open the review. A spoiler notice takes the
+  review's place and is its own button.
+- **Not yet seen on a phone.** It was checked on a still rendered with the real
+  font and a real cover, not on a device.
 
 ## Labels: Must Play (0034)
 
@@ -1144,7 +1219,9 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   else.** Not on rails, grids, feeds or any screen showing several games side by
   side: one glow per screen is atmosphere, eight is a lava lamp. `<Poster>`
   deliberately has no coloured-shadow prop — it was added, it looked like a
-  sticker, it was removed.
+  sticker, it was removed. (The review card carried a light for one pass — a
+  "black chrome" plate with a spotlight — and the owner took it off again. See
+  § Review cards.)
 - **Controls follow the owner's reference, SimpMusic — read from its code, not
   traced from screenshots.** `maxrave-dev/SimpMusic` is open source:
   `ListenTogetherScreen.kt` (the name field, "Create room", the disabled "Join
@@ -1210,18 +1287,20 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
 - **Reanimated shared values**: use `.get()` / `.set()`, never `.value =`. The
   React Compiler rules flag assignment to `.value` as mutating a captured
   binding; the accessors behave identically. See `ui/pressable-scale.tsx`.
-- **Two families, and the line between them is a rule.** Inter is the
-  *interface*: every label, button, tab, count and caption. **Source Serif 4 is
-  reviews and nothing else** — a review's game title, its prose, and the
-  writer's headline on a feed card (`reviewHeadlineSmall`; the card's
-  three-line excerpt is sans since its redesign). The eight `review*` steps in
-  `Type` are the serif's whole extent; reaching for one outside a review surface
-  spends the distinction for nothing. The brief this came from names Tiempos and Graphik, both commercial
-  and unshippable; Source Serif 4 and Inter are the open stand-ins. Every weight
-  is its own family name — Android synthesises neither bold nor oblique from a
-  custom font, so `fontWeight: '700'` on Inter silently renders regular.
-  `proseInk` is the serif's ink: quieter than `textSecondary`, because a thousand
-  words at interface brightness is a wall.
+- **One family: Inter, for everything — the owner removed the review serif.**
+  Source Serif 4 set reviews and nothing else (a review's title, its prose, the
+  headline on a card) on the argument that a serif makes writing read as
+  writing. The owner's direction: "remove the specific font for reviews and
+  just use the normal one for the rest of the app". The `review*` steps in
+  `Type` stayed, re-pointed to Inter — they are still the sizes of a review
+  surface, and `reviewProse` went from 14/23 to 14/22 because a sans needs less
+  leading than the serif did. A review is told apart now by `proseInk` (quieter
+  than `textSecondary`, because a thousand words at interface brightness is a
+  wall), its measure and the page it is on. **Do not bring a serif back** for
+  "editorial" surfaces; the package is uninstalled and three font files (~1 MB)
+  left the build. Every weight is its own family name — Android synthesises
+  neither bold nor oblique from a custom font, so `fontWeight: '700'` on Inter
+  silently renders regular.
 - **The fixed-colour surface ladder is on the page's faint cool trace.** The page is
   `#0B0A0D` — darker than the cool `#14171b` it replaced and not black — and
   `surface` (`#141317`), `surfaceElevated` (`#1B1A20`, the resting fill of every
@@ -1341,8 +1420,8 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   OpenCritic's.** `aggregated_rating` is one averaged number and a count —
   nothing in the schema says "IGN gave this 90", let alone what IGN wrote.
   `<CriticReviewsWidget>` quotes each outlet's snippet in a card the size of
-  "Featured in" (`<ArtRail shape="wide">`), the quote in the review serif
-  because it is review prose, the score in the score ramp, and a card opens the
+  "Featured in" (`<ArtRail shape="wide">`), the quote in the review's own step
+  and ink (`reviewExcerpt`, `proseInk`), the score in the score ramp, and a card opens the
   review. **That card is `<ReviewQuote>`, and it is the member's review card
   too**, at the owner's direction: the rail of the app's own reviews above the
   critics' (`<MemberReviewsWidget>`, the most liked first) and every row of the
@@ -1741,9 +1820,137 @@ that are easy to break:
   `discTemplateFor(platform)`), with the console's printing on them. A copy's
   platform is passed down; one with none recorded is the plain disc.
   `<GameDisc>` and `DISC_TEMPLATE` belong to the protected case feature and are
-  untouched. The copy showcase *uses* `<GameCaseDisplay>` as it is and composes
-  its own gesture — tap for the disc, drag to turn — because `<GameCaseFlip>`'s
-  tap already means "turn over". Its constants are copied, not changed.
+  untouched. The disc's other side — a mirror with a rainbow in it — is
+  `<CdDiscUnderside>`, and only the copy showcase turns a disc over to show it.
+- **A copy's screen is an object that turns** (`copy/[id]`, `<CopyShowcase>`).
+  The owner's brief: a screen to stay on — "stare at it for a minute or more,
+  play around with turning the case, the disc… a unique space". So the first
+  screen is the object alone, edge to edge: the copy's case, as a box, under
+  one lamp in the game's own colour, **drifting round by itself** — a lap in
+  about twenty-four seconds, slowing on the cover and the back. A touch stops
+  it.
+  - **Drag sideways** and it turns with the finger to any angle, carries on
+    with the flick, and comes to rest square on a face.
+  - **Tap the cover** and the case opens on the disc in its tray; tap anywhere
+    but the disc to shut it.
+  - **Tap or drag the disc** and it comes off its hub; the case shuts and
+    leaves and the disc stands alone where the case stood, and turns as the
+    case did. Flick it left to put it back.
+  - **Tilt the phone** and the lamp moves: its reflection slides over the
+    plastic, the pool and the shadow shift, the object leans a few degrees.
+  - A vertical drag is none of these: it scrolls the page.
+
+  The owner chose those four from a list and left one out — **flick-spinning
+  the disc is not a feature; do not add it**. It replaced tap-to-turn-over and
+  drag-right-for-the-disc, which had replaced the same two the other way round.
+  Under the stage, centred: the game's name, a line that follows the side
+  facing the reader, and the keys — "Turn over", "Open" / "Close", "Take out" /
+  "Put back" — each the twin of a gesture. A key the copy can never use is not
+  drawn; one that cannot act now is dimmed in place, so the row never
+  re-centres under a thumb. `mode` (what is on the stage) is the screen's
+  state, because its keys change it and so do the stage's gestures.
+- **It turns on nothing: the ring under it was removed, by the owner.** The
+  chosen staging was called "On the turntable", and the first build drew one —
+  a ring of light lying on the floor under the object, a pool inside it, and
+  marks round it that went round as the object turned. The owner's words on
+  first seeing it run: "remove the ring below the art where it spins". What is
+  under the copy now is its shadow, and what is behind it is the lamp
+  (`<CopyStageFloor>`). **Do not draw a platter, a ring or any other base under
+  it again**, and do not read "turntable" in an older note as a thing to
+  draw: it names the idea — the object turns by itself — not an object.
+- **The case on that screen is its own, by the owner's exception.** Asked how
+  far the showcase could go round the protected case, the owner chose "lift it
+  for this screen". So `copy/[id]` draws a box — `<CopyCaseFront>` (the cover:
+  `<GameCase>`'s layering restated from the same `CASE_TEMPLATES` by the same
+  arithmetic, with no shadow of its own and the art at 1080p), `<CopyCaseBack>`,
+  the spine and the opening edge (`copy-case-edge`), the tray and the inside of
+  the cover (`copy-case-inside`). **Nothing there edits `<GameCase>`,
+  `<GameCaseDisplay>`, `<GameCaseFlip>`, `<GameCaseBack>` or `<GameDisc>`, and
+  the exception is the screen, not those components**: they are as protected as
+  they were, everywhere else. The showcase's box may have a drawn spine where
+  `<GameCase>` must not — that one was a slab set beside a finished face; this
+  is a side of a box, absent while the cover is square on.
+- **A box is not six rotated views, and `lib/stage-geometry.ts` is why it
+  works.** Every view is flattened into its parent, so faces share no 3D space;
+  and Android does not keep a transform as a matrix — it decomposes it into
+  rotation, scale, an x/y translation and a camera distance, **dropping a
+  translation in z and applying one that follows a `perspective` on the screen
+  instead of in depth**. A face pushed forward by half the case's thickness
+  lands somewhere else on Android than on iOS and the box comes apart at its
+  corners. So the projection is done by hand, and each face is two nested views
+  in the only vocabulary both platforms draw alike: an inner one with
+  `perspective` and `rotateY`, an outer one with `translateX`, `scaleX` and
+  `scaleY` (`<StageFace>`, `solveFace`). It is exact — four matching corners
+  fix a projective map — and `npm test` checks it against the real projection.
+  **Never give a face a `matrix`, a `rotateX`, or a translate after its
+  perspective.** Every face is centred on the camera's height, which is what
+  keeps the solve that small; anything that must sit lower (a disc standing on
+  the floor, an open case stepped back) is moved by `drop`, a plain `translateY`
+  on the outer view.
+- **What is true of a copy stays true on its stage.** A **sealed** copy
+  does not open: it answers a tap with a short shake, and its Open key reads
+  "Sealed".
+  A copy on a **cartridge or a card** turns and catches the light and no more —
+  there is no cartridge artwork yet, and the owner chose that over a generic
+  cartridge drawn in code; each console can open once it has a template that
+  follows the disc templates' contract (`opensToDisc`). It never pulls out a CD,
+  which every copy used to. A **loose** copy is still drawn in a case, also the
+  owner's choice: the back is the one place its edition is printed. And what is
+  **inside** an open case is what its owner recorded (`caseContents`): a manual
+  under the clips only if the copy has one. Never dress it with a booklet.
+- **Its sizes are real objects'** (`constants/copy-stage.ts`), because "the
+  disc is the wrong size next to its case" was the complaint. The case is the
+  smaller of 82% of the display's width and 58% of its height, with no cap —
+  295dp on a 360dp phone, where it was 238. A disc is 120/135 of its case's
+  width (it was 0.98), a GameCube's 80/135, a UMD's 64/104. A keep case is
+  0.104 of its shorter side deep, a cardboard cartridge box about twice that.
+  The stage reserves its tallest pose, so nothing under it moves.
+- **The idle turn is one long animation, and it knows when to stop.**
+  `driftProgress` shapes a single timing through two hundred half-turns, so
+  nothing restarts it face by face. It waits six seconds after a touch; it does
+  not resume while the case is open or after somebody has left the copy on its
+  back to read it. It is off under Reduce Motion and for a screen reader, and
+  the screen parks it — and unmounts the phone's sensor — whenever the stage is
+  not in front, the app is in the background, the stage is scrolled away or the
+  keyboard is up (`active`). A copy left open in a pocket must not be working.
+- **Tilt is Reanimated's own sensor, not a new module.** `<StageTilt>` reads
+  the rotation vector through `useAnimatedSensor`, on the UI thread;
+  `expo-sensors` would have been a native module's full size for the same
+  question (§ APK size). The tilt is taken from the quaternion — held upright,
+  a phone sits on the Euler angles' singularity — relative to a "level" that
+  catches up with however the phone is being held over a few seconds.
+- **A render nudges the stage.** The lost-end-value gotcha (§ Gotchas) is
+  usually answered by restating the resting pose as a plain style, which needs
+  a pose React can name. A case left a quarter of the way round has none, so
+  every render of the stage bumps `pulse`, which every face's place depends on:
+  all of them are re-solved and re-applied the frame after.
+- **Seen on a phone once, by the owner, and tuned to nothing yet.** Its first
+  run there crashed on its first frame — the worklet default in § Gotchas.
+  Fixed, it ran: the owner saw it turning and had the ring under it removed.
+  That is all that is known about how it looks or feels on a device. This
+  machine has no Android SDK, and nothing here can be judged in a browser. What
+  was checked here: types, lint, the geometry and the measurements under
+  `npm test`, the UI-thread code as the Babel plugin ships it, and a still
+  rendered from the real PS5 template and a real cover through the same
+  functions. What nobody has reported on yet: the phone's tilt (including which
+  way each platform's sign runs), the springs' weight, the lamp's strength, the
+  open case. Tune those on a device before trusting any of them. The case
+  templates are 420–680px wide and are drawn at up to twice their pixels here;
+  only re-exported files make the plastic as sharp as the cover now is.
+- **A copy's edition is printed on the back of its case and nowhere else.**
+  Release, what is in the box, condition, when it was got, the barcode: the
+  card of those facts under the showcase is gone, by the owner's rule, and the
+  release line over it too. That is one reason the case is drawn as large as it
+  is: the back is set in fractions of the case's width, so the case's size is
+  the type's. A short face still drops rows that do not fit; they are in the
+  showcase's spoken label. The line under the game's name follows the side
+  facing the reader and **never repeats what the back prints**: on the cover it
+  is the developer and the date, and on the back it says only that it is the
+  back. Below the fold: **the owner's notes as a field, saved as it is left** —
+  on blur, and on the way out if the keyboard was still up (`updateCopyNotes`;
+  anybody else sees the note as text) — and **their review of the game, if they
+  wrote one, as the reviews sheet's `<ReviewQuote>`** (`getLogOf`, keyed
+  `['my-log', userId, gameId, 'with-relations']` so the log form refreshes it).
 - **Stored platforms are short forms; read them back with `familyForStored` /
   `platformKeyForStored`.** Everything the pickers write is `PLATFORMS[key].short`
   ("PS5", "SWITCH 2"). `platformFamilies()` matches *provider* names ("Nintendo
@@ -1821,7 +2028,8 @@ was not this app's code. The rules that keep it that way:
 - **Import fonts by weight path** — `@expo-google-fonts/inter/400Regular`,
   never the package. Each package's index requires every style it has, and
   Metro bundles every file a module requires: seven Inter weights and three
-  Source Serif weights shipped as all thirty-four, 7.1 MB never drawn.
+  Source Serif weights (a package since removed) shipped as all thirty-four,
+  7.1 MB never drawn.
   `metro.config.js` resolves `@expo-google-fonts/material-symbols` to an empty
   module for the same reason (967 KB that `expo-symbols` imports for a view
   this app never renders).
@@ -1862,6 +2070,20 @@ was not this app's code. The rules that keep it that way:
   React-known positions (the tab bar's indicator) uses a Reanimated CSS
   transition instead, whose target is a React prop. The real fix is the static
   flag `FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS`, which Expo Go cannot change.
+- **A worklet's parameter default cannot name anything outside the worklet.**
+  On the UI thread the names a worklet captures — a constant, another function —
+  are unpacked from its closure by the first statement of its body, and a
+  parameter's default is evaluated before the body runs. So
+  `function solveFace(…, camera = STAGE_CAMERA) { 'worklet'; … }` threw
+  `Property 'STAGE_CAMERA' doesn't exist` on the copy screen's first frame, on a
+  phone, having passed typecheck and every test: under Node a default reads the
+  module like anything else. Read the constant in the body; a default may be a
+  literal. `stage-geometry.test.ts` reads that module's source for it, which is
+  all a suite with no Babel in it can do. The real check is the plugin itself —
+  transform the file with `react-native-worklets/plugin` and read the `code`
+  string each worklet is shipped as: the closure is the `const {…} =
+  this.__closure` on its first line, and nothing in the parameter list may need
+  it. All 118 worklets in the app were swept that way; that one was the only one.
 - **There is no Skia, and a gradient does not need it.** React Native 0.86 draws
   `experimental_backgroundImage: 'radial-gradient(…)'` / `'linear-gradient(…)'`
   natively on the New Architecture, iOS and Android alike, so `<SoftGlow>` and
@@ -2168,4 +2390,5 @@ was not this app's code. The rules that keep it that way:
 ## 🛡️ Critical Preservation Rules
 - **DO NOT MODIFY**: The "physical videogame cases" feature logic, styles, or components.
 - **Protected Tokens**: Do not alter any design tokens related to `game-case-*`, `physical-item-*`, or `case-dimensions`.
-- **Verification**: Before finalizing any refactor, explicitly confirm that the videogame case feature remains visually and functionally identical to the pre-refactor state.   
+- **Verification**: Before finalizing any refactor, explicitly confirm that the videogame case feature remains visually and functionally identical to the pre-refactor state.
+- **One exception, the owner's, and it is a screen**: `copy/[id]` draws a case of its own (§ Progress, physical copies…). It does so in its own components; the protected ones above are not edited by it and are protected everywhere else exactly as before.   

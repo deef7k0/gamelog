@@ -24,8 +24,14 @@
  * A row written under another version is dropped unread. Adding a field needs
  * no bump: every reader of server data already tolerates a missing one (see
  * CLAUDE.md, "The app can be a migration ahead of its database").
+ *
+ * 2: a game's `heroUrl` stopped being IGDB's first artwork, which was as often
+ * an icon or a wordmark as key art (`lib/games/hero-art.ts`). Nothing about
+ * the shape changed — but every saved game still named the old image, and its
+ * page would have opened on a 128px icon blown up across the hero for the
+ * second it takes the fresh record to arrive.
  */
-export const CACHE_VERSION = 1;
+export const CACHE_VERSION = 2;
 
 /** A week, as SimpMusic keeps its own cached answers (`MOOD_ARTWORK_TTL_MILLIS`). */
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

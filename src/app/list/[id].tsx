@@ -13,14 +13,18 @@ import {
 } from 'react-native';
 
 import { AwardShow } from '@/components/award-show';
-import { CollectionHeader, collectionCover } from '@/components/collection-header';
+import {
+  CollectionHeader,
+  CollectionOwnerMenu,
+  collectionCover,
+} from '@/components/collection-header';
 import { CaptionedGrid } from '@/components/captioned-grid';
 import { CommentSection } from '@/components/comment-section';
 import { CollectionRow } from '@/components/collection-row';
 import { CollectionToolbar, type CollectionLayout } from '@/components/collection-toolbar';
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { Button } from '@/components/ui/button';
-import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -101,6 +105,10 @@ export default function ListDetailScreen() {
   const [sort, setSort] = useState<GameSort>('default');
   const [layout, setLayout] = useState<CollectionLayout>('grid');
   const [pickingCover, setPickingCover] = useState(false);
+  /* The owner's menu: opened from the top right of the screen, drawn with the
+     masthead. Here because the bar and the sheet are two different parts of
+     this screen and both need to know. */
+  const [menuOpen, setMenuOpen] = useState(false);
   /*
    * The games chosen for removal, by id. Empty means nobody is choosing.
    *
@@ -383,19 +391,37 @@ export default function ListDetailScreen() {
    */
   const canSelect = isOwner && !pickingCover && !isAwards && !isCaptioned;
 
+  /*
+   * The top of the screen, as SimpMusic's album has it: back at the left, and —
+   * for whoever made the collection — its menu at the right, in the same disc
+   * of glass. A visitor has nothing to edit and gets no second disc.
+   */
+  const topBar = (
+    <FrostedTopBar
+      back
+      right={
+        isOwner ? (
+          <TopBarDisc
+            icon="ellipsis-vertical"
+            label="Edit this collection"
+            onPress={() => setMenuOpen(true)}
+          />
+        ) : undefined
+      }
+    />
+  );
+
   const header = (
     /* Cancels the list's horizontal padding so the hero reaches both edges and
        runs under the floating header, the way a game page opens. The header's
        own body re-applies the inset to its text. */
     <View style={styles.headerBleed}>
-      {/* Every action lives in the masthead's circular row now — share, like,
-          change preview, add games, delete. Liking used to be a separate
-          `<EngagementBar>` below the header, which put the like count in one
-          place and the like button in another. */}
+      {/* Who made it, share and like are the masthead's. What its owner can do
+          to it is not: that is the menu below, opened from the top right of
+          the screen. */}
       <CollectionHeader
         collection={data}
         owner={owner.data ?? null}
-        isOwner={isOwner}
         pageColor={pageColor}
         engagement={engagement.data}
         onShare={() =>
@@ -403,27 +429,29 @@ export default function ListDetailScreen() {
             message: `${data.title} — ${items.length} games on GameLog`,
           }).catch(() => undefined)
         }
-        onEdit={isOwner ? openPicker : undefined}
-        onEditDetails={
-          isOwner
-            ? () => router.push({ pathname: '/edit-list/[id]', params: { id: data.id } })
-            : undefined
-        }
-        onDelete={isOwner ? () => destroy.mutate() : undefined}
-        onPickCover={
-          isOwner
-            ? () => {
-                /* One mode at a time: both change what a tap on a game does. */
-                clearSelection();
-                setPickingCover(true);
-              }
-            : undefined
-        }
-        onSetDisplay={isOwner ? (display) => setDisplay.mutate(display) : undefined}
       />
 
+      {isOwner && (
+        <CollectionOwnerMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          collection={data}
+          onEdit={openPicker}
+          onEditDetails={() =>
+            router.push({ pathname: '/edit-list/[id]', params: { id: data.id } })
+          }
+          onDelete={() => destroy.mutate()}
+          onPickCover={() => {
+            /* One mode at a time: both change what a tap on a game does. */
+            clearSelection();
+            setPickingCover(true);
+          }}
+          onSetDisplay={(display) => setDisplay.mutate(display)}
+        />
+      )}
+
       {/* The picking mode's own bar. Only while the mode is on: the control
-          that *enters* it is the masthead's image button. */}
+          that *enters* it is in the owner's menu. */}
       {pickingCover && (
         <View style={styles.controls}>
           <View
@@ -532,7 +560,7 @@ export default function ListDetailScreen() {
    */
   if (isAwards) {
     return (
-      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={topBar}>
         <AwardShow listId={id!} isOwner={isOwner} header={header} />
       </Screen>
     );
@@ -554,7 +582,7 @@ export default function ListDetailScreen() {
    */
   if (isCaptioned) {
     return (
-      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={topBar}>
         <FlatList
           data={[null]}
           keyExtractor={() => 'board'}
@@ -596,7 +624,7 @@ export default function ListDetailScreen() {
    */
   if (!isTierList && layout === 'rows' && !pickingCover) {
     return (
-      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={topBar}>
         <FlatList
           data={ordered}
           key="collection-rows"
@@ -646,7 +674,7 @@ export default function ListDetailScreen() {
     return (
       /* The mosaic runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
-      <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} background={background} topBar={topBar}>
         <FlatList
           data={ordered}
           key="collection-grid"
@@ -695,7 +723,7 @@ export default function ListDetailScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} background={background} topBar={<FrostedTopBar back />}>
+    <Screen edges={['bottom']} background={background} topBar={topBar}>
       <FlatList
         data={items}
         keyExtractor={(item) => item.game_id}

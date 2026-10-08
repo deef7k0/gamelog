@@ -5,22 +5,63 @@ import { memo, type ReactNode } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { MaxContentWidth, Spacing, TapTarget, withAlpha } from '@/constants/theme';
+import { MaxContentWidth, Spacing, withAlpha } from '@/constants/theme';
 import { useTopBarInset } from '@/hooks/use-header-height';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
- * Diameter of the disc, in dp.
+ * Diameter of the disc, in dp: 48 on both platforms.
  *
- * `TapTarget` exactly — 44 on iOS, 48 on Android. The glyph inside is the only
- * thing this control draws, so the circle *is* the touch area and there is no
- * reason for it to be any bigger or any smaller than the platform floor.
+ * The owner's reference, SimpMusic — its album screen's back button is
+ * `LiquidGlassIconButton(…, Modifier.size(48.dp))`. It was `TapTarget`, 44 on
+ * iOS and 48 on Android; one size now, and at or over the floor on both.
  */
-const DISC = TapTarget;
+export const TOP_BAR_DISC = 48;
+const DISC = TOP_BAR_DISC;
 
 /**
- * A floating circular back button, over the page.
+ * How far a disc sits from the corner it is in, on both axes: the reference's
+ * `padding(12.dp)` under the status bar. With the disc that is the 60 of
+ * `TopBarHeight`, which is what a screen reserves for it.
+ */
+export const TOP_BAR_EDGE = 12;
+
+/*
+ * The glass, as far as it can be had without a shader.
+ *
+ * SimpMusic's button is Kyant's liquid glass (`LiquidGlassContainer.kt`,
+ * `drawInteractiveGlass`): what is behind it blurred by 8dp and bent through a
+ * lens, darkened by a scrim of black, and edged with a rim of light that falls
+ * from one side. The lens is a `RuntimeShader`; this app has no Skia, and a
+ * circle 48 across is too small for refraction to be what anyone sees. What
+ * reads as that button is the other three, and those are drawn:
+ *
+ *  - **The rim**: one dp of gradient round the edge, bright where the light
+ *    lands (top left), nearly gone across the middle, lifting again at the far
+ *    side. A uniform hairline is the outline of a button; a rim that changes
+ *    round its circle is the edge of a piece of glass.
+ *  - **The scrim**: 27% black — the reference's `lerp(0.12, 0.5, …)` at the
+ *    mid luminance its static surfaces are drawn with.
+ *  - **The sheen**: a faint light across the top-left of the pane, where the
+ *    reference's highlight sits.
+ *
+ * White at fixed alphas, written out: these are light on glass, not a colour
+ * of the app's, and they are the same over every page. Every stop that fades
+ * ends on white at zero — Android interpolates a gradient unpremultiplied, and
+ * a fade to `transparent` goes grey on the way.
+ */
+const RIM =
+  'linear-gradient(135deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.12) 34%, rgba(255,255,255,0.06) 62%, rgba(255,255,255,0.22) 100%)';
+const SHEEN = 'linear-gradient(135deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0) 58%)';
+/** How dark the pane is over whatever is behind it. */
+const PANE_SCRIM = 0.27;
+
+/**
+ * A floating circular back button, over the page — SimpMusic's, at its size
+ * and in its corner (`AlbumScreen.kt`): a 48dp disc of glass, 12 from the edge
+ * and 12 under the status bar, holding a back chevron. Controls at the other
+ * end of the row are the same disc.
  *
  * ## What this replaced, and why
  *
@@ -86,9 +127,9 @@ export type FrostedTopBarProps = {
   /**
    * Blur strength, 1–100.
    *
-   * @default 80 — a little softer than the bar's 90. At disc size there is far
-   * less area to destroy detail across, and a heavier blur made the circle read
-   * as an opaque grey button rather than as glass.
+   * @default 60 — the reference blurs what is behind its button by 8dp, light
+   * enough that shapes still show through it; that is what makes it glass
+   * rather than a grey button. It was 80.
    */
   intensity?: number;
 };
@@ -98,7 +139,7 @@ export const FrostedTopBar = memo(function FrostedTopBar({
   onBack,
   dismiss = false,
   right,
-  intensity = 80,
+  intensity = 60,
 }: FrostedTopBarProps) {
   const router = useRouter();
   const inset = useTopBarInset();
@@ -121,7 +162,7 @@ export const FrostedTopBar = memo(function FrostedTopBar({
      * the artwork beneath it. `box-none` lets the discs stay tappable while the
      * row itself is not there as far as the touch system is concerned.
      */
-    <View style={[styles.layer, { paddingTop: inset + Spacing.x8 }]} pointerEvents="box-none">
+    <View style={[styles.layer, { paddingTop: inset + TOP_BAR_EDGE }]} pointerEvents="box-none">
       <View style={styles.row} pointerEvents="box-none">
         {showLeading ? (
           <TopBarDisc
@@ -158,10 +199,10 @@ export type TopBarDiscProps = {
  * One disc of glass with a glyph in it.
  *
  * Exported so a screen's right-hand controls are the same object as its back
- * button. A bare `<IconButton>` beside this would be a rounded *rectangle* on a
- * surface fill — a different shape and a different material in the same row.
+ * button. A bare `<IconButton>` beside this would be a filled grey circle — a
+ * different material in the same row.
  */
-export function TopBarDisc({ icon, label, onPress, intensity = 80, nudge = 0 }: TopBarDiscProps) {
+export function TopBarDisc({ icon, label, onPress, intensity = 60, nudge = 0 }: TopBarDiscProps) {
   const theme = useTheme();
   const chrome = useScreenChrome();
 
@@ -172,30 +213,32 @@ export function TopBarDisc({ icon, label, onPress, intensity = 80, nudge = 0 }: 
       onPress={onPress}
       scaleTo={0.9}
       style={StyleSheet.flatten(styles.disc)}>
-      <BlurView
-        intensity={intensity}
-        tint="dark"
-        style={styles.glass}
-        {...(Platform.OS === 'android'
-          ? {
-              blurMethod: 'dimezisBlurView' as const,
-              blurTarget: chrome?.blurTarget,
-              blurReductionFactor: 4,
-            }
-          : null)}
-      />
+      {/* The rim. It fills the disc; the pane over it is one dp smaller all
+          round, so one dp of this is what shows. */}
+      <View style={[styles.fill, { experimental_backgroundImage: RIM }]} pointerEvents="none" />
 
-      {/* Over the blur, not under it — a blur preserves brightness, so a white
-          glyph crossing a pale patch of key art is unreadable however much
-          detail has been smeared away. 22% rather than the old bar's 30%: this
-          only has to carry one glyph, and the lighter scrim is what keeps the
-          disc reading as glass instead of as a grey button. */}
-      <View
-        style={[styles.scrim, { backgroundColor: withAlpha(theme.shadowInk, 0.22) }]}
-        pointerEvents="none"
-      />
+      <View style={styles.pane} pointerEvents="none">
+        <BlurView
+          intensity={intensity}
+          tint="dark"
+          style={styles.fill}
+          {...(Platform.OS === 'android'
+            ? {
+                blurMethod: 'dimezisBlurView' as const,
+                blurTarget: chrome?.blurTarget,
+                blurReductionFactor: 4,
+              }
+            : null)}
+        />
 
-      <Ionicons name={icon} size={22} color={theme.text} style={{ marginLeft: nudge }} />
+        {/* Over the blur, not under it — a blur preserves brightness, so a
+            white glyph crossing a pale patch of key art is unreadable however
+            much detail has been smeared away. */}
+        <View style={[styles.fill, { backgroundColor: withAlpha(theme.shadowInk, PANE_SCRIM) }]} />
+        <View style={[styles.fill, { experimental_backgroundImage: SHEEN }]} />
+      </View>
+
+      <Ionicons name={icon} size={24} color={theme.text} style={{ marginLeft: nudge }} />
     </PressableScale>
   );
 }
@@ -217,7 +260,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.x16,
+    /* The reference's 12, not the page's 15: the disc is in the corner of the
+       display, not on the page's margin. */
+    paddingHorizontal: TOP_BAR_EDGE,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
@@ -233,6 +278,16 @@ const styles = StyleSheet.create({
        as its own square behind a round scrim. */
     overflow: 'hidden',
   },
-  glass: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /* The pane: the disc less the one dp of rim, and clipped to its own circle
+     for the reason the disc is. */
+  pane: {
+    position: 'absolute',
+    top: 1,
+    left: 1,
+    right: 1,
+    bottom: 1,
+    borderRadius: (DISC - 2) / 2,
+    overflow: 'hidden',
+  },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
 });

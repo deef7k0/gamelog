@@ -64,7 +64,9 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # (lib/soundcloud/match.test, which loads the Edge
                    # Function's own _shared/soundcloud-match.ts), which song
                    # Surprise Me picks and how long a soundtrack runs
-                   # (lib/soundtrack-pick), and the player's arithmetic and
+                   # (lib/soundtrack-pick), which of a game's images is its
+                   # hero, against IGDB's real records (lib/games/hero-art),
+                   # and the player's arithmetic and
                    # the routes the mini player stays off, read against the
                    # root layout and the route files (lib/player-queue)
 ```
@@ -235,7 +237,7 @@ src/
                      player. See § Soundtracks
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
-                     ui/frosted-top-bar a floating 44dp disc of glass holding the
+                     ui/frosted-top-bar a floating 48dp disc of glass holding the
                                         back chevron. Not a bar; see § Conventions
                      app-tab-bar        the bottom navigation: SimpMusic's 64dp
                                         capsule (Home, Search, News, Profile)
@@ -432,7 +434,9 @@ src/
                      halves, under `npm test`.
                      critics.ts for OpenCritic's review snippets and scores.
                      sharp-cover.ts for a cover at 1080p — the copy showcase
-                     only, the one slot that draws it that large
+                     only, the one slot that draws it that large.
+                     hero-art.ts for which of a game's images is its hero.
+                     Pure, tested
     wikidata/        the additional-information screen's data: finding a game's
                      item by exact id (lookup.ts), reading claims (claims.ts,
                      normalize.ts — pure, under `npm test`), and the Action API
@@ -558,6 +562,23 @@ art. IGDB publishes both, so a missing cover means the game genuinely has none �
 `<Poster>` still falls back to the hero, and chart queries filter on
 `cover != null` rather than rendering placeholders. Never stretch a hero into a
 poster slot; that is what the fallback is for.
+
+**The hero is chosen, not `artworks[0]`.** IGDB's `artworks` is every piece of
+art anybody uploaded, in upload order, and the first is as often an icon or a
+wordmark as key art: of the 120 most-rated games (verified live), 46 had a first
+artwork that was not landscape at all and only 28 had a 16:9 one. The Witcher
+3's is a 128×128 icon, which IGDB's `t_1080p` *upscales* to 1080×1080 — that was
+the game page's hero, and what the owner called "cropped and in low quality".
+`chooseHero` (`lib/games/hero-art.ts`, pure and tested against those records)
+reads each artwork's `artwork_type` and size, which `GAME_FIELDS` now asks for:
+key art, then artwork, then concept art; landscape; at least 1000px across; a
+sharp widescreen screenshot before soft art **and before a 3.1:1 banner**
+(Steam's 1920×620, which the 38%-tall hero cuts to its middle third and
+enlarges); **never a logo, a cover or an icon**. The fifteen type ids are a
+literal there (`artwork_types` is not on the function's allowlist; the table
+was read off 4,726 live artworks). A query that asks for neither sizes nor
+kinds — `similar_games` — still gets the first artwork, and nothing draws that
+as a hero.
 
 **Steam CDN artwork is a preference over IGDB, never a replacement.** Where a
 game has a Steam listing, `<Poster steamAppId>` and `<HeroArt steamAppId>` show
@@ -980,7 +1001,10 @@ What follows from them, and is easy to get wrong:
   Return ISO strings and arrays from a `queryFn`.
 - **Bump `CACHE_VERSION` when a query's shape changes incompatibly** (a field
   renamed, an array that became an object). Rows of another version are dropped
-  unread. Adding a field needs no bump.
+  unread. Adding a field needs no bump. It is 2: the one bump so far was not
+  for shape but for *content* — every saved game named the old hero image
+  (see § Artwork), and its page would have opened on an upscaled icon until
+  the fresh record arrived.
 - **What is never written** is in `NEVER_PERSIST` (`query-persist-rules.ts`):
   answers to something typed (`search`, `barcode`), queries that only *read* a
   store the device already keeps (`search-history`, `log-draft`, the colour and
@@ -1421,7 +1445,8 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   **What kept its own treatment:** the game page's Material 3 cluster (the vivid
   review button — `tone="vivid"`, the one `<Button>` that is not grey — the
   connected tonal action keys, platform keys), `<RoundAction>`,
-  `<TopBarDisc>`'s frosted glass, the collection header's playlist-hero pill,
+  the collection header's two translucent action circles (the reference
+  album's own, over a page that changes colour),
   the sign-in brand buttons (same pill shape, brand colours), meaning colours,
   and the physical objects. Do not "fix" them toward the rest.
 - **Type and spacing follow the reference's Analytics screen.** Bold is for
@@ -1661,11 +1686,25 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   database before 0033 has no `cover_style` at all, and every reader treats that
   as `mosaic`. A mosaic with only one cover to draw is shown as the single cover
   — banner crop, page colour and all — except on an award show, whose trophy is
-  drawn over the mosaic. Under the header the body is SimpMusic's album body
-  (`AlbumScreen.kt`): one column `bodyInset` in (32 to scale), the action row
-  centred in it, then the description start-aligned across it — three lines and
-  a More that opens in place — with "No description" in the same place and type
-  when nothing is written. The games *inside* a collection are portrait box art
+  drawn over the mosaic. Over the bottom of the art, centred, are the name and
+  one quiet line — "Collection · 12 games". **Under the art, on the page's solid
+  colour, is the owner's layout** — do not put any of it back where it was:
+  one row with **who made it on the left** (picture and name, a link; it used to
+  be the middle line of the title stack, printed on the cover) and **share and
+  like on the right**, as the reference album's 48dp circles filled with the ink
+  at 12% (`AlbumScreen.kt`). The like draws out into a capsule to hold its count
+  once it has one, and lights in `liked` with a solid heart — it was a white
+  "Like" pill in the reference's Play slot, the page's one big button, and the
+  owner had it changed. Then the description — three lines and a More that opens
+  in place, "No description" in the same place and type when nothing is
+  written. The byline, the description, the sort tools and the games share
+  **one left edge, the page's margin**; the body was the reference's own column,
+  32 in, while its row was centred. **The owner's menu is not in the masthead**:
+  it is a glass disc at the top right of the screen, opposite the back button,
+  where SimpMusic's album keeps "more" — `<TopBarDisc>` in the screen's top bar,
+  opening `<CollectionOwnerMenu>`. So `<CollectionHeader>` does not know who is
+  looking, and its row is the same width for everybody. The games *inside* a
+  collection are portrait box art
   (`<Poster>`, see the SteamGridDB note above) — the grid, the rows and a tier
   list's rows alike — and never wear the Must Play badge.
 - **Removing games from a collection is a selection, started by holding one.**
@@ -1686,8 +1725,17 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   wall of art into a list of buttons with pictures on them.
 - **There is no header anywhere — native or otherwise.** `app/_layout.tsx` and
   `app/(tabs)/_layout.tsx` both set `headerShown: false`, and `<FrostedTopBar>`
-  is no longer a bar: it is a **44dp disc of frosted glass holding a back
-  chevron**, floated over the page through `<Screen topBar={…}>`. The full-width
+  is no longer a bar: it is a **48dp disc of glass holding a back
+  chevron**, floated over the page through `<Screen topBar={…}>` — SimpMusic's
+  back button, at the owner's direction, read from `AlbumScreen.kt` and
+  `LiquidGlassContainer.kt`: 48 across on both platforms (it was `TapTarget`),
+  **12 from the corner on both axes** (it was the page's 15 and 8), which
+  makes `TopBarHeight` 60 — `frosted-top-bar.test.ts` holds the disc and the
+  room reserved for it to the same sum. The reference's glass is a shader
+  (blur, a lens, a scrim, a rim of light); there is no Skia here, so the disc
+  draws the three that read at 48dp — a one-dp rim that is bright at the top
+  left and fades round the circle, a 27% scrim, a faint sheen — over a lighter
+  blur, and leaves the lens out. The full-width
   version cost `inset + 56` — about 111dp, 13% of an 844pt display — to carry one
   word and one chevron, and it blurred the top of every piece of key art in an
   app whose subject is artwork.
@@ -1704,9 +1752,9 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   to. The profile tab has a fixed row of its own, Instagram's: the + (quick log
   or review, `quick-log`), your handle, and Settings, with the profile starting
   `x32 + x4` under it — the distance Home's greeting sits under its masthead.
-- **The bar is a layer, not a surface.** Blur, then a scrim (22% on the disc,
-  lighter than the old bar's 30% because it only has to carry one glyph), then
-  the glyph — no `backgroundColor`, ever. It has nothing of its own to show; it softens
+- **The bar is a layer, not a surface.** Blur, then a scrim (27% on the disc,
+  the reference's), a rim and a sheen of light, then the glyph — no fill of the
+  app's own colours, ever. It has nothing of its own to show; it softens
   what the page put behind it, which is why a page's ambience (`<SoftGlow>`,
   `<AmbientLight>`) belongs in `<Screen backdrop>` and never in the bar. Giving
   the bar its own gradient would put two ramps in the same column meeting at its
@@ -1770,6 +1818,41 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   `import()` behind a latching availability flag and falls back to
   `lib/artwork-color.ts` (pure-JS `jpeg-js`, works anywhere). Dev builds get the
   native extractor; Expo Go gets the decoder; neither branch is a degraded mode.
+- **The game page's masthead: the hero as it always was, and one row under
+  it — four owner rulings, each of which undid something.**
+  1. **The hero is the backdrop hero** — 38% of the display
+     (`heroHeightFor`), the art cropped to fill it, `scrim`, `fade="mask"`,
+     running under the status bar. For one pass it was a picture instead: the
+     art whole at its own aspect, no fade, under the status bar, the page's
+     height following the image. The owner took it back — "go back to the hero
+     art old aspect ratio… you have to keep the fade transition". **Do not
+     re-try an uncropped hero or drop the fade.** What stayed from that pass is
+     *which* image it is (§ Artwork).
+  2. **The cover and the billing are under the art, not over it.** The cover
+     used to rise 46% of its height into the hero — "a boxed copy propped
+     against a poster" — and the owner had the row moved onto the page's solid
+     colour, with nothing laid on the art. It sits twelve under the hero's
+     bottom edge (`identityUnderHero`): the art has dissolved before that
+     edge, so the fade is the space between them. Never a negative margin
+     larger than the header's gap.
+  3. **The billing is on the left, against the cover.** It was right-aligned
+     against the far margin for one pass, at the owner's request, and brought
+     back by the owner. Leave it left.
+  4. **The billing is larger than anything in `Type`**, at the owner's
+     direction: the name 28/34, the date `h3`, the credits 15/21, the score
+     `h3`. The name and the credits are that row's own sizes
+     (`billingTitle`, `billingCredit`) with their own line heights; the name
+     runs to four lines, because a game's name is not truncated on its own
+     page.
+- **One score in the masthead: IGDB's, and only when the app has none.** The
+  stats strip under the row prints the app's own average and its count
+  (`['rating-breakdown', gameId]`). IGDB's `total_rating` — "Community" —
+  beside the cover is drawn only when that query has answered with no ratings
+  (or failed); with one, it was a second, different number about the same game
+  a line above the first. Nothing is drawn while the query is pending: a figure
+  that appears and is then removed is worse than one a moment late. The page
+  reads the strip's query under the strip's key and arguments, so it is one
+  request — diverge and it is two.
 - **The game page, Surprise Me and a review have no gradient.** `<ScrollAmbience>`
   is gone from all three; they fill flat with `<Screen background={accent.page}>`.
   (The review page stayed a neutral dark room for a long time; it now runs on the

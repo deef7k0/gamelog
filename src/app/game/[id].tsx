@@ -7,7 +7,6 @@ import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
-import { caseHeightFor } from '@/components/game-case';
 import { GameCaseFlip } from '@/components/game-case-flip';
 import { GameDetailsSheet } from '@/components/game-details-sheet';
 import {
@@ -38,18 +37,17 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { InfoCard, InfoCardButton } from '@/components/ui/info-card';
 import { ArtRail, Section, SectionInsetProvider, useSectionMetrics } from '@/components/ui/section';
-import { ScoreBadge } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { editionLabel } from '@/constants/game-editions';
 import { copyStateLine, releaseLine } from '@/constants/physical';
-import { scoreColor } from '@/constants/score';
+import { labelFor, scoreColor } from '@/constants/score';
 import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { getAchievementsForGame, getCopies, getMyLog } from '@/lib/api';
+import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
 import { recallGame } from '@/lib/games/seen-games';
@@ -80,8 +78,8 @@ const TABS = [
  * 38% leaves the remaining ~55% of the column for the title and the billing
  * beside it. Everything on this page is a ratio of the window
  * for the same reason: the masthead is a *proportion* — art this wide, copy
- * that wide, this much overlap — and a fixed number would make the same
- * composition read as two different designs on a phone and a tablet.
+ * that wide — and a fixed number would make the same composition read as two
+ * different designs on a phone and a tablet.
  */
 /**
  * Lines of synopsis before its More: the reference's description card shows
@@ -106,16 +104,6 @@ const SYNOPSIS_LINES = 5;
  */
 const CASE_WIDTH_RATIO = 0.33;
 const CASE_MAX_WIDTH = 200;
-
-/**
- * How far the case rises *into* the hero, as a fraction of its own height.
- *
- * Not "below the art, tucked under the fade" — the case genuinely overlaps it,
- * standing in front of the key art like a boxed copy propped against a poster.
- * Nearly half, so the overlap is unmistakably an overlap; at a third it read as
- * two stacked bands that happened to touch.
- */
-const CASE_OVERLAP_RATIO = 0.46;
 
 /**
  * Lifts "See your full review" to the platform floor.
@@ -222,9 +210,6 @@ export default function GameDetailScreen() {
   const sections = useSectionMetrics();
 
   const caseWidth = Math.min(CASE_MAX_WIDTH, Math.round(width * CASE_WIDTH_RATIO));
-  // Also swallows the header's group gap, so the overlap is measured from the
-  // hero's edge rather than from the gap below it.
-  const caseOverlap = Math.round(caseHeightFor(caseWidth) * CASE_OVERLAP_RATIO) + Spacing.x24;
   const heroHeight = heroHeightFor(width, windowHeight);
 
   const game = useQuery({
@@ -252,6 +237,17 @@ export default function GameDetailScreen() {
     queryKey: ['my-log', userId, id],
     queryFn: () => getMyLog(userId!, id!),
     enabled: !!userId && !!id,
+  });
+
+  /*
+   * Whether anybody here has scored this game — the stats strip's own query,
+   * under its own key and arguments, so the two share one request. It decides
+   * whether the masthead prints IGDB's score; see the billing below.
+   */
+  const appRatings = useQuery({
+    queryKey: ['rating-breakdown', id],
+    queryFn: () => getRatingBreakdown(id!),
+    enabled: !!id,
   });
 
   const similar = useQuery({
@@ -419,14 +415,36 @@ export default function GameDetailScreen() {
     label: `Screenshot ${index + 1} of ${shown.length} from ${data.title}`,
   }));
 
+  /*
+   * Whose score the masthead prints, by the owner's rule.
+   *
+   * **The app's own score, when it has one, is the score** — and it is in the
+   * stats strip directly under this row, with how many ratings are behind it.
+   * IGDB's aggregate beside the cover said a second, different number about the
+   * same game, a line above the first. So it is printed only for a game nobody
+   * here has rated, where it is the only verdict there is.
+   *
+   * Nothing is printed while that is still being asked: a number that appears
+   * and is then taken away is worse than one that arrives a moment late. A
+   * failed request counts as "no ratings" — IGDB's score is better than none.
+   */
+  const showCommunityScore = data.score !== null && !appRatings.isPending && !appRatings.data;
+
   /** The masthead, rendered above every tab. */
   const header = (
     <View style={styles.header}>
       <View style={styles.hero}>
-        {/* `mask`, not a colour ramp: the backdrop behind this is a gradient
-            that changes as you scroll, and a fade to a fixed dark would draw a
-            band across it. Dissolving the art's own alpha lets whatever is
-            behind show through, whatever colour it currently is. */}
+        {/* `mask`, not a colour ramp: the page behind this is the game's own
+            tone, and a fade to a fixed dark would draw a band across it.
+            Dissolving the art's own alpha lets whatever is behind show through,
+            whatever colour it is.
+
+            The hero is the app's backdrop hero again — 38% of the display, the
+            art cropped to fill it, dissolving into the page — after one pass
+            as a picture shown whole at its own shape, which the owner took
+            back. What survived that pass is *which* image it is: the game's
+            key art, chosen (`lib/games/hero-art.ts`), not IGDB's first
+            artwork, which was as often an icon or a wordmark. */}
         <HeroArt
           uri={data.heroUrl}
           steamAppId={data.steamAppId}
@@ -436,11 +454,17 @@ export default function GameDetailScreen() {
         />
       </View>
 
-      {/* Group 1 — identity, as one row: the boxed copy on the left standing in
-          front of the key art, everything the game *is* set beside it. Stacked
-          and centred, this block was two full screens before the first review;
-          side by side it is one. */}
-      <View style={[styles.identity, { marginTop: -caseOverlap }]}>
+      {/* Group 1 — identity, as one row **under** the art: the cover on the
+          left, everything the game *is* set beside it. Stacked and centred,
+          this block was two full screens before the first review; side by side
+          it is one.
+
+          Under, not over. The cover used to rise half its height into the
+          hero, and the owner had the row moved down onto the page's solid
+          colour so that nothing is laid on the art. The art's own fade is the
+          space between them, which is why this row sits closer to the hero
+          than the header's other groups sit to each other. */}
+      <View style={[styles.identity, styles.identityUnderHero]}>
         {/*
           Always the plain cover, and still.
 
@@ -483,23 +507,27 @@ export default function GameDetailScreen() {
         </View>
 
         {/*
-          One step up the scale, all the way down this column.
+          The billing, beside the cover and a size above the interface.
 
-          The case is fixed dp and deliberately does not ride the spacing ladder
-          (DESIGN.md § 4.1), so when the chrome was compressed the artwork stayed
-          put and the type beside it shrank away from it. On a 390dp phone that
-          left a 148dp object next to a 23px title, a 12px date and a 10px
-          studio credit — the studio line, which is a proper noun, sitting at the
-          type scale's absolute floor.
+          It has been enlarged twice, both times for the same reason: the cover
+          is fixed dp and does not ride the spacing ladder (DESIGN.md § 4.1), so
+          whenever the chrome was tuned the art stayed put and the type beside
+          it fell away from it. First to `display` / `h4` / `body`; now, at the
+          owner's direction, a step past each of those — 28 for the name, `h3`
+          for the date, 15 for the two credits, `h3` for the score. The name and
+          the credits are sizes of this row's own (`styles.billingTitle`,
+          `billingCredit`), each with its own line height: `Type` has nothing
+          above `display` and no regular step between 13 and 14.
 
-          So: `display` for the name, and a step up again for everything under it —
-          `h4` for the date, `body` for the two credits. The column is still the
-          quiet half of the row — the case is the subject — but at `bodySmall` a
-          studio credit was a 12px proper noun beside a 148dp object, which read
-          as a caption rather than as the game's billing.
+          Left-aligned, against the cover. It was set against the right margin
+          for one pass and the owner had it brought back.
+
+          Four lines for the name, not three: at 28 a long title — "The Legend
+          of Zelda: Breath of the Wild" — needs the fourth, and a game's name is
+          the one thing on its own page that must not end in an ellipsis.
         */}
         <View style={styles.identityText}>
-          <Text variant="display" numberOfLines={3}>
+          <Text variant="display" numberOfLines={4} style={styles.billingTitle}>
             {data.title}
           </Text>
 
@@ -508,11 +536,11 @@ export default function GameDetailScreen() {
               which carries a trace of the game's own hue rather than being a
               flat grey dropped onto a coloured page. */}
           {data.releaseDate ? (
-            <Text variant="h4" style={{ color: accent.quietInk }}>
+            <Text variant="h3" style={{ color: accent.quietInk }}>
               {formatReleaseDate(data.releaseDate)}
             </Text>
           ) : data.releaseYear ? (
-            <Text variant="h4" style={{ color: accent.quietInk }}>
+            <Text variant="h3" style={{ color: accent.quietInk }}>
               {data.releaseYear}
             </Text>
           ) : null}
@@ -521,22 +549,31 @@ export default function GameDetailScreen() {
               different companies, so they get a line each rather than being
               joined by a dot that implies one relationship. */}
           {data.developer && (
-            <Text variant="body" style={{ color: accent.quietInk }} numberOfLines={2}>
+            <Text style={[styles.billingCredit, { color: accent.quietInk }]} numberOfLines={2}>
               {data.developer}
             </Text>
           )}
           {data.publisher && data.publisher !== data.developer && (
-            <Text variant="body" style={{ color: accent.quietInk }} numberOfLines={2}>
+            <Text style={[styles.billingCredit, { color: accent.quietInk }]} numberOfLines={2}>
               {data.publisher}
             </Text>
           )}
 
-          {data.score !== null && (
+          {/* IGDB's score, and only for a game nobody here has rated — see
+              `showCommunityScore`. The figure is the score ramp's colour and
+              says its verdict to a screen reader, as `<ScoreBadge>` does; it is
+              drawn here because that badge stops at 14. */}
+          {showCommunityScore && data.score !== null && (
             <View style={styles.scoreRow}>
-              <ScoreBadge score={data.score} size="small" />
+              <Text
+                variant="h3"
+                accessibilityLabel={`${Math.round(data.score)} out of 100 — ${labelFor(Math.round(data.score))}`}
+                style={{ color: scoreColor(data.score, theme) }}>
+                {Math.round(data.score)}
+              </Text>
               {/* A quiet sentence-case label beside a bold figure — the owner's
                   reference sets numbers that way, and keeps caps for nothing. */}
-              <Text variant="bodySmall" style={{ color: accent.quietInk }}>
+              <Text variant="body" style={{ color: accent.quietInk }}>
                 Community
               </Text>
             </View>
@@ -1164,30 +1201,23 @@ const styles = StyleSheet.create({
    */
   header: { gap: Spacing.x24, paddingHorizontal: Spacing.x16, marginBottom: Spacing.x24 },
   hero: { marginHorizontal: -Spacing.x16 },
-  /* `marginTop` is supplied inline — it scales with the case.
-     
-     **`flex-start`, and the reason is the whole composition.** This was
-     `flex-end`, to share a baseline at the bottom — but in a flex row that
-     aligns the *shorter* child to the taller one's bottom, and the taller child
-     here is the text. So as a game accumulated metadata the case was pushed
-     *down*, out of the key art: measured at 390×844, a typical game (2-line
-     title, developer, score, four platforms) already put the case 13dp **below**
-     the hero, and a metadata-rich one 130dp below. The 46% overlap that makes
-     this masthead a boxed copy propped against a poster rather than two stacked
-     bands only survived on games with almost no metadata.
-     
-     The case is the fixed shape, so the case is the anchor. Top-aligned, the
-     overlap holds at 86dp into the art for every game, and the text runs past
-     the case's bottom edge when it needs to — which it may, because what
-     follows is a gap and not more artwork.
-     
-     The old comment worried that top-aligning would leave a short title
-     "floating against nothing". It is the other way round: `flex-end` was what
-     put 160dp of void *above* the title on a sparse game. Top-aligned, the
-     title meets the case's top edge and any slack falls below it, beside the
-     lower half of the case, where it reads as ordinary margin. */
+  /* The cover is the fixed shape, so the row is top-aligned to it: the title
+     meets the cover's top edge and any slack falls below, beside the lower
+     half of the cover, where it reads as ordinary margin. `flex-end` aligned
+     the *shorter* child to the taller one's bottom, and the taller child here
+     is often the text. */
   identity: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x16 },
+  /* Twelve under the hero's bottom edge instead of the header's twenty-four.
+     The art has dissolved to nothing well before that edge, so its fade is
+     already the space above this row; the full gap on top of it read as a
+     hole. Still under the art — the pull is half the gap, never past it. */
+  identityUnderHero: { marginTop: -(Spacing.x24 - Spacing.x12) },
   identityText: { flex: 1, gap: Spacing.x8 },
+  /* The row's own two sizes — see the note on the billing. Each states its
+     line height: a `fontSize` alone would keep the variant's, and Android
+     clips a glyph to its line box. */
+  billingTitle: { fontSize: 28, lineHeight: 34, letterSpacing: -0.6 },
+  billingCredit: { fontSize: 15, lineHeight: 21, fontFamily: FontFamily.regular },
   scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
   myLog: {

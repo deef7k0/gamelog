@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
-import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CollectionMosaic } from '@/components/collection-mosaic';
@@ -48,10 +47,21 @@ const META_ALPHA = 0.77;
  */
 const SINGLE_ANCHOR = '22%';
 
-/** The one filled action: the reference album's Play pill, 48. */
-const PILL_HEIGHT = 48;
-/** Every circular action beside it: the reference's 48 circles. */
-const CIRCLE = 48;
+/**
+ * The two actions under the art: the reference album's 48dp circles
+ * (`Modifier.size(48.dp).clip(CircleShape)`), 12 apart, glyphs at 22.
+ */
+const ACTION = 48;
+const ACTION_GLYPH = 22;
+/**
+ * What an action is filled with: white at 12%, the reference's
+ * `Color.White.copy(alpha = 0.12f)`. A wash of the ink rather than a grey of
+ * the app's, because the page under it is a different colour for every
+ * collection with one cover — a translucent fill is a step up from whichever.
+ */
+const ACTION_FILL = 0.12;
+/** The owner's picture in the byline. */
+const AVATAR = 36;
 
 /**
  * Lines of description shown before "See more".
@@ -65,7 +75,6 @@ const DESCRIPTION_LINES = 3;
 export type CollectionHeaderProps = {
   collection: ListWithItems;
   owner: Profile | null;
-  isOwner: boolean;
   /**
    * The page colour the artwork melts into — the immersive colour of a single
    * cover (`useImmersiveBackground`), or null for the app's own page, which is
@@ -75,77 +84,86 @@ export type CollectionHeaderProps = {
   pageColor?: string | null;
   /** Like count and whether the viewer is one of them. */
   engagement?: Engagement;
-  onEdit?: () => void;
-  /** Rename the collection and rewrite its About. Owner-only. */
-  onEditDetails?: () => void;
-  onDelete?: () => void;
   onShare?: () => void;
-  /** Enter the "tap a game to use its cover" mode. Owner-only. */
-  onPickCover?: () => void;
-  /** Switch between four covers and one. Owner-only. */
-  onSetDisplay?: (display: ListCoverStyle) => void;
 };
 
 /**
- * Collection masthead — artwork, name, one row of actions, description.
+ * Collection masthead — the owner's layout, top to bottom:
  *
- * ## The shape, and what changed
+ * ```
+ * [               ART                ]   back at its top left, and — for
+ * [        Collection title          ]   its owner — Edit at its top right
+ *      Collection type · x games
+ *
+ * (picture) username        (share) (like)
+ * About
+ * ```
  *
  * Half a screen of artwork — four covers, or the one the owner chose — melting
- * into the page through a smoothstep scrim over its bottom 70%; the name and the
- * byline set *over* the bottom of it; one row of actions below; then the
- * description, tight under the actions. Everything is centred on the artwork's
- * axis. The geometry is SimpMusic's album and playlist header, read from
- * `AlbumScreen.kt` / `PlaylistScreen.kt`.
+ * into the page through a smoothstep scrim over its bottom 70%, with the name
+ * and what it is set *over* the bottom of it, centred. That much is SimpMusic's
+ * album header, read from `AlbumScreen.kt`. Under it, on the page's solid
+ * colour, one row: who made it on the left, share and like on the right. Then
+ * the description. The sort tools and the games are the screen's, below.
  *
- * **The page takes a single cover's colour.** With one cover — the owner's
- * choice, or the only one a collection has (`collectionCover`) — the screen
- * fills with that cover's immersive colour (`useImmersiveBackground`) and the
- * scrim melts into it; with a mosaic of several it stays the app's own page,
- * since several covers have no one colour. The colour is the background's
- * alone — the actions below keep their neutral fills.
+ * ## What the owner changed, and it is three things
  *
- * Two things were wrong before and both were structural rather than cosmetic.
+ * **The byline came off the art.** It was the middle line of the title stack —
+ * name, owner, kind — printed over the cover. It is under the art now, on solid
+ * ground, at the left of a row of its own: a person is somebody to go and see,
+ * and that is a control, not a caption.
  *
- * **The fade was a blurred copy of the artwork revealed through a gradient
- * mask.** That is the game page's treatment and it belongs there, where the
- * subject is one photographic key art. A collection's artwork is a 2×2 grid of
- * covers, and blurring it produced four smeared rectangles whose seams were
- * still visible — the grid survived the blur, so the "dissolve" read as the
- * image going out of focus rather than as it ending. A plain black ramp is what
- * the reference uses and it is the honest one: the artwork does not dissolve,
- * the page gets dark underneath it.
+ * **Like is no longer the page's one big button.** The row was circle, white
+ * pill, circle — share, a filled "Like" pill in the reference's Play slot, and
+ * an overflow. The pill is gone: share and like are the reference's two quiet
+ * 48dp circles at the right of the byline's row, and the like carries its count
+ * beside its heart once it has one.
  *
- * **The action row wrapped.** An owner saw six controls — share, edit details,
- * change preview, add games, delete, like — which is 356dp against a small
- * phone's ~324, so the last one dropped to a second line and the description
- * moved down with it. The fix is not smaller buttons: it is that four of those
- * six are *owner administration* and do not belong in the same row as the one
- * thing a reader came to do. They are behind the overflow now, so the row is
- * always exactly three objects wide — circle, pill, circle — on every phone and
- * for every viewer.
+ * **The owner's menu left the row for the top of the screen.** Rename, add
+ * games, change the cover, delete: SimpMusic's album keeps "more" in a glass
+ * control at the top right, opposite the back button, and that is where it is —
+ * the screen's top bar, as a `<TopBarDisc>`. So this component no longer knows
+ * whether the viewer owns the collection: the menu is `<CollectionOwnerMenu>`,
+ * exported below, and the screen that owns the top bar opens it. The row here
+ * measures the same for everybody.
+ *
+ * ## One left edge
+ *
+ * The byline, the description, the sort tools and the games all start on the
+ * page's margin. The body used to be the reference's own column, 32 in, which
+ * suited a row centred on the art's axis; a row with a name at one end and
+ * buttons at the other belongs to the edges the list under it keeps.
+ *
+ * ## The page takes a single cover's colour
+ *
+ * With one cover — the owner's choice, or the only one a collection has
+ * (`collectionCover`) — the screen fills with that cover's immersive colour
+ * (`useImmersiveBackground`) and the scrim melts into it; with a mosaic of
+ * several it stays the app's own page, since several covers have no one colour.
+ * The colour is the background's alone — the actions keep a neutral wash.
+ *
+ * ## The fade is a ramp, not a blur
+ *
+ * A blurred copy of the artwork revealed through a mask is the game page's
+ * treatment and belongs there, where the subject is one photographic key art.
+ * A collection's artwork is a 2×2 grid of covers, and blurring it produced four
+ * smeared rectangles whose seams were still visible. A plain ramp to the page
+ * colour is what the reference uses and it is the honest one: the artwork does
+ * not dissolve, the page takes over underneath it.
  */
 export function CollectionHeader({
   collection,
   owner,
-  isOwner,
   pageColor = null,
   engagement,
-  onEdit,
-  onEditDetails,
-  onDelete,
   onShare,
-  onPickCover,
-  onSetDisplay,
 }: CollectionHeaderProps) {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
   const sections = useSectionMetrics();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const items = collection.items ?? [];
   const covers = coversFrom(items);
-  const display = collection.cover_style ?? 'mosaic';
   const single = collectionCover(collection);
   /*
    * The single cover as square art, where SteamGridDB has any. This header is
@@ -173,8 +191,8 @@ export function CollectionHeader({
   const offsetX = Math.round((width - mosaicSize) / 2);
   const offsetY = Math.round((coverHeight - mosaicSize) / 2);
 
-  const ownerActions =
-    isOwner && (onEditDetails || onEdit || onPickCover || onSetDisplay || onDelete);
+  const actionFill = withAlpha(theme.text, ACTION_FILL);
+  const ownerName = owner ? displayNameFor(owner) : null;
 
   return (
     <View>
@@ -225,7 +243,7 @@ export function CollectionHeader({
         */}
         <SmoothScrim color={page} style={[styles.fade, { height: `${SCRIM_RATIO * 100}%` }]} />
 
-        {/* Keeps the floating back disc legible over a bright cover. */}
+        {/* Keeps the status bar and the glass discs legible over a bright cover. */}
         <LinearGradient
           colors={[withAlpha(Palette.shadowInk, 0.5), withAlpha(Palette.shadowInk, 0)]}
           style={styles.scrim}
@@ -233,36 +251,23 @@ export function CollectionHeader({
         />
 
         {/*
-          The name and the byline, set over the artwork.
+          The name and what it is, set over the artwork.
 
           Anchored to the bottom of the cover block rather than placed after it,
           so they sit on ground the fade has already darkened — printed on the
           cover rather than captioned beneath it. `paddingBottom` is what keeps
-          them clear of the very bottom edge, where the ramp is fully black and
-          the text would look like it had fallen out of the image.
+          them clear of the very bottom edge, where the ramp is fully the page
+          and the text would look like it had fallen out of the image.
+
+          Two lines of the reference's three: the name, then the kind and count
+          at 77% white — "2007 • Album" in SimpMusic, "Collection · 12 games"
+          here. Its middle line, the artist, is this collection's owner, and the
+          owner asked for that under the art.
         */}
-        {/* The reference's title stack: the name, 4 below it the byline, 2 below
-            that the kind and count at 77% white — "2007 • Album" in SimpMusic,
-            "Collection · 12 games" here. */}
-        <View style={styles.titleBlock} pointerEvents="box-none">
-          <Text variant="display" numberOfLines={2} style={styles.title}>
+        <View style={styles.titleBlock} pointerEvents="none">
+          <Text variant="display" numberOfLines={2} style={styles.title} accessibilityRole="header">
             {collection.title}
           </Text>
-
-          {owner && (
-            <Link href={{ pathname: '/profile/[id]', params: { id: owner.id } }} asChild>
-              <PressableScale
-                accessibilityRole="link"
-                accessibilityLabel={`${displayNameFor(owner)}'s profile`}
-                scaleTo={0.98}
-                style={StyleSheet.flatten(styles.byline)}>
-                <Avatar uri={owner.avatar_url} name={displayNameFor(owner)} size={20} />
-                <Text variant="h5" numberOfLines={1}>
-                  {displayNameFor(owner)}
-                </Text>
-              </PressableScale>
-            </Link>
-          )}
 
           <Text variant="body" style={[styles.meta, { color: withAlpha(theme.text, META_ALPHA) }]}>
             {collectionKindLabel(collection)} · {items.length}{' '}
@@ -271,60 +276,83 @@ export function CollectionHeader({
         </View>
       </View>
 
-      {/*
-        SimpMusic's album and playlist body (`AlbumScreen.kt`): one column, 32
-        in from each side to scale — the action row centred in it, then the
-        description under it, start-aligned across the column's full width,
-        each with the reference's 8 above and below. The description used to
-        sit 15 in, tight under the buttons, while "No description" centred
-        itself — two alignments for one slot.
-      */}
-      <View style={{ paddingHorizontal: sections.bodyInset, paddingTop: sections.cardGap }}>
+      {/* Under the art, on the page's own colour, at the page's margin — the
+          left edge the sort tools and the games below it keep. */}
+      <View style={[styles.body, { paddingTop: sections.cardGap }]}>
         {/*
-          Three objects, always. Never four, never a second line.
+          Who made it, and the two things a reader can do about it.
 
-          The pill is the like because that is the one thing a *reader* came to
-          do, and it is the only control here with a state to be in. Share sits
-          to its left; everything an owner can do to the collection is behind the
-          overflow to its right, which is what guarantees the row measures the
-          same for a visitor and for the person who made it.
+          The byline is only as wide as its picture and its name, so a press in
+          the empty middle of the row is a press on nothing. A long name gives
+          way before the buttons do.
         */}
-        <View style={[styles.actions, { paddingVertical: sections.cardGap }]}>
-          {onShare ? (
-            <CircleAction icon="share-outline" label="Share this collection" onPress={onShare} />
+        <View style={styles.byRow}>
+          {owner && ownerName ? (
+            <Link href={{ pathname: '/profile/[id]', params: { id: owner.id } }} asChild>
+              <PressableScale
+                accessibilityRole="link"
+                accessibilityLabel={`${ownerName}'s profile`}
+                scaleTo={0.98}
+                style={StyleSheet.flatten(styles.byline)}>
+                <Avatar uri={owner.avatar_url} name={ownerName} size={AVATAR} />
+                <Text variant="itemTitle" numberOfLines={1} style={styles.bylineName}>
+                  {ownerName}
+                </Text>
+              </PressableScale>
+            </Link>
           ) : (
-            <View style={styles.circleSpacer} />
+            /* Holds the row's height, and the actions at its right, while the
+               owner is still being fetched. */
+            <View style={styles.bylineSpacer} />
           )}
 
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={liked ? 'Unlike this collection' : 'Like this collection'}
-            accessibilityState={{ selected: liked }}
-            onPress={toggle}
-            scaleTo={0.95}
-            style={StyleSheet.flatten([
-              styles.pill,
-              { backgroundColor: liked ? theme.danger : theme.text },
-            ])}>
-            {/* Near-black ink in both states, and it is the only arrangement
-                that measures: white on `danger` is 3.09:1, near-black on it is
-                5.57:1. The solid-vs-outline glyph is the second carrier, so
-                "liked" never rests on hue alone. */}
-            <Ionicons name={liked ? 'heart' : 'heart-outline'} size={22} color={theme.background} />
-            <Text variant="button" style={{ color: theme.background }}>
-              {likeCount > 0 ? `${likeCount}` : 'Like'}
-            </Text>
-          </PressableScale>
+          <View style={styles.actions}>
+            {onShare && (
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Share this collection"
+                onPress={onShare}
+                pressedColor={theme.pressed}
+                scaleTo={0.92}
+                style={StyleSheet.flatten([styles.action, { backgroundColor: actionFill }])}>
+                <Ionicons name="share-outline" size={ACTION_GLYPH} color={theme.text} />
+              </PressableScale>
+            )}
 
-          {ownerActions ? (
-            <CircleAction
-              icon="ellipsis-horizontal"
-              label="More actions for this collection"
-              onPress={() => setMenuOpen(true)}
-            />
-          ) : (
-            <View style={styles.circleSpacer} />
-          )}
+            {/*
+              The like: a circle while nobody has liked it, and the same circle
+              drawn out to hold its count once somebody has.
+
+              Liked is the app's amber and a solid heart — `liked`, never
+              `danger`, which means "this destroys something". The solid-versus-
+              outline glyph is the second carrier, so the state never rests on
+              hue alone; the count stays in the ink, because it is everybody's
+              number and not a statement about the reader.
+            */}
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={
+                likeCount > 0
+                  ? `${liked ? 'Unlike' : 'Like'} this collection. ${likeCount} ${likeCount === 1 ? 'like' : 'likes'}.`
+                  : `${liked ? 'Unlike' : 'Like'} this collection`
+              }
+              accessibilityState={{ selected: liked }}
+              onPress={toggle}
+              pressedColor={theme.pressed}
+              scaleTo={0.92}
+              style={StyleSheet.flatten([
+                styles.action,
+                likeCount > 0 && styles.actionCounted,
+                { backgroundColor: actionFill },
+              ])}>
+              <Ionicons
+                name={liked ? 'heart' : 'heart-outline'}
+                size={ACTION_GLYPH}
+                color={liked ? theme.liked : theme.text}
+              />
+              {likeCount > 0 && <Text variant="button">{likeCount}</Text>}
+            </PressableScale>
+          </View>
         </View>
 
         {/*
@@ -345,20 +373,6 @@ export function CollectionHeader({
           )}
         </View>
       </View>
-
-      {ownerActions && (
-        <OwnerMenu
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          display={display}
-          canPickCover={!!onPickCover && display === 'single' && items.length > 1}
-          onEditDetails={onEditDetails}
-          onEdit={onEdit}
-          onPickCover={onPickCover}
-          onSetDisplay={items.length > 0 ? onSetDisplay : undefined}
-          onDelete={onDelete}
-        />
-      )}
     </View>
   );
 }
@@ -381,68 +395,52 @@ function collectionKindLabel(collection: ListWithItems): string {
   }
 }
 
-/**
- * One circular action.
- *
- * Outlined, never filled — the pill between them is the only filled object in
- * the row, which is what makes it read as the primary one. The ring is always
- * white, including on a destructive action: `danger` at 40% composites to
- * #6C2D2D, 1.83:1 on the page, against the 3:1 a control boundary owes. Meaning
- * rides on the glyph instead, which is the same rule `<Chip color>` follows.
- */
-function CircleAction({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-}) {
-  const theme = useTheme();
-
-  return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      scaleTo={0.92}
-      style={StyleSheet.flatten([styles.circle, { borderColor: withAlpha(theme.text, 0.4) }])}>
-      <Ionicons name={icon} size={22} color={theme.text} />
-    </PressableScale>
-  );
-}
+export type CollectionOwnerMenuProps = {
+  open: boolean;
+  onClose: () => void;
+  collection: ListWithItems;
+  /** Rename the collection and rewrite its About. */
+  onEditDetails?: () => void;
+  /** Add games. */
+  onEdit?: () => void;
+  /** Enter the "tap a game to use its cover" mode. */
+  onPickCover?: () => void;
+  /** Switch between four covers and one. */
+  onSetDisplay?: (display: ListCoverStyle) => void;
+  onDelete?: () => void;
+};
 
 /**
- * Everything an owner can do, on a sheet.
+ * Everything an owner can do to a collection, on a sheet.
  *
- * Off the action row on purpose. These are administration — rename it, add to
- * it, change its cover, delete it — and none of them is what a person opening a
- * collection came to do. Keeping them in the row cost a wrapped second line on
- * every phone and put a delete button a thumb's width from the like.
+ * Opened from the top right of the screen — a glass disc opposite the back
+ * button, where SimpMusic's album keeps its "more" — and rendered by the screen
+ * that owns that bar, which is why it is exported and why the masthead above
+ * knows nothing about it.
+ *
+ * These are administration — rename it, add to it, change its cover, delete
+ * it — and none of them is what a person opening a collection came to do. In
+ * the masthead's own row they cost a wrapped second line on every phone and put
+ * a delete button a thumb's width from the like.
  */
-function OwnerMenu({
+export function CollectionOwnerMenu({
   open,
   onClose,
-  display,
-  canPickCover,
+  collection,
   onEditDetails,
   onEdit,
   onPickCover,
   onSetDisplay,
   onDelete,
-}: {
-  open: boolean;
-  onClose: () => void;
-  display: ListCoverStyle;
-  canPickCover: boolean;
-  onEditDetails?: () => void;
-  onEdit?: () => void;
-  onPickCover?: () => void;
-  onSetDisplay?: (display: ListCoverStyle) => void;
-  onDelete?: () => void;
-}) {
+}: CollectionOwnerMenuProps) {
   const theme = useTheme();
+
+  const count = (collection.items ?? []).length;
+  const display = collection.cover_style ?? 'mosaic';
+  /* Which cover, only once there is one cover and more than one game to pick it from. */
+  const canPickCover = !!onPickCover && display === 'single' && count > 1;
+  /* Four covers or one, only once there is a game to draw. */
+  const setDisplay = count > 0 ? onSetDisplay : undefined;
 
   function run(action?: () => void) {
     onClose();
@@ -475,18 +473,18 @@ function OwnerMenu({
           )}
           {onEdit && <MenuRow icon="add" label="Add games" onPress={() => run(onEdit)} />}
           {/* The artwork: four covers or one, and — with one — which. */}
-          {onSetDisplay &&
+          {setDisplay &&
             (display === 'single' ? (
               <MenuRow
                 icon="grid-outline"
                 label="Show the first four covers"
-                onPress={() => run(() => onSetDisplay('mosaic'))}
+                onPress={() => run(() => setDisplay('mosaic'))}
               />
             ) : (
               <MenuRow
                 icon="image-outline"
                 label="Show one cover"
-                onPress={() => run(() => onSetDisplay('single'))}
+                onPress={() => run(() => setDisplay('single'))}
               />
             ))}
           {canPickCover && onPickCover && (
@@ -621,52 +619,55 @@ const styles = StyleSheet.create({
   scrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '22%' },
 
   /* The reference's title block: 20 in from each side, 16 up from the edge
-     (`x24`, the ladder's 15), and 4 then 2 between its lines. */
+     (`x24`, the ladder's 15), and 4 between its two lines. */
   titleBlock: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     alignItems: 'center',
-    gap: 2,
+    gap: Spacing.x4,
     paddingHorizontal: Spacing.x32,
     paddingBottom: Spacing.x24,
   },
   title: { textAlign: 'center' },
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, marginTop: 2 },
   meta: { textAlign: 'center' },
 
-  /* Centred in the column, whatever the description beneath does. */
-  actions: {
+  /* The page's margin: one left edge for the byline, the description, the sort
+     tools and the games. */
+  body: { paddingHorizontal: Spacing.x16 },
+  byRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     gap: Spacing.x12,
+    minHeight: ACTION,
   },
-  /* `AlbumScreen.kt`'s Play pill: 48 tall, at least 110 wide, 20 at the sides,
-     12 from the circles either side of it. */
-  pill: {
+  /* Shrinks, so a long name is cut before the buttons are pushed off the row;
+     never grows, so the link is no wider than what it shows. */
+  byline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    flexShrink: 1,
+    minHeight: ACTION,
+  },
+  bylineName: { flexShrink: 1 },
+  bylineSpacer: { flex: 1 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  /* `AlbumScreen.kt`'s action circles: 48 across, fully round. */
+  action: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.x8,
-    height: PILL_HEIGHT,
-    minWidth: 110,
-    paddingHorizontal: Spacing.x20,
-    borderRadius: PILL_HEIGHT / 2,
+    minWidth: ACTION,
+    height: ACTION,
+    borderRadius: ACTION / 2,
   },
-  circle: {
-    width: CIRCLE,
-    height: CIRCLE,
-    borderRadius: CIRCLE / 2,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* Holds the pill centred when one side has no control. Without it a visitor's
-     row would be pill-plus-share, centred as a pair, and the like would sit off
-     the page's axis. */
-  circleSpacer: { width: CIRCLE, height: CIRCLE },
+  /* With a count beside the heart the circle is a capsule, and the two need
+     room at its ends that a lone glyph did not. */
+  actionCounted: { paddingHorizontal: Spacing.x16 },
 
   /* Start-aligned across the column: a paragraph, not a caption. */
   about: { alignSelf: 'stretch' },

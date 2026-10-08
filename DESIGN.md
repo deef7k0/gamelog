@@ -1597,16 +1597,37 @@ the worked example.
 
 # 7. Header
 
-The stack header **floats**. `headerTransparent` plus `<HeaderBackdrop />` is set
-once in `app/_layout.tsx`, never per screen. It draws a page-coloured ramp for
-legibility and a short black tail as the shadow, because a transparent view
-cannot cast one.
+There is no header: a **disc of glass floats over the top-left corner of the
+page** and holds the back chevron (`<FrostedTopBar>`, through `<Screen topBar>`).
+It is SimpMusic's back button, at the owner's direction, measured from its
+album screen (`AlbumScreen.kt`, `LiquidGlassContainer.kt`).
+
+```ts
+disc:    48 across, on both platforms
+corner:  12 from the edge of the display, 12 under the status bar
+glyph:   chevron-back, 24, the page's ink
+glass:   what is behind it, blurred lightly
+         a 27% black scrim over that
+         a one-dp rim of light — bright at the top left, fading round the circle
+         a faint sheen across the top left of the pane
+reserve: 60 above the safe-area inset (`TopBarHeight`), where a screen needs it
+```
+
+The reference's glass is a shader — blur, a lens, a scrim and a rim. This app
+has no Skia, and at 48dp refraction is not what anyone sees; the rim, the scrim
+and the sheen are, and those are drawn. The rim changes round its circle on
+purpose: a uniform hairline is the outline of a button, and a rim that catches
+light on one side is the edge of a piece of glass.
+
+**A control at the other end of the row is the same disc** (`<TopBarDisc>`):
+the owner's menu on a collection, Surprise Me's settings, the scanner's torch.
+Never an `<IconButton>` there — that is a filled grey circle beside one of
+glass.
 
 Screens leading with artwork (game, collection, review, profile, Top 10) let
 content run underneath. Every other screen passes `<Screen insetHeader>` to
-reserve the space. Modals opt out entirely.
-
-Page title: `h1` variant, 28 / 34, bold.
+reserve the space, and states its own heading in content: there is no title up
+here to carry one.
 
 ---
 
@@ -1731,7 +1752,8 @@ vivid review button.
 **What kept its own treatment.** The game page's Material 3 cluster — the vivid
 "Write a review" (`tone="vivid"`), the connected row of tonal action keys, the
 platform keys — and `<RoundAction>` on Surprise Me and a review. So did the
-collection header's white "Like" pill and round keys (a playlist hero), the
+collection header's two action circles — share and like, the reference album's
+own, filled with the ink at 12% because the page under them changes colour — the
 sign-in providers' brand colours (on the shared pill shape), and every *meaning*
 colour: a log status fills with the status's hue, a platinum or spoiler toggle
 lights in its own colour, a tier chip fills with its tier. The physical game
@@ -1764,8 +1786,7 @@ The round sibling: a circle in `controlFill` with no edge — the reference's
 glyph keys — drawn at 40dp (32 small) and touched at the platform floor through
 vertical slop. `active` lights wash, edge and glyph in the accent; `danger`
 reddens the glyph; `plain` drops the fill, for rows that already have a
-container. The floating back/close disc (`<TopBarDisc>`) is frosted glass and
-stays glass.
+container. The floating back/close disc (`<TopBarDisc>`) is glass — § 7.
 
 ## 9.3 Fields
 
@@ -1853,6 +1874,19 @@ The trade is a centre crop: a 16:9 source shown at ~1.2:1 loses its outer thirds
 Key art is composed centrally, and `heroHeightFor` never returns less than the
 untouched 16:9 height, so wide displays keep the whole frame.
 
+**The game page's hero is this one too.** For one pass it was a picture instead
+— the art whole, at its own shape, no fade, under the status bar — and the owner
+took it back: "go back to the hero art old aspect ratio… keep the fade
+transition". Do not re-try the uncropped hero.
+
+**Which image is the hero is chosen, not taken** (`lib/games/hero-art.ts`), and
+that part of the pass stayed. IGDB's first artwork is as often an icon or a
+wordmark as key art — The Witcher 3's is 128×128, which IGDB's `t_1080p`
+upscales — so the hero is the game's key art, then artwork, then concept art:
+landscape, at least 1000px across, never a logo, a cover or an icon. A 3.1:1
+banner (Steam's 1920×620) keeps barely its middle third in this slot, so a sharp
+widescreen screenshot is used before one.
+
 The hero ramps into the page beneath it with a `LinearGradient` — and every
 gradient stop ends on `withAlpha(colour, 0)`, **never** the keyword
 `'transparent'`. `expo-linear-gradient` interpolates through black on Android and
@@ -1862,20 +1896,41 @@ leaves a grey bruise mid-ramp.
 
 # 14. Game Page
 
-The masthead: full-bleed hero art with a heavy blur ramp, the game's **plain
-cover** overlapping it on the left — landing on arrival, with nothing to press —
-and the game's identity — title, release date, developer, publisher, community
-score — on the right. Actions run full width beneath both columns. The tabs
-follow; the **physical case** (§ 4.1) is in the Overview's Platforms section
-(§ 14.1), beside the control that chooses which platform's case it is.
+The masthead opens on the game's key art (§ 13), fading into the page. **Under
+it, on the page's solid colour** — not over it — is one row: the game's **plain
+cover** on the left, landing on arrival with nothing to press, and beside it
+the game's billing — title, release date, developer, publisher, and a score.
+Actions run full width beneath. The tabs follow; the **physical case** (§ 4.1)
+is in the Overview's Platforms section (§ 14.1), beside the control that
+chooses which platform's case it is.
+
+Three of the owner's rulings hold this shape, and each undid something:
+
+- **Nothing is laid on the art.** The cover used to rise half its height into
+  the hero, "a boxed copy propped against a poster". The row is under the hero
+  now, twelve under its bottom edge: the art has faded out before that edge, so
+  its fade is the space between them.
+- **The billing is on the left, against the cover, and a size above the
+  interface.** It was right-aligned for one pass and brought back. Its type is
+  the largest on the page: the name at 28/34, the date at `h3`, the credits at
+  15/21, the score at `h3`. The name may run to four lines; it is never cut.
+- **One score in the masthead, and it is the app's own when there is one.** The
+  stats strip under the row carries the app's average and how many ratings are
+  behind it. IGDB's aggregate ("Community") is printed beside the cover **only
+  for a game nobody here has rated** — otherwise it was a second, different
+  number about the same game, a line above the first. Nothing is printed while
+  that is still being asked.
 
 ```text
 ┌──────────────────────────────────────────┐
-│               HERO (0.38h)               │
-│  ┌──────┐                                │
-│  │COVER │   TITLE                        │
-│  │      │   date · developer · publisher │
-│  └──────┘   community score              │
+│ ◯             HERO (0.38h)               │
+│                                          │
+│          … fading into the page …        │
+└──────────────────────────────────────────┘
+   ┌──────┐   TITLE
+   │COVER │   date
+   │      │   developer · publisher
+   └──────┘   86 Community   ← only when nobody here has rated it
 ├──────────────────────────────────────────┤
 │  actions (full width)                    │
 ├──────────────────────────────────────────┤

@@ -1,5 +1,6 @@
 import { editionKindFor, editionRank } from '../../constants/game-editions';
 import { supabase } from '../supabase';
+import { chooseHero } from './hero-art';
 import { rememberGame } from './seen-games';
 import { makeGameId, yearFrom, type Game, type GameProvider, type GameSearchResult } from './types';
 
@@ -19,8 +20,12 @@ import { makeGameId, yearFrom, type Game, type GameProvider, type GameSearchResu
  *   https://api-docs.igdb.com/#apicalypse
  */
 
-/** `width` and `height` only where a query asks for them — the studio catalogue's artworks. */
-type IgdbImage = { image_id?: string; width?: number; height?: number };
+/**
+ * `width`, `height` and `artwork_type` only where a query asks for them:
+ * `GAME_FIELDS` asks for all three (they are how the hero is chosen — see
+ * `hero-art.ts`), the studio catalogue for its artworks' sizes.
+ */
+type IgdbImage = { image_id?: string; width?: number; height?: number; artwork_type?: number };
 
 type IgdbGame = {
   id: number;
@@ -118,10 +123,20 @@ function imageUrl(image: IgdbImage | undefined, size: string): string | null {
   return `https://images.igdb.com/igdb/image/upload/t_${bare}/${image.image_id}.jpg`;
 }
 
-/** Common field list so search and detail return the same shape. */
+/**
+ * Common field list so search and detail return the same shape.
+ *
+ * Every artwork's size and kind, and every screenshot's size, ride along:
+ * they are what `chooseHero` picks the page's key art by. `artwork_type` is
+ * the bare id, not its expanded name — a third of the bytes on ten artworks a
+ * game. Measured on the fifty most-rated games, the heaviest page there is:
+ * 297 KB to 354 KB, 74 KB to 79 KB as it travels.
+ */
 const GAME_FIELDS = `
   fields name, summary, storyline, url, total_rating, first_release_date,
          cover.image_id, artworks.image_id, screenshots.image_id,
+         artworks.width, artworks.height, artworks.artwork_type,
+         screenshots.width, screenshots.height,
          genres.name, platforms.name, platforms.abbreviation,
          involved_companies.developer, involved_companies.publisher,
          involved_companies.company.name,
@@ -162,14 +177,17 @@ function toGame(raw: IgdbGame): Game {
     ? new Date(raw.first_release_date * 1000).toISOString().slice(0, 10)
     : null;
 
+  /* The game's key art — chosen, not `artworks[0]`, which is as often an icon
+     or a wordmark as it is art. See `hero-art.ts`. */
+  const hero = chooseHero(raw.artworks, raw.screenshots);
+
   return {
     id: makeGameId('igdb', raw.id),
     source: 'igdb',
     sourceId: String(raw.id),
     title: raw.name ?? 'Untitled',
     coverUrl: imageUrl(raw.cover, 'cover_big'),
-    // Artworks are proper key art; screenshots are the fallback backdrop.
-    heroUrl: imageUrl(raw.artworks?.[0], '1080p') ?? imageUrl(raw.screenshots?.[0], '1080p'),
+    heroUrl: imageUrl(hero?.image, '1080p'),
     description: raw.summary ?? raw.storyline ?? null,
     releaseDate,
     releaseYear: yearFrom(releaseDate),

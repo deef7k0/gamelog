@@ -119,9 +119,11 @@ const PREFS_WRITE_MS = 600;
  *
  * One IGDB request per *batch of fifty*, not per deal. Swiping walks a cursor
  * through a batch already in memory; a new request happens only when the batch
- * runs out or the mode changes. The soundtrack is the only other external call
- * and it is skipped entirely whenever anybody, on any device, has dealt the same
- * game before — that is what `game_soundtracks` (migration 0020) is for.
+ * runs out or the mode changes. The soundtrack is the only other external call:
+ * one question to the `soundcloud` function per game, which remembers which
+ * upload matched (as an id — migration 0036) and searches SoundCloud only for a
+ * game nobody has dealt before. A song's stream is asked for when its play key
+ * is pressed, never when the card lands.
  *
  * ## Why it does not scroll
  *
@@ -690,7 +692,12 @@ export default function SurpriseScreen() {
   // --- Before the first deal: the form, and the settings home ---------------
   if (!dealt) {
     return (
-      <Screen edges={['bottom']} insetHeader padded topBar={<FrostedTopBar back />}>
+      <Screen
+        edges={['bottom']}
+        insetHeader
+        padded
+        miniPlayer={false}
+        topBar={<FrostedTopBar back />}>
         {/* `flex: 1` is load-bearing now that this has a sibling. Yoga defaults
             `flexShrink` to 0 — unlike the web — so a `ScrollView` with no flex
             style sizes to its content and pushes anything after it off the
@@ -771,7 +778,7 @@ export default function SurpriseScreen() {
 
   if (batch.isLoadingError) {
     return (
-      <Screen edges={['top', 'bottom']} padded topBar={<FrostedTopBar back />}>
+      <Screen edges={['top', 'bottom']} padded miniPlayer={false} topBar={<FrostedTopBar back />}>
         <ErrorState error={batch.error} onRetry={() => batch.refetch()} />
       </Screen>
     );
@@ -803,7 +810,7 @@ export default function SurpriseScreen() {
     const narrowed = !forYou && activeFilterCount(prefs) > 0;
 
     return (
-      <Screen edges={['top', 'bottom']} padded topBar={<FrostedTopBar back />}>
+      <Screen edges={['top', 'bottom']} padded miniPlayer={false} topBar={<FrostedTopBar back />}>
         <EmptyState
           title={forYou ? EMPTY_FORYOU.title : EMPTY_POOL.title}
           message={
@@ -843,6 +850,7 @@ export default function SurpriseScreen() {
     <AccentProvider artwork={game?.coverUrl ?? game?.heroUrl} genres={game?.genres}>
       <Screen
         edges={['bottom']}
+        miniPlayer={false}
         /* The same flat fill the game page took, for the same reasons — see the
            note on `background` there. This screen never scrolled, so the
            "scroll-driven" gradient was pinned at rest anyway: all it ever did

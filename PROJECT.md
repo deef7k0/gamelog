@@ -123,7 +123,16 @@ plus **advanced review metrics** (14 categories, score averaged from the ones yo
 fill in). **Articles** are a second post type with tags and spoiler blurring.
 
 **News** — X-style news feed; trailers, releases, the IGDB popularity chart,
-industry events with RSVP and local reminders; soundtracks with 30s previews.
+industry events with RSVP and local reminders.
+
+**Soundtracks** — a game's soundtrack from SoundCloud, played whole in the
+app's own player: a Soundtrack tab on the game page with a Listen button, a
+screen of the tracks with the player docked at its foot, and — with Keep
+playing on — a mini player at the foot of the app. **Built, never run against
+SoundCloud**: the project has no API credentials yet, so every screen ships in
+its "not connected yet" state until `soundcloud` is deployed with its secrets
+and migration `0036` is run. It replaced the iTunes Search API and its
+thirty-second previews.
 
 **Discover** — lives under the Search field, as the empty state before you type:
 a Top 10 This Month widget, "because you played…" recommendation rails, and a
@@ -142,7 +151,9 @@ Postgres and nothing reads it.
 
 **Starred song** — one track from a game soundtrack, pinned to a profile and
 playable there. The limit of one is enforced by the primary key on `user_id`,
-not by the client.
+not by the client. Since `0036` a star is a SoundCloud track's id and the game
+it came from; its title and uploader are asked of SoundCloud when the profile
+is shown, and the Apple Music stars from before were deleted by that migration.
 
 **Built, awaiting migrations `0022`–`0026` and a pass on a device** — typed,
 linted and tested against Postgres (PGlite, every migration applied in order),
@@ -302,8 +313,11 @@ events / event_attendance
 game_achievements / user_achievements
 gaming_*              linked accounts — see below
 diary_entries         removed from the app; table left in place, like `posts`
-starred_songs         user_id PK (one per profile), track_id, title, artist,
-                      artwork_url, preview_url, game_title
+starred_songs         user_id PK (one per profile), track_id (a SoundCloud
+                      URN since 0036), game_id, game_title
+soundcloud_matches    which SoundCloud upload is a game's soundtrack — ids
+                      only; service role only (0036)
+soundcloud_tokens     the app's SoundCloud API token; service role only (0036)
 likes                 polymorphic over (target_type, target_id):
                       'post' | 'log' | 'list'. Collections are likeable;
                       comments are still post/log only.

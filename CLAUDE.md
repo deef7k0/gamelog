@@ -59,8 +59,14 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # stands in for, the idle turn and the lamp
                    # (lib/stage-geometry), how large a case stands, how deep it
                    # is, its disc's size and which cases open
-                   # (constants/copy-stage), and the 1080p cover
-                   # (lib/games/sharp-cover)
+                   # (constants/copy-stage), the 1080p cover
+                   # (lib/games/sharp-cover), the SoundCloud matcher
+                   # (lib/soundcloud/match.test, which loads the Edge
+                   # Function's own _shared/soundcloud-match.ts), which song
+                   # Surprise Me picks and how long a soundtrack runs
+                   # (lib/soundtrack-pick), and the player's arithmetic and
+                   # the routes the mini player stays off, read against the
+                   # root layout and the route files (lib/player-queue)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -101,7 +107,10 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    labels on games — Must Play: without it no cover wears the badge, the Must
    Play list says the migration is missing, and a moderator's toggle fails with
    the same sentence. `0035` is the OpenCritic answer cache and is optional —
-   see step 7.
+   see step 7. `0036` is SoundCloud — see step 8, and **read its header before
+   running it: it deletes every starred song and drops `game_soundtracks`**.
+   The app is on SoundCloud's shape already, so until it runs a star cannot
+   be saved (the old table still requires a title and an artist).
    `0006`, `0015`, `0019` and `0022` each add an enum value and must run
    **alone** — see the notes in those files.
    Moderators are rows in `public.moderators`, which no client can write; make
@@ -137,6 +146,16 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    because it has nothing to quote. Without `0035` it works and asks OpenCritic
    every time — three upstream requests per game against a quota metered per
    day — so run it.
+8. Optional: deploy the SoundCloud Edge Function for soundtracks —
+   `supabase secrets set SOUNDCLOUD_CLIENT_ID=… SOUNDCLOUD_CLIENT_SECRET=…`,
+   `supabase functions deploy soundcloud`, and run migration `0036`. **The
+   project had no SoundCloud credentials when this was built**, so nothing in
+   it has run against the live API: without the function, or without its
+   secrets, the Soundtrack tab, the soundtrack screen and Surprise Me say that
+   soundtracks are not connected yet, and nothing breaks.
+   `supabase/functions/README.md` lists the five things to check on the first
+   run with keys. `EXPO_PUBLIC_SOUNDCLOUD_FIXTURE=true` shows a sample
+   soundtrack in a dev build, so the screens can be seen before then.
 
 ## Adding a route
 
@@ -209,6 +228,11 @@ src/
                      badge's cell in a game's stats strip opens it. Moderators
                      add from here (label-games, a modal) and hold a cover to
                      take the label off
+    soundtrack/[id]  a game's soundtrack from SoundCloud ([id] is the *game's*
+                     id): the disc, whose upload it is, every track, and the
+                     player docked at its foot. Opened by "Listen" on the game
+                     page's Soundtrack tab, a song in Surprise Me, and the mini
+                     player. See § Soundtracks
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
                      ui/frosted-top-bar a floating 44dp disc of glass holding the
@@ -326,6 +350,18 @@ src/
                                         rendering — the root layout's
                                         `ErrorBoundary`. Also empties the saved
                                         query cache; see § Loading
+                     player/            the app's one music player, as drawn:
+                                        player-host (owns the native audio
+                                        object; in the root layout, draws
+                                        nothing), player-bar (docked on the
+                                        soundtrack screen: scrub, transport,
+                                        Keep playing), mini-player (the bar at
+                                        the foot of the app while music is kept
+                                        playing) and soundcloud-mark
+                                        (SoundCloud's logo, unmodified). See
+                                        § Soundtracks
+                     soundtrack-section the game page's Soundtrack tab: a
+                                        summary and the Listen button
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
@@ -340,7 +376,9 @@ src/
                      property the additional-information screen reads),
                      game-labels.ts (the labels a moderator can set — must_play),
                      list-window.ts (how much of a long list is mounted at once;
-                     see § Gotchas, performance traps)
+                     see § Gotchas, performance traps), player.ts (the mini
+                     player's measurements, shared by the bar, the tab bar's
+                     clearance and `<Screen>`)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -373,6 +411,9 @@ src/
     use-logo-ink        what an IGDB logo is made of (cut out? dark? its own
                         ground?), measured once and kept on the device. Returns
                         `resolved` — draw nothing before it is true
+    use-game-soundtrack a game's soundtrack on SoundCloud: the one query the
+                        Soundtrack tab, the soundtrack screen and Surprise Me
+                        share. Never persisted
   lib/
     color.ts         contrast, mixing, luminance-preserving tint, readable ink
     artwork-color.ts dominant hue of a cover, decoded from the real pixels
@@ -427,6 +468,16 @@ src/
                      games/seen-games.ts, api/seen-logs.ts and
                      api/seen-copies.ts are its three users
     platform-options.ts  a game's platforms as picker options
+    soundcloud/      SoundCloud through its Edge Function: api.ts (a game's
+                     soundtrack, a stream for one track, one track's details),
+                     types.ts, and legacy.ts (deletes what the Apple Music
+                     version left on the device). Nothing from here may be
+                     stored — see § Soundtracks
+    soundtrack-pick.ts  which song Surprise Me plays, and lengths as text.
+                     Pure, tested
+    player-queue.ts  the player's arithmetic: next and previous, what the
+                     transport shows, what a failed play says, and the routes
+                     the mini player stays off. Pure, tested
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements,
                      the reviews sheet
@@ -440,10 +491,14 @@ src/
       labels.ts      labels on games (Must Play): who has one, and a
                      moderator's set and unset
       notifications.ts
-      songs.ts       the one starred track per profile
+      songs.ts       the one starred track per profile — a SoundCloud URN
+                     and the game, nothing else
       storage.ts     image upload
     supabase.ts      client + session persistence
   store/auth.ts      zustand auth state
+  store/player.ts    the app's one music player: the queue, what it is doing,
+                     and the commands (`player.play`, `toggle`, `next`,
+                     `release`…). Holds SoundCloud's words in memory only
 supabase/
   migrations/        0001 core, 0002 media+achievements, 0003 social,
                      0004 0-100 reviews, 0005 friends+wall, 0006 article kind,
@@ -465,7 +520,10 @@ supabase/
                      0032 those report tables keyed on their own id,
                      0033 a collection's artwork: four covers or one,
                      0034 labels on games (Must Play), moderators only,
-                     0035 the OpenCritic answer cache
+                     0035 the OpenCritic answer cache,
+                     0036 SoundCloud: the app's token, which upload matched a
+                     game (ids only) — and it EMPTIES starred_songs and DROPS
+                     game_soundtracks
                      (0006, 0015, 0019 and 0022 each add an enum value and must
                       run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
@@ -473,6 +531,10 @@ supabase/
                      IGDB has none. Caches its answers in 0035
   functions/itad/    Edge Function proxying IsThereAnyDeal (prices)
   functions/scandex/ Edge Function proxying ScanDex (barcode → IGDB game)
+  functions/soundcloud/  a game's soundtrack on SoundCloud, and a stream for
+                     one track. Holds the client secret and the app's token
+  functions/_shared/soundcloud-match.ts  the matcher: which upload is a
+                     game's soundtrack. No imports, so `npm test` loads it too
 ```
 
 **Data flow.** Game metadata comes from external providers (`lib/games/`), but
@@ -1033,6 +1095,109 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
 - **Not yet seen on a phone.** It was checked on a still rendered with the real
   font and a real cover, not on a device.
 
+## Soundtracks: SoundCloud, and one player
+
+A game's music comes from SoundCloud and plays in the app's own player — never
+SoundCloud's widget, at the owner's direction. It replaced "Apple Music" (the
+keyless iTunes Search API and its thirty-second previews), which is gone:
+`lib/soundtracks.ts`, the device mirror and the shared `game_soundtracks`
+table.
+
+- **Built without credentials, and nothing here has run against SoundCloud.**
+  The project had no API keys. Everything was written from SoundCloud's guide
+  and OpenAPI document, and every screen has a "not connected yet" state that
+  is the one it ships in (`unconfigured`: the function is not deployed, or has
+  no secrets). `supabase/functions/README.md` lists the five things to settle
+  on the first run with keys — which way a stream address answers, above all.
+  Do not report any of it as verified until it has been.
+- **Where it shows.** The game page keeps its **Soundtrack tab**, the owner's
+  choice: a summary (`<SoundtrackSummary>`) and a **Listen** button that opens
+  `soundtrack/[id]`. Surprise Me plays one song per card. A profile pins one
+  starred song. Nothing on the tab plays; the player is on the screen.
+- **SoundCloud's terms shape the code, and four rules follow from them.**
+  1. **Nothing of SoundCloud's is stored** — not a title, a name, artwork, a
+     stream address. Postgres holds ids only (`soundcloud_matches`,
+     `starred_songs.track_id`); the two queries are in `NEVER_PERSIST`; artwork
+     is drawn through `<PlayerArtwork>` with `cachePolicy="memory"`
+     (expo-image writes to disk by default); the player's queue is memory, and
+     is emptied on stop and on a change of account. A new query key or image
+     that holds SoundCloud data follows all of that.
+  2. **Every track shown carries three things**: its uploader's name,
+     SoundCloud's logo, and a link to it on soundcloud.com. `<SoundCloudMark>`
+     is the last two. Do not shorten a row past them.
+  3. **The logo is not ours to restyle**: SoundCloud's own white files, never
+     tinted, recoloured or redrawn. It has no `color` prop on purpose.
+  4. **One uploader's playlist is preferred to tracks gathered from several**
+     (`choosePlaylist` before `matchTracks`). Two clauses of the terms sit
+     close to a per-game soundtrack screen; whether it is acceptable is
+     SoundCloud's call when the app is registered, and the README says so.
+- **A stream is asked for when Play is pressed, and at no other time.** Each
+  one spends one of 15,000 plays a day for the whole app. Nothing preloads the
+  next track, warms a stream on mount or retries by itself; a 429 on a play is
+  shown with the time it lifts and not asked again until then
+  (`limitLiftsAt`).
+- **The matcher is one pure file, loaded twice**:
+  `supabase/functions/_shared/soundcloud-match.ts` has no imports, so the Edge
+  Function deploys it and `npm test` imports it by relative path. It must stay
+  that way. A candidate has to *name the game* as its own phrase (so *Hades II*
+  is not *Hades*), covers, remixes, lofi and "best of" mixes are refused, and
+  duplicates are folded by title and length. The owner's tags — `videogame`,
+  `videogames`, `games` — are searched one request each, because the API does
+  not say whether several tags mean all or any. Bump `MATCHER_VERSION` when its
+  judgement changes.
+- **There is one audio object in the app** (`<PlayerHost>`, root layout), and a
+  second `useAudioPlayer` anywhere is a second song. The soundtrack screen,
+  Surprise Me and the starred song each had their own. Everything plays through
+  `player` in `store/player.ts`; the store holds what is drawn, the commands
+  are plain functions, and a component that only presses Play does not
+  re-render with the position.
+- **Leaving stops the music; Keep playing is the exception** — the owner's
+  rule, in their words: "by default when the user leaves the screen it stops
+  playing, but there should be a button for playing in the background while in
+  the app. A mini player, like a bar, should be placed on the bottom of the
+  screen." So a screen calls `player.release(owner)` on its way out, which
+  stops only a queue that screen started. The soundtrack screen passes
+  `honourKeepPlaying`; a dealt song and a pinned song end with their screens
+  regardless. **"In the app" is meant**: `shouldPlayInBackground` is false and
+  must stay false unless the owner asks for the other thing.
+- **Release on blur where a screen is not unmounted.** Your own profile is a
+  tab and Surprise Me stays mounted under whatever opens over it; an unmount
+  cleanup alone left their songs playing behind screens with nothing to stop
+  them. Both use `useFocusEffect`. Surprise Me skips it for one destination —
+  the song's own soundtrack, which takes the song over.
+- **A queue is adopted, not restarted.** Pressing the track that is already
+  loaded pauses or resumes it whoever started it (`player.play`), so a song
+  Surprise Me began shows as playing in its soundtrack's list and is not
+  loaded — and paid for — twice.
+- **The mini player is a sibling of the navigator, and pages make room for
+  it.** `<MiniPlayer>` is drawn after `<Stack>` in the root layout. A tab's
+  content ends by `useTabBarClearance()`, which grows by the capsule; every
+  other page gives up a band of its foot inside `<Screen>`. So nothing is ever
+  under it, and no screen was edited to know it exists. It is not drawn on the
+  routes in `MINI_PLAYER_HIDDEN_ROUTES` (`lib/player-queue.ts`): the soundtrack
+  screen, Surprise Me, the scanner and **every modal** — on iOS a modal is a
+  sheet the system draws over the whole app. A modal's `<Screen modal>` keeps
+  no band; the other three pass `miniPlayer={false}`. **A new modal route goes
+  in that list**, and `npm test` reads the root layout and fails by name if one
+  is missing.
+- **`<Screen>` does not read the route, deliberately.** `useSegments()` there
+  would re-render every mounted screen on every navigation. The flag is a prop.
+- **The audio player sends its headers to every host.** Android's sets them as
+  default request properties: the playlist on our function, then each segment
+  on SoundCloud's media host. So when a stream goes through the function's
+  relay the player is given the project's *public* key and the relay is
+  authorised by a ticket signed into the address — never the listener's
+  session, which would be handed to a third party a hundred times a song.
+- **Android knows a stream is HLS by `.m3u8` at the end of its path**
+  (`Util.inferContentType`) and by nothing else. The function relays any
+  stream whose address does not end that way.
+- **Android reports a playback error as a status holding `error` and nothing
+  else.** `onStatus` reads every field as optional; reading a missing
+  `currentTime` as a number put `undefined` in the store.
+- **A starred song is an id.** Its title is asked of SoundCloud when a profile
+  is shown, and the widget draws nothing when SoundCloud has no answer — the
+  track is gone, nothing is connected, or the row predates 0036.
+
 ## Labels: Must Play (0034)
 
 A label is a mark a moderator puts on a game by hand. `must_play` is the first;
@@ -1094,7 +1259,10 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   write invalidates both and updates the badge store (`setGameLabelLocally`).
   Browse: `['platform-directory']`, `['platform-games', id, sort, page]`,
   `['platform-game-count', clause]`, `['events', term]`, `['event', id]`,
-  `['release-calendar', year]`, `['critic-reviews', gameId]`.
+  `['release-calendar', year]`, `['critic-reviews', gameId]`. Music:
+  `['soundtrack', gameId]` (the tab, the screen and Surprise Me share it) and
+  `['soundcloud-track', urn]` — both in `NEVER_PERSIST` — and
+  `['starred-song', userId]`, which a star or an unstar invalidates.
 - **Colours**: always `useTheme()`. Never hardcode a hex in a component; add the
   token to `Colors.dark` in `constants/theme.ts` — that object is the entire
   palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`

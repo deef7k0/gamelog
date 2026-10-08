@@ -1,33 +1,40 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { PlayerArtwork } from '@/components/player/player-bar';
+import { SoundCloudMark } from '@/components/player/soundcloud-mark';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Card, Skeleton } from '@/components/ui/surface';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import type { GameSoundtrack, SoundtrackPick } from '@/lib/soundtracks';
+import type { SoundCloudTrack } from '@/lib/soundcloud/types';
 
 const ARTWORK = 44;
 
 export type SurpriseSoundtrackProps = {
-  soundtrack: GameSoundtrack | null;
-  track: SoundtrackPick | null;
+  track: SoundCloudTrack | null;
   loading: boolean;
-  /** The lookup itself failed, as opposed to finding nothing. */
-  failed: boolean;
+  /** Why there is no song, when there is none. */
+  message: string | null;
+  /** Why the song will not play, when it will not. Takes the progress line's place. */
+  note: string | null;
+  /** SoundCloud allows only a snippet of this track. */
+  preview: boolean;
   playing: boolean;
-  /** 0–1 through the 30-second preview. */
+  /** Play was pressed and the stream has not started yet. */
+  starting: boolean;
+  /** 0–1 through the song. */
   progress: number;
-  /** False when the album holds a single track and shuffling cannot move. */
+  /** False when the soundtrack holds a single playable track and shuffling cannot move. */
   canShuffle: boolean;
   onTogglePlay: () => void;
   onAnotherSong: () => void;
-  /** Opens the full album screen — the track list, the star, Apple Music. */
-  onOpenAlbum: () => void;
-  onRetry: () => void;
+  /** Opens the soundtrack screen — every track, the star, the links to SoundCloud. */
+  onOpenSoundtrack: () => void;
+  /** Present only when asking again could change the answer. */
+  onRetry?: () => void;
 };
 
 /**
@@ -37,7 +44,7 @@ export type SurpriseSoundtrackProps = {
  *
  * The reveal fits one viewport now, and the card wanted 230dp of it for artwork
  * the game's own case is already providing at four times the size. A row states
- * the same three facts — what is playing, who by, from which album — in 64.
+ * the same facts — what is playing and who uploaded it — in 64.
  *
  * ## What left, and where it went
  *
@@ -45,23 +52,32 @@ export type SurpriseSoundtrackProps = {
  * that overwrites the profile's one pinned song, from a 32dp glyph, with no
  * confirmation and no undo, on a screen built for rapid mis-taps. That is the
  * most consequential action in the feature and it was also its smallest. Tapping
- * the row opens `/soundtrack/[id]`, which already holds the full track list, the
- * Apple Music link and the same star — one tap away, on a screen where you are
- * choosing a track deliberately rather than thumbing past a card.
+ * the row opens `/soundtrack/[id]`, which holds the full track list and the same
+ * star — one tap away, on a screen where you are choosing a track deliberately
+ * rather than thumbing past a card.
  *
- * Purely presentational: playback, selection and caching all live above it.
+ * ## The foot of the row is SoundCloud's
+ *
+ * The uploader's name is the row's second line, and SoundCloud's own mark
+ * sits at the end of the progress line, linking to the track's page there. Together
+ * they are the credit SoundCloud's API terms ask for wherever one of its
+ * tracks is shown or played; the row is not allowed to be shorter than them.
+ *
+ * Purely presentational: the lookup, the pick and the player all live above it.
  */
 export function SurpriseSoundtrack({
-  soundtrack,
   track,
   loading,
-  failed,
+  message,
+  note,
+  preview,
   playing,
+  starting,
   progress,
   canShuffle,
   onTogglePlay,
   onAnotherSong,
-  onOpenAlbum,
+  onOpenSoundtrack,
   onRetry,
 }: SurpriseSoundtrackProps) {
   const theme = useTheme();
@@ -82,19 +98,12 @@ export function SurpriseSoundtrack({
   }
 
   /*
-   * One row for all three ways there can be no track, with the message doing the
-   * distinguishing — nothing released, an album with no listed tracks, and a
-   * lookup that fell over. Only the third is worth retrying, so only the third
-   * offers it: the button used to appear in all three and spent a real round
-   * trip to return the same nothing in two of them.
+   * One row for every way there can be no song, with the message doing the
+   * distinguishing. The retry key appears only where the caller passes a
+   * handler: it used to appear in all of them and spent a real round trip to
+   * return the same nothing in most.
    */
   if (!track) {
-    const message = failed
-      ? 'Couldn’t reach Apple Music.'
-      : soundtrack
-        ? `Apple Music lists no songs for ${soundtrack.albumTitle}.`
-        : 'No soundtrack on Apple Music.';
-
     return (
       <Card tinted elevated padded={false} style={styles.pad}>
         <View style={styles.row}>
@@ -102,9 +111,9 @@ export function SurpriseSoundtrack({
             <Ionicons name="musical-notes-outline" size={19} color={theme.textMuted} />
           </View>
           <Text variant="bodySmall" color="textMuted" style={styles.meta} numberOfLines={2}>
-            {message}
+            {message ?? 'No soundtrack on SoundCloud.'}
           </Text>
-          {failed && (
+          {onRetry && (
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel="Look for the soundtrack again"
@@ -119,41 +128,34 @@ export function SurpriseSoundtrack({
     );
   }
 
-  const playable = !!track.previewUrl;
+  const playable = track.access !== 'blocked';
+  const active = playing || starting;
 
   return (
     <Card tinted elevated padded={false} style={styles.pad}>
       <View style={styles.row}>
-        {/* The row's body opens the album. Everything the card used to carry —
-            the full track list, Apple Music, the star — lives on that screen. */}
+        {/* The row's body opens the soundtrack. Everything the card used to
+            carry — the full track list, the star — lives on that screen. */}
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel={`${track.title} by ${track.artist || soundtrack?.artist}. Open the soundtrack.`}
-          onPress={onOpenAlbum}
+          accessibilityLabel={`${track.title} by ${track.uploader.name}. Open the soundtrack.`}
+          onPress={onOpenSoundtrack}
           scaleTo={0.99}
           style={styles.body}>
-          <Image
-            source={soundtrack?.artworkUrl ? { uri: soundtrack.artworkUrl } : undefined}
-            recyclingKey={soundtrack?.albumId}
-            cachePolicy="memory-disk"
-            style={[styles.artwork, { backgroundColor: theme.surfaceElevated }]}
-            contentFit="cover"
-            transition={200}
-            accessibilityIgnoresInvertColors
-          />
+          <PlayerArtwork uri={track.artworkUrl} size={ARTWORK} />
           <View style={styles.meta}>
             <Text variant="h5" numberOfLines={1}>
               {track.title}
             </Text>
             <Text variant="caption" color="textMuted" numberOfLines={1}>
-              {track.artist || soundtrack?.artist}
+              {preview ? `${track.uploader.name} · Preview` : track.uploader.name}
             </Text>
           </View>
         </PressableScale>
 
-        {/* Disabled rather than hidden on a one-track album: a control that
-            vanishes between games reads as a layout bug, and the state is the
-            honest answer — there is nothing else on this record. */}
+        {/* Disabled rather than hidden on a one-track soundtrack: a control
+            that vanishes between games reads as a layout bug, and the state is
+            the honest answer — there is nothing else here to play. */}
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={canShuffle ? 'Another song' : 'This soundtrack has only one song'}
@@ -167,9 +169,13 @@ export function SurpriseSoundtrack({
 
         <PressableScale
           accessibilityRole="button"
-          accessibilityState={{ disabled: !playable, selected: playing }}
+          accessibilityState={{ disabled: !playable, selected: active }}
           accessibilityLabel={
-            playable ? (playing ? `Pause ${track.title}` : `Play ${track.title}`) : 'No preview'
+            playable
+              ? active
+                ? `Pause ${track.title}`
+                : `Play ${track.title}`
+              : 'SoundCloud does not let this track play here'
           }
           disabled={!playable}
           onPress={onTogglePlay}
@@ -178,26 +184,41 @@ export function SurpriseSoundtrack({
             styles.disc,
             { backgroundColor: playable ? accent.color : theme.surfaceElevated },
           ])}>
-          <Ionicons
-            name={playing ? 'pause' : 'play'}
-            size={19}
-            color={playable ? accent.ink : theme.textMuted}
-            /* A play triangle is optically left-heavy inside a circle; the pause
-               glyph is symmetrical and needs no correction. */
-            style={playing ? undefined : styles.playNudge}
-          />
+          {starting ? (
+            <ActivityIndicator size="small" color={accent.ink} />
+          ) : (
+            <Ionicons
+              name={playing ? 'pause' : 'play'}
+              size={19}
+              color={playable ? accent.ink : theme.textMuted}
+              /* A play triangle is optically left-heavy inside a circle; the pause
+                 glyph is symmetrical and needs no correction. */
+              style={playing ? undefined : styles.playNudge}
+            />
+          )}
         </PressableScale>
       </View>
 
-      {/* The preview is always 30 seconds, so this is a countdown rather than a
-          seek target — it is not interactive and does not pretend to be. */}
-      <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
-        <View
-          style={[
-            styles.fill,
-            { backgroundColor: accent.color, width: `${Math.min(100, progress * 100)}%` },
-          ]}
-        />
+      {/* How far through, with SoundCloud's mark at its end. The line is not
+          interactive and does not pretend to be: scrubbing is on the soundtrack
+          screen, where it is a finger tall. A song that will not play says why
+          here instead, where the line would have been. */}
+      <View style={styles.foot}>
+        {note ? (
+          <Text variant="caption" color="textSecondary" numberOfLines={2} style={styles.footLead}>
+            {note}
+          </Text>
+        ) : (
+          <View style={[styles.track, styles.footLead, { backgroundColor: theme.surfaceElevated }]}>
+            <View
+              style={[
+                styles.fill,
+                { backgroundColor: accent.color, width: `${Math.min(100, progress * 100)}%` },
+              ]}
+            />
+          </View>
+        )}
+        <SoundCloudMark url={track.permalinkUrl} label={`Open ${track.title} on SoundCloud`} />
       </View>
     </Card>
   );
@@ -209,7 +230,6 @@ const styles = StyleSheet.create({
   pad: { paddingHorizontal: Spacing.x12, paddingVertical: Spacing.x8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   body: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
-  artwork: { width: ARTWORK, height: ARTWORK, borderRadius: Radius.image },
   blank: {
     width: ARTWORK,
     height: ARTWORK,
@@ -229,6 +249,15 @@ const styles = StyleSheet.create({
   },
   dimmed: { opacity: 0.4 },
   playNudge: { marginLeft: 2 },
-  track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.x8 },
+  track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden' },
   fill: { height: 3, borderRadius: Radius.pill },
+  /* One line, as tall as SoundCloud's mark: the progress line beside it costs
+     the row nine more dp than it had alone, on a screen that must not scroll. */
+  foot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    marginTop: Spacing.x8,
+  },
+  footLead: { flex: 1 },
 });

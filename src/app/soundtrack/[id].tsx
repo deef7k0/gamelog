@@ -1,302 +1,599 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { FlatList, Linking, StyleSheet, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 
 import { GameDisc } from '@/components/game-disc';
+import { PlayerBar } from '@/components/player/player-bar';
+import { SoundCloudMark, openOnSoundCloud } from '@/components/player/soundcloud-mark';
+import { SoundtrackUnavailable } from '@/components/soundtrack-section';
+import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { ErrorState, Screen } from '@/components/ui/screen';
+import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { ArtRowWindow } from '@/constants/list-window';
 import { Radius, Spacing } from '@/constants/theme';
+import { AccentProvider, useAccent } from '@/hooks/use-accent';
+import { useGameSoundtrack } from '@/hooks/use-game-soundtrack';
+import { useHeaderHeight } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import { getStarredSong, starSong, unstarSong } from '@/lib/api';
-import { formatDuration, getAlbumTracks, type SoundtrackTrack } from '@/lib/soundtracks';
+import { getGameById } from '@/lib/games';
+import { recallGame } from '@/lib/games/seen-games';
+import type { GameSoundtrack, SoundCloudTrack } from '@/lib/soundcloud/types';
+import { formatDuration, formatRunningTime } from '@/lib/soundtrack-pick';
 import { useAuth } from '@/store/auth';
+import { player, usePlayer, type PlayerPhase, type PlayerQueue } from '@/store/player';
 
-/** Previews are always 30 seconds; used to draw the progress bar. */
-const PREVIEW_SECONDS = 30;
+/** The disc at the head of the list. */
+const DISC = 196;
+/** The first column of a row: a track's number, or what it is doing. */
+const LEAD = 26;
+/** The star and the link at the end of a row — glyphs at a finger's width. */
+const ROW_KEY = 36;
 
 /**
- * A game soundtrack as an album, with 30-second previews.
+ * A game's soundtrack, from SoundCloud, in the app's own player.
  *
- * One player instance is reused for every track rather than one per row —
- * `replace()` swaps the source, which also gives "playing a new track stops the
- * old one" for free.
+ * The route's `id` is the **game's** id. It was an Apple Music album's, and the
+ * screen was one of several albums a title search turned up, each with
+ * thirty-second previews. Now there is one soundtrack per game — whichever
+ * upload the matcher judged to be it (`supabase/functions/_shared/
+ * soundcloud-match.ts`) — played whole.
  *
- * Playback is scoped to this screen: the player is released on unmount, so
- * navigating away stops the audio. A persistent mini-player would need global
- * state and is deliberately out of scope.
+ * ## What is on it
+ *
+ * The game's disc, turning while its music plays; whose upload this is, with
+ * SoundCloud's logo and a link to the playlist there; every track with its
+ * uploader, its length, a star and a link to its own page; and the player,
+ * docked at the foot (`<PlayerBar>`).
+ *
+ * The uploader's name, the logo and the two links are not decoration. They
+ * are the three things SoundCloud's API terms require beside anything of
+ * theirs that is shown or played; taking one off takes the app out of them.
+ *
+ * ## Leaving
+ *
+ * Music stops when this screen is left, unless **Keep playing** is on, in
+ * which case it carries on under the mini player. That is `player.release`
+ * below, and it stops only a queue this screen started: a song Surprise Me
+ * began is Surprise Me's to stop.
+ *
+ * ## It runs on the game's colour
+ *
+ * One game, so `<AccentProvider>`, like its page, its log form and its review.
  */
 export default function SoundtrackScreen() {
-  const theme = useTheme();
-  const params = useLocalSearchParams<{
-    id: string;
-    title?: string;
-    artist?: string;
-    artwork?: string;
-    url?: string;
-    /** App-wide game id, when the caller opened this from a screen about one game. */
-    game?: string;
-    /** That game's title, for the profile credit. Falls back to the album's. */
-    gameTitle?: string;
-  }>();
+  const params = useLocalSearchParams<{ id: string; title?: string }>();
+  const id = params.id;
 
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const player = useAudioPlayer();
-  const status = useAudioPlayerStatus(player);
-
-  const tracks = useQuery({
-    queryKey: ['soundtrack', params.id],
-    queryFn: ({ signal }) => getAlbumTracks(params.id!, signal),
-    enabled: !!params.id,
-    staleTime: 60 * 60_000,
+  /*
+   * The game page's own query, under its own key, so a soundtrack opened from
+   * that page has the game — its name, who made it, its cover — without a
+   * request. Opened from the mini player an hour later it is one request, and
+   * the name passed along with the route stands in until it answers.
+   */
+  const game = useQuery({
+    queryKey: ['game', id],
+    queryFn: ({ signal }) => getGameById(id!, signal),
+    enabled: !!id,
+    staleTime: 30 * 60_000,
+    initialData: () => recallGame(id)?.value,
+    initialDataUpdatedAt: () => recallGame(id)?.at,
   });
 
-  const userId = useAuth((state) => state.session?.user.id);
+  const title = game.data?.title ?? (params.title || null);
+
+  return (
+    <AccentProvider artwork={game.data?.coverUrl ?? game.data?.heroUrl} genres={game.data?.genres}>
+      <Soundtrack
+        gameId={id}
+        title={title}
+        developer={game.data?.developer ?? null}
+        coverUrl={game.data?.coverUrl ?? null}
+        heroUrl={game.data?.heroUrl ?? null}
+        /* The developer decides whose upload counts as official, so the
+           soundtrack is not asked for until the game has said who that is —
+           or has failed to, in which case the name alone has to do. */
+        gameSettled={!game.isPending}
+        gameError={game.isLoadingError && !title ? game.error : null}
+        onRetryGame={() => game.refetch()}
+      />
+    </AccentProvider>
+  );
+}
+
+type SoundtrackProps = {
+  gameId: string;
+  title: string | null;
+  developer: string | null;
+  coverUrl: string | null;
+  heroUrl: string | null;
+  gameSettled: boolean;
+  gameError: unknown;
+  onRetryGame: () => void;
+};
+
+function Soundtrack({
+  gameId,
+  title,
+  developer,
+  coverUrl,
+  heroUrl,
+  gameSettled,
+  gameError,
+  onRetryGame,
+}: SoundtrackProps) {
   const queryClient = useQueryClient();
+  const userId = useAuth((state) => state.session?.user.id);
+
+  const { query, lookAgain, isLookingAgain, lookAgainFailed } = useGameSoundtrack({
+    gameId,
+    title,
+    developer,
+    enabled: gameSettled,
+  });
+
+  const owner = `soundtrack:${gameId}`;
+  useEffect(() => () => player.release(owner, { honourKeepPlaying: true }), [owner]);
+
+  const answer = query.data;
+  const soundtrack =
+    answer?.status === 'ok' && answer.soundtrack.tracks.length > 0 ? answer.soundtrack : null;
+
+  const queue = useMemo<PlayerQueue | null>(
+    () => (soundtrack ? { owner, gameId, gameTitle: title, tracks: soundtrack.tracks } : null),
+    [soundtrack, owner, gameId, title]
+  );
 
   const starred = useQuery({
     queryKey: ['starred-song', userId],
     queryFn: () => getStarredSong(userId!),
     enabled: !!userId,
   });
-
-  const starredId = starred.data?.track_id ?? null;
+  const starredUrn = starred.data?.track_id ?? null;
 
   /*
-   * One mutation for both directions.
+   * One mutation for both directions: starring the starred track clears it.
+   * With a limit of one there has to be a way back to none, and a separate
+   * "unstar" would be a second control for the same star.
    *
-   * Starring the track that is already starred clears it — with a limit of one
-   * there has to be a way back to none, and a separate "unstar" control would
-   * be a second button for the same star.
+   * Only the track's id is written, with the game. Its title is SoundCloud's
+   * to tell, each time a profile is shown.
    */
   const star = useMutation({
-    mutationFn: async (track: SoundtrackTrack) => {
+    mutationFn: async (track: SoundCloudTrack) => {
       if (!userId) throw new Error('You must be signed in.');
-      if (starredId === track.id) {
-        await unstarSong(userId);
-        return;
-      }
-      await starSong(userId, track, {
-        artworkUrl: params.artwork ?? null,
-        /*
-         * The game, when the caller knew it.
-         *
-         * This screen used to have no way to know — it is reached from a rail
-         * that passes an album, not a game — so every starred song wrote a null
-         * `game_id` and the profile's "from <game>" credit fell back to the
-         * album's title. Surprise Me opens it from a screen that is *about* one
-         * game and passes the pair through, so those stars now carry a real
-         * reference. Absent, the old fallback is unchanged.
-         */
-        gameId: params.game ?? null,
-        gameTitle: params.gameTitle ?? params.title ?? null,
-      });
+      if (starredUrn === track.urn) return unstarSong(userId);
+      return starSong(userId, track.urn, { gameId, gameTitle: title });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['starred-song', userId] });
     },
   });
 
-  /*
-   * No effect watching `didJustFinish` to clear the selection: setState in an
-   * effect is a React Compiler violation, and it is not needed. When a preview
-   * ends, `status.playing` flips false on its own, so the row's icon returns to
-   * "play" while the track stays highlighted as the current one — which is what
-   * a music player should do anyway.
-   */
-  function toggle(track: SoundtrackTrack) {
-    if (!track.previewUrl) return;
+  /* Handed to every row once. A handler made per row would defeat the rows'
+     memo, and starting a track would re-draw the whole soundtrack. */
+  const onPlay = useCallback(
+    (index: number) => {
+      if (queue) player.play(queue, index);
+    },
+    [queue]
+  );
+  const starTrack = star.mutate;
+  const onStar = useCallback((track: SoundCloudTrack) => starTrack(track), [starTrack]);
 
-    if (playingId === track.id) {
-      if (status.playing) player.pause();
-      else player.play();
-      return;
-    }
-
-    player.replace({ uri: track.previewUrl });
-    player.seekTo(0);
-    player.play();
-    setPlayingId(track.id);
-  }
-
-  if (tracks.isLoading) {
+  if (gameError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-        <LoadingState />
-      </Screen>
+      <Shell>
+        <ErrorState error={gameError} onRetry={onRetryGame} />
+      </Shell>
     );
   }
 
-  if (tracks.isLoadingError) {
+  if (!title || query.isPending) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-        <ErrorState error={tracks.error} />
-      </Screen>
+      <Shell scrolls>
+        <LoadingSoundtrack />
+      </Shell>
     );
   }
 
-  const list = tracks.data ?? [];
-  const progress = status.duration
-    ? Math.min(1, status.currentTime / status.duration)
-    : status.currentTime / PREVIEW_SECONDS;
+  if (query.isLoadingError) {
+    return (
+      <Shell>
+        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+      </Shell>
+    );
+  }
+
+  if (!soundtrack || !queue) {
+    return (
+      <Shell>
+        <SoundtrackUnavailable
+          status={answer?.status ?? 'none'}
+          title={title}
+          busy={isLookingAgain || query.isRefetching}
+          failed={lookAgainFailed}
+          onLookAgain={lookAgain}
+          onRetry={() => query.refetch()}
+        />
+      </Shell>
+    );
+  }
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <FlatList
-        data={list}
-        keyExtractor={(track) => track.id}
-        contentContainerStyle={list.length === 0 ? styles.empty : styles.content}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <GameDisc
-              coverUrl={params.artwork ?? null}
-              size={196}
-              spinning={status.playing}
-              revolutionMs={9000}
-            />
-
-            <View style={styles.headerText}>
-              <Text variant="h3" numberOfLines={2}>
-                {params.title ?? 'Soundtrack'}
-              </Text>
-              <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
-                {params.artist ?? ''}
-              </Text>
-              <Text variant="caption" color="textMuted">
-                {list.length} {list.length === 1 ? 'track' : 'tracks'} · 30-second previews
-              </Text>
-            </View>
-
-            {params.url && (
-              <Text
-                variant="bodySmall"
-                color="primaryText"
-                onPress={() => Linking.openURL(params.url!).catch(() => {})}>
-                Listen in full on Apple Music
-              </Text>
-            )}
-          </View>
-        }
-        renderItem={({ item }) => {
-          const isCurrent = playingId === item.id;
-          const isPlaying = isCurrent && status.playing;
-          const playable = !!item.previewUrl;
-
-          return (
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={
-                playable ? `Preview ${item.title}` : `${item.title} — no preview available`
-              }
-              accessibilityState={{ disabled: !playable, selected: isCurrent }}
-              disabled={!playable}
-              onPress={() => toggle(item)}
-              scaleTo={0.99}
-              style={StyleSheet.flatten([
-                styles.row,
-                {
-                  backgroundColor: isCurrent ? theme.primaryMuted : 'transparent',
-                  borderTopColor: theme.border,
-                  opacity: playable ? 1 : 0.45,
-                },
-              ])}>
-              <View style={styles.trackNumber}>
-                {isCurrent ? (
-                  <Ionicons
-                    name={isPlaying ? 'pause' : 'play'}
-                    size={16}
-                    color={theme.primaryText}
-                  />
-                ) : (
-                  <Text variant="bodySmall" color="textMuted">
-                    {item.trackNumber ?? '–'}
-                  </Text>
-                )}
-              </View>
-
-              <View style={styles.trackBody}>
-                <Text variant="h5" numberOfLines={1} color={isCurrent ? 'primary' : 'text'}>
-                  {item.title}
-                </Text>
-                <Text variant="caption" color="textMuted" numberOfLines={1}>
-                  {playable ? item.artist : 'Preview unavailable'}
-                </Text>
-
-                {/* Progress only under the track actually playing. */}
-                {isCurrent && (
-                  <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
-                    <View
-                      style={[
-                        styles.fill,
-                        { width: `${progress * 100}%`, backgroundColor: theme.primary },
-                      ]}
-                    />
-                  </View>
-                )}
-              </View>
-
-              <Text variant="caption" color="textMuted">
-                {formatDuration(item.durationMs)}
-              </Text>
-
-              {/* Star. Only for signed-in viewers — there is no profile to pin
-                  it to otherwise. Tapping the starred track again clears it,
-                  because "one song" needs a way back to none. */}
-              {userId && (
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    starredId === item.id
-                      ? `Unstar ${item.title}`
-                      : `Star ${item.title} on your profile`
-                  }
-                  accessibilityState={{ selected: starredId === item.id }}
-                  onPress={() => star.mutate(item)}
-                  disabled={star.isPending}
-                  scaleTo={0.85}
-                  style={styles.star}>
-                  <Ionicons
-                    name={starredId === item.id ? 'star' : 'star-outline'}
-                    size={18}
-                    color={starredId === item.id ? theme.accent : theme.textMuted}
-                  />
-                </PressableScale>
-              )}
-            </PressableScale>
-          );
-        }}
-        ListEmptyComponent={
-          <EmptyState
-            title="No tracks"
-            message="Apple Music did not return a track list for this album."
-          />
-        }
+    <Shell docked={<PlayerBar queue={queue} />} scrolls>
+      <TrackList
+        soundtrack={soundtrack}
+        title={title}
+        coverUrl={coverUrl}
+        heroUrl={heroUrl}
+        starredUrn={starredUrn}
+        canStar={!!userId}
+        starBusy={star.isPending}
+        onPlay={onPlay}
+        onStar={onStar}
       />
+    </Shell>
+  );
+}
+
+/**
+ * The page every state of this screen is drawn on.
+ *
+ * No bottom edge, and no room for the mini player: the player docked here
+ * runs to the foot of the display and pads the system's inset itself, and the
+ * mini player is not drawn over this route. A state that does not scroll is
+ * centred under the back disc; the list pads its own head, so its disc can sit
+ * where a page's art does.
+ */
+function Shell({
+  children,
+  docked,
+  scrolls = false,
+}: {
+  children: ReactNode;
+  docked?: ReactNode;
+  scrolls?: boolean;
+}) {
+  const accent = useAccent();
+
+  return (
+    <Screen
+      edges={docked ? [] : ['bottom']}
+      insetHeader={!scrolls}
+      background={accent.page}
+      miniPlayer={false}
+      topBar={<FrostedTopBar back />}>
+      <View style={styles.flex}>{children}</View>
+      {docked}
     </Screen>
   );
 }
 
+type TrackListProps = {
+  soundtrack: GameSoundtrack;
+  title: string;
+  coverUrl: string | null;
+  heroUrl: string | null;
+  starredUrn: string | null;
+  canStar: boolean;
+  starBusy: boolean;
+  onPlay: (index: number) => void;
+  onStar: (track: SoundCloudTrack) => void;
+};
+
+function TrackList({
+  soundtrack,
+  title,
+  coverUrl,
+  heroUrl,
+  starredUrn,
+  canStar,
+  starBusy,
+  onPlay,
+  onStar,
+}: TrackListProps) {
+  const headerHeight = useHeaderHeight();
+  const tracks = soundtrack.tracks;
+
+  /* What the player holds, by id: a row lights up for a song whoever started
+     it, so one Surprise Me began shows as playing in its own soundtrack. */
+  const currentUrn = usePlayer((state) => state.queue?.tracks[state.index]?.urn ?? null);
+  const phase = usePlayer((state) => state.phase);
+
+  const urns = useMemo(() => new Set(tracks.map((track) => track.urn)), [tracks]);
+  const spinning = phase === 'playing' && !!currentUrn && urns.has(currentUrn);
+
+  return (
+    <FlatList
+      data={tracks}
+      keyExtractor={(track) => track.urn}
+      /* Only the row that is playing changes with these; the rest keep their props. */
+      extraData={`${currentUrn}:${phase}:${starredUrn}:${starBusy}`}
+      contentContainerStyle={[styles.content, { paddingTop: headerHeight + Spacing.x8 }]}
+      showsVerticalScrollIndicator={false}
+      {...ArtRowWindow}
+      ListHeaderComponent={
+        <SoundtrackHeader
+          soundtrack={soundtrack}
+          title={title}
+          coverUrl={coverUrl}
+          heroUrl={heroUrl}
+          spinning={spinning}
+        />
+      }
+      renderItem={({ item, index }) => (
+        <TrackRow
+          track={item}
+          index={index}
+          phase={item.urn === currentUrn ? phase : null}
+          starred={item.urn === starredUrn}
+          canStar={canStar}
+          starBusy={starBusy}
+          onPlay={onPlay}
+          onStar={onStar}
+        />
+      )}
+    />
+  );
+}
+
+type SoundtrackHeaderProps = {
+  soundtrack: GameSoundtrack;
+  title: string;
+  coverUrl: string | null;
+  heroUrl: string | null;
+  spinning: boolean;
+};
+
+/**
+ * The disc, the game's name, and whose music this is.
+ *
+ * The screen has no title bar, so the heading is here: the game, then
+ * "Soundtrack" with what it holds. Under it the credit — the one place the
+ * upload is named as a whole, and where SoundCloud's own mark and the link to
+ * the playlist are.
+ */
+function SoundtrackHeader({
+  soundtrack,
+  title,
+  coverUrl,
+  heroUrl,
+  spinning,
+}: SoundtrackHeaderProps) {
+  const count = soundtrack.tracks.length;
+  const length = formatRunningTime(soundtrack.tracks.map((track) => track.durationMs));
+  const playlist = soundtrack.source === 'playlist' ? soundtrack.playlist : null;
+
+  return (
+    <View style={styles.header}>
+      {/* The app's disc, as it is: the protected component, used and not edited. */}
+      <GameDisc
+        coverUrl={coverUrl}
+        heroUrl={heroUrl}
+        size={DISC}
+        spinning={spinning}
+        revolutionMs={9000}
+      />
+
+      <View style={styles.heading}>
+        <Text variant="h3" numberOfLines={2} style={styles.centred} accessibilityRole="header">
+          {title}
+        </Text>
+        <Text variant="bodySmall" color="textMuted" style={styles.centred}>
+          {['Soundtrack', `${count} ${count === 1 ? 'track' : 'tracks'}`, length]
+            .filter(Boolean)
+            .join(' · ')}
+        </Text>
+      </View>
+
+      <View style={styles.credit}>
+        <Text variant="bodySmall" color="textSecondary" style={styles.centred}>
+          {playlist
+            ? `“${playlist.title}”, a playlist by ${playlist.uploader.name}`
+            : 'No single upload had the whole soundtrack. These are tracks that name the game, most played first.'}
+        </Text>
+
+        <SoundCloudMark
+          variant="poweredBy"
+          url={playlist?.permalinkUrl}
+          label="Open this playlist on SoundCloud"
+        />
+
+        {playlist?.permalinkUrl && (
+          <Button
+            title="Open on SoundCloud"
+            variant="ghost"
+            size="small"
+            icon="open-outline"
+            onPress={() => openOnSoundCloud(playlist.permalinkUrl)}
+          />
+        )}
+      </View>
+    </View>
+  );
+}
+
+type TrackRowProps = {
+  track: SoundCloudTrack;
+  index: number;
+  /** What the player is doing with this track, or null when it holds another. */
+  phase: PlayerPhase | null;
+  starred: boolean;
+  canStar: boolean;
+  starBusy: boolean;
+  onPlay: (index: number) => void;
+  onStar: (track: SoundCloudTrack) => void;
+};
+
+/**
+ * One track: what it is doing, its name and uploader, its length, the star,
+ * and the way to its page on SoundCloud.
+ *
+ * A track SoundCloud does not let this app play stays in the list — the
+ * soundtrack has it, and its page can still be opened — dimmed, saying so.
+ */
+const TrackRow = memo(function TrackRow({
+  track,
+  index,
+  phase,
+  starred,
+  canStar,
+  starBusy,
+  onPlay,
+  onStar,
+}: TrackRowProps) {
+  const theme = useTheme();
+  const accent = useAccent();
+
+  const blocked = track.access === 'blocked';
+  const current = phase !== null;
+  const playing = phase === 'playing';
+
+  const note = blocked ? 'Not available here' : track.access === 'preview' ? 'Preview' : null;
+
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={
+        blocked
+          ? `${track.title} by ${track.uploader.name}. SoundCloud does not let it play here.`
+          : `${playing ? 'Pause' : 'Play'} ${track.title} by ${track.uploader.name}`
+      }
+      accessibilityState={{ disabled: blocked, selected: current }}
+      disabled={blocked}
+      onPress={() => onPlay(index)}
+      pressedColor={theme.pressed}
+      scaleTo={0.99}
+      style={StyleSheet.flatten([styles.row, current && { backgroundColor: accent.wash }])}>
+      <View style={[styles.lead, blocked && styles.dimmed]}>
+        {phase === 'loading' ? (
+          <ActivityIndicator size="small" color={accent.onSurface} />
+        ) : current ? (
+          <Ionicons name={playing ? 'pause' : 'play'} size={16} color={accent.onSurface} />
+        ) : (
+          <Text variant="bodySmall" color="textMuted">
+            {index + 1}
+          </Text>
+        )}
+      </View>
+
+      <View style={[styles.rowWords, blocked && styles.dimmed]}>
+        <Text
+          variant="itemTitle"
+          numberOfLines={1}
+          style={current ? { color: accent.onSurface } : undefined}>
+          {track.title}
+        </Text>
+        <Text variant="caption" color="textMuted" numberOfLines={1}>
+          {[track.uploader.name, note].filter(Boolean).join(' · ')}
+        </Text>
+      </View>
+
+      <Text variant="caption" color="textMuted" style={blocked ? styles.dimmed : undefined}>
+        {formatDuration(track.durationMs)}
+      </Text>
+
+      {/* Only for somebody signed in — there is no profile to pin it to
+          otherwise — and never for a track that cannot be played. */}
+      {canStar && !blocked && (
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={
+            starred ? `Unstar ${track.title}` : `Star ${track.title} on your profile`
+          }
+          accessibilityState={{ selected: starred, disabled: starBusy }}
+          disabled={starBusy}
+          onPress={() => onStar(track)}
+          scaleTo={0.85}
+          style={styles.rowKey}>
+          <Ionicons
+            name={starred ? 'star' : 'star-outline'}
+            size={18}
+            color={starred ? theme.accent : theme.textMuted}
+          />
+        </PressableScale>
+      )}
+
+      {track.permalinkUrl && (
+        <PressableScale
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${track.title} on SoundCloud`}
+          onPress={() => openOnSoundCloud(track.permalinkUrl)}
+          scaleTo={0.85}
+          style={styles.rowKey}>
+          <Ionicons name="open-outline" size={17} color={theme.textMuted} />
+        </PressableScale>
+      )}
+    </PressableScale>
+  );
+});
+
+/** The list's own shape, while it is being fetched: the disc, two lines, rows. */
+function LoadingSoundtrack() {
+  const headerHeight = useHeaderHeight();
+
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading the soundtrack"
+      style={[styles.content, { paddingTop: headerHeight + Spacing.x8 }]}>
+      <View style={styles.header}>
+        <Skeleton width={DISC} height={DISC} radius={DISC / 2} />
+        <View style={styles.heading}>
+          <Skeleton width={180} height={18} radius={Radius.sm} />
+          <Skeleton width={130} height={11} radius={Radius.sm} />
+        </View>
+      </View>
+
+      {[72, 54, 64, 48, 68, 58].map((width, row) => (
+        <View key={row} style={styles.row}>
+          <View style={styles.lead}>
+            <Skeleton width={12} height={11} radius={Radius.sm} />
+          </View>
+          <View style={styles.rowWords}>
+            <Skeleton width={`${width}%`} height={13} radius={Radius.sm} />
+            <Skeleton width="34%" height={10} radius={Radius.sm} />
+          </View>
+          <Skeleton width={28} height={10} radius={Radius.sm} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  content: { padding: Spacing.x16, gap: Spacing.x8, paddingBottom: Spacing.x48 },
-  empty: { flexGrow: 1 },
-  header: { alignItems: 'center', gap: Spacing.x12, marginBottom: Spacing.x16 },
-  headerText: { alignItems: 'center', gap: 2 },
+  flex: { flex: 1 },
+  content: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x24, gap: Spacing.x4 },
+
+  header: { alignItems: 'center', gap: Spacing.x16, marginBottom: Spacing.x20 },
+  heading: { alignItems: 'center', gap: Spacing.x4 },
+  credit: { alignItems: 'center', gap: Spacing.x12, paddingHorizontal: Spacing.x16 },
+  centred: { textAlign: 'center' },
+
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.x12,
-    paddingVertical: Spacing.x12,
-    paddingHorizontal: Spacing.x8,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.x8,
+    minHeight: 56,
+    paddingVertical: Spacing.x8,
+    paddingLeft: Spacing.x8,
+    paddingRight: Spacing.x4,
+    borderRadius: Radius.lg,
   },
-  star: { padding: Spacing.x4 },
-  trackNumber: { width: 26, alignItems: 'center' },
-  trackBody: { flex: 1, gap: 2 },
-  track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.x4 },
-  fill: { height: '100%', borderRadius: Radius.pill },
+  lead: { width: LEAD, alignItems: 'center' },
+  rowWords: { flex: 1, gap: 2 },
+  rowKey: {
+    width: ROW_KEY,
+    height: ROW_KEY,
+    borderRadius: ROW_KEY / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dimmed: { opacity: 0.45 },
 });

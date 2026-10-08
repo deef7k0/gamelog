@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { validPerspectiveIds } from '../constants/player-perspectives';
 import type { SurprisePool, SurprisePoolFilters } from './games/igdb';
-import type { TrackPickMode } from './soundtracks';
+import type { TrackPickMode } from './soundtrack-pick';
 
 /**
  * How somebody likes their surprises, on the device.

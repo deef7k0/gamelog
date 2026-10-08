@@ -129,6 +129,7 @@ export default function ScanScreen() {
 
   return (
     <Screen
+      miniPlayer={false}
       /* The camera runs edge to edge, under the status bar and the disc; every
          other state is a page of text and gets the inset. */
       edges={cameraReady ? [] : ['bottom']}

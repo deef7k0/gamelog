@@ -28,8 +28,11 @@ import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { MiniPlayer } from '@/components/player/mini-player';
+import { PlayerHost } from '@/components/player/player-host';
 import { primeSteamArtwork } from '@/hooks/use-steam-artwork';
 import { queryClient } from '@/lib/query-client';
+import { forgetAppleMusicCache } from '@/lib/soundcloud/legacy';
 import { useAuth } from '@/store/auth';
 
 /*
@@ -106,6 +109,9 @@ export default function RootLayout() {
    */
   useEffect(() => {
     void primeSteamArtwork();
+    /* Soundtracks used to be kept on the device, a row per game. They are not
+       kept anywhere now; this clears what earlier versions left. */
+    void forgetAppleMusicCache();
   }, []);
 
   useEffect(() => {
@@ -254,6 +260,21 @@ export default function RootLayout() {
                 <Stack.Screen name="sign-up" />
               </Stack.Protected>
             </Stack>
+
+            {/*
+              The app's one music player, and the bar it shows at the foot of
+              the app while music is being kept playing.
+
+              After the navigator and beside it, on purpose. `<PlayerHost>`
+              draws nothing — it owns the native audio object for as long as
+              the app is open, which is what lets a song outlive the screen it
+              started on. `<MiniPlayer>` is a sibling drawn over every screen
+              rather than a part of any; it knows which routes to stay off
+              (`lib/player-queue.ts`), and pages make room for it through
+              `<Screen>` and the tab bar's clearance.
+            */}
+            <PlayerHost />
+            <MiniPlayer />
           </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

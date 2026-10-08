@@ -8,6 +8,7 @@ These secrets can never ship in an Expo bundle, because anyone can unzip an APK:
 - the Steam Web API key (`steam-auth`, `steam-sync`)
 - the IsThereAnyDeal API key (`itad`)
 - the ScanDex access token (`scandex`) and the OpenCritic key (`opencritic`)
+- SoundCloud's client id and secret (`soundcloud`)
 
 And one operation can never be trusted to a client at all: verifying a Steam
 OpenID assertion. A client that skipped verification could claim any SteamID64
@@ -27,12 +28,14 @@ supabase secrets set STEAM_API_KEY=zzz
 supabase secrets set ITAD_API_KEY=aaa
 supabase secrets set SCANDEX_API_TOKEN=bbb
 supabase secrets set OPENCRITIC_API_KEY=ccc
+supabase secrets set SOUNDCLOUD_CLIENT_ID=ddd SOUNDCLOUD_CLIENT_SECRET=eee
 
 # Functions
 supabase functions deploy igdb        --project-ref <ref> --use-api
 supabase functions deploy itad        --project-ref <ref> --use-api
 supabase functions deploy scandex     --project-ref <ref> --use-api
 supabase functions deploy opencritic  --project-ref <ref> --use-api
+supabase functions deploy soundcloud  --project-ref <ref> --use-api
 supabase functions deploy steam-sync  --project-ref <ref> --use-api
 supabase functions deploy steam-auth  --project-ref <ref> --use-api --no-verify-jwt
 ```
@@ -95,6 +98,79 @@ Three things about it:
   snippets.** The app then has nothing to quote and leaves the section out, so
   redeploy after pulling the change. Verify by opening a recent, well-reviewed
   game — the rail sits under Reviews on its Overview.
+
+### Where the SoundCloud keys come from, and what to check the day they arrive
+
+Register an app at <https://soundcloud.com/you/apps>; it is given a **client
+id** and a **client secret**. Both go in as secrets — neither may be put in
+`.env`, which ships in the bundle. Then deploy `soundcloud` and run migration
+**0036** (read its header first: it deletes every starred song and drops the
+old Apple Music cache, at the owner's decision).
+
+`soundcloud` finds a game's soundtrack and hands the app's player something to
+play. Without its secrets it answers `{ "status": "unconfigured" }` and the app
+says soundtracks are not connected yet — **that is the state it was built and
+shipped in**; the project had no credentials. Nothing in it has run against the
+live API. What it does, from SoundCloud's published guide and OpenAPI document:
+
+- **One token for the whole app, kept and renewed.** Client-credentials tokens
+  are rationed (50 per 12 hours per app, 30 an hour per IP) and last about an
+  hour, so the token lives in `soundcloud_tokens` and is renewed with its
+  refresh token — single-use, so the row is swapped on the old one and two
+  instances cannot both spend it. One renewal and one fresh exchange per
+  request at most; a 401 replaces the token once and retries once.
+- **It stores which upload matched, and nothing about it.** SoundCloud's terms
+  forbid an app to keep titles, names, artwork or audio. `soundcloud_matches`
+  holds a playlist's URN or a list of track URNs; everything shown is fetched
+  when it is asked for. A found match stands 14 days, a "nothing found" 7, and
+  the app's "Look again" is honoured at most every ten minutes per game.
+- **A stream is resolved per play and never stored.** Each one counts against
+  15,000 plays a day per app. A 429 there is not retried — it is the day's
+  quota — and is answered as `{ "status": "rate_limited", "resetAt": … }`,
+  which the app shows with the time it lifts. A 429 on a search is retried
+  twice (0.5s, 1s) and then reported the same way.
+- **Only signed-in users**, as `scandex`: the anon key is refused.
+- **The matcher is `_shared/soundcloud-match.ts`**, pure, and under `npm test`
+  (`src/lib/soundcloud/match.test.ts`). Bump `MATCHER_VERSION` when its
+  judgement changes and stored matches are searched again.
+
+**Five things could not be checked without keys.** Both branches are built
+where it matters; settle these on the first run:
+
+1. **How a stream address answers.** `/tracks/{urn}/streams` returns addresses
+   that need the app's token. The function requests one with it and expects a
+   redirect to a signed address on SoundCloud's media host, which the phone's
+   player opens directly. If the answer is the HLS playlist itself — or a
+   redirect whose path does not end `.m3u8`, which Android's player would not
+   recognise — the player is pointed at this function's own
+   `…/soundcloud/hls/<urn>.m3u8?t=<ticket>` instead. Look at which branch a
+   play takes (`needsAuth` in the `stream` answer).
+2. **That expo-audio plays the address** in Expo Go on Android and iOS.
+3. **Whether several `tags` mean all or any.** The search asks once per tag
+   (`videogame`, `videogames`, `games`), so either is safe; if it is "any",
+   three requests can become one.
+4. **`urns=` with a long list**, and what `playback_count` is when an uploader
+   hides their stats (the app treats a missing count as unknown).
+5. **That a client-credentials token comes with a refresh token** that renews
+   as the guide describes. If it does not, every hour costs one of the 50.
+
+**The relay never sees a session, on purpose.** A phone's audio player sends
+the headers it is given with *every* request for a track — the playlist on this
+function, and then each media segment on SoundCloud's host. So it is given the
+project's public key and nothing else, and the relay is authorised by a ticket
+signed into its address (HMAC, one track, five minutes), issued only to a
+signed-in caller of `stream`. Do not "simplify" it to the listener's bearer
+token: that hands their session to a third party a hundred times a song.
+
+**Before this ships to anyone, read SoundCloud's API terms** and describe the
+feature plainly when registering the app. Two clauses sit close to what it
+does — no "page … dedicated to one or more specific artists or set of
+repertoire", and no service that "aggregates and streams User Content from
+multiple users into an on-demand listening service" — and whether a soundtrack
+screen per game is acceptable is SoundCloud's call, not something code can
+settle. What the code does about them: it prefers one uploader's playlist over
+tracks gathered from several, credits every uploader, shows SoundCloud's logo
+unmodified, links back to every track, and keeps nothing.
 
 ### The `igdb` allowlist is checked in the deployed function
 

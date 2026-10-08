@@ -387,64 +387,33 @@ export type NotificationRow = {
  * `post_media` got when that feature went.
  */
 
-// --- 0012_starred_song.sql --------------------------------------------------
+// --- 0012_starred_song.sql, reshaped by 0036 --------------------------------
 
 /**
  * One pinned track per profile. `user_id` is the primary key, which is what
  * enforces the limit of one — see the migration.
+ *
+ * **Only the track's id, and which game it was starred from.** The columns
+ * that held its title, artist, artwork and preview address were dropped in
+ * 0036: the track is SoundCloud's now, and its terms forbid storing those. The
+ * profile fetches them live (`getSoundCloudTrack`).
  */
 export type StarredSongRow = {
   user_id: string;
-  /** iTunes track id. Not a foreign key: soundtracks are not in `games`. */
+  /** A SoundCloud track URN, `soundcloud:tracks:…`. Not a foreign key. */
   track_id: string;
-  title: string;
-  artist: string;
-  artwork_url: string | null;
-  /** 30-second AAC clip; null when iTunes has no preview for the track. */
-  preview_url: string | null;
   game_id: string | null;
   game_title: string | null;
   created_at: string;
   updated_at: string;
 };
 
-// --- 0020_soundtrack_cache.sql ----------------------------------------------
-
-/**
- * One track inside a cached soundtrack, as stored in `game_soundtracks.tracks`.
- *
- * Structurally a `SoundtrackPick` from `lib/soundtracks.ts`, restated here
- * because this is the JSON shape on the wire and that one is the app's type.
- * They are checked against each other by `toSoundtrack()` in
- * `lib/api/soundtracks.ts`, which is the single place the two meet.
+/*
+ * `game_soundtracks` (0020), the shared cache of iTunes lookups, had its row
+ * types here. 0036 drops the table. Nothing took its place on the client: which
+ * SoundCloud upload is a game's soundtrack is kept in `soundcloud_matches`,
+ * which only the `soundcloud` Edge Function can read.
  */
-export type CachedTrack = {
-  id: string;
-  title: string;
-  artist: string;
-  trackNumber: number | null;
-  durationMs: number | null;
-  previewUrl: string | null;
-  /** Apple Music page for the single track. */
-  trackUrl: string | null;
-  /** Position in a popularity-ordered search; null for tracks it did not surface. */
-  popularityRank: number | null;
-};
-
-export type GameSoundtrackRow = {
-  /** The app-wide game id. Not a foreign key — see the note in migration 0020. */
-  game_id: string;
-  game_title: string;
-  /** False records a completed lookup that came back empty, not a failed one. */
-  found: boolean;
-  album_id: string | null;
-  album_title: string | null;
-  artist: string | null;
-  artwork_url: string | null;
-  external_url: string | null;
-  tracks: CachedTrack[];
-  fetched_at: string;
-};
 
 // --- 0009_gaming_accounts.sql -----------------------------------------------
 
@@ -1155,17 +1124,6 @@ export type Database = {
           FK<'starred_songs_user_id_fkey', 'user_id', 'profiles', 'id'>,
           FK<'starred_songs_game_id_fkey', 'game_id', 'games', 'id'>,
         ];
-      };
-      /*
-       * The shared soundtrack cache from 0020. No `Relationships` entry, and
-       * that is not an omission: `game_id` is deliberately not a foreign key,
-       * so there is nothing to embed across. See the migration for why.
-       */
-      game_soundtracks: {
-        Row: GameSoundtrackRow;
-        Insert: Insert<GameSoundtrackRow, 'fetched_at' | 'tracks'>;
-        Update: Partial<GameSoundtrackRow>;
-        Relationships: [];
       };
       // --- 0023 playthroughs ---------------------------------------------------
       // The foreign key is composite, to `logs (user_id, game_id)`, which the

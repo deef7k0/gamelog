@@ -1,9 +1,6 @@
-import { cacheSoundtrack, getCachedSoundtrack } from '@/lib/api/soundtracks';
 import { getSurprisePool, type SurprisePoolFilters } from '@/lib/games/igdb';
 import { recommendFromLogs } from '@/lib/games/recommend';
 import type { GameSearchResult } from '@/lib/games/types';
-import { readLocalSoundtrack, writeLocalSoundtrack } from '@/lib/soundtrack-cache';
-import { findGameSoundtrack, type GameSoundtrack } from '@/lib/soundtracks';
 import type { SurpriseGameMode } from '@/lib/surprise-prefs';
 
 /**
@@ -14,8 +11,11 @@ import type { SurpriseGameMode } from '@/lib/surprise-prefs';
  *
  *   open the screen  → one IGDB request for up to fifty candidates
  *   deal a card      → walk the cursor; no request until the batch runs out
- *   soundtrack       → the shared cache first; iTunes only on a true miss
+ *   soundtrack       → one question to the `soundcloud` function, which knows
+ *                      which upload matched and searches only on a true miss
+ *                      (`hooks/use-game-soundtrack`)
  *   "Another song"   → `pickTrack()`, pure, against the array already in memory
+ *   play             → one stream request, when the key is pressed — never before
  *
  * The UI holds the cursor and the chosen track. Everything here is stateless.
  */
@@ -193,50 +193,4 @@ export async function getSurpriseBatch({
 
   const games = await getSurprisePool(mode, filters, signal);
   return shuffle(excludeHidden(excludeLogged(games, logs, excludePlayed), hidden));
-}
-
-/**
- * The soundtrack for one game, through the whole cache ladder.
- *
- * device mirror → shared table → iTunes. The first two are misses only when
- * nobody has ever rolled this game, which is the only path that spends an
- * external request.
- *
- * `force` skips both caches and overwrites what they held. It is what the
- * "Try soundtrack again" action runs, so a stored "no soundtrack" — the right
- * answer most of the time, and occasionally a bad lookup — is never permanent
- * from the user's side.
- */
-export async function resolveSoundtrack(
-  gameId: string,
-  gameTitle: string,
-  options: { force?: boolean; signal?: AbortSignal } = {}
-): Promise<GameSoundtrack | null> {
-  const { force = false, signal } = options;
-
-  if (!force) {
-    const local = await readLocalSoundtrack(gameId);
-    if (local !== undefined) return local;
-
-    const shared = await getCachedSoundtrack(gameId);
-    if (shared !== undefined) {
-      // Fill the near cache so the next cold start does not need the network.
-      await writeLocalSoundtrack(gameId, shared);
-      return shared;
-    }
-  }
-
-  /*
-   * A throw from here reaches the screen as a retryable error and nothing is
-   * written — deliberately. Caching a *failure* as "no soundtrack" would make a
-   * dropped connection permanent for every user of the app.
-   */
-  const found = await findGameSoundtrack(gameTitle, signal);
-
-  await Promise.all([
-    cacheSoundtrack(gameId, gameTitle, found),
-    writeLocalSoundtrack(gameId, found),
-  ]);
-
-  return found;
 }

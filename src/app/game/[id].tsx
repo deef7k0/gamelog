@@ -25,7 +25,7 @@ import { GameCoverRail } from '@/components/game-rail';
 import { CommunitySimilarCard, CommunitySimilarSheet } from '@/components/community-similar';
 import { GameStatsStrip } from '@/components/game-stats-strip';
 import { ProgressSheet } from '@/components/progress-sheet';
-import { SoundtrackAlbums } from '@/components/soundtrack-section';
+import { SoundtrackSummary } from '@/components/soundtrack-section';
 import { StorePrices } from '@/components/store-prices';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
@@ -687,7 +687,7 @@ export default function GameDetailScreen() {
       case 'soundtrack':
         return (
           <View style={styles.tabBody}>
-            <SoundtrackAlbums gameTitle={data.title} layout="grid" />
+            <SoundtrackSummary gameId={data.id} title={data.title} developer={data.developer} />
           </View>
         );
 

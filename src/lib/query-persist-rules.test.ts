@@ -36,6 +36,14 @@ describe('shouldPersistKey', () => {
     assert.equal(shouldPersistKey(['album-art-color', 'https://x/y.jpg']), false);
   });
 
+  it('never keeps what SoundCloud sent, which its terms forbid storing', () => {
+    assert.equal(shouldPersistKey(['soundtrack', 'igdb:113112']), false);
+    assert.equal(shouldPersistKey(['soundcloud-track', 'soundcloud:tracks:1']), false);
+    assert.equal(shouldPersistKey(['surprise-soundtrack', 'igdb:113112', 0]), false);
+    /* The star itself is this app's: an id and the game it came from. */
+    assert.equal(shouldPersistKey(['starred-song', 'abc']), true);
+  });
+
   it('never keeps anything of Surprise Me — a restored deal is not a surprise', () => {
     assert.equal(shouldPersistKey(['surprise-batch', 'abc', 'popular']), false);
     assert.equal(shouldPersistKey(['surprise-hidden', 'abc']), false);

@@ -1,20 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { SurpriseSoundtrack } from '@/components/surprise-soundtrack';
-import { resolveSoundtrack } from '@/lib/games/surprise';
+import { useGameSoundtrack } from '@/hooks/use-game-soundtrack';
 import type { GameSearchResult } from '@/lib/games/types';
-import {
-  pickTrack,
-  type GameSoundtrack,
-  type SoundtrackPick,
-  type TrackPickMode,
-} from '@/lib/soundtracks';
-
-/** Previews are always 30 seconds; the denominator before `duration` reports. */
-const PREVIEW_SECONDS = 30;
+import { noticeText, progressOf } from '@/lib/player-queue';
+import type { GameSoundtrack, SoundCloudTrack } from '@/lib/soundcloud/types';
+import { pickTrack, type TrackPickMode } from '@/lib/soundtrack-pick';
+import { player, usePlayer } from '@/store/player';
 
 export type SurpriseSoundtrackPanelProps = {
   game: GameSearchResult;
@@ -25,79 +18,89 @@ export type SurpriseSoundtrackPanelProps = {
  * The soundtrack for one dealt game: lookup, pick, playback.
  *
  * Mounted with `key={game.id}` by the screen, which is what makes dealing a new
- * card reset everything here — the query, the chosen track, the heard set and the
- * audio player — without a single effect watching for a change. The React
- * Compiler rules treat setState in an effect as an error, and this is the pattern
- * the repo already uses in `app/log/[id].tsx` to seed state from data.
+ * card reset everything here — the chosen track, the heard set, and the song
+ * itself, stopped on the way out — without a single effect watching for a
+ * change. The React Compiler rules treat setState in an effect as an error, and
+ * this is the pattern the repo already uses in `app/log/[id].tsx` to seed
+ * state from data.
  *
- * The one external call it can make is the iTunes lookup, and only when no user
- * has ever rolled this game. Everything after that is local.
+ * ## What it asks for, and when
+ *
+ * One question to the `soundcloud` function when the card lands: which upload
+ * is this game's soundtrack. That is the query the game page's Soundtrack tab
+ * and the soundtrack screen share (`useGameSoundtrack`), so opening the
+ * soundtrack from here is already loaded. **No stream is asked for until the
+ * play key is pressed** — every one spends one of the app's daily plays, and a
+ * card that is thumbed past must cost none.
+ *
+ * ## It does not own a player
+ *
+ * It had one, and so did two other screens. The song plays through the app's
+ * one player (`store/player.ts`) under this card's name, and is stopped when
+ * the card is dealt away or another screen opens over it — unless that screen
+ * is its soundtrack, which takes the song over and is then the one to stop it.
  */
 export function SurpriseSoundtrackPanel({ game, trackMode }: SurpriseSoundtrackPanelProps) {
-  /*
-   * Bumped by the retry control. It is part of the query key *and* what flips
-   * `force`, so a retry both misses the React Query cache and skips the two
-   * caches underneath it — otherwise the button would re-read the same stored
-   * "no soundtrack" and appear to do nothing.
-   */
-  const [attempt, setAttempt] = useState(0);
-
-  const soundtrack = useQuery({
-    queryKey: ['surprise-soundtrack', game.id, attempt],
-    queryFn: ({ signal }) => resolveSoundtrack(game.id, game.title, { force: attempt > 0, signal }),
-    // A soundtrack does not change while you look at it, and dealing back to a
-    // game you have already seen this session should cost nothing at all.
-    staleTime: Infinity,
-    retry: false,
+  const { query } = useGameSoundtrack({
+    gameId: game.id,
+    title: game.title,
+    developer: game.developer,
   });
 
-  const retry = () => setAttempt((value) => value + 1);
+  const retry = () => void query.refetch();
 
-  if (soundtrack.isPending) {
-    return <SurpriseSoundtrack {...IDLE} loading onRetry={retry} />;
+  if (query.isPending) return <SurpriseSoundtrack {...IDLE} loading />;
+
+  if (query.isLoadingError) {
+    return <SurpriseSoundtrack {...IDLE} message="Couldn’t reach SoundCloud." onRetry={retry} />;
   }
 
-  const found = soundtrack.isSuccess ? soundtrack.data : null;
+  const answer = query.data;
 
-  if (!found || found.tracks.length === 0) {
+  /*
+   * Three ways there can be no song, and the message does the distinguishing.
+   * Only the one a second request could change offers one: "nothing found" is
+   * the right answer most of the time, and "not connected" is not something a
+   * press on a phone can fix.
+   */
+  if (answer?.status === 'rate_limited') {
     return (
       <SurpriseSoundtrack
         {...IDLE}
-        soundtrack={found}
-        failed={soundtrack.isLoadingError}
+        message="SoundCloud is busy. Try again in a minute."
         onRetry={retry}
       />
     );
   }
+  if (answer?.status === 'unconfigured') {
+    return <SurpriseSoundtrack {...IDLE} message="Soundtracks are not connected yet." />;
+  }
+  if (answer?.status !== 'ok') {
+    return <SurpriseSoundtrack {...IDLE} message="No soundtrack on SoundCloud." />;
+  }
 
   /*
-   * Keyed on the album, so the first track is chosen the moment there is
-   * something to choose from — a lazy `useState` initialiser in a component that
-   * only mounts once the data exists, rather than an effect that fires after it
-   * arrives.
+   * Mounts only once there is a soundtrack in hand, so the first track is
+   * chosen by a lazy `useState` initialiser rather than an effect that fires
+   * after the data arrives.
    */
-  return (
-    <TrackStage
-      key={`${found.albumId}:${attempt}`}
-      game={game}
-      soundtrack={found}
-      trackMode={trackMode}
-    />
-  );
+  return <TrackStage game={game} soundtrack={answer.soundtrack} trackMode={trackMode} />;
 }
 
-/** The props that mean "nothing to play yet", so the three call sites agree. */
+/** The props that mean "nothing to play", so every such call site agrees. */
 const IDLE = {
-  soundtrack: null,
   track: null,
   loading: false,
-  failed: false,
+  message: null,
+  note: null,
+  preview: false,
   playing: false,
+  starting: false,
   progress: 0,
   canShuffle: false,
   onTogglePlay: NOOP,
   onAnotherSong: NOOP,
-  onOpenAlbum: NOOP,
+  onOpenSoundtrack: NOOP,
 } as const;
 
 function NOOP() {}
@@ -108,152 +111,129 @@ type TrackStageProps = {
   trackMode: TrackPickMode;
 };
 
-/**
- * A chosen track, and the controls for it.
- *
- * Mounts only when there is a soundtrack in hand, which is what lets the initial
- * pick be a lazy initialiser instead of an effect.
- */
+/** A chosen track, and the controls for it. */
 function TrackStage({ game, soundtrack, trackMode }: TrackStageProps) {
   const router = useRouter();
 
   /* The initialiser runs once, on mount. `trackMode` is read here rather than
      tracked: changing the mode should govern the *next* pick, not silently swap
      the song already playing. */
-  const [track, setTrack] = useState<SoundtrackPick | null>(() =>
+  const [track, setTrack] = useState<SoundCloudTrack | null>(() =>
     pickTrack(soundtrack.tracks, trackMode)
   );
 
-  /* Everything already served for this album, so shuffling walks the record
+  /* Everything already served for this game, so shuffling walks the soundtrack
      instead of landing on the same track twice. `pickTrack` drops the exclusion
      once it has been through all of them. */
   const [heard, setHeard] = useState<ReadonlySet<string>>(() =>
-    track ? new Set([track.id]) : new Set()
+    track ? new Set([track.urn]) : new Set()
   );
 
-  const player = useAudioPlayer();
-  const status = useAudioPlayerStatus(player);
-  /* Whether *this* track is the one loaded into the player. A new pick clears it,
-     so the transport shows "play" rather than inheriting the previous track's
-     playing state. */
-  const [loadedId, setLoadedId] = useState<string | null>(null);
+  const owner = `surprise:${game.id}`;
+
+  /* The card is leaving: its song goes with it, if it is still this card's. */
+  useEffect(() => () => player.release(owner), [owner]);
 
   /*
-   * There is deliberately no `pause()` on unmount, and removing one is what
-   * fixed a hard crash.
+   * So is the reader, when another screen opens over this one — the game's
+   * page, the log form. The card stays mounted underneath, so an unmount
+   * cleanup alone would leave its song playing behind a screen with nothing on
+   * it to stop it.
    *
-   * `useAudioPlayer` releases its native object in its own unmount cleanup.
-   * Registering a second cleanup that calls `player.pause()` is a race with
-   * that release, and losing it throws from native — leaving the settings gear,
-   * which unmounts this whole subtree, crashing the app on tap. The album
-   * screen has never had such a cleanup, which is the evidence: it relies on
-   * the hook, and so does this.
-   *
-   * Explicit pauses still happen where the player is known to be alive — before
-   * swapping a track, and before navigating away.
+   * One screen is the exception: the song's own soundtrack, where it is shown
+   * as playing and can be paused, scrubbed and followed by the next track.
+   * `handingOver` is set by the one handler that opens it.
    */
+  const handingOver = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      handingOver.current = false;
+      return () => {
+        if (!handingOver.current) player.release(owner);
+      };
+    }, [owner])
+  );
+
+  const urn = track?.urn ?? null;
+  /* By id, not by owner: once the soundtrack screen adopts this song it is no
+     longer this card's queue, and it is still the song on this row. */
+  const isCurrent = usePlayer(
+    (state) => urn !== null && state.queue?.tracks[state.index]?.urn === urn
+  );
+  const phase = usePlayer((state) => state.phase);
+  const notice = usePlayer((state) => state.notice);
+  const preview = usePlayer((state) => state.preview);
+  const progress = usePlayer((state) =>
+    urn !== null && state.queue?.tracks[state.index]?.urn === urn
+      ? progressOf(state.position, state.duration)
+      : 0
+  );
 
   /**
    * Whether there is a second track to shuffle to.
    *
-   * A one-track album made this control a trap: `pickTrack` correctly falls back
-   * to the full list once the exclusion is exhausted, so it returned the same
-   * track, and the handler then stopped playback and re-set it. The button's
-   * whole observable effect was to stop your music.
+   * With one playable track this control was a trap: `pickTrack` correctly
+   * falls back to the full list once the exclusion is exhausted, so it returned
+   * the same track, and the handler then stopped playback and re-set it. The
+   * button's whole observable effect was to stop your music.
    */
-  const canShuffle = soundtrack.tracks.length > 1;
-
-  /** `pause()` on a torn-down player throws from native. Never fatal here. */
-  function safePause() {
-    try {
-      player.pause();
-    } catch {
-      /* Already released — there is nothing playing to stop. */
-    }
-  }
+  const canShuffle = soundtrack.tracks.filter((item) => item.access !== 'blocked').length > 1;
 
   function togglePlay() {
-    if (!track?.previewUrl) return;
-
-    if (loadedId === track.id) {
-      if (status.playing) player.pause();
-      else player.play();
-      return;
-    }
-
-    player.replace({ uri: track.previewUrl });
-    player.seekTo(0);
-    player.play();
-    setLoadedId(track.id);
+    if (!track) return;
+    /* One track, not the soundtrack: a dealt card plays its one song and ends.
+       `player.play` pauses or resumes when this is already what is loaded. */
+    player.play({ owner, gameId: game.id, gameTitle: game.title, tracks: [track] }, 0);
   }
 
   function anotherSong() {
     if (!canShuffle) return;
 
     const next = pickTrack(soundtrack.tracks, trackMode, heard);
-    if (!next || next.id === track?.id) return;
+    if (!next || next.urn === track?.urn) return;
 
-    /* Stop first. Without this the previous preview keeps playing under a row
-       that has already changed to a different song. Guarded because a released
-       player throws from native, and losing the music is never worth losing the
-       screen. */
-    safePause();
-    setLoadedId(null);
+    /* Stop first. Without this the previous song keeps playing under a row
+       that has already changed to a different one. */
+    player.release(owner);
     setTrack(next);
     setHeard((previous) => {
-      // Past every track: start the record again rather than pinning on the last.
-      if (previous.size >= soundtrack.tracks.length) return new Set([next.id]);
-      return new Set([...previous, next.id]);
+      // Past every track: start again rather than pinning on the last.
+      if (previous.size >= soundtrack.tracks.length) return new Set([next.urn]);
+      return new Set([...previous, next.urn]);
     });
   }
 
-  function openAlbum() {
-    /* Stop before leaving: the album screen has its own player, and two of them
-       playing different previews at once is the failure this guards. */
-    safePause();
-    router.push({
-      pathname: '/soundtrack/[id]',
-      params: {
-        id: soundtrack.albumId,
-        title: soundtrack.albumTitle,
-        artist: soundtrack.artist,
-        artwork: soundtrack.artworkUrl ?? '',
-        url: soundtrack.externalUrl ?? '',
-        /*
-         * Which game's soundtrack this is.
-         *
-         * That screen's own comment records that it "never knows the game id it
-         * was opened from", so every song starred there has written a null
-         * `game_id` and lost the "from <game>" credit `starred_songs` was built
-         * to carry. This is the one entry point that does know, and the album
-         * screen falls back to its old behaviour when the pair is absent.
-         */
-        game: game.id,
-        gameTitle: game.title,
-      },
-    });
+  function openSoundtrack() {
+    /* Nothing is paused on the way: there is one player now, and the song this
+       card started is still playing — and shown as playing — in its own
+       soundtrack's list. */
+    handingOver.current = true;
+    router.push({ pathname: '/soundtrack/[id]', params: { id: game.id, title: game.title } });
   }
 
-  const isCurrent = !!track && loadedId === track.id;
-  const progress = !isCurrent
-    ? 0
-    : status.duration
-      ? Math.min(1, status.currentTime / status.duration)
-      : Math.min(1, status.currentTime / PREVIEW_SECONDS);
+  if (!track) {
+    /* A soundtrack with nothing this app may play. */
+    return (
+      <SurpriseSoundtrack {...IDLE} message="SoundCloud does not let this soundtrack play here." />
+    );
+  }
 
   return (
     <SurpriseSoundtrack
-      soundtrack={soundtrack}
       track={track}
       loading={false}
-      failed={false}
-      playing={isCurrent && status.playing}
+      message={null}
+      note={isCurrent && notice ? noticeText(notice) : null}
+      /* What SoundCloud said when the list was fetched, or what the stream
+         turned out to be once it was asked for. */
+      preview={track.access === 'preview' || (isCurrent && preview)}
+      playing={isCurrent && phase === 'playing'}
+      starting={isCurrent && phase === 'loading'}
       progress={progress}
       canShuffle={canShuffle}
       onTogglePlay={togglePlay}
       onAnotherSong={anotherSong}
-      onOpenAlbum={openAlbum}
-      onRetry={NOOP}
+      onOpenSoundtrack={openSoundtrack}
     />
   );
 }

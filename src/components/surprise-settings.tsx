@@ -20,7 +20,7 @@ import {
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getGenres, getSurprisePoolSize, type SurprisePoolSize } from '@/lib/games';
-import type { TrackPickMode } from '@/lib/soundtracks';
+import type { TrackPickMode } from '@/lib/soundtrack-pick';
 import {
   activeFilterCount,
   poolFiltersFor,

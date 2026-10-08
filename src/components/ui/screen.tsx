@@ -1,14 +1,17 @@
 import { BlurTargetView } from 'expo-blur';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 
+import { useTabBarClearance } from '@/components/app-tab-bar';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
+import { MINI_PLAYER_BAND } from '@/constants/player';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useHeaderHeight } from '@/hooks/use-header-height';
 import { ScreenChromeProvider } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
+import { useMiniPlayerActive } from '@/store/player';
 
 export type ScreenProps = {
   children: ReactNode;
@@ -72,6 +75,22 @@ export type ScreenProps = {
    * is a layer on top of a fill that is still the wrong colour underneath it.
    */
   background?: string;
+  /**
+   * Whether this page makes room for the mini player while music is being kept
+   * playing. On by default, and a page almost never says otherwise.
+   *
+   * The mini player (`<MiniPlayer>`) floats over the foot of the app. A page
+   * gives up that much of its own foot while it is there, so its last row and
+   * anything docked at its bottom — a save button, a selection bar — end above
+   * the bar instead of under it. Nothing is asked of the page itself.
+   *
+   * `false` on exactly the routes the bar is not drawn over, which would
+   * otherwise keep an empty band for it: the soundtrack screen, Surprise Me
+   * and the scanner. A `modal` page is one of those already and needs no flag.
+   * `lib/player-queue.ts` lists the routes, and its test reads the route files
+   * to hold the two in step.
+   */
+  miniPlayer?: boolean;
 };
 
 /** Page shell: themed background, safe-area insets, centred max-width column. */
@@ -84,9 +103,29 @@ export function Screen({
   topBar,
   modal = false,
   background,
+  miniPlayer = true,
 }: ScreenProps) {
   const theme = useTheme();
   const headerHeight = useHeaderHeight(modal);
+  const insets = useSafeAreaInsets();
+
+  /*
+   * Room for the mini player, on a page pushed over the tabs.
+   *
+   * A tab's own screens do not pad here: their content scrolls *under* the
+   * floating tab bar and ends by `useTabBarClearance()`, which already grows
+   * by the mini player's height. That hook answers zero anywhere outside the
+   * tab navigator, which is how this tells the two apart.
+   *
+   * The band is in the page's own colour — the padding is inside the fill
+   * below — so on a game's page the bar rests on that game's tone.
+   */
+  const tabClearance = useTabBarClearance();
+  const miniPlayerActive = useMiniPlayerActive();
+  const miniPlayerRoom =
+    miniPlayer && !modal && tabClearance === 0 && miniPlayerActive
+      ? MINI_PLAYER_BAND + (edges.includes('bottom') ? 0 : insets.bottom)
+      : 0;
 
   return (
     <ScreenChromeProvider modal={modal}>
@@ -122,6 +161,7 @@ export function Screen({
                   styles.column,
                   padded && styles.padded,
                   insetHeader && { paddingTop: headerHeight },
+                  miniPlayerRoom > 0 && { paddingBottom: miniPlayerRoom },
                 ]}>
                 {children}
               </View>

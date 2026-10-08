@@ -1643,6 +1643,76 @@ never takes a game's colour. Separated by tone, not a hairline or a shadow.
 
 Five is the ceiling. A sixth destination means something belongs one level down.
 
+## 8.1 The mini player
+
+What is playing, as a second capsule at the foot of the app — drawn only while
+**Keep playing** is on and a track is loaded (`<MiniPlayer>`, mounted once in
+the root layout, over every screen). The owner's rule is that music stops when
+the soundtrack screen is left; the switch is the exception, and this bar is
+what the exception looks like.
+
+```ts
+capsule:  56 tall, fully round, theme.surface, a hairline edge, 16 at the sides,
+          520 at most
+contents: artwork 40 · title (itemTitle) over the uploader (bodySmall, muted) ·
+          play/pause · next (when there is one) · a cross that stops the music
+progress: a 2dp line along its foot, inset by the capsule's corner, primaryText
+rests:    8 above the system inset — and a tab bar's footprint (76) higher on
+          the four tabs, over the tab capsule
+```
+
+- **The tab bar's material and never a game's colour**, for the tab bar's
+  reason: it is the app's, on every screen.
+- **It moves by a CSS transition on a transform** between its two resting
+  places, so where it rests is a React prop.
+- **Pages make room for it.** A tab's content ends by `useTabBarClearance()`,
+  which grows by the capsule; every other page gives up a band of its own foot
+  through `<Screen>`, in its own colour. Nothing is ever left under the bar.
+- **It stays off** the soundtrack screen (which has the whole player), Surprise
+  Me, the scanner, every modal and the keyboard. The music does not stop there.
+- **Pressing it opens the soundtrack it is playing from.** It is a reading and
+  a way back, not a second player: the progress line cannot be dragged.
+- It names the uploader, as everything of SoundCloud's must (§ 8.3).
+
+## 8.2 The docked player
+
+The whole player, at the foot of the soundtrack screen (`<PlayerBar>`): a sheet
+edge rather than a capsule — `Radius.sheet` on its top corners, a hairline, its
+fill run to the bottom of the display — in the game's `accent.card`, because
+that screen is about one game.
+
+```ts
+now:       artwork 44 · title over the uploader · SoundCloud's mark (a link)
+scrub:     0:42 ─────●───── 3:21   the line 4dp, touched at 28, a 12dp thumb
+controls:  [Keep playing]            ⏮  ▶  ⏭
+caption:   what leaving this screen will do, in one quiet line
+```
+
+- **Play is the bar's one filled accent** (52, `accent.color`); previous and
+  next are bare glyphs at a finger's size, dimmed in place when they cannot act.
+- **Keep playing is a choice, so it is outlined** and takes the accent's wash
+  and a check when on (§ 9.4). The caption under it states the consequence —
+  "Music stops when you leave this screen." / "Music carries on while you use
+  the app." — because a switch whose effect is only seen after leaving has to
+  say what it will do first.
+- **A track that will not play says why where its uploader was**, in one of
+  four sentences (`noticeText`): not available here, not connected yet, the
+  play limit and when it lifts, or a failure that play retries.
+
+## 8.3 SoundCloud's mark
+
+Wherever a track of SoundCloud's is shown or played there are three things:
+its **uploader's name**, **SoundCloud's own logo**, and a **link to the track
+on soundcloud.com** — the API's terms ask for all three. `<SoundCloudMark>` is
+the logo, and the link when it is given one.
+
+It is the only image in the app that is not ours to restyle. The files in
+`assets/images/soundcloud/` are SoundCloud's white marks as published, drawn at
+half their pixel size and **never tinted, recoloured, cropped or redrawn** —
+there is no `color` prop. Artwork from SoundCloud is drawn through
+`<PlayerArtwork>` and kept in memory only; nothing of SoundCloud's is written
+to the device.
+
 ---
 
 # 9. Buttons & Controls

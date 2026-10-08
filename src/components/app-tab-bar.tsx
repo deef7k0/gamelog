@@ -13,8 +13,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import { MINI_PLAYER_FOOTPRINT } from '@/constants/player';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useMiniPlayerActive } from '@/store/player';
 
 export type AppTabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
@@ -38,8 +40,16 @@ const TOP = 4;
 const BOTTOM = 8;
 
 /**
+ * How much of the display's foot the bar takes above the system's own inset.
+ * The mini player rests this far up while a tab is in front, so it sits over
+ * the capsule rather than on it.
+ */
+export const TAB_BAR_FOOTPRINT = TOP + BAR_HEIGHT + BOTTOM;
+
+/**
  * How much of the bottom of a tab's screen the floating bar covers: its own
- * height plus the system navigation area under it.
+ * height plus the system navigation area under it — and, while music is being
+ * kept playing, the mini player resting over it (`<MiniPlayer>`).
  *
  * The bar is drawn over the page, so a tab's scroll content runs underneath it
  * and needs this much padding at its foot to end above it. Zero anywhere
@@ -56,8 +66,12 @@ export function useTabBarClearance(): number {
 /** Wraps the tab navigator, so every tab screen can read `useTabBarClearance`. */
 export function TabBarClearanceProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
+  /* A second floating thing over the foot of every tab: the same padding,
+     taller. Tab screens already end their content by this number, so none of
+     them learns that a mini player exists. */
+  const miniPlayer = useMiniPlayerActive() ? MINI_PLAYER_FOOTPRINT : 0;
   return (
-    <TabBarClearanceContext.Provider value={TOP + BAR_HEIGHT + BOTTOM + insets.bottom}>
+    <TabBarClearanceContext.Provider value={TAB_BAR_FOOTPRINT + insets.bottom + miniPlayer}>
       {children}
     </TabBarClearanceContext.Provider>
   );
@@ -71,7 +85,7 @@ export function TabBarClearanceProvider({ children }: { children: ReactNode }) {
  * keyboard, over the results you are typing for. iOS draws the keyboard over
  * the window, which covers the bar by itself.
  */
-function useKeyboardShown(): boolean {
+export function useKeyboardShown(): boolean {
   const [shown, setShown] = useState(false);
 
   useEffect(() => {

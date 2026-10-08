@@ -20,6 +20,5 @@ export * from './progress';
 export * from './reports';
 export * from './similarity';
 export * from './songs';
-export * from './soundtracks';
 export * from './storage';
 export * from './types';

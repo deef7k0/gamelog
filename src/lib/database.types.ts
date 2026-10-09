@@ -322,16 +322,19 @@ export type ListRow = {
    */
   cover_game_id: string | null;
   /**
-   * Four covers or one (0033). **Absent on a database before 0033** — not null,
-   * absent — so every reader falls back to `'mosaic'`, which is what every
-   * collection looked like before the column existed.
+   * Four covers or one (0033). **Nothing reads or writes it any more.** The
+   * mosaic it chose between was removed from the app: a collection is one
+   * cover on its own screen and a stack where it is listed. The column is still
+   * in the database — nothing was dropped and no migration was written, as with
+   * `posts` and `diary_entries` — and it is typed here only because the row has
+   * it. Absent on a database before 0033.
    */
   cover_style?: ListCoverStyle;
   created_at: string;
   updated_at: string;
 };
 
-/** How a collection's artwork is drawn: its first four covers, or one (0033). */
+/** What `lists.cover_style` (0033) holds. Unused by the app — see the column's note. */
 export type ListCoverStyle = 'mosaic' | 'single';
 
 export type ListItemRow = {
@@ -349,8 +352,8 @@ export type ListItemRow = {
  * A row exists before anything has won it — `game_id` is nullable, which is the
  * whole reason this is not a `list_items` row (that table's key is
  * `(list_id, game_id)`, so a slot without a game cannot be expressed). When a
- * game *is* named, a trigger from 0016 mirrors it into `list_items` so the tile
- * mosaic, the item count and every "is this game in a list" query keep working
+ * game *is* named, a trigger from 0016 mirrors it into `list_items` so the tile's
+ * stack, the item count and every "is this game in a list" query keep working
  * without knowing awards exist.
  */
 export type AwardRow = {

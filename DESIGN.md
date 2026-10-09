@@ -987,9 +987,26 @@ A horizontal rail is a `FlatList` with `horizontal`, a 12 gap, and the page's 16
 padding applied as `contentContainerStyle` so the first poster aligns with the
 text above it.
 
-A grid is a `FlatList` with `numColumns`, gap 12–16, sized from
-`useWindowDimensions()` rather than a fixed column count. There are no media
-queries in React Native.
+A grid is a `FlatList` with `numColumns`, sized from `useWindowDimensions()`.
+There are no media queries in React Native. Three across, with one exception:
+
+| | Columns | Gap | A cover on a 360dp phone | Where |
+| --- | --- | --- | --- | --- |
+| Every grid of games | 3 (`PORTRAIT_COLUMNS`) | 12 (a studio's is 8) | 102×153 | the inside of a collection, a studio, Must Play, an event, a month of the calendar, Search's results |
+| Somebody's **library** | 4 (`SHELF_COLUMNS`) | 8 (`SHELF_GAP`) | 76×114 | the library screen, and nowhere else |
+
+The library is somebody's own games, and how many are in view matters more
+there than how large each is. The owner's reference for it is a Letterboxd films
+tab, measured from a screen drawn 202 pixels wide: posters 40 across, 5 apart,
+one quiet line under each. That line is the person's score (in the score's own
+colour), else their status, else Steam's playtime; the game's name is not
+printed — the box prints it — and is the tile's spoken label.
+
+**A collection's grid has been ruled on five times and is three.** Three, four,
+three ("a thumbnail of the box"), four when the library's layout was asked for
+"the same for the collection screen inside", and — once the owner had seen that
+on a phone — three, with four kept for the library. The two are not meant to
+match.
 
 ---
 
@@ -1028,18 +1045,99 @@ stops it dissolving into a near-black page, and a white box gets nothing, which
 is right.
 
 `<Poster>` draws it whenever it is asked for the box-art corner
-(`rounded="image"`, the default). The two shelves that draw covers by hand — the
-profile's and Surprise Me's entry deck — use the same token as their hairline.
-Four things do **not** wear it:
+(`rounded="image"`, the default). Surprise Me's entry deck draws its covers by
+hand and uses the same token as their hairline. Three things do **not** wear
+it:
 
 | Not edged | Why |
 | --- | --- |
 | The game case, and its framed PC cover (`rounded="caseImage"`) | § 4.1: protected, and the framed cover has a frame of its own |
-| A banner that fills its container (`rounded="none"`) | It has no edge to draw one on — the collection header fades into the page |
+| A banner that fills its container (`rounded="none"`) | It has no edge to draw one on |
 | Square art | The owner said portrait |
-| A collection's mosaic | It is a composed picture, not four covers |
 
 A wrapper that draws its own hairline round a `<Poster>` is now a doubled line.
+
+## 4.0.2 The cover stack
+
+**A shelf is shown as five covers overlapping, the first one whole and in
+front, across the inside of a card.** A profile's library and a collection,
+wherever collections are listed (`<CoverStack>`). The owner's reference is old
+Letterboxd's "New from friends" tile, and every figure of the overlap is read
+off it, where a poster is 72 pixels wide:
+
+```text
+┌────┬────┬────────┬────┬────┐     five covers, the same size and level
+│ 4  │ 2  │   1    │ 3  │ 5  │     1 in front, 2 and 3 behind it, 4 and 5 behind those
+│    │    │        │    │    │     each steps 40/72 of a cover from the one in front
+└────┴────┴────────┴────┴────┘     the stack is 232/72 covers wide: 3.22
+```
+
+| | Reference | Here |
+| --- | --- | --- |
+| Step | 40px of a 72px poster — 44% covered | `STACK_STEP`, 0.556 |
+| Width | 232px, 3.22 posters | the row it is given, exactly — the inside of its card |
+| On a 360dp phone | — | covers 93×140 in a collection's card; 94×141 in the profile's box |
+| Shadow of a cover on the one behind | ~6px, soft | a drawn strip, 8% of a cover, to 42% black |
+| Each cover | its own corner and a light outline | `<Poster>`: `Radius.image`, `coverEdge` |
+
+- **The first cover represents the thing** — a collection's chosen cover, a
+  library's newest game — and is the one drawn whole. The rest alternate left
+  and right, outward.
+- **Five covers span the row exactly**, so in a card the stack stands on the
+  margins of the text above and below it: the first cover's left edge under the
+  title's, the last one's right edge under whatever ends the title's line. For
+  one pass a full stack took seven-eighths of its row, centred, to be "a little
+  bit smaller"; it lined up with nothing, and the owner had it brought back to
+  the margins. The card's inset is all the smaller it gets.
+- **A cover is the size it is in a full stack.** Fewer than five are built from
+  the first cover outward, and **a short stack stands in the middle of its
+  row**: the air either side is the same, to the dp. They stood at the left edge
+  once, and a collection of three left a third of the row empty. No empty places
+  are drawn; none at all is one lettered placeholder, in the middle.
+- **The shadow is a gradient, not an elevation**, and it is drawn by the cover
+  in front, outside its own edge. Five level covers have no "below" for an
+  elevation to fall on, and Android paints a view's children in order of
+  elevation — a strip laid on the cover behind would be painted under it.
+- It is never a rail or a grid of games: those are covers side by side
+  (§ 3.3). The stack says *a shelf, with something pulled forward*.
+
+**A collection is this stack in a card where it is listed, and one cover on its
+own screen.** The owner's second reference for it is a list drawn as a panel —
+its name top left, "32 Films" top right, its posters under them — with the
+direction to put "everything inside the card":
+
+```text
+┌────────────────────────────────────────┐   the review card's own card:
+│ 🏆 Horror I finished at 3am   12 games │   reviewCard, 8 corner, 15 in, the card
+│                                        │   shadow, no border
+│ ▮▮▮▮▮▮▮[ ▮▮▮▮▮▮▮▮▮ ]▮▮▮▮▮▮▮           │   the stack, margin to margin
+│                                        │
+│ Two lines of the owner's own argument… │   the description, if there is one
+│ (◯) ada                                │   who made it
+└────────────────────────────────────────┘
+```
+
+| | Reference (card 222px wide) | Here |
+| --- | --- | --- |
+| The card | a flat slate panel | `<LogCard>`'s own: `reviewCard`, `Radius.lg`, the card shadow |
+| First line | name left, count right | `h5` with its kind's glyph, the count in `bodySmall` / `textMuted` on its baseline |
+| Inset | 7px | `Spacing.x16`, the review card's |
+| Posters | from one inset to the other | five covers from one inset to the other |
+| Title to covers | 9px | 12 |
+| Between cards | 7px | 12, as review cards stack |
+
+**It is the review card, by the owner's direction** ("the same card as the
+review card in the home page"). It was the app's `<Card>` for one pass —
+`surface`, a step above the page, a 16 corner — beside reviews that sit a shade
+*below* the page with an 8 corner, and the two in one feed were different
+objects.
+
+One to a row, with no likes or comments on it (`<ListTile>`). The count moved
+from the end of the byline to the title's line, where the reference has it; the
+byline is the owner alone. The collection's own header is one game's art, the
+same game the stack has in front. **There is no mosaic**: the 2×2 picture of a
+collection's first four covers, and the owner's choice between it and one cover,
+were removed from the app at the owner's direction.
 
 ---
 
@@ -2223,6 +2321,93 @@ empty state with an action until there is one log.
 
 This is the **foundation for recommendations, not the recommender**. Adding a
 personalised band means adding a band, not unpicking a merged timeline.
+
+---
+
+# 18.1 Profile
+
+**A Letterboxd profile, measured, in this app's materials.** The owner's
+reference is a profile mock (a 375pt screen, 196 pixels wide — so its figures
+are good to a couple of points); the numbers are in
+`constants/profile-layout.ts`. The page, the card, the pills and the blue are the
+app's: the mock's slate, green underline, serif bio and star ratings were not
+carried.
+
+```text
+┌──────────────────────────────────────────┐
+│ (+)            handle              (⚙)   │  ← your tab; someone else's: (‹) handle
+│ [PROFILE] REVIEWS COLLECTIONS STEAM      │  ← fixed; the list scrolls under it
+│                                          │
+│ (face)   Name                            │
+│          128     12       9       4      │  ← a figure centred over its word
+│         Logged Followers Following Friends
+│ The bio, under the row.                  │
+│ [ Edit profile                ][ share ] │
+│                                          │
+│ ┌ Favourites ───────────────────── Edit ┐│  ← a box
+│ │ ───────────────────────────────────── ││
+│ │ [▮▮▮]  [▮▮▮]  [▮▮▮]  [▮▮▮]            ││
+│ └───────────────────────────────────────┘│
+│                                          │
+│ ┌ Ada's games ──────────────────────  › ┐│  ← a box of its own; its title is the way in
+│ │ ───────────────────────────────────── ││
+│ │ ▮▮▮▮▮▮▮[ ▮▮▮▮▮▮▮▮▮ ]▮▮▮▮▮▮▮           ││  ← § 4.0.2, margin to margin
+│ │ 128 digital · 14 physical             ││
+│ └───────────────────────────────────────┘│
+│                                          │
+│ Wall                                     │  ← open, and last
+│ ──────────────────────────────────────── │
+│ [ What's on your mind?                 ] │
+│ Today ────────────────────────────────── │
+└──────────────────────────────────────────┘
+```
+
+| | Mock | Here |
+| --- | --- | --- |
+| Margin | 20pt | `PROFILE_MARGIN`, 20 — this screen alone, and every tab of it; the app's is 15 |
+| Tabs | words, under the title bar, 48pt row | `<TabBar>` pills in words, fixed, 48dp row: Profile, Reviews, Collections, Steam |
+| Face | 77pt, 20.7% of the width | 21% of the display, 72–96 |
+| Name | 18 bold | `h3` |
+| Counts | 16 bold over 11, centred, 27pt apart | `h4` over `bodySmall`, centred, spread across the column |
+| Box | ~6pt corner, 10pt inside; title 14.5, a hairline, the content | `<Card>` (§ 11), **8 inside**; `h5`, hairline, content |
+| Favourites | four posters 75×115pt, 5pt apart | four covers **73×110** on a 360dp phone, **4 apart** |
+| Open section | title and chevron, a rule under | `h5`, a `borderStrong` rule; no chevron — the wall is not a door |
+| Between sections | 38–42pt | 40 |
+
+- **Each tab shows only its own content.** Profile is the first and holds the
+  face, the counts, the bio, the favourites, the library, the pinned song and
+  the wall; Reviews, Collections and Steam are each a list from the top of the
+  screen. The screen opens on Profile.
+- **The wall is the foot of the Profile tab, not a tab.** It was the fourth of
+  five; the owner had it moved "inside the profile tab, under everything else".
+  Its heading, the composer (the owner's always, an accepted friend's), then the
+  timeline under date headings. With nothing on it, or when it fails to load, it
+  says so in one quiet line — never a screen-sized state under somebody's whole
+  profile.
+- **The favourites are a little larger than the mock's**, at the owner's
+  direction, and the margin could not pay for it: two dp came off each side of
+  the box's inset and one off each gap. That is 71 → 73 on a 360dp phone, and it
+  is all there is while the margin is twenty.
+- **The bio is under the row**, at the owner's direction; the mock sets it
+  between the name and the counts.
+- **Two section shapes, and what a section is decides which.** A *box* for what
+  the profile holds whole — the four favourites, the library, the pinned song,
+  one box each. An *open* section — a title on the page with a rule under it —
+  for what runs on down the page: the wall.
+- **The library has a box of its own.** It stood on the page as a door; the
+  owner had it put in a card, it shared the favourites' for one pass, and the
+  owner had it "detached from the favourites one". Its title keeps its chevron
+  and is the way into the library; five covers run from the title's left edge
+  to the chevron's right one, and the two caption lines start at that left edge.
+- **A box is a card, so it has no border** (§ 11): the surface step and the card
+  shadow draw it. Its title is on its first line with a hairline under it — the
+  one place in the app a heading sits *inside* its card, because the mock's
+  does, and a box that is four covers wide needs its name on it.
+- Section headings here are `h5`, not § 17's `h2`: this is one person's page of
+  small sets, not a feed of bands, and a 20sp heading over four 71dp covers
+  would outweigh them.
+
+**Not yet seen on a phone.** Checked on a still against the mock.
 
 ---
 

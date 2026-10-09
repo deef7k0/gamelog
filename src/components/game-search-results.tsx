@@ -114,7 +114,7 @@ export function GameSearchResults({
   const { width } = useWindowDimensions();
   const isQueryable = query.length >= MIN_QUERY_LENGTH;
   const grid = layoutToggle && layout === 'grid';
-  /* The app's portrait size, three across — the collection grid's own. */
+  /* The app's portrait size, three across: results are browsed, not shelved. */
   const tileWidth = gridItemWidth(width, PORTRAIT_COLUMNS, Spacing.x16, GRID_GAP);
 
   const games = useQuery({

@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { CollectionMosaic } from '@/components/collection-mosaic';
 import { Avatar } from '@/components/ui/avatar';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -17,7 +16,7 @@ import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import { displayNameFor } from '@/lib/format';
 import type { Engagement, ListCover, ListItem, ListWithItems } from '@/lib/api';
-import type { ListCoverStyle, Profile } from '@/lib/database.types';
+import type { Profile } from '@/lib/database.types';
 
 /**
  * How much of the display the artwork block occupies: half, SimpMusic's album
@@ -37,8 +36,8 @@ const SCRIM_RATIO = 0.7;
 const META_ALPHA = 0.77;
 
 /**
- * Where a single *box* is anchored in the banner, top to bottom — the stand-in
- * for a game with no square art.
+ * Where a *box* is anchored in the banner, top to bottom — the stand-in for a
+ * game with no square art.
  *
  * A 2:3 cover in a banner this shape loses most of its height to the crop, and a
  * centred crop keeps the box's middle — usually a torso, or nothing. A cover's
@@ -57,11 +56,13 @@ const ACTION_GLYPH = 22;
  * What an action is filled with: white at 12%, the reference's
  * `Color.White.copy(alpha = 0.12f)`. A wash of the ink rather than a grey of
  * the app's, because the page under it is a different colour for every
- * collection with one cover — a translucent fill is a step up from whichever.
+ * collection — a translucent fill is a step up from whichever.
  */
 const ACTION_FILL = 0.12;
 /** The owner's picture in the byline. */
 const AVATAR = 36;
+/** The mark on a collection with no cover to draw: its initial, or an award show's trophy. */
+const EMPTY_GLYPH = 72;
 
 /**
  * Lines of description shown before "See more".
@@ -76,10 +77,10 @@ export type CollectionHeaderProps = {
   collection: ListWithItems;
   owner: Profile | null;
   /**
-   * The page colour the artwork melts into — the immersive colour of a single
-   * cover (`useImmersiveBackground`), or null for the app's own page, which is
-   * what a mosaic of several covers always uses. The screen fills with the same
-   * value.
+   * The page colour the artwork melts into — the immersive colour of the
+   * collection's cover (`useImmersiveBackground`), or null for the app's own
+   * page while that is being read and for a collection with no games. The
+   * screen fills with the same value.
    */
   pageColor?: string | null;
   /** Like count and whether the viewer is one of them. */
@@ -99,9 +100,9 @@ export type CollectionHeaderProps = {
  * About
  * ```
  *
- * Half a screen of artwork — four covers, or the one the owner chose — melting
- * into the page through a smoothstep scrim over its bottom 70%, with the name
- * and what it is set *over* the bottom of it, centred. That much is SimpMusic's
+ * Half a screen of artwork — one game's, the one that represents the
+ * collection — melting into the page through a smoothstep scrim over its bottom
+ * 70%, with the name and what it is set *over* the bottom of it, centred. That much is SimpMusic's
  * album header, read from `AlbumScreen.kt`. Under it, on the page's solid
  * colour, one row: who made it on the left, share and like on the right. Then
  * the description. The sort tools and the games are the screen's, below.
@@ -134,22 +135,29 @@ export type CollectionHeaderProps = {
  * suited a row centred on the art's axis; a row with a name at one end and
  * buttons at the other belongs to the edges the list under it keeps.
  *
- * ## The page takes a single cover's colour
+ * ## One game, always
  *
- * With one cover — the owner's choice, or the only one a collection has
- * (`collectionCover`) — the screen fills with that cover's immersive colour
- * (`useImmersiveBackground`) and the scrim melts into it; with a mosaic of
- * several it stays the app's own page, since several covers have no one colour.
- * The colour is the background's alone — the actions keep a neutral wash.
+ * The owner's ruling: "inside the collection screen only have one game
+ * displayed". The art is the collection's cover (`collectionCover`) — the game
+ * its owner chose, or its first — for every kind of collection, an award show
+ * included. It used to be that *or* a 2×2 mosaic of the first four, a setting on
+ * each collection (`lists.cover_style`, 0033) with a trophy laid over the mosaic
+ * of an award show. The mosaic was removed from the app with the setting; what
+ * says "Award show" is the line under the title.
+ *
+ * ## The page takes that cover's colour
+ *
+ * The screen fills with the cover's immersive colour
+ * (`useImmersiveBackground`) and the scrim melts into it — every collection
+ * with a game in it now, where it was only those showing one cover. The colour
+ * is the background's alone — the actions keep a neutral wash.
  *
  * ## The fade is a ramp, not a blur
  *
  * A blurred copy of the artwork revealed through a mask is the game page's
- * treatment and belongs there, where the subject is one photographic key art.
- * A collection's artwork is a 2×2 grid of covers, and blurring it produced four
- * smeared rectangles whose seams were still visible. A plain ramp to the page
- * colour is what the reference uses and it is the honest one: the artwork does
- * not dissolve, the page takes over underneath it.
+ * treatment and belongs there. A plain ramp to the page colour is what the
+ * reference uses and it is the honest one: the artwork does not dissolve, the
+ * page takes over underneath it.
  */
 export function CollectionHeader({
   collection,
@@ -159,37 +167,26 @@ export function CollectionHeader({
   onShare,
 }: CollectionHeaderProps) {
   const theme = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { height } = useWindowDimensions();
   const sections = useSectionMetrics();
 
   const items = collection.items ?? [];
-  const covers = coversFrom(items);
-  const single = collectionCover(collection);
+  const cover = collectionCover(collection);
   /*
-   * The single cover as square art, where SteamGridDB has any. This header is
-   * the one place a collection is drawn square, by the owner's rule: its row
-   * outside (`<ListTile>`) and the games under it are box art. Nothing is drawn
-   * until the lookup has answered, so the box is never painted and then
-   * swapped; a miss draws the box, anchored.
+   * The cover as square art, where SteamGridDB has any. This header is the one
+   * place a collection is drawn square, by the owner's rule: its stack outside
+   * (`<ListTile>`) and the games under it are box art. Nothing is drawn until
+   * the lookup has answered, so the box is never painted and then swapped; a
+   * miss draws the box, anchored.
    */
-  const square = useSquareCover({ gameId: single?.id, title: single?.title, enabled: !!single });
-  const singleArt =
-    single && square.resolved ? (square.uri ?? single.cover_url ?? single.hero_url) : null;
+  const square = useSquareCover({ gameId: cover?.id, title: cover?.title, enabled: !!cover });
+  const art = cover && square.resolved ? (square.uri ?? cover.cover_url ?? cover.hero_url) : null;
   const page = pageColor ?? theme.background;
-  const isAwards = collection.kind === 'awards';
   const description = collection.description?.trim();
 
   const { liked, likeCount, toggle } = useLikeToggle('list', collection.id, engagement);
 
-  /*
-   * The mosaic is square and the block is not, so it is sized to cover the
-   * block's longer axis and centred on both — a centre crop rather than a
-   * stretch.
-   */
   const coverHeight = Math.round(height * COVER_RATIO);
-  const mosaicSize = Math.max(width, coverHeight);
-  const offsetX = Math.round((width - mosaicSize) / 2);
-  const offsetY = Math.round((coverHeight - mosaicSize) / 2);
 
   const actionFill = withAlpha(theme.text, ACTION_FILL);
   const ownerName = owner ? displayNameFor(owner) : null;
@@ -198,19 +195,18 @@ export function CollectionHeader({
     <View>
       <View style={[styles.cover, { height: coverHeight }]}>
         {/*
-          The artwork, full width and cropped to the banner.
+          The artwork: one game's, full width and cropped to the banner — square
+          art from its centre, a stand-in box anchored high (`SINGLE_ANCHOR`).
 
-          One cover when the owner chose one or there is only one to show:
-          drawn straight into the banner with `cover` fit rather than as a
-          square mosaic of one, so the crop is the banner's shape — square art
-          from its centre, a stand-in box anchored high (`SINGLE_ANCHOR`).
-          Several otherwise: the square mosaic, sized to the block's longer
-          axis and centred — a centre crop rather than a stretch.
+          A collection with no games in it yet has no cover to draw. It gets the
+          app's well and its own initial — or a trophy, for an award show nobody
+          has filled in — so the title has ground to stand on and the page does
+          not open on a hole.
         */}
-        {single ? (
-          singleArt && (
+        {cover ? (
+          art && (
             <Image
-              source={{ uri: singleArt }}
+              source={{ uri: art }}
               style={styles.single}
               contentFit="cover"
               contentPosition={square.uri ? 'center' : { top: SINGLE_ANCHOR, left: '50%' }}
@@ -219,15 +215,14 @@ export function CollectionHeader({
             />
           )
         ) : (
-          <View style={[styles.coverArt, { left: offsetX, top: offsetY }]}>
-            <CollectionMosaic
-              covers={covers}
-              size={mosaicSize}
-              title={collection.title}
-              rounded="none"
-              squareArt
-              award={isAwards}
-            />
+          <View style={[styles.single, styles.empty, { backgroundColor: theme.surfaceElevated }]}>
+            {collection.kind === 'awards' ? (
+              <Ionicons name="trophy" size={EMPTY_GLYPH} color={theme.identityGold} />
+            ) : (
+              <Text variant="display" color="textMuted" style={styles.emptyLetter}>
+                {collection.title.trim().charAt(0).toUpperCase() || '?'}
+              </Text>
+            )}
           </View>
         )}
 
@@ -237,9 +232,8 @@ export function CollectionHeader({
           else — no tint over the whole image, so the top of the cover shows at
           full strength and only the bottom gives way.
 
-          Into `page`: the cover's own immersive colour when there is a single
-          cover, the app's page otherwise. A mosaic of several covers has no one
-          colour to take, so it stays on the ordinary page.
+          Into `page`: the cover's own immersive colour, or the app's page for a
+          collection with nothing in it.
         */}
         <SmoothScrim color={page} style={[styles.fade, { height: `${SCRIM_RATIO * 100}%` }]} />
 
@@ -405,8 +399,6 @@ export type CollectionOwnerMenuProps = {
   onEdit?: () => void;
   /** Enter the "tap a game to use its cover" mode. */
   onPickCover?: () => void;
-  /** Switch between four covers and one. */
-  onSetDisplay?: (display: ListCoverStyle) => void;
   onDelete?: () => void;
 };
 
@@ -430,17 +422,16 @@ export function CollectionOwnerMenu({
   onEditDetails,
   onEdit,
   onPickCover,
-  onSetDisplay,
   onDelete,
 }: CollectionOwnerMenuProps) {
   const theme = useTheme();
 
   const count = (collection.items ?? []).length;
-  const display = collection.cover_style ?? 'mosaic';
-  /* Which cover, only once there is one cover and more than one game to pick it from. */
-  const canPickCover = !!onPickCover && display === 'single' && count > 1;
-  /* Four covers or one, only once there is a game to draw. */
-  const setDisplay = count > 0 ? onSetDisplay : undefined;
+  /* Which cover — the game the collection opens on, and the front of its stack
+     wherever it is listed — once there is more than one to pick from. It was
+     offered only after switching a collection from four covers to one; there
+     is no four any more, so it is simply there. */
+  const canPickCover = !!onPickCover && count > 1;
 
   function run(action?: () => void) {
     onClose();
@@ -472,21 +463,6 @@ export function CollectionOwnerMenu({
             />
           )}
           {onEdit && <MenuRow icon="add" label="Add games" onPress={() => run(onEdit)} />}
-          {/* The artwork: four covers or one, and — with one — which. */}
-          {setDisplay &&
-            (display === 'single' ? (
-              <MenuRow
-                icon="grid-outline"
-                label="Show the first four covers"
-                onPress={() => run(() => setDisplay('mosaic'))}
-              />
-            ) : (
-              <MenuRow
-                icon="image-outline"
-                label="Show one cover"
-                onPress={() => run(() => setDisplay('single'))}
-              />
-            ))}
           {canPickCover && onPickCover && (
             <MenuRow
               icon="images-outline"
@@ -541,63 +517,25 @@ function MenuRow({
 }
 
 /**
- * The first four items' covers, in list order.
+ * The one cover a collection shows, or null for a collection with no art to
+ * show. The screen reads it too — the page colour comes from this game's box
+ * art — so the two cannot disagree about which game it is.
  *
- * Mirrors `resolveMosaic` in `api/lists.ts`. Two functions rather than one
- * because the shapes genuinely differ — this walks `ListItem[]` with a full
- * `CachedGame` attached, that walks the summary's lighter embed — but they must
- * stay in agreement, because the whole point is that the tile and the banner
- * show the same four covers.
- */
-function coversFrom(items: ListItem[]): ListCover[] {
-  return items
-    .slice()
-    .sort((a, b) => a.position - b.position)
-    .map((item) => item.game)
-    .filter((game): game is NonNullable<typeof game> => game !== null)
-    .map((game) => ({
-      id: game.id,
-      title: game.title,
-      cover_url: game.cover_url,
-      hero_url: game.hero_url,
-    }))
-    .slice(0, 4);
-}
-
-/**
- * The one cover a collection shows, or null when it shows several. The screen
- * reads it too — the page colour comes from this game's box art — so the two
- * cannot disagree about which game it is.
+ * The owner's pick while it is still in the list, otherwise the first item with
+ * art: `resolvePreview` in `api/lists.ts`, over the full items the page has
+ * rather than the summary's. The two must stay in agreement — it is the same
+ * game that stands in front of the collection's stack wherever it is listed,
+ * and a tile has to lead to the cover it was showing.
  *
- * One cover either because the owner chose it (`cover_style`, 0033) or because
- * the mosaic has only one to draw: a collection of one game, which the mosaic
- * fills with that cover anyway. Both are drawn the same way and both colour the
- * page — what decides it is how many covers are on screen, not which setting
- * put them there. This used to ask only for the setting, so a one-game
- * collection drew a single cover over the app's own page, and on a database
- * without 0033, where nothing can be `single`, no collection ever took a colour.
- *
- * Not for an award show's mosaic: even with one winner it is a darkened cover
- * under a trophy — the mark that says it is a show — rather than plain art.
+ * This used to answer "one cover, or several?" as well: null meant the header
+ * drew a mosaic of the first four, which an owner chose per collection
+ * (`cover_style`, 0033). The mosaic is gone and so is the question — every
+ * collection, an award show included, is this one game.
  */
 export function collectionCover(collection: ListWithItems): ListCover | null {
-  const items = collection.items ?? [];
-  if ((collection.cover_style ?? 'mosaic') === 'single') {
-    return singleCover(items, collection.cover_game_id);
-  }
-  if (collection.kind === 'awards') return null;
-
-  /* The same art `<CollectionMosaic>` keeps — the first four, minus any with
-     nothing to draw — so this is one exactly when the mosaic would be. */
-  const art = coversFrom(items).filter((cover) => !!(cover.cover_url ?? cover.hero_url));
-  return art.length === 1 ? art[0] : null;
+  return singleCover(collection.items ?? [], collection.cover_game_id);
 }
 
-/**
- * The one cover a single-cover collection shows: the owner's pick while it is
- * still in the list, otherwise the first item with art — `resolvePreview` in
- * `api/lists.ts`, over the full items the page has rather than the summary's.
- */
 function singleCover(items: ListItem[], chosenId: string | null): ListCover | null {
   const games = items
     .slice()
@@ -612,8 +550,12 @@ function singleCover(items: ListItem[], chosenId: string | null): ListCover | nu
 
 const styles = StyleSheet.create({
   cover: { position: 'relative', width: '100%', overflow: 'hidden' },
-  coverArt: { position: 'absolute' },
   single: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /* Centred a little high: the title block is printed over the bottom third. */
+  empty: { alignItems: 'center', justifyContent: 'center', paddingBottom: '18%' },
+  /* The letter is the picture here, so it is larger than any heading — and it
+     states its line height, which Android clips a glyph to. */
+  emptyLetter: { fontSize: EMPTY_GLYPH, lineHeight: EMPTY_GLYPH + 12 },
   /* `height` is supplied inline — `SCRIM_RATIO` of the artwork, from the bottom. */
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   scrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '22%' },

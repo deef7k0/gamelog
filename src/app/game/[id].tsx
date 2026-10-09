@@ -1256,7 +1256,7 @@ function GameSheets({ store, game, log }: { store: SheetStore; game: Game; log: 
 
       {/* Which collections hold this game, from the strip's second cell. Full
           height: there is nothing behind it to watch while it is open, and a
-          collection row is a 96dp mosaic plus four lines of text. */}
+          collection is a card over two hundred dp tall. */}
       <SlideUpSheet visible={open === 'lists'} onClose={close} title="In collections">
         <GameListsSheet gameId={game.id} gameTitle={game.title} />
       </SlideUpSheet>

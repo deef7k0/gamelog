@@ -290,12 +290,14 @@ const styles = StyleSheet.create({
   },
   postHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   postHeadText: { flex: 1, gap: 1 },
+  /* No inset of its own: the profile hands every row its margin, and a row
+     that added four to it started its glyph inside the edge the heading, the
+     composer and the notes above it all keep. */
   activityRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
     paddingVertical: Spacing.x8,
-    paddingHorizontal: Spacing.x4,
   },
   /* A row with writing in it is three or four lines tall, so its cover and icon
      hang from the top rather than floating in the vertical middle of a

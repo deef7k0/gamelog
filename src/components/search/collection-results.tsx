@@ -5,9 +5,7 @@ import { useTabBarClearance } from '@/components/app-tab-bar';
 import { ListTile } from '@/components/list-tile';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
-import { useCollectionEngagement } from '@/hooks/use-collection-engagement';
-import { getPopularCollections, searchLists } from '@/lib/api';
-import { useAuth } from '@/store/auth';
+import { getPopularCollections, searchLists, type ListSummary } from '@/lib/api';
 
 const MIN_QUERY_LENGTH = 2;
 
@@ -20,12 +18,11 @@ const MIN_QUERY_LENGTH = 2;
  * two are one list on screen because they are one question, "which collection",
  * asked with and without a name.
  *
- * The row is `<ListTile>`, the collection row everywhere else, with its likes
- * and comments batched for the screenful (`useCollectionEngagement`).
+ * The row is `<ListTile>`, the collection card everywhere else: its name, its
+ * covers as a stack and its owner, one to a row.
  */
 export function CollectionResults({ query }: { query: string }) {
   const clearance = useTabBarClearance();
-  const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isQueryable = query.length >= MIN_QUERY_LENGTH;
 
   const popular = useQuery({
@@ -45,13 +42,6 @@ export function CollectionResults({ query }: { query: string }) {
   const active = isQueryable ? found : popular;
   const lists = active.data ?? [];
 
-  /* Derived from query data, so the id list is stable between renders — the
-     hook keys on it. */
-  const engagement = useCollectionEngagement(
-    lists.map((list) => list.id),
-    viewerId
-  );
-
   if (active.isLoading) return <LoadingState />;
   if (active.isLoadingError)
     return <ErrorState error={active.error} onRetry={() => active.refetch()} />;
@@ -65,7 +55,7 @@ export function CollectionResults({ query }: { query: string }) {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
       ItemSeparatorComponent={Separator}
-      renderItem={({ item }) => <ListTile list={item} engagement={engagement?.[item.id]} />}
+      renderItem={renderTile}
       ListEmptyComponent={
         isQueryable ? (
           <EmptyState
@@ -83,13 +73,17 @@ export function CollectionResults({ query }: { query: string }) {
   );
 }
 
-/** Module scope, so the separator prop is a stable component rather than a new
-    type per render. */
+/** Module scope, so the list's two props are stable rather than new per render. */
+function renderTile({ item }: { item: ListSummary }) {
+  return <ListTile list={item} />;
+}
+
 function Separator() {
   return <View style={styles.separator} />;
 }
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x8, flexGrow: 1 },
-  separator: { height: Spacing.x16 },
+  /* The interval every list of collections keeps between its cards. */
+  separator: { height: Spacing.x12 },
 });

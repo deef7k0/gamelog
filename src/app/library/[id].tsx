@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CdBinder } from '@/components/cd-binder';
 import {
-  PORTRAIT_COLUMNS,
+  SHELF_COLUMNS,
+  SHELF_GAP,
   gridItemWidth,
-  steamCoverUrl,
   steamHeaderUrl,
 } from '@/components/gaming/game-tile';
 import { LibraryStats } from '@/components/library-stats';
@@ -17,13 +17,13 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
-import { Skeleton } from '@/components/ui/surface';
+import { ScoreBadge, Skeleton } from '@/components/ui/surface';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { STATUS_LABEL } from '@/constants/status';
-import { CoverGridWindow } from '@/constants/list-window';
-import { Radius, Spacing } from '@/constants/theme';
+import { ShelfGridWindow } from '@/constants/list-window';
+import { Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import {
@@ -46,9 +46,18 @@ import {
 } from '@/lib/gaming';
 import { useAuth } from '@/store/auth';
 
-/** Three across, the app's portrait size (`PORTRAIT_COLUMNS`). */
-const COLUMNS = PORTRAIT_COLUMNS;
-const GAP = Spacing.x8;
+/**
+ * Four across, close together (`SHELF_COLUMNS`). The owner's reference for this
+ * screen is a Letterboxd films tab, and that grid is the layout — four posters
+ * to a row with one quiet line under each. It was three, the size every other
+ * grid in the app keeps — the inside of a collection included, which was four
+ * for one pass and went back.
+ */
+const COLUMNS = SHELF_COLUMNS;
+const GAP = SHELF_GAP;
+
+/** How many placeholder covers stand in for a grid that is loading: four rows. */
+const SKELETON_TILES = COLUMNS * 4;
 
 type LibraryTab = 'all' | 'physical' | 'logged' | 'favourites' | 'steam';
 
@@ -242,8 +251,13 @@ export default function LibraryScreen() {
           key={`grid-${COLUMNS}`}
           numColumns={COLUMNS}
           keyExtractor={(entry) => entry.key}
-          {...CoverGridWindow}
-          renderItem={({ item }) => <LibraryCard entry={item} width={tileWidth} />}
+          {...ShelfGridWindow}
+          renderItem={({ item }) => (
+            /* Favourites say nothing under their covers, so that tab keeps no
+               line for it; every other tab holds one, so its rows are level
+               whether or not a game has something to say. */
+            <LibraryCard entry={item} width={tileWidth} captioned={tab !== 'favourites'} />
+          )}
           columnWrapperStyle={styles.column}
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
@@ -323,7 +337,9 @@ type LibraryEntry = {
   coverUrl: string | null;
   heroUrl: string | null;
   steamAppId: string | null;
-  /** One line under the art — playtime, a score, a status. */
+  /** Their score for it, 0–100, when they gave one. Drawn in the score's own colour. */
+  score: number | null;
+  /** What stands under the art when there is no score: a status, or playtime. */
   caption: string | null;
 };
 
@@ -332,9 +348,22 @@ function fromOwned(game: OwnedGame): LibraryEntry {
     key: `steam:${game.appId}`,
     gameId: game.gameId,
     title: game.name,
-    coverUrl: steamCoverUrl(game.appId),
+    /*
+     * No cover of its own: `steamAppId` is what draws Steam's portrait capsule,
+     * and the header under it is the fallback for a game that has none.
+     *
+     * This used to name the capsule a second time, on Steam's other host. That
+     * is the same file, so where it is missing it is missing twice — and a
+     * `<Poster>` only reaches `heroUrl` when `coverUrl` is null, so the header
+     * was never tried and the tile stayed blank. Verified live: appids 2520,
+     * 3170, 18700 and 26300 answer 404 for the capsule on both hosts and 200
+     * for the header. With the title off the tile, a blank one is a game nobody
+     * can name.
+     */
+    coverUrl: null,
     heroUrl: steamHeaderUrl(game.appId),
     steamAppId: game.appId,
+    score: null,
     caption: game.playtimeMinutes > 0 ? formatPlaytime(game.playtimeMinutes) : null,
   };
 }
@@ -352,7 +381,8 @@ function fromLog(log: LogWithRelations): LibraryEntry | null {
     steamAppId: null,
     // The score if they gave one, the status otherwise — a logged game always
     // has the second and only sometimes the first.
-    caption: log.rating != null ? String(log.rating) : (STATUS_LABEL[log.status] ?? null),
+    score: log.rating != null ? Math.round(log.rating) : null,
+    caption: log.rating != null ? null : (STATUS_LABEL[log.status] ?? null),
   };
 }
 
@@ -367,6 +397,7 @@ function fromFavourite(item: ListItem): LibraryEntry | null {
     coverUrl: game.cover_url,
     heroUrl: game.hero_url,
     steamAppId: null,
+    score: null,
     caption: null,
   };
 }
@@ -383,10 +414,38 @@ function mergeEntries(logged: LibraryEntry[], owned: LibraryEntry[]): LibraryEnt
   return [...logged, ...owned.filter((entry) => !entry.gameId || !seen.has(entry.gameId))];
 }
 
-/** One tile: portrait art, title, and whatever the tab has to say about it. */
-function LibraryCard({ entry, width }: { entry: LibraryEntry; width: number }) {
+/**
+ * One tile: the box, and one quiet line under it — their score, or where they
+ * are with it, or how long they have played.
+ *
+ * The reference's tile: a poster with its star rating beneath and nothing else.
+ * It carried the game's name on a line of its own until the grid went four
+ * across; at 76dp that line was a dozen characters of a title the box already
+ * prints, and it is the screen reader's now (`spoken`).
+ *
+ * Memoised: `entry` comes out of a memo keyed on query data, so it holds its
+ * identity until a query lands, and a grid of four is a third more tiles than
+ * the grid of three it replaced.
+ */
+const LibraryCard = memo(function LibraryCard({
+  entry,
+  width,
+  captioned,
+}: {
+  entry: LibraryEntry;
+  width: number;
+  /** Hold a line under the art even when this game has nothing to put on it. */
+  captioned: boolean;
+}) {
+  const spoken = [
+    entry.title,
+    entry.score != null ? `scored ${entry.score} out of 100` : entry.caption,
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   const art = (
-    <View style={{ width, gap: Spacing.x4 }}>
+    <View style={[styles.tile, { width }]}>
       <Poster
         coverUrl={entry.coverUrl}
         heroUrl={entry.heroUrl}
@@ -396,20 +455,30 @@ function LibraryCard({ entry, width }: { entry: LibraryEntry; width: number }) {
         width={width}
         rounded="image"
       />
-      <Text variant="caption" numberOfLines={1}>
-        {entry.title}
-      </Text>
-      {entry.caption && (
-        <Text variant="caption" color="textMuted" numberOfLines={1}>
-          {entry.caption}
-        </Text>
+      {captioned && (
+        <View style={styles.under}>
+          {entry.score != null ? (
+            <ScoreBadge score={entry.score} size="small" />
+          ) : entry.caption ? (
+            <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
+              {entry.caption}
+            </Text>
+          ) : null}
+        </View>
       )}
     </View>
   );
 
   // A Steam title nobody has logged has no page to open. Shown, not tappable —
-  // dropping it would hide most of a large library.
-  if (!entry.gameId) return art;
+  // dropping it would hide most of a large library. Its name is not printed, so
+  // it is spoken from here.
+  if (!entry.gameId) {
+    return (
+      <View accessible accessibilityRole="image" accessibilityLabel={spoken}>
+        {art}
+      </View>
+    );
+  }
 
   /* Straight to the game page rather than to this person's record of it. The
      old Steam-only grid went to the per-user screen because every row *was*
@@ -417,12 +486,12 @@ function LibraryCard({ entry, width }: { entry: LibraryEntry; width: number }) {
      depending on which tab surfaced it would be the surprising kind of clever. */
   return (
     <Link href={{ pathname: '/game/[id]', params: { id: entry.gameId } }} asChild>
-      <PressableScale accessibilityRole="button" accessibilityLabel={entry.title} scaleTo={0.95}>
+      <PressableScale accessibilityRole="button" accessibilityLabel={spoken} scaleTo={0.95}>
         {art}
       </PressableScale>
     </Link>
   );
-}
+});
 
 /** What an empty grid says, which depends entirely on why it is empty. */
 function LibraryEmpty({
@@ -644,7 +713,7 @@ function StatCell({ label, value, hint }: { label: string; value: string; hint?:
 function GridSkeleton({ width }: { width: number }) {
   return (
     <View style={styles.skeletonGrid}>
-      {Array.from({ length: 12 }).map((_, index) => (
+      {Array.from({ length: SKELETON_TILES }).map((_, index) => (
         <Skeleton key={index} width={width} height={width / (2 / 3)} radius={Radius.image} />
       ))}
     </View>
@@ -654,6 +723,11 @@ function GridSkeleton({ width }: { width: number }) {
 const styles = StyleSheet.create({
   grid: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
+  tile: { gap: Spacing.x4 },
+  /* One line of `bodySmall`, held open: a row of four is level whether each
+     game has a score, a status or nothing to say. `minHeight`, so a larger
+     system font grows the line instead of clipping it. */
+  under: { minHeight: Type.bodySmall.lineHeight, paddingHorizontal: 1 },
   controls: { gap: Spacing.x12, paddingTop: Spacing.x16, paddingBottom: Spacing.x12 },
   steamFigures: { gap: Spacing.x8 },
   statGrid: {

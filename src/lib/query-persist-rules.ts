@@ -30,8 +30,17 @@
  * the shape changed — but every saved game still named the old image, and its
  * page would have opened on a 128px icon blown up across the hero for the
  * second it takes the fresh record to arrive.
+ *
+ * 3: a collection's summary lost `mosaic` and gained `stack` — a field
+ * renamed, which is the first case this note names — and the version was not
+ * bumped with it. Every saved list of collections came back without the field
+ * its tile maps over, so the first screen to draw one threw "cannot read
+ * property 'map' of undefined" and landed on the error boundary; that emptied
+ * the cache, which is why "Try again" worked. The owner met it on the first
+ * launch after the change. **Adding a field needs no bump; renaming one is
+ * removing one, and does.**
  */
-export const CACHE_VERSION = 2;
+export const CACHE_VERSION = 3;
 
 /** A week, as SimpMusic keeps its own cached answers (`MOOD_ARTWORK_TTL_MILLIS`). */
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;

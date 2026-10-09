@@ -39,10 +39,9 @@ const NOTE_LINES = 4;
  *
  * An alias onto `identityGold`, not a new hex: an award is *meaning*, and
  * meaning joins the ten-hue ramp rather than extending the palette. It is
- * already the app's word for this — `<CollectionMosaic award>` lays a gold
- * trophy over an award show's four covers, on its tile and again across the
- * banner at the top of this very screen. The categories below are that same
- * mark, continued into the programme.
+ * already the app's word for this — a gold trophy stands beside an award
+ * show's title wherever collections are listed (`<ListTile>`). The categories
+ * below are that same mark, continued into the programme.
  *
  * `accentRoles` is a pure function of the palette, so calling it here costs one
  * evaluation for the module rather than one per row. `.elevated` is the crown's

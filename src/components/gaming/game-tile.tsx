@@ -134,14 +134,41 @@ export function gridItemWidth(
 }
 
 /**
- * Box art three across: the owner's size for a portrait in this app, set by
- * the collection screen's grid. Four across made each cover about 84dp on a
- * 360dp phone, a thumbnail of the box rather than the box; three makes it 108.
- * Every portrait grid is three across, and every rail's covers are the width a
- * tile in that grid would be (`usePortraitWidth`), so a cover is the same size
- * wherever it is shelved.
+ * Box art three across: the owner's size for a portrait in this app. Four
+ * across made each cover about 84dp on a 360dp phone, a thumbnail of the box
+ * rather than the box; three makes it 108. Every grid of games is three across
+ * — the inside of a collection, a studio, Must Play, an event, a month of the
+ * calendar, Search's results — and every rail's covers are the width a tile in
+ * that grid would be (`usePortraitWidth`), so a cover is the same size wherever
+ * it is found. The library is the one exception: see `SHELF_COLUMNS`.
  */
 export const PORTRAIT_COLUMNS = 3;
+
+/**
+ * Somebody's library is four across — and only that.
+ *
+ * The owner's reference for the library is a Letterboxd films tab: four
+ * posters to a row, close together, one quiet line under each. A library is
+ * somebody's own games, most of which its reader knows by their boxes; how
+ * many are in view matters more there than how large each one is.
+ *
+ * **It is the library's alone, by the owner's ruling after seeing both.** The
+ * same request put the inside of a collection at four; the owner looked at it
+ * on a phone and took the collection back to three, keeping this ("keep the 4
+ * rows for the library"). Do not point the library at `PORTRAIT_COLUMNS`, and
+ * do not move a collection, or any other grid, to this.
+ */
+export const SHELF_COLUMNS = 4;
+
+/**
+ * Between two covers in the library, across and down: eight.
+ *
+ * Measured off the reference, a screen drawn 202 pixels wide: posters 40
+ * across, 5 apart — an eighth of a poster — and 14 from each edge. At this
+ * app's margin that ratio is nine and a half; eight is the ladder's step beside
+ * it, and makes a cover 76 by 114 on a 360dp phone.
+ */
+export const SHELF_GAP = Spacing.x8;
 
 /**
  * One portrait's width on this display: a third of the page between its 10dp

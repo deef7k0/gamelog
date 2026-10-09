@@ -17,6 +17,7 @@ import { SteamSection } from '@/components/gaming/steam-section';
 import { ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
 import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
+import { ProfileBox, ProfileSectionHeader } from '@/components/profile-section';
 import { FavoritesWidget } from '@/components/profile-widgets';
 import { StarredSongWidget } from '@/components/starred-song-widget';
 import { Avatar } from '@/components/ui/avatar';
@@ -25,8 +26,13 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
-import { useCollectionEngagement } from '@/hooks/use-collection-engagement';
+import {
+  IDENTITY_GAP,
+  PROFILE_MARGIN,
+  SECTION_GAP,
+  avatarSize as avatarSizeFor,
+} from '@/constants/profile-layout';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ActivityRow, WallComposer, WallPostRow } from '@/components/wall';
 import {
@@ -54,46 +60,56 @@ import { buildShelf } from '@/lib/games/shelf';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import { useAuth } from '@/store/auth';
 
-type ProfileTab = 'reviews' | 'lists' | 'wall' | 'steam';
+type ProfileTab = 'profile' | 'reviews' | 'lists' | 'steam';
 
 /**
- * Four tabs, down from six, and Reviews leads.
+ * Four tabs, at the top of the screen, in words — and Profile leads.
  *
- * **Reviews is the default** because PRODUCT.md's second pillar is serious
- * long-form criticism, and the profile's answer to "who is this person" should
- * be what they wrote rather than a chronological log of their taps. The wall was
- * the default and it mixes the two.
+ * The owner's reference for the screen (a Letterboxd-style profile) keeps its
+ * sections in a row under the title bar: PROFILE · FILMS · DIARY · REVIEWS… The
+ * owner asked for the tabs there, "just like the attached image", and — asked
+ * what stays on screen when one is chosen — for **only that tab's content**. So
+ * the face, the name, the counts, the favourites, the library and the pinned
+ * song are one tab, the first, and the others are each their own list from the
+ * top of the screen down.
  *
- * **About is gone.** Five rows, of which Username restated the handle three
- * lines up, and Favourite platform and Location restated the meta row further
- * up the same header. Only "Joined" was unique to it.
+ * ## The wall is not a tab any more
  *
- * **Posts is gone because the feature is.** User posts and articles were removed
- * from the app entirely, so there is nothing behind that tab to show. The wall
- * is unaffected: it reads `wall_posts` and activity, which are different tables
- * and a different feature.
+ * It was the fourth of five. The owner had it moved "inside the profile tab,
+ * under everything else": the wall is what people say *to* this person and what
+ * this person has been doing, and that is part of who they are rather than a
+ * second place to look. So the Profile tab is a list now — the profile as its
+ * header, then the wall under a heading of its own — and the row is one tab
+ * shorter.
  *
- * ## They are glyphs now, not words
+ * ## What that replaced
  *
- * `label` is still required and still does real work — it is what the tab
- * announces to a screen reader, and it is the fallback if `iconOnly` is ever
- * dropped. Only the *printed* word goes away.
+ * **The tabs sat under the profile.** Face, counts, bio, buttons, three
+ * widgets, *then* the row that chose what came next — five hundred dp down, and
+ * every list started under all of it.
  *
- * Each glyph is one the app already uses for the same idea, rather than a mark
- * invented for this row: `albums` is what the game page's Collect action uses,
- * `logo-steam` is the platform's own, and a document and a speech bubble are the
- * two most conventional marks there are for "writing" and "what people said".
+ * **Reviews was the default**, on the argument that the answer to "who is this
+ * person" is what they wrote. It is the second tab now, one tap from the top
+ * and with the whole screen to itself; the screen opens on the person.
  *
- * The width problem this note used to describe is gone with the words. Four
- * labels measured ~355dp against a 369dp content width — fitting, but only just,
- * and six had pushed Steam off the right edge entirely. Four glyphs divide the
- * row evenly at any width and cannot overflow.
+ * **They were four glyphs, not words** — a strip under the widgets that divided
+ * the width evenly. A critique of the tabs found the cost: four unlabelled
+ * icons, and "Wall" and a Steam logo explaining nothing to somebody new. At the
+ * top there is room to say what each is, and a row that scrolls, as the
+ * reference's does.
+ *
+ * **About and Posts are still gone**, for the reasons they left: About restated
+ * the header, and posts were removed from the app.
+ *
+ * They are `<TabBar>`'s pills and not the reference's underline: the app has
+ * one tab implementation, and the owner asked for the layout "in the current
+ * app language".
  */
-const TABS: { key: ProfileTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'reviews', label: 'Reviews', icon: 'document-text-outline' },
-  { key: 'lists', label: 'Collections', icon: 'albums-outline' },
-  { key: 'wall', label: 'Wall', icon: 'chatbubbles-outline' },
-  { key: 'steam', label: 'Steam', icon: 'logo-steam' },
+const TABS: { key: ProfileTab; label: string }[] = [
+  { key: 'profile', label: 'Profile' },
+  { key: 'reviews', label: 'Reviews' },
+  { key: 'lists', label: 'Collections' },
+  { key: 'steam', label: 'Steam' },
 ];
 
 /**
@@ -125,7 +141,8 @@ const rowKey = (row: ProfileRow) => `${row.kind}:${row.id}`;
  * It needs no tab prop: the row it follows says which list this is. Wall rows
  * are split by a hairline, which makes a dense timeline scannable, except
  * directly above a date heading, where a rule would read as underlining the
- * previous group; every other tab is spaced with air.
+ * previous group; the other lists are cards, and cards stack twelve apart —
+ * reviews and collections alike.
  */
 function RowSeparator({ leadingItem }: { leadingItem?: ProfileRow }) {
   const theme = useTheme();
@@ -136,66 +153,79 @@ function RowSeparator({ leadingItem }: { leadingItem?: ProfileRow }) {
   return <View style={{ height: Spacing.x12 }} />;
 }
 
-/**
- * The identity row's face: a fifth of the display, as Instagram's is.
- *
- * With the banner gone the avatar is the first thing on the page and the only
- * image in the header, so it has to carry the weight the plate behind it used
- * to. Instagram's is 21% of the width (86dp on a 411dp phone, ~75 on a 360dp
- * one); this takes the same fraction, held between 72 and 96.
- *
- * It sets the row's height, and the column beside it is pinned to both of its
- * edges: the name level with its top, the four counts level with its bottom.
- */
-const AVATAR_RATIO = 0.21;
-const AVATAR_MIN = 72;
-const AVATAR_MAX = 96;
-
 export type ProfileViewProps = {
   profileId: string;
+  /** The owner's own actions, under their bio: Edit profile and Share. */
   headerAction?: ReactNode;
-  /**
-   * The screen has a bar above this that names the person — your own profile
-   * tab, whose bar carries your handle. The header then gives its first line to
-   * the name alone and starts a little further down, clear of the bar.
-   */
-  handleInBar?: boolean;
 };
 
 /**
- * Profile, laid out the way Instagram does it.
+ * A profile: the row of tabs, and under it whichever one is chosen.
  *
- * Order is: avatar beside name-over-counts → bio → meta → full-width actions →
- * widgets → icon tab bar → tab content. The tab bar is the last thing in
- * `ListHeaderComponent`, so it sits directly above the list it controls rather
- * than being buried under full-width favourite and achievement sections.
+ * ```
+ * [PROFILE] REVIEWS COLLECTIONS STEAM           fixed; the list scrolls under it
  *
- * ## What changed from the X/Twitter shape it used to have
+ * (face)  Name                                  the Profile tab:
+ *         128     12        9        4
+ *        Logged Followers Following Friends
+ * The bio, under the row.
+ * [ Edit profile            ][ share ]
+ * ┌ Favourites ───────────────── Edit ┐
+ * │ [▮▮▮] [▮▮▮] [▮▮▮] [▮▮▮]           │         a box: the four they chose
+ * └────────────────────────────────────┘
+ * ┌ Ada's games ───────────────────  › ┐
+ * │ ▮▮▮▮▮▮[ ▮▮▮▮▮▮▮ ]▮▮▮▮▮▮           │         a box: the library's stack
+ * └────────────────────────────────────┘
+ * ┌ Starred song ─────────────────────┐
+ * Wall                                          open, and last: the composer,
+ * ──────────────────────────────────────        then the timeline
+ * ```
  *
- * **The banner is gone.** It was a `banner_url` free-text column with an
- * unvalidated URL behind it, and the majority of profiles set none — so the page
- * opened on either nothing or a stranger's arbitrary image, and the code carried
- * two layout branches for the avatar depending on which. Removing it deletes the
- * branch, the ring-versus-no-ring rule and the negative margin that pulled the
- * row up into it. The column and its type are left in place, the same way the
- * `posts` tables were left when posts were removed.
+ * The owner's design, from a Letterboxd-style profile: every size in it was read
+ * off that mock and is in `constants/profile-layout`. The screen that carries it
+ * names the person in a bar above this — your own tab's bar holds your handle,
+ * someone else's has it beside the back disc — so the header's first line is the
+ * name alone.
  *
- * **The counts moved to the top.** They used to sit below the favourites and the
- * shelf, on the argument that curated work is better evidence of taste than a
- * follower number. That argument is still true and this is a deliberate trade:
- * the Instagram shape puts identity and reach on one line so the reader can size
- * up a stranger in one glance, and the widgets keep the room they had.
+ * ## What changed from the Instagram shape it had
+ *
+ * **The tabs came up.** See `TABS`. They are outside the list, so they stay
+ * where they are while it scrolls.
+ *
+ * **The bio moved under the row.** The reference sets it between the name and
+ * the counts; the owner asked for it below "the profile icon and stats", which
+ * is also where a 300-character bio has room.
+ *
+ * **The counts are centred under their figures and the name is a size up** —
+ * 18 over 16-and-11, the reference's, where it was 16 over 14-and-11 set flush
+ * left.
+ *
+ * **The widgets are sections of two kinds**, a box or an open one
+ * (`components/profile-section`), forty apart, where they were three rows under
+ * three hairlines twelve apart. The favourites, the library and the pinned
+ * song are a box each.
+ *
+ * **The margin is the mock's 20**, on this screen alone and on every tab of it
+ * (`PROFILE_MARGIN`).
+ *
+ * The banner is still gone, for the reason it went: a free-text `banner_url`
+ * most profiles never set. The column is left in place, as the `posts` tables
+ * were.
  */
-export function ProfileView({ profileId, headerAction, handleInBar }: ProfileViewProps) {
+export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
   const theme = useTheme();
   const clearance = useTabBarClearance();
   const { width } = useWindowDimensions();
-  const avatarSize = Math.round(Math.max(AVATAR_MIN, Math.min(AVATAR_MAX, width * AVATAR_RATIO)));
+  const avatarSize = avatarSizeFor(width);
+  /* A collection's card is told its width here, so its stack is the right size
+     on its first frame: it would otherwise start from the app's margin. The
+     page's column stops at `MaxContentWidth`, so the card's does too. */
+  const tileWidth = Math.min(width, MaxContentWidth) - PROFILE_MARGIN * 2;
   const router = useRouter();
   const queryClient = useQueryClient();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === profileId;
-  const [tab, setTab] = useState<ProfileTab>('reviews');
+  const [tab, setTab] = useState<ProfileTab>('profile');
 
   const profile = useQuery({
     queryKey: ['profile', profileId],
@@ -228,17 +258,11 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
     queryFn: () => getLists(profileId),
     enabled: tab === 'lists',
   });
-  /* The tile shows likes and comments, and neither can be embedded on a list
-     row — both are polymorphic and PostgREST cannot join across that. One
-     batched call for the whole tab; see `useCollectionEngagement`. */
-  const listEngagement = useCollectionEngagement(
-    (lists.data ?? []).map((list) => list.id),
-    viewerId
-  );
+  /* The wall is the foot of the Profile tab, so it loads with it. */
   const wall = useQuery({
     queryKey: ['wall', profileId],
     queryFn: () => getWall(profileId),
-    enabled: tab === 'wall',
+    enabled: tab === 'profile',
   });
   const friendState = useQuery({
     queryKey: ['friend-state', viewerId, profileId],
@@ -357,7 +381,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
                had the Home card replace the rest. */
             <LogCard log={item.log} />
           ) : item.kind === 'list' ? (
-            <ListTile list={item.list} engagement={listEngagement?.[item.list.id]} />
+            <ListTile list={item.list} width={tileWidth} />
           ) : item.item.type === 'post' ? (
             <WallPostRow post={item.item.post} />
           ) : (
@@ -365,7 +389,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
           )}
         </View>
       ),
-    [listEngagement, ownerName]
+    [ownerName, tileWidth]
   );
 
   if (profile.isLoading) return <LoadingState />;
@@ -409,10 +433,11 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
       // Renders entirely from the header; the list itself stays empty.
       rows = [];
       break;
-    default:
-      // The wall is the one tab that reads as a timeline, so it gets calendar
-      // group headings — "Today", "Yesterday", "Last week" — rather than relying
-      // on per-row relative stamps alone.
+    case 'profile':
+      // The profile is the list's header, and its rows are the wall. The wall
+      // is the one list here that reads as a timeline, so it gets calendar
+      // group headings — "Today", "Yesterday", "Last week" — rather than
+      // relying on per-row relative stamps alone.
       rows = withDateGroups(wall.data ?? [], (item) => item.createdAt).map((row) =>
         row.type === 'header'
           ? ({ kind: 'header', id: `h:${row.label}`, label: row.label } as const)
@@ -421,7 +446,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
       loading = wall.isLoading;
       error = wall.error;
       retry = () => void wall.refetch();
-      emptyLabel = isSelf ? 'Your wall is empty' : 'Nothing on this wall yet';
+      emptyLabel = isSelf ? 'Nothing on your wall yet.' : 'Nothing on this wall yet.';
   }
 
   /**
@@ -433,7 +458,7 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
    * the overlap.
    */
   const activeTabQuery =
-    tab === 'wall' ? wall : tab === 'lists' ? lists : tab === 'steam' ? steamLibrary : logs;
+    tab === 'profile' ? wall : tab === 'lists' ? lists : tab === 'steam' ? steamLibrary : logs;
 
   /** Unfollowing is quiet and reversible, so it confirms without alarm. */
   function confirmUnfollow() {
@@ -443,368 +468,386 @@ export function ProfileView({ profileId, headerAction, handleInBar }: ProfileVie
     ]);
   }
 
-  return (
-    <FlatList
-      data={rows}
-      keyExtractor={rowKey}
-      renderItem={renderRow}
-      ItemSeparatorComponent={RowSeparator}
-      contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
-      showsVerticalScrollIndicator={false}
-      /*
-       * Keyboard insets, and deliberately *not* the `<KeyboardAvoidingView>`
-       * every other composer in this app uses.
-       *
-       * That pattern fits the shape those screens have — comments, the log form,
-       * new-list and edit-profile all pin their composer to the bottom, outside
-       * the scroller, so shrinking the container is exactly right. The wall
-       * composer is different: it lives *inside* this list's header and scrolls
-       * with the content. Wrapping the list would only shrink the viewport; it
-       * would not bring a mid-content input above the keyboard.
-       *
-       * `automaticallyAdjustKeyboardInsets` is the iOS answer for an input
-       * inside a scroller — it adds bottom inset equal to the keyboard, so the
-       * focused field can be scrolled clear. Android gets the same outcome from
-       * `softwareKeyboardLayoutMode: 'resize'` in app.json, where the window
-       * itself resizes and the list scrolls the focused input into view.
-       *
-       * `persistTaps` is what makes "Post" actually pressable while the keyboard
-       * is up rather than the first tap only dismissing it; `on-drag` is the
-       * timeline convention — scrolling away from a half-written note puts the
-       * keyboard away rather than leaving it covering the page.
-       */
-      automaticallyAdjustKeyboardInsets
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-      refreshControl={
-        <RefreshControl
-          /* The visible tab is included, and drives the spinner.
-             This refreshed logs/stats/achievements/favourites and never the
-             tab you were looking at — so the most-used gesture on a timeline
-             did not refresh that timeline, and the spinner's duration was set
-             by a query off screen. `colors` as well as `tintColor`: the latter
-             is iOS-only and Android was falling back to a default hue. */
-          refreshing={logs.isRefetching || activeTabQuery.isRefetching}
-          onRefresh={() => {
-            logs.refetch();
-            stats.refetch();
-            achievementStats.refetch();
-            favorites.refetch();
-            friendCount.refetch();
-            /* Included so "Pull down to retry" under the action row is a true
-               statement — this is the query whose failure hides those buttons. */
-            friendState.refetch();
-            activeTabQuery.refetch();
-          }}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-        />
-      }
-      ListHeaderComponent={
-        <View>
-          <View
-            style={[
-              styles.headerBody,
-              /* Under the tab's bar, the distance Home's greeting sits under its
-                 masthead: room to breathe, not a gap. */
-              handleInBar && { paddingTop: Spacing.x32 + Spacing.x4 },
-            ]}>
-            {/*
-              Face on the left; name over reach on the right.
+  /*
+   * The Profile tab, as the list's header: who it is, what they hold, and the
+   * head of their wall — whose rows are the list's own, under it.
+   *
+   * Built only for that tab — the other three hand the list a header of their
+   * own (a button, the Steam section) or none.
+   */
+  const overview = (
+    <View style={styles.overview}>
+      {/*
+        Face on the left; name over reach on the right.
 
-              The name used to sit under this row, after the counts — so the page
-              said how many followers somebody had before it said who they were,
-              and the one line identifying the person was the fourth thing read.
-              It is the first thing in the column beside the face now, and the
-              column is exactly the avatar's height with its two lines pinned to
-              the avatar's two edges (see `styles.identityColumn`). Name and face
-              are read together, which is what Instagram's current profile does
-              with the same two things.
-            */}
-            <View style={styles.identity}>
-              <Avatar uri={person.avatar_url} name={displayNameFor(person)} size={avatarSize} />
+        The reference's row: the face a fifth of the display, and beside it the
+        name with the four counts under it, the pair centred on the face. Name
+        and face are read together; the handle is in the bar above, so this line
+        is the name alone, a long one cut at the edge.
+      */}
+      <View style={styles.identity}>
+        <Avatar uri={person.avatar_url} name={displayNameFor(person)} size={avatarSize} />
 
-              <View style={[styles.identityColumn, { minHeight: avatarSize }]}>
-                {/*
-                  One line, always — the handle rides on it rather than taking a
-                  second.
+        <View style={[styles.identityColumn, { minHeight: avatarSize }]}>
+          <Text variant="h3" numberOfLines={1} accessibilityRole="header">
+            {displayNameFor(person)}
+          </Text>
 
-                  Two lines of name and handle would reach 33dp down an 80dp face,
-                  close to its middle, and the column's whole shape depends on the
-                  name being a band along the top edge with the counts a band
-                  along the bottom. A long name truncates, and the handle goes
-                  first because it is last on the line: the name is who somebody
-                  is, the handle is how to find them.
-
-                  The handle is omitted when there is no display name, because
-                  `displayNameFor` has already fallen back to it — printing it
-                  twice would be "nomico @nomico".
-                */}
-                <Text variant="h4" numberOfLines={1} style={styles.name}>
-                  {displayNameFor(person)}
-                  {!handleInBar && !!person.display_name?.trim() && !!person.username && (
-                    <Text variant="bodySmall" color="textMuted">
-                      {`  @${person.username}`}
-                    </Text>
-                  )}
-                </Text>
-
-                <View style={styles.counts}>
-                  <Count value={stats.data?.logged} label="Logged" />
-                  <Count
-                    value={stats.data?.followers}
-                    label="Followers"
-                    href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'followers' } }}
-                  />
-                  <Count
-                    value={stats.data?.following}
-                    label="Following"
-                    href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'following' } }}
-                  />
-                  <Count
-                    value={friendCount.data}
-                    label="Friends"
-                    href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'friends' } }}
-                  />
-                </View>
-              </View>
-            </View>
-
-            {/*
-              Directly under the controls it is about.
-
-              This sat at the foot of the header, below the favourites, the shelf
-              and the song widget — five hundred-odd dp from the button that
-              caused it, and off screen at the moment it appeared. An error about
-              a control belongs beside that control.
-
-              It covers two different failures. A **mutation** that failed is the
-              louder one and keeps `danger`. A **query** that failed is quieter
-              but now matters more than it did: the Friend and Follow buttons
-              hide themselves when they cannot read their own state, so without
-              this line their absence would have no explanation at all.
-            */}
-            {(toggleFollow.isError || friendAction.isError) && (
-              <Text variant="bodySmall" color="danger">
-                {(toggleFollow.error ?? friendAction.error) instanceof Error
-                  ? (toggleFollow.error ?? friendAction.error)!.message
-                  : 'Could not update. Check your connection and try again.'}
-              </Text>
-            )}
-
-            {!isSelf && (stats.isLoadingError || friendState.isLoadingError) && (
-              <Text variant="bodySmall" color="textMuted">
-                Could not load your connection to {ownerName}. Pull down to retry.
-              </Text>
-            )}
-
-            {/*
-              The bio and its facts as one block, set tight under the face, the
-              way Instagram sets a bio: the words in full ink, the place and the
-              platform in a quieter line under them.
-
-              Clamped. `bio` is 300 characters, so a full one pushed the
-              favourites, the shelf and the tab bar down by roughly nine lines.
-              Four is enough to read someone's description.
-            */}
-            {(person.bio || person.favorite_platform || person.location) && (
-              <View style={styles.bio}>
-                {person.bio && (
-                  <Text variant="body" numberOfLines={4}>
-                    {person.bio}
-                  </Text>
-                )}
-
-                {(person.favorite_platform || person.location) && (
-                  <View style={styles.metaRow}>
-                    {person.location && <Meta icon="location-outline" label={person.location} />}
-                    {person.favorite_platform && (
-                      <Meta icon="game-controller-outline" label={person.favorite_platform} />
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/*
-              The actions, full width and under everything they are about.
-
-              They were floated to the right of the identity row, which is where
-              a 56dp avatar leaves room for them and an 80dp one does not. Full
-              width is also what Instagram does with Edit profile, and it is the
-              better shape regardless: "Follow" is the single most likely tap on
-              a stranger's page and it was a `size="small"` button sharing a line
-              with a name.
-            */}
-            <View style={styles.actionRow}>
-              {isSelf ? (
-                headerAction
-              ) : (
-                <>
-                  {/* Friendship and following are separate relationships:
-                      friending needs consent and unlocks the wall, following
-                      is one-way and only shapes the feed.
-
-                      `state` is passed through undefined rather than coerced
-                      with `?? 'none'`. That fallback made a failed or in-flight
-                      fetch render **"Add friend" to someone who already is
-                      one** — and, twelve lines down, "Become friends with X to
-                      post on their wall" at the same time. Two confident false
-                      claims out of one dropped request. Unknown is now its own
-                      state and says nothing. */}
-                  <View style={styles.actionSlot}>
-                    <FriendButton
-                      state={friendState.data}
-                      pending={friendAction.isPending}
-                      failed={friendState.isLoadingError}
-                      onPress={(action) => friendAction.mutate(action)}
-                    />
-                  </View>
-                  {/* Same rule for following. This was `{stats.data && …}`, so
-                      a failed stats fetch made the Follow button *cease to
-                      exist* with nothing said — the control vanished rather
-                      than reporting it could not read its own state. */}
-                  {!stats.isLoadingError && (
-                    <View style={styles.actionSlot}>
-                      <Button
-                        title={stats.data?.isFollowing ? 'Following' : 'Follow'}
-                        variant={stats.data?.isFollowing ? 'secondary' : 'primary'}
-                        size="small"
-                        disabled={!stats.data}
-                        fullWidth
-                        onPress={() =>
-                          stats.data?.isFollowing ? confirmUnfollow() : toggleFollow.mutate()
-                        }
-                        loading={toggleFollow.isPending || stats.isLoading}
-                      />
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
-
-            <View style={styles.widgets}>
-              <FavoritesWidget items={favoriteItems} listId={favorites.data?.id} isSelf={isSelf} />
-            </View>
-
-            {/* One shelf for both sources.
-                
-                This replaced two adjacent widgets — a Steam-only library row
-                that appeared only when an account was linked, and a four-number
-                achievements block under it. They were two sections about the
-                same library, and the first one vanished entirely for anyone who
-                had never linked Steam, which is most people. The shelf shows
-                whatever the person actually has: their logs, their Steam
-                library, or both. */}
-            <View style={styles.widgets}>
-              <GamesWidget
-                ownerName={ownerName}
-                profileId={profileId}
-                games={shelf}
-                achievementsUnlocked={achievementStats.data?.achievements_unlocked ?? null}
-                /* Steam's total where an account is linked, the app's logged
-                   hours otherwise. Not summed: a game played on Steam *and*
-                   logged here would have its hours counted twice, and the
-                   larger, wronger number is the one people would notice. */
-                playtimeMinutes={
-                  steamStats.data?.totalPlaytimeMinutes ??
-                  (achievementStats.data
-                    ? Math.round(achievementStats.data.hours_played * 60)
-                    : null)
-                }
-                digitalCount={collection.data?.digital ?? null}
-                physicalCount={collection.data?.physical ?? null}
-              />
-            </View>
-
-            {/* Renders nothing until someone pins a track, so it costs no
-                vertical space on a profile that has not used the feature. */}
-            <View style={styles.widgets}>
-              <StarredSongWidget profileId={profileId} />
-            </View>
+          <View style={styles.counts}>
+            <Count value={stats.data?.logged} label="Logged" />
+            <Count
+              value={stats.data?.followers}
+              label="Followers"
+              href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'followers' } }}
+            />
+            <Count
+              value={stats.data?.following}
+              label="Following"
+              href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'following' } }}
+            />
+            <Count
+              value={friendCount.data}
+              label="Friends"
+              href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'friends' } }}
+            />
           </View>
+        </View>
+      </View>
 
-          {/* Tab bar, flush against the content it filters. Was a bespoke
-              underline row duplicating `<TabBar>` — the copies drifted the
-              moment the shared one was restyled, which is the argument for
-              there being one.
+      {/*
+        Directly under the controls it is about.
 
-              `iconOnly`, so the four tabs read as a strip of destinations rather
-              than as four words. See the note on `TabBarProps.iconOnly` for what
-              that costs and why these four glyphs can carry it. */}
-          <TabBar tabs={TABS} value={tab} onChange={setTab} iconOnly label="Profile sections" />
+        It covers two different failures. A **mutation** that failed is the
+        louder one and keeps `danger`. A **query** that failed is quieter but
+        matters as much: the Friend and Follow buttons hide themselves when they
+        cannot read their own state, so without this line their absence would
+        have no explanation at all.
+      */}
+      {(toggleFollow.isError || friendAction.isError) && (
+        <Text variant="bodySmall" color="danger" style={styles.notice}>
+          {(toggleFollow.error ?? friendAction.error) instanceof Error
+            ? (toggleFollow.error ?? friendAction.error)!.message
+            : 'Could not update. Check your connection and try again.'}
+        </Text>
+      )}
 
-          {/* Composer sits under the tab bar. Shown to the owner always, and to
-              accepted friends — matching what the RLS policy will actually
-              allow, so nobody is offered a box that will be rejected. */}
-          {tab === 'wall' && viewerId && (isSelf || friendState.data === 'friends') && (
-            <View style={styles.rowWrap}>
-              <WallComposer wallOwnerId={profileId} authorId={viewerId} isOwnWall={isSelf} />
-            </View>
+      {!isSelf && (stats.isLoadingError || friendState.isLoadingError) && (
+        <Text variant="bodySmall" color="textMuted" style={styles.notice}>
+          Could not load your connection to {ownerName}. Pull down to retry.
+        </Text>
+      )}
+
+      {/*
+        The bio and its facts, under the row — the owner's placing; the
+        reference sets it between the name and the counts. The words in full
+        ink, the place and the platform in a quieter line under them.
+
+        Clamped. `bio` is 300 characters, so a full one pushed everything under
+        it down by roughly nine lines. Four is enough to read someone's
+        description.
+      */}
+      {(person.bio || person.favorite_platform || person.location) && (
+        <View style={styles.bio}>
+          {person.bio && (
+            <Text variant="body" numberOfLines={4}>
+              {person.bio}
+            </Text>
           )}
 
-          {/* `friendState.data &&` guards the claim. Without it an unresolved
-              query rendered this line to an actual friend, telling them to
-              befriend someone they already had — the other half of the `??
-              'none'` bug above, in prose rather than in a button. */}
-          {tab === 'wall' && !isSelf && friendState.data && friendState.data !== 'friends' && (
-            <View style={styles.rowWrap}>
-              <Text variant="bodySmall" color="textMuted">
-                Become friends with {ownerName} to post on their wall.
-              </Text>
-            </View>
-          )}
-
-          {tab === 'lists' && isSelf && (
-            <View style={styles.rowWrap}>
-              <Button
-                title="New collection"
-                variant="secondary"
-                onPress={() => router.push('/new-list')}
-                fullWidth
-              />
-            </View>
-          )}
-
-          {tab === 'steam' && (
-            <View style={styles.rowWrap}>
-              {steamAccount.isLoading ? (
-                <LoadingState />
-              ) : steamAccount.data ? (
-                <View style={styles.steamStack}>
-                  <SteamSection profileId={profileId} account={steamAccount.data} isSelf={isSelf} />
-                  {isSelf && <ConnectAccountCard userId={profileId} linked />}
-                </View>
-              ) : isSelf ? (
-                <ConnectAccountCard userId={profileId} linked={false} />
-              ) : (
-                <EmptyState
-                  title="No Steam account"
-                  message={`${ownerName} has not linked a Steam account.`}
-                />
+          {(person.favorite_platform || person.location) && (
+            <View style={styles.metaRow}>
+              {person.location && <Meta icon="location-outline" label={person.location} />}
+              {person.favorite_platform && (
+                <Meta icon="game-controller-outline" label={person.favorite_platform} />
               )}
             </View>
           )}
         </View>
-      }
-      /* Three outcomes, not two. A failure gets its own state and a way out —
-         rendering "No reviews yet" because a request failed is the page stating
-         something about a person that it does not know. */
-      ListEmptyComponent={
-        tab === 'steam' ? null : loading ? (
-          <LoadingState />
-        ) : error ? (
-          <ErrorState
-            error={error}
-            action={
-              retry ? <Button title="Try again" variant="secondary" onPress={retry} /> : undefined
-            }
-          />
+      )}
+
+      {/*
+        The actions, full width and under everything they are about: "Follow"
+        is the single most likely tap on a stranger's page, and it shares its
+        line with nothing but the other relationship.
+      */}
+      <View style={styles.actionRow}>
+        {isSelf ? (
+          headerAction
         ) : (
-          <EmptyState title={emptyLabel} />
-        )
-      }
-    />
+          <>
+            {/* Friendship and following are separate relationships:
+                friending needs consent and unlocks the wall, following is
+                one-way and only shapes the feed.
+
+                `state` is passed through undefined rather than coerced with
+                `?? 'none'`. That fallback made a failed or in-flight fetch
+                render **"Add friend" to someone who already is one** — and, on
+                the wall, "Become friends with X to post on their wall" at the
+                same time. Unknown is its own state and says nothing. */}
+            <View style={styles.actionSlot}>
+              <FriendButton
+                state={friendState.data}
+                pending={friendAction.isPending}
+                failed={friendState.isLoadingError}
+                onPress={(action) => friendAction.mutate(action)}
+              />
+            </View>
+            {/* Same rule for following. This was `{stats.data && …}`, so a
+                failed stats fetch made the Follow button *cease to exist* with
+                nothing said — the control vanished rather than reporting it
+                could not read its own state. */}
+            {!stats.isLoadingError && (
+              <View style={styles.actionSlot}>
+                <Button
+                  title={stats.data?.isFollowing ? 'Following' : 'Follow'}
+                  variant={stats.data?.isFollowing ? 'secondary' : 'primary'}
+                  size="small"
+                  disabled={!stats.data}
+                  fullWidth
+                  onPress={() =>
+                    stats.data?.isFollowing ? confirmUnfollow() : toggleFollow.mutate()
+                  }
+                  loading={toggleFollow.isPending || stats.isLoading}
+                />
+              </View>
+            )}
+          </>
+        )}
+      </View>
+
+      {/* A box: the four they chose. */}
+      <View style={styles.section}>
+        <ProfileBox>
+          <FavoritesWidget items={favoriteItems} listId={favorites.data?.id} isSelf={isSelf} />
+        </ProfileBox>
+      </View>
+
+      {/* A box of its own: the library — one shelf for both sources, their
+          logs and their Steam games, as a stack. It shared the favourites' box
+          for one pass, and the owner had it detached. */}
+      <View style={styles.section}>
+        <ProfileBox>
+          <GamesWidget
+            ownerName={ownerName}
+            profileId={profileId}
+            games={shelf}
+            achievementsUnlocked={achievementStats.data?.achievements_unlocked ?? null}
+            /* Steam's total where an account is linked, the app's logged hours
+               otherwise. Not summed: a game played on Steam *and* logged here
+               would have its hours counted twice, and the larger, wronger number
+               is the one people would notice. */
+            playtimeMinutes={
+              steamStats.data?.totalPlaytimeMinutes ??
+              (achievementStats.data ? Math.round(achievementStats.data.hours_played * 60) : null)
+            }
+            digitalCount={collection.data?.digital ?? null}
+            physicalCount={collection.data?.physical ?? null}
+          />
+        </ProfileBox>
+      </View>
+
+      {/* A box, and only when someone has pinned a track — it brings its own
+          space above it, so a profile without one has no gap where it would
+          be. */}
+      <StarredSongWidget profileId={profileId} />
+
+      {/*
+        The wall, under everything else: its heading, then the composer. Its
+        rows are the list's, below this header.
+
+        The composer is for the owner always and for accepted friends —
+        matching what the RLS policy will actually allow, so nobody is offered a
+        box that will be rejected.
+
+        `friendState.data &&` guards the other claim. Without it an unresolved
+        query rendered the hint to an actual friend, telling them to befriend
+        someone they already had.
+      */}
+      <View style={styles.section}>
+        <ProfileSectionHeader title="Wall" />
+        {viewerId && (isSelf || friendState.data === 'friends') ? (
+          <WallComposer wallOwnerId={profileId} authorId={viewerId} isOwnWall={isSelf} />
+        ) : !isSelf && friendState.data && friendState.data !== 'friends' ? (
+          <Text variant="bodySmall" color="textMuted">
+            Become friends with {ownerName} to post on their wall.
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  /* What stands above a tab's rows. Every one of these scrolls with the list. */
+  const header =
+    tab === 'profile' ? (
+      overview
+    ) : tab === 'lists' ? (
+      isSelf ? (
+        <View style={styles.tabHead}>
+          <Button
+            title="New collection"
+            variant="secondary"
+            onPress={() => router.push('/new-list')}
+            fullWidth
+          />
+        </View>
+      ) : null
+    ) : tab === 'steam' ? (
+      <View style={styles.rowWrap}>
+        {steamAccount.isLoading ? (
+          <LoadingState />
+        ) : steamAccount.data ? (
+          <View style={styles.steamStack}>
+            <SteamSection profileId={profileId} account={steamAccount.data} isSelf={isSelf} />
+            {isSelf && <ConnectAccountCard userId={profileId} linked />}
+          </View>
+        ) : isSelf ? (
+          <ConnectAccountCard userId={profileId} linked={false} />
+        ) : (
+          <EmptyState
+            title="No Steam account"
+            message={`${ownerName} has not linked a Steam account.`}
+          />
+        )}
+      </View>
+    ) : null;
+
+  return (
+    <View style={styles.screen}>
+      {/*
+        The tabs, at the top and outside the list: the reference's row under its
+        title bar. Words, in the app's own pills; the four of them still run a
+        little past a narrow phone's edge, and the row scrolls, as the
+        reference's does.
+
+        `inset`: this screen keeps the mock's margin, and the first pill lines
+        up with the page.
+      */}
+      <TabBar
+        tabs={TABS}
+        value={tab}
+        onChange={setTab}
+        inset={PROFILE_MARGIN}
+        label="Profile sections"
+      />
+
+      <FlatList
+        /* A list per tab. Each starts at its own top: the offset somebody
+           scrolled the profile to means nothing in their reviews. */
+        key={tab}
+        data={rows}
+        keyExtractor={rowKey}
+        renderItem={renderRow}
+        ItemSeparatorComponent={RowSeparator}
+        contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
+        showsVerticalScrollIndicator={false}
+        /*
+         * Keyboard insets, and deliberately *not* the `<KeyboardAvoidingView>`
+         * every other composer in this app uses.
+         *
+         * That pattern fits the shape those screens have — comments, the log
+         * form, new-list and edit-profile all pin their composer to the bottom,
+         * outside the scroller, so shrinking the container is exactly right.
+         * The wall composer is different: it lives *inside* this list's header
+         * and scrolls with the content. Wrapping the list would only shrink the
+         * viewport; it would not bring a mid-content input above the keyboard.
+         *
+         * `automaticallyAdjustKeyboardInsets` is the iOS answer for an input
+         * inside a scroller — it adds bottom inset equal to the keyboard, so the
+         * focused field can be scrolled clear. Android gets the same outcome
+         * from `softwareKeyboardLayoutMode: 'resize'` in app.json, where the
+         * window itself resizes and the list scrolls the focused input into
+         * view.
+         *
+         * `persistTaps` is what makes "Post" actually pressable while the
+         * keyboard is up rather than the first tap only dismissing it;
+         * `on-drag` is the timeline convention — scrolling away from a
+         * half-written note puts the keyboard away rather than leaving it
+         * covering the page.
+         */
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        refreshControl={
+          <RefreshControl
+            /* The visible tab is included, and drives the spinner: the gesture
+               refreshes what is under the finger. `colors` as well as
+               `tintColor`: the latter is iOS-only and Android was falling back
+               to a default hue. */
+            refreshing={logs.isRefetching || activeTabQuery.isRefetching}
+            onRefresh={() => {
+              logs.refetch();
+              stats.refetch();
+              achievementStats.refetch();
+              favorites.refetch();
+              friendCount.refetch();
+              /* Included so "Pull down to retry" under the action row is a true
+                 statement — this is the query whose failure hides those
+                 buttons. */
+              friendState.refetch();
+              activeTabQuery.refetch();
+            }}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
+        ListHeaderComponent={header}
+        /* Three outcomes, not two. A failure gets its own state and a way out —
+           rendering "No reviews yet" because a request failed is the page
+           stating something about a person that it does not know. The Steam
+           tab is all header and has nothing to be empty of.
+
+           The wall's are quiet lines, not the centred states the other tabs
+           get: it is the last section of a page that is already full, and a
+           screen-sized "Could not load" under somebody's whole profile would
+           say the profile had failed. */
+        ListEmptyComponent={
+          tab === 'steam' ? null : loading ? (
+            <LoadingState />
+          ) : tab === 'profile' ? (
+            <WallNotice
+              label={error ? 'The wall did not load.' : emptyLabel}
+              onRetry={error && retry ? retry : undefined}
+            />
+          ) : error ? (
+            <ErrorState
+              error={error}
+              action={
+                retry ? <Button title="Try again" variant="secondary" onPress={retry} /> : undefined
+              }
+            />
+          ) : (
+            <EmptyState title={emptyLabel} />
+          )
+        }
+      />
+    </View>
+  );
+}
+
+/**
+ * What the wall says in place of its rows: that there is nothing on it, or that
+ * it did not load — with the way to ask again beside the words.
+ */
+function WallNotice({ label, onRetry }: { label: string; onRetry?: () => void }) {
+  return (
+    <View style={styles.wallNotice}>
+      <Text variant="body" color="textMuted">
+        {label}
+      </Text>
+      {onRetry && (
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="Try loading the wall again"
+          onPress={onRetry}
+          /* A line of 13 is 19dp; fourteen each way reaches the tap floor. */
+          hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
+          scaleTo={0.94}>
+          <Text variant="body" color="primaryText">
+            Try again
+          </Text>
+        </PressableScale>
+      )}
+    </View>
   );
 }
 
@@ -951,14 +994,13 @@ function Meta({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: st
 function Count({ value, label, href }: { value?: number; label: string; href?: Href }) {
   const shown = value == null ? '—' : value.toLocaleString();
 
-  /* Number over label, flush left, as Instagram sets "203 / followers": the
-     figure bold at 14, the word at 11 in the quieter ink — a step under the
-     name above them, so the name stays the first thing read. The row spreads
-     the four across the column (`styles.counts`), so the first starts under the
-     name and the last ends at the page's edge. */
+  /* Figure over word, each centred on the other, as the reference sets "306 /
+     Films": the figure bold at 16, the word at 11 in the quieter ink — a step
+     under the name above them, so the name stays the first thing read. The row
+     spreads the four across the column (`styles.counts`). */
   const body = (
     <>
-      <Text variant="h5" numberOfLines={1}>
+      <Text variant="h4" numberOfLines={1}>
         {shown}
       </Text>
       <Text variant="bodySmall" color="textSecondary" numberOfLines={1}>
@@ -982,8 +1024,8 @@ function Count({ value, label, href }: { value?: number; label: string; href?: H
         accessibilityLabel={`${shown} ${label}`}
         accessibilityHint={`Opens the list of ${label.toLowerCase()}`}
         scaleTo={0.94}
-        /* Stacked, the count is a 19dp number over a 15dp label — 34dp — and
-           8 of slop each side takes it past both platforms' floors. */
+        /* Stacked, the count is a 21dp figure over a 15dp word — 36dp — and 8
+           of slop each side takes it past both platforms' floors. */
         hitSlop={8}
         style={StyleSheet.flatten([styles.count])}>
         {body}
@@ -993,22 +1035,22 @@ function Count({ value, label, href }: { value?: number; label: string; href?: H
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.x48 },
-  rowWrap: { paddingHorizontal: Spacing.x16 },
-  /*
-   * Instagram's rhythm: 12 between the face, the bio, the buttons and each
-   * widget — compact, so the header reads as one card about one person rather
-   * than as a column of separate sections.
-   */
-  headerBody: { paddingHorizontal: Spacing.x16, gap: Spacing.x12, paddingTop: Spacing.x16 },
+  /* The tab row, then the list filling what is left. */
+  screen: { flex: 1 },
+  /* Twenty under the tab row, whichever tab is showing: with the row's own
+     eight that is the reference's distance from its tabs to the face. */
+  content: { paddingTop: Spacing.x20, paddingBottom: Spacing.x48 },
+  rowWrap: { paddingHorizontal: PROFILE_MARGIN },
+  /* What a tab puts above its rows — the Collections tab's button — and the
+     space before the first of them. */
+  tabHead: { paddingHorizontal: PROFILE_MARGIN, paddingBottom: Spacing.x16 },
+  overview: { paddingHorizontal: PROFILE_MARGIN },
   /* One row: the face, and the column beside it, centred on the face. */
-  identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x20 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: IDENTITY_GAP },
   /*
-   * The name, then the counts 12 under it, as one block centred on the face.
-   *
-   * It was pinned to the avatar's two edges (`space-between`), which left the
-   * gap between name and counts to whatever the face's height happened to be.
-   * A set 12 is Instagram's spacing and reads as a name with its numbers.
+   * The name, then the counts twelve under it, as one block centred on the
+   * face — 23 and 36 and the twelve between come to 71 against a 76dp face on a
+   * 360dp phone, so the block and the face are the same height.
    *
    * `minHeight` (the face, inline) rather than a height, so the OS text-size
    * setting can grow the column instead of clipping the counts. `minWidth: 0`
@@ -1020,40 +1062,53 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.x12,
   },
-  name: { flexShrink: 1 },
-  /* The bio and its facts, close together: one block, not two. */
-  bio: { gap: Spacing.x4 },
+  /*
+   * The four counts spread across the column: the first under the name, the
+   * last at the page's edge, the space between shared out. The reference sets
+   * them 27pt apart from the name's left edge, which on its 375pt screen is the
+   * same thing — four words at 11 take ~184dp of the 220 a 360dp phone leaves,
+   * so "apart" here is twelve.
+   */
+  counts: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.x4 },
+  /* Figure over word, centred. Shrinks rather than overflowing at a large OS
+     text size or on a 320dp phone, where the words have no room to spare. */
+  count: { alignItems: 'center', flexShrink: 1 },
+  /* A line about a control that failed, under the row those controls follow. */
+  notice: { marginTop: Spacing.x12 },
+  /* Sixteen under the row; the bio and its facts close together, one block. */
+  bio: { marginTop: Spacing.x16, gap: Spacing.x4 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.x16, rowGap: Spacing.x4 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4, flexShrink: 1 },
   metaLabel: { flexShrink: 1 },
-  /* Full-width now, and its children share the width evenly. `alignItems`
-     stretch (the default) so both buttons are the same height whatever is in
-     them. */
-  actionRow: { flexDirection: 'row', gap: Spacing.x8 },
+  /* Full width, and its children share the width evenly. `alignItems` stretch
+     (the default) so both buttons are the same height whatever is in them. */
+  actionRow: { flexDirection: 'row', gap: Spacing.x8, marginTop: Spacing.x16 },
   actionSlot: { flex: 1 },
-  /*
-   * The four counts spread across the column: the first under the name, the
-   * last at the page's edge, the space between shared out — Instagram's row.
-   * Four labels at 11 are ~180dp against the ~235 a 360dp phone leaves.
-   */
-  counts: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.x4 },
-  /* Number over label, flush left. Shrinks rather than overflowing at a large
-     OS text size. */
-  count: { alignItems: 'flex-start', flexShrink: 1 },
-  widgets: { flexDirection: 'row', gap: Spacing.x12 },
+  /* The reference's distance from one section to the next, and from the header
+     to the first of them. */
+  section: { marginTop: SECTION_GAP },
   steamStack: { gap: Spacing.x16 },
+  /* One line where the wall's rows would be, at the page's margin, twelve
+     under whatever the wall's head ended on. */
+  wallNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x8,
+    paddingHorizontal: PROFILE_MARGIN,
+    paddingTop: Spacing.x12,
+  },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
-    paddingHorizontal: Spacing.x16,
+    paddingHorizontal: PROFILE_MARGIN,
     paddingTop: Spacing.x16,
     paddingBottom: Spacing.x8,
   },
   groupRule: { flex: 1, height: StyleSheet.hairlineWidth },
   wallDivider: {
     height: StyleSheet.hairlineWidth,
-    marginHorizontal: Spacing.x16,
+    marginHorizontal: PROFILE_MARGIN,
     marginVertical: Spacing.x12,
   },
 });

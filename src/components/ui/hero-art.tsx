@@ -37,11 +37,11 @@ export const BLUR_RADIUS = 72;
  * did not converge — twelve looked worse than three, because every extra band
  * is another edge rather than a smaller one. A mask has no bands to seam.
  *
- * **Exported, because the collection masthead runs the same ramp.** Its artwork
- * is a 2×2 mosaic rather than one landscape image, so it cannot call `<HeroArt>`
- * itself — but a second technique tuned by eye would drift from this one on the
- * first retune. Three constants shared is what keeps the two screens opening the
- * same way.
+ * **Exported for a masthead that cannot call `<HeroArt>` itself.** The
+ * collection's was one, while its artwork was a 2×2 mosaic rather than a single
+ * image: a second technique tuned by eye would have drifted from this one on the
+ * first retune. That masthead is one cover under a plain scrim now, and nothing
+ * outside this file reads these.
  */
 export const RAMP_STOPS: readonly [number, number, ...number[]] = [0, 0.28, 0.5, 0.72, 1];
 export const RAMP_COLORS: readonly [string, string, ...string[]] = [

@@ -43,11 +43,9 @@ import {
   removeManyFromList,
   reorderList,
   setListCover,
-  setListCoverStyle,
   TIERS,
   type ListItem,
 } from '@/lib/api';
-import type { ListCoverStyle } from '@/lib/database.types';
 import { sortGames, type GameSort } from '@/lib/games';
 import { useAuth } from '@/store/auth';
 
@@ -64,15 +62,17 @@ const SELECT_MARK = 24;
 const SELECTION_BAR_SPACE = ControlHeight.medium + Spacing.x12 * 2 + Spacing.x16;
 
 /**
- * Three across — the app's portrait size (`PORTRAIT_COLUMNS`), and this is the
- * screen the owner set it on.
+ * Three across — the app's portrait size (`PORTRAIT_COLUMNS`).
  *
- * It went from three to four on the argument that a collection is a shelf and
- * the number of games in view is most of what makes it feel like one. The owner
- * took it back to three: at four each cover was about 84dp on a 360dp phone, a
- * thumbnail of the box, and a shelf of boxes nobody can make out is not a
- * shelf. `gridItemWidth` still subtracts the gutters, so the covers are as
- * large as the width allows.
+ * **This number has been ruled on five times; three stands, and it was seen on
+ * a phone both ways.** Three, then four on the argument that a collection is a
+ * shelf, then three again: at four each cover was "a thumbnail of the box". The
+ * owner then gave a reference for the library — a Letterboxd films tab, four to
+ * a row — and asked for it "the same for the collection screen inside"; it was
+ * built, they looked at it, and took the collection back: "switch back to the 3
+ * row games inside the collection screen. But keep the 4 rows for the library."
+ * So the library is four (`SHELF_COLUMNS`) and this is not. Do not make the two
+ * match.
  */
 const GRID_COLUMNS = PORTRAIT_COLUMNS;
 const GRID_GAP = Spacing.x12;
@@ -145,10 +145,12 @@ export default function ListDetailScreen() {
   });
 
   /*
-   * The page's colour: a single cover's own tone, or the app's page for a
-   * mosaic of several. Read from the game the header draws (`collectionCover`),
-   * above the early returns because it is a hook. The background only — every
-   * control on this screen keeps its neutral fill.
+   * The page's colour: the cover's own tone — every collection has one cover
+   * now, so every collection with a game in it takes a colour, where it used
+   * to be only those not showing a mosaic of four. Read from the game the
+   * header draws (`collectionCover`), above the early returns because it is a
+   * hook. The background only — every control on this screen keeps its neutral
+   * fill.
    *
    * From that game's *box art*, even when the header is drawing its square
    * art: the extractor decodes in JavaScript and only takes a thumbnail, and
@@ -293,24 +295,6 @@ export default function ListDetailScreen() {
   const { mutate: removeGame } = remove;
 
   /*
-   * Four covers or one. Choosing one with more than one game to choose from
-   * goes straight into the picking mode, so "show one cover" and "which one"
-   * are a single act rather than two trips to the menu.
-   */
-  const setDisplay = useMutation({
-    mutationFn: (display: ListCoverStyle) => setListCoverStyle(id!, display),
-    onSuccess: (_result, display) => {
-      invalidate();
-      if (display === 'single' && (list.data?.items?.length ?? 0) > 1) setPickingCover(true);
-    },
-    onError: (error) =>
-      Alert.alert(
-        'Could not change the artwork',
-        error instanceof Error ? error.message : 'Try again in a moment.'
-      ),
-  });
-
-  /*
    * Display order only — nothing here is written back.
    *
    * `rankOf` is keyed off the *stored* sequence rather than the rendered index,
@@ -446,7 +430,6 @@ export default function ListDetailScreen() {
             clearSelection();
             setPickingCover(true);
           }}
-          onSetDisplay={(display) => setDisplay.mutate(display)}
         />
       )}
 
@@ -672,7 +655,7 @@ export default function ListDetailScreen() {
 
   if (!isTierList) {
     return (
-      /* The mosaic runs full-bleed under the bar, so no `insetHeader` and no
+      /* The cover runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
       <Screen edges={['bottom']} background={background} topBar={topBar}>
         <FlatList

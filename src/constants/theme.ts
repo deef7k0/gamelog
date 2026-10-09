@@ -190,9 +190,9 @@ export const Colors = {
      * the box dissolving into a near-black page, and on a white one it is
      * nothing at all, which is right — a white box needs no help.
      *
-     * `<Poster>` draws it on every portrait cover at the box-art corner; the
-     * two shelves that draw their own covers use it too. Not the game case's,
-     * whose framed cover keeps `borderStrong` above.
+     * `<Poster>` draws it on every portrait cover at the box-art corner, and
+     * Surprise Me's entry deck, which draws its covers by hand, uses it too.
+     * Not the game case's, whose framed cover keeps `borderStrong` above.
      */
     coverEdge: 'rgba(221, 238, 255, 0.35)',
 

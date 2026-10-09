@@ -37,23 +37,18 @@ export type GameListsSheetProps = {
  *
  * The platform picker caps itself at half the display because its entire result
  * is the artwork behind it changing, so covering the page would hide the thing
- * being chosen. Nothing here is behind the sheet to watch, and a collection row
- * is 96dp of mosaic plus a title, a byline and two lines of the owner's argument
- * — at half height that is two rows and a scroll bar, for a list whose whole
- * point is how many of them there are.
+ * being chosen. Nothing here is behind the sheet to watch, and a collection is
+ * a card over two hundred dp tall — its title, a stack of covers, two lines of
+ * the owner's argument and a byline — so at half height that is one card and a
+ * scroll bar, for a list whose whole point is how many of them there are.
  *
  * ## The rows are `<ListTile>`, unmodified
  *
  * Deliberately the same object as the Collections tab and Discover, down to the
- * mosaic and the counts. A second, smaller collection row for this one surface
+ * stack and the count. A second, smaller collection row for this one surface
  * is how the profile ended up with its own copy of the tab bar, and the two
- * drifted the moment one was restyled.
- *
- * Engagement counts are omitted — see `ListTileProps.engagement`. They cannot
- * ride along with the summary (likes and comments are polymorphic and PostgREST
- * cannot aggregate across that), so having them here would mean a second batched
- * query per open, and the tile already shows the number that matters in this
- * context: how many games each shelf holds.
+ * drifted the moment one was restyled. The sheet's page is the app's
+ * `background`, so the card's `surface` stands off it here as it does there.
  */
 export function GameListsSheet({ gameId, gameTitle }: GameListsSheetProps) {
   const lists = useQuery({
@@ -114,6 +109,6 @@ export function GameListsSheet({ gameId, gameTitle }: GameListsSheetProps) {
 const styles = StyleSheet.create({
   /* The sheet pads nothing — it owns the corner and the grabber and leaves the
      body to whatever fills it. */
-  body: { padding: Spacing.x16, gap: Spacing.x16, paddingBottom: Spacing.x48 },
+  body: { padding: Spacing.x16, gap: Spacing.x12, paddingBottom: Spacing.x48 },
   footer: { paddingTop: Spacing.x8, alignItems: 'center' },
 });

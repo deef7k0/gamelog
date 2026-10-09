@@ -55,7 +55,7 @@ export function AwardShow({ listId, isOwner, header }: AwardShowProps) {
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['awards', listId] });
     /* The collection's own caches: a winner is mirrored into `list_items` by a
-       trigger, so the tile mosaic and the item count change under them. */
+       trigger, so the tile's stack and the item count change under them. */
     queryClient.invalidateQueries({ queryKey: ['list', listId] });
     queryClient.invalidateQueries({ queryKey: ['lists'] });
   }

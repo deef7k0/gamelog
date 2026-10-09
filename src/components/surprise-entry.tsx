@@ -118,14 +118,14 @@ export type SurpriseEntryProps = {
  * would be a promise this feature does not keep, because the roll draws from a
  * random offset into IGDB and not from the games Discover happens to be showing.
  *
- * ## Why the cards are tilted, when the profile shelf refuses to be
+ * ## Why the cards are tilted, when a shelf refuses to be
  *
- * `<GamesWidget>` overlaps five covers and keeps them dead level, and its
- * docblock is explicit that the diagonal was tried and rejected: it "read as a
- * hand of cards dropped on a table rather than as a shelf". That is the correct
- * judgement there and the reason to tilt here. A shelf is an inventory of things
- * you own; this is a deck about to be cut. Same covers, same hairline, same
- * cast shadow, opposite metaphor.
+ * A profile's library and a collection's tile overlap five covers and keep them
+ * dead level (`<CoverStack>`). A diagonal was tried on the profile's shelf long
+ * before that and rejected: it "read as a hand of cards dropped on a table
+ * rather than as a shelf". That is the correct judgement there and the reason
+ * to tilt here. A shelf is an inventory of things you own; this is a deck about
+ * to be cut. Same covers, same edge, opposite metaphor.
  *
  * ## Cost
  *
@@ -238,10 +238,9 @@ type DeckCardProps = {
 /**
  * One card of the fan — a real cover, or the face-down one at index 0.
  *
- * The hairline and the cast shadow are both load-bearing, for the reasons
- * `<GamesWidget>` gives: without the outline two dark covers merge into a single
- * shape, and without the shadow the fan reads as a flat collage rather than as
- * three objects in front of one another.
+ * The hairline and the cast shadow are both load-bearing: without the outline
+ * two dark covers merge into a single shape, and without the shadow the fan
+ * reads as a flat collage rather than as three objects in front of one another.
  */
 function DeckCard({ index, press, cover }: DeckCardProps) {
   const theme = useTheme();
@@ -320,8 +319,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     /* Tight, short and cast down-right, along the fan. A soft wide shadow at
-       this scale is a grey smudge between covers rather than depth — the same
-       call `<GamesWidget>` makes, turned to follow the diagonal. */
+       this scale is a grey smudge between covers rather than depth. */
     shadowOpacity: 0.5,
     shadowRadius: 6,
     shadowOffset: { width: 3, height: 2 },

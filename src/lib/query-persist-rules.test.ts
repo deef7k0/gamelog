@@ -140,6 +140,18 @@ describe('encodeRow / decodeRow', () => {
     assert.equal(decodeRow(row, NOW), null);
   });
 
+  it('drops a row from the version before — what a renamed field leaves on the device', () => {
+    /* A collection's summary as it was saved while it still had a `mosaic`:
+       restored, its tile mapped over a `stack` that was not there. */
+    const row = JSON.stringify({
+      v: CACHE_VERSION - 1,
+      k: ['lists', 'user-1'],
+      t: NOW,
+      d: [{ id: 'list-1', title: 'Horror', mosaic: [] }],
+    });
+    assert.equal(decodeRow(row, NOW), null);
+  });
+
   it('drops a row older than a week, and keeps one a minute younger', () => {
     const at = (age: number) =>
       JSON.stringify({ v: CACHE_VERSION, k: ['feed'], t: NOW - age, d: [] });

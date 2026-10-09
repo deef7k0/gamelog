@@ -10,7 +10,7 @@ import type { AwardSlot, ListWithAwards } from './types';
  * collection is a set of games and the order is a preference; an award show is a
  * set of *slots* and the games are the contents. The tables mirror that split —
  * `list_awards` holds the ballot, and migration 0016's trigger projects whatever
- * has won into `list_items` so the rest of the app (tile mosaics, item counts,
+ * has won into `list_items` so the rest of the app (a tile's covers, item counts,
  * likes, "which lists is this game in") needs to know nothing about awards.
  *
  * **Nothing here writes `list_items`.** That is the trigger's job, and doing it

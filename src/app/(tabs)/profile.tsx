@@ -10,6 +10,7 @@ import { ProfileView } from '@/components/profile-view';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
+import { PROFILE_MARGIN } from '@/constants/profile-layout';
 import {
   ControlHeight,
   Elevation,
@@ -27,21 +28,24 @@ import { useAuth } from '@/store/auth';
 import type { QuickLogMode } from '@/app/quick-log';
 
 /**
- * Your own profile: a top bar, then `<ProfileView>`.
+ * Your own profile: a top bar, then `<ProfileView>` — its row of tabs, and the
+ * tab under them.
  *
  * ## The bar
  *
- * Instagram's arrangement: **+** on the left, your handle in the middle,
- * **Settings** on the right. The + is the quickest way to put a game in your
- * log — it asks whether you are logging or reviewing, then opens the picker
- * (`quick-log`). Settings moved here from Home's masthead: it is about your
- * account, and this is the screen that is about you. Sign out moved into it.
+ * **+** on the left, your handle in the middle, **Settings** on the right. It
+ * is the title bar of the owner's reference for this screen — a back chevron,
+ * the name, a menu — with this app's two keys where those are: a root tab has
+ * nothing to go back to. The + is the quickest way to put a game in your log —
+ * it asks whether you are logging or reviewing, then opens the picker
+ * (`quick-log`). Settings is about your account, and this is the screen that
+ * is about you. Sign out is inside it.
  *
  * The bar is fixed rather than in the scroll: it holds the two things you
  * reach for on this screen, and they should not scroll away from you. The keys
- * are Home's masthead keys — round, the action grey, at the tap floor — and the
- * profile starts `x32 + x4` under the bar, the same distance Home's greeting
- * sits under its masthead.
+ * are Home's masthead keys — round, the action grey, at the tap floor. The tabs
+ * are directly under it, as the reference's are under its title bar, and both
+ * keep this screen's margin (`PROFILE_MARGIN`, the mock's 20).
  */
 export default function MyProfileScreen() {
   const router = useRouter();
@@ -131,7 +135,6 @@ export default function MyProfileScreen() {
 
       <ProfileView
         profileId={userId}
-        handleInBar
         headerAction={
           /*
            * One control cut in two: Edit profile, and Share beside it.
@@ -255,13 +258,13 @@ function MenuRow({
 const SEAM = Radius.lg;
 
 const styles = StyleSheet.create({
-  /* Home's masthead row: the page margin, a little air above, keys at the
-     floor. */
+  /* Home's masthead row at this screen's own margin: a little air above, keys
+     at the floor. */
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
-    paddingHorizontal: Spacing.x16,
+    paddingHorizontal: PROFILE_MARGIN,
     paddingTop: Spacing.x8,
   },
   key: {
@@ -295,7 +298,7 @@ const styles = StyleSheet.create({
   },
   menu: {
     position: 'absolute',
-    left: Spacing.x16,
+    left: PROFILE_MARGIN,
     minWidth: 240,
     paddingVertical: Spacing.x8,
     borderRadius: Radius.card,

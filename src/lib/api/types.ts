@@ -76,15 +76,14 @@ export type AwardSlot = AwardRow & { game: CachedGame | null };
 /** An awards list and its ballot, in ballot order. */
 export type ListWithAwards = GameList & { awards: AwardSlot[] };
 
-/** Artwork for one game, enough to render it as a cover. */
 /**
- * Just enough of a game to draw one tile of a collection's artwork.
+ * Just enough of a game to draw it as one cover of a collection's artwork.
  *
- * `id` and `title` are carried for the mosaic's square-cover lookup, not for
- * display: `<CollectionMosaic>` asks SteamGridDB for a 1:1 grid per tile, and
- * the title is the only identity almost any game in this catalogue has (see
- * `lib/games/steamgriddb`). They cost two columns on an embed the summary
- * queries were already making.
+ * `id` and `title` are carried for the keys a cover is cached and recycled
+ * under, and for the square-cover lookup the collection's own header makes for
+ * its one game (`useSquareCover`): the title is the only identity almost any
+ * game in this catalogue has for SteamGridDB (see `lib/games/steamgriddb`).
+ * They cost two columns on an embed the summary queries were already making.
  */
 export type ListCover = {
   id: string;
@@ -97,7 +96,8 @@ export type ListCover = {
 export type ListSummary = GameList & {
   itemCount: number;
   /**
-   * The single cover the tile shows.
+   * The one cover that represents the collection: the game its own screen
+   * opens on, and the front of its stack.
    *
    * Resolved server-side-ish in `getLists`: the owner's `cover_game_id` if they
    * picked one and it is still in the list, otherwise the first item's art.
@@ -105,12 +105,13 @@ export type ListSummary = GameList & {
    */
   preview: ListCover | null;
   /**
-   * The first four items' covers, in list order, for the tile's 2x2 mosaic.
+   * Up to five covers for the tile's stack: `preview` first, then the rest in
+   * list order (`resolveStack`).
    *
-   * Shorter than four when the collection is, and empty when it has no games —
-   * the tile handles all three rather than padding.
+   * Shorter than five when the collection is, and empty when it has no games —
+   * the stack handles all of them rather than padding.
    */
-  mosaic: ListCover[];
+  stack: ListCover[];
   /**
    * Who made it, embedded by the summary select.
    *

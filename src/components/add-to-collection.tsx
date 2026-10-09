@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Modal, StyleSheet, View } from 'react-native';
 
-import { CollectionMosaic } from '@/components/collection-mosaic';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
+import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { LoadingState } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -16,8 +16,17 @@ import { appendToList, getLists } from '@/lib/api';
 import type { Game } from '@/lib/games';
 import { useAuth } from '@/store/auth';
 
-/** The mosaic beside each row. Fixed dp — artwork does not ride the ladder. */
-const ROW_MOSAIC = 48;
+/**
+ * The art beside each row: a slot this size, and the collection's one cover in
+ * it. Fixed dp — artwork does not ride the ladder.
+ *
+ * It was a 48dp mosaic of the collection's first four covers until the mosaic
+ * was removed from the app. The cover is box art at its own 2:3, as tall as the
+ * slot, so the slot — and the column of titles that starts after it — is where
+ * it was.
+ */
+const ROW_ART = 48;
+const ROW_COVER = Math.round(ROW_ART * (2 / 3));
 
 export type AddToCollectionProps = {
   game: Game;
@@ -196,14 +205,17 @@ export function AddToCollection({ game, visible, onClose }: AddToCollectionProps
                 pressedColor={theme.controlPressed}
                 focusRing={accent.ring}
                 style={StyleSheet.flatten([styles.row, { backgroundColor: theme.controlFill }])}>
-                <CollectionMosaic
-                  covers={list.mosaic}
-                  display={list.cover_style ?? 'mosaic'}
-                  preview={list.preview}
-                  size={ROW_MOSAIC}
-                  title={list.title}
-                  award={list.kind === 'awards'}
-                />
+                {/* The game that represents the collection — its chosen
+                    cover, or its first. One with no games yet draws its initial
+                    on the app's well, which `<Poster>` does with no art. */}
+                <View style={styles.rowArt}>
+                  <Poster
+                    coverUrl={list.preview?.cover_url}
+                    heroUrl={list.preview?.hero_url}
+                    title={list.preview?.title ?? list.title}
+                    width={ROW_COVER}
+                  />
+                </View>
 
                 <View style={styles.rowText}>
                   <Text variant="h5" numberOfLines={1}>
@@ -249,11 +261,13 @@ const styles = StyleSheet.create({
   /* Margin, not the `gutter` padding: the row is a surface, and it has to line
      up with the list rows below, which sit inside `rows`' own inset. */
   ownRow: { marginHorizontal: Spacing.x16 },
-  /* The same footprint as a list row's mosaic, so the column of titles starts
-     at one x for every row in the sheet. */
+  /* The slot a row's cover stands in, centred. */
+  rowArt: { width: ROW_ART, height: ROW_ART, alignItems: 'center', justifyContent: 'center' },
+  /* The same footprint as a list row's art, so the column of titles starts at
+     one x for every row in the sheet. */
   copyGlyph: {
-    width: ROW_MOSAIC,
-    height: ROW_MOSAIC,
+    width: ROW_ART,
+    height: ROW_ART,
     borderRadius: Radius.image,
     alignItems: 'center',
     justifyContent: 'center',

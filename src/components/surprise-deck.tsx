@@ -259,7 +259,6 @@ const styles = StyleSheet.create({
   },
   /* Both radii are supplied inline from `radius` — see the prop. The hairline is
      load-bearing: without it two near-identical dark rectangles on a dark page
-     merge into one shape, which is the same note `<GamesWidget>` and the entry
-     deck both record. */
+     merge into one shape, which is the same note the entry deck records. */
   card: { position: 'absolute', borderWidth: StyleSheet.hairlineWidth },
 });

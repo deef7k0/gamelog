@@ -31,6 +31,19 @@ export const CoverGridWindow = {
 } as const;
 
 /**
+ * The library: covers four across (`SHELF_COLUMNS`). Its rows are shorter than
+ * a grid of three's, about 140dp, so a screenful is six of them rather than
+ * four. A batch stays at four rows: that
+ * is sixteen covers, already a third more work than a batch of the grid above,
+ * and the batch is what holds the JS thread. The same two screens either side.
+ */
+export const ShelfGridWindow = {
+  initialNumToRender: 6,
+  maxToRenderPerBatch: 4,
+  windowSize: 5,
+} as const;
+
+/**
  * A list of rows that each hold artwork — a game, an event, a review. A
  * screenful and a little more up front, three screens either side.
  */

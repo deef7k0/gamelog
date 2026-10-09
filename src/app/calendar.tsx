@@ -695,8 +695,8 @@ const styles = StyleSheet.create({
   section: { gap: Spacing.x12 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   sectionTitle: { flex: 1, gap: 2 },
-  /* The month's games: three across, wrapping, the collection grid's rhythm
-     across and a little more down, where each cover carries two lines. */
+  /* The month's games: three across, wrapping, a browsed grid's twelve across
+     and a little more down, where each cover carries two lines. */
   covers: { flexDirection: 'row', flexWrap: 'wrap', columnGap: GRID_GAP, rowGap: Spacing.x16 },
 
   row: {

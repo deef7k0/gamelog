@@ -79,7 +79,7 @@ const PANE_SCRIM = 0.27;
  *
  * **The cost, stated plainly: screens no longer carry a title.** Wayfinding now
  * comes from what the page opens with — a game's own case and name, a
- * collection's mosaic, a profile's banner — which on every artwork-led screen
+ * collection's cover, a profile's face — which on every artwork-led screen
  * was already saying it louder than the bar was. On the handful of screens that
  * lead with a list rather than art, this is a genuine loss and the page is
  * expected to state its own heading in the content.

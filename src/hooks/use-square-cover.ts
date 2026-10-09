@@ -34,9 +34,10 @@ import { getSquareCover, SGDB_ENABLED } from '@/lib/games/steamgriddb';
  * ## Why a store rather than TanStack Query
  *
  * Same reasoning as `use-steam-artwork`, which this deliberately mirrors. A
- * mosaic wall mounts eighty of these at once and they all want one AsyncStorage
- * map and one set of subscribers; eighty `useQuery`s keyed by game would be
- * eighty cache entries that all evaporate on quit. TanStack is right for *a
+ * screen can mount a deck's worth of these at once — it was eighty, when a wall
+ * of collections drew each as a mosaic of square tiles — and they all want one
+ * AsyncStorage map and one set of subscribers; a `useQuery` per game would be
+ * that many cache entries that all evaporate on quit. TanStack is right for *a
  * request per screen* — this is a cache with subscribers.
  */
 
@@ -86,8 +87,8 @@ function hydrate(): Promise<void> {
 /**
  * Load the persisted map once, on first use.
  *
- * One read for the whole cache rather than one per game: eighty mosaic tiles
- * mounting together would otherwise be eighty round trips to disk before
+ * One read for the whole cache rather than one per game: a screenful of square
+ * covers mounting together would otherwise be a round trip to disk each before
  * anything drew.
  */
 async function readCache(): Promise<void> {

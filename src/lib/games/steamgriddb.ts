@@ -2,9 +2,10 @@
  * SteamGridDB — square (1:1) cover art, which IGDB does not publish.
  *
  * IGDB publishes portrait box art (2:3) and landscape key art, and nothing
- * square. Three surfaces want a square: a profile's Reviews tab, a collection's
- * 2×2 mosaic, and Surprise Me. All three used to crop the portrait cover — and
- * box art is *composed* for 2:3, so the crop routinely cuts the logo in half.
+ * square. Three surfaces want a square: Surprise Me, a review's own page, and
+ * the one cover at the top of a collection's screen. All three used to crop the
+ * portrait cover — and box art is *composed* for 2:3, so the crop routinely cuts
+ * the logo in half.
  * SteamGridDB hosts community grids at true 1:1, which are composed square.
  *
  * ## Square only — there is no per-platform lookup here
@@ -105,11 +106,13 @@ type GridResponse = {
 /**
  * How many requests may be in the air at once.
  *
- * **This is the one thing standing between a mosaic wall and a rate limit.** The
- * square lookup is per *tile*, and the screens that use it are dense: a
- * Collections tab with twenty collections mounts eighty mosaic tiles, a Reviews
- * tab with forty reviews mounts forty rows, and each miss costs a search plus
- * two grid requests. Nothing above this line throttles any of it — TanStack
+ * **This is the one thing standing between a wall of squares and a rate
+ * limit.** The square lookup is per *cover*, and it was written for dense
+ * screens: a Collections tab of twenty mosaics mounted eighty tiles and a
+ * Reviews tab forty rows, and each miss costs a search plus two grid requests.
+ * Both of those are gone — a list of collections is box art now, and so is a
+ * list of reviews — which leaves a Surprise Me deck as the busiest caller; the
+ * cap stays, because it is what makes a new dense caller safe by default. Nothing above this line throttles any of it — TanStack
  * dedupes identical keys and the maps below dedupe identical fetches, but eighty
  * *different* games are eighty legitimate lookups that would otherwise leave
  * together.

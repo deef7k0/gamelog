@@ -1,4 +1,3 @@
-import type { ListCoverStyle } from '../database.types';
 import type { Game } from '../games';
 import { supabase } from '../supabase';
 import { cacheGame, likeLiteral } from './core';
@@ -55,25 +54,37 @@ export function resolvePreview(row: SummaryRow): ListCover | null {
   return (chosen ?? items[0]).game ?? null;
 }
 
+/** How many covers a tile's stack shows: `STACK_SIZE` in `constants/cover-stack`. */
+const STACK_COVERS = 5;
+
 /**
- * The first four covers, for the tile's 2x2 mosaic.
+ * The covers a tile stacks: up to five, the one in front first.
  *
  * Free: `SUMMARY_ITEMS` already embeds every item's cover so `resolvePreview`
  * can pick one, so this reads from data the query was fetching anyway. Returns
- * however many exist — one, two or three games give a shorter mosaic, and the
+ * however many exist — one, two or three games give a shorter stack, and the
  * tile lays out whatever it is handed rather than padding with placeholders.
  *
- * Ordered by `position`, not by the owner's chosen cover: the mosaic is "what is
- * in here", where `preview` is "what represents it". A collection's first four
- * games in order is a more honest summary than four arbitrary ones.
+ * **The first is `resolvePreview`'s cover** — the one the owner chose, or the
+ * first game — and the rest follow in `position` order. The stack draws its
+ * first cover whole and in front, and that has to be the game the collection's
+ * own screen opens on: tapping a tile lands on the same game it was showing.
+ *
+ * It was `resolveMosaic`: the first four in order, for a 2×2 picture of them.
+ * The mosaic was removed from the app at the owner's direction; a collection is
+ * one cover on its own screen and a stack everywhere it is listed.
  */
-export function resolveMosaic(row: SummaryRow): ListCover[] {
-  return (row.items ?? [])
+export function resolveStack(row: SummaryRow): ListCover[] {
+  const covers = (row.items ?? [])
     .slice()
     .sort((a, b) => a.position - b.position)
     .map((item) => item.game)
-    .filter((game): game is ListCover => game !== null)
-    .slice(0, 4);
+    .filter((game): game is ListCover => game !== null);
+
+  const front = resolvePreview(row);
+  if (!front) return covers.slice(0, STACK_COVERS);
+
+  return [front, ...covers.filter((cover) => cover.id !== front.id)].slice(0, STACK_COVERS);
 }
 
 const SUMMARY_SELECT = `*, ${SUMMARY_ITEMS}`;
@@ -82,16 +93,16 @@ const SUMMARY_SELECT = `*, ${SUMMARY_ITEMS}`;
  * One row → one summary.
  *
  * The three lines this replaces were written out at every call site, which is
- * the drift `SummaryRow`'s own docblock warns about: `mosaic` was added to two
- * of them and forgotten in the third, and the collection tiles on that screen
- * drew a single cover until somebody noticed.
+ * the drift `SummaryRow`'s own docblock warns about: the tile's covers were
+ * added to two of them and forgotten in the third, and the collection tiles on
+ * that screen drew a single cover until somebody noticed.
  */
 function toSummary(row: SummaryRow): ListSummary {
   return {
     ...row,
     itemCount: row.items?.length ?? 0,
     preview: resolvePreview(row),
-    mosaic: resolveMosaic(row),
+    stack: resolveStack(row),
   };
 }
 
@@ -152,11 +163,11 @@ export async function getGameListCount(gameId: string): Promise<number> {
  * ## Two round trips, on purpose
  *
  * The membership lives on `list_items` and everything a tile draws lives on
- * `lists` — the title, the owner, and the first four covers the mosaic is made
- * of. Asking from the `list_items` side with a filtered embed (`lists!inner(…,
+ * `lists` — the title, the owner, and the covers its stack is made of. Asking
+ * from the `list_items` side with a filtered embed (`lists!inner(…,
  * items:list_items(…))`) is one request and returns the wrong thing: PostgREST
  * applies the `game_id` filter to the *inner* embed too, so every collection
- * comes back holding exactly one item — this game — and every mosaic collapses
+ * comes back holding exactly one item — this game — and every stack collapses
  * to a single cover.
  *
  * So: the ids, then the summaries. Both are indexed lookups, it happens once
@@ -207,16 +218,12 @@ export async function getGameLists(gameId: string, limit = 50): Promise<ListSumm
  * trigger rather than trusting the client, so passing a game that is not in it
  * raises instead of silently storing a dangling reference. Pass null to go back
  * to the default (the first item).
+ *
+ * This is the whole of a collection's artwork setting now. There was a second
+ * one beside it — four covers or one, `lists.cover_style` (0033) — and it went
+ * with the mosaic: a collection is always one cover on its own screen, so the
+ * only question left is which.
  */
-/**
- * Four covers or one (0033). The one is `cover_game_id` — `setListCover` —
- * falling back to the first item when the owner has not picked.
- */
-export async function setListCoverStyle(listId: string, style: ListCoverStyle): Promise<void> {
-  const { error } = await supabase.from('lists').update({ cover_style: style }).eq('id', listId);
-  if (error) throw new Error(error.message);
-}
-
 export async function setListCover(listId: string, gameId: string | null): Promise<void> {
   const { error } = await supabase.from('lists').update({ cover_game_id: gameId }).eq('id', listId);
 

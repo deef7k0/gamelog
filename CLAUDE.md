@@ -72,7 +72,11 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # the game page's masthead: its cover's size, the hero's
                    # dissolve and where the row sits in it, the cover's halo
                    # and the synopsis's fade, each against the reference it
-                   # was measured from (constants/game-masthead)
+                   # was measured from (constants/game-masthead), the cover
+                   # stack — that five covers span their row and fewer stand
+                   # in the middle of it — against its reference
+                   # (constants/cover-stack), and the profile's margin, face,
+                   # box and favourites (constants/profile-layout)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -108,8 +112,10 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    pick still reports, through 0025) and the moderation queue's Suggestions and
    Reviews tabs error. **Run `0032` straight after it**: 0031 alone makes every
    query that embeds a log's author fail (PGRST201 — see the gotcha on join
-   tables), which is every list of reviews in the app. Without `0033` every
-   collection shows the mosaic and choosing "Show one cover" fails. `0034` is
+   tables), which is every list of reviews in the app. `0033` added
+   `lists.cover_style` — four covers or one — and **the app no longer reads or
+   writes it** (the mosaic it chose was removed), so nothing depends on it
+   having run. `0034` is
    labels on games — Must Play: without it no cover wears the badge, the Must
    Play list says the migration is missing, and a moderator's toggle fails with
    the same sentence. `0035` is the OpenCritic answer cache and is optional —
@@ -191,7 +197,9 @@ src/
                      profile's Steam rail, never from the game page
     playthroughs/[game]  your runs of one game; playthrough/[id] edits one (modal)
     library/[id]     a person's games: All (stats header + grid), Physical
-                     (the CD binder), Logged, Favourites, Steam. Takes ?tab=
+                     (the CD binder), Logged, Favourites, Steam. Takes ?tab=.
+                     Its grids are four across, one line under each — the
+                     one screen whose covers are
     copies/[user]    a physical collection as a plain list; copy/[id] one copy
                      on a stage of its own — its case as a box that turns by
                      itself and by hand, is opened, and has its disc taken out,
@@ -259,12 +267,20 @@ src/
                      store-prices       where to buy, from IsThereAnyDeal
                      ui/soft-glow       a radial glow — a native CSS gradient,
                                         no Skia; Surprise Me's bloom and edges
-                     collection-mosaic  a collection's artwork: its first four
-                                        covers 2x2, or the owner's one cover
-                                        (0033), as cropped box art. Square
-                                        art from SteamGridDB only with
-                                        `squareArt`, which the header alone
-                                        passes
+                     ui/cover-stack     up to five covers as one stack, the
+                                        first whole and in front — five span
+                                        their row, fewer stand in its middle: a
+                                        profile's
+                                        library and a collection wherever
+                                        collections are listed. See § Conventions
+                     list-tile          a collection in a list, in the review
+                                        card's own card: its title and how many
+                                        games, its stack, two lines of
+                                        description, whose it is
+                     profile-section    the Profile tab's two section shapes: a
+                                        box (the favourites, the library and the
+                                        pinned song, one each) and a ruled
+                                        heading on the page (the wall)
                      ui/ambient-light   Home's soft light in the top-left
                                         corner (a native CSS gradient, no Skia)
                      surprise-deck / -bloom / -sheen / -page-wash
@@ -388,6 +404,10 @@ src/
                      the owner's reference: the cover's width, the hero's
                      dissolve, where the row sits in it, the halo, the
                      synopsis's fade — pure, tested),
+                     cover-stack.ts (where five overlapping covers go, and
+                     fewer — pure, tested),
+                     profile-layout.ts (the profile's margin, face, box,
+                     favourites and section gap — pure, tested),
                      similarity.ts (the twelve reasons), reports.ts (what a
                      report can say, per kind), wikidata.ts (every Wikidata
                      property the additional-information screen reads),
@@ -537,7 +557,8 @@ supabase/
                      0030 each pick's top suggestion + suggester/agreer counts,
                      0031 reports on suggestions and reviews,
                      0032 those report tables keyed on their own id,
-                     0033 a collection's artwork: four covers or one,
+                     0033 a collection's artwork: four covers or one
+                     (unused: the mosaic was removed; the column stays),
                      0034 labels on games (Must Play), moderators only,
                      0035 the OpenCritic answer cache,
                      0036 SoundCloud: the app's token, which upload matched a
@@ -611,8 +632,7 @@ onto a game already in it.
 a review's own page — built as Surprise Me is: the art at 84% of the width, its
 title and two round actions under it, the portrait at the same height when
 there is no square (`app/review/[id].tsx`) — and **the hero at the top of a
-collection's own screen**: the single cover `<CollectionHeader>` draws, and the mosaic behind it
-(`<CollectionMosaic squareArt>`).
+collection's own screen**: the one cover `<CollectionHeader>` draws.
 
 **A collection is square in exactly one place — the hero you see after tapping
 in — by the owner's decision, the fourth one on this.** The picture used
@@ -624,23 +644,19 @@ everywhere — its row in a list included — and it was wrong: the owner meant 
 header and nothing else, and said so in capitals. So:
 
 - **Outside** — `<ListTile>` in every list of collections, the rows of the
-  add-to-collection picker — is box art, cropped to the mosaic's slots.
-  `<CollectionMosaic>` asks SteamGridDB for nothing unless it is passed
-  `squareArt`.
+  add-to-collection picker — is box art: a stack of up to five `<Poster>`s on
+  the tile, one small `<Poster>` on a picker row. Neither asks SteamGridDB for
+  anything.
 - **The hero** — the art at the top of `list/[id]`, where it fades into the
-  page — is square art: `<CollectionHeader>` calls `useSquareCover` for a single
-  cover and passes `squareArt` to its mosaic. It is the only caller of either.
+  page — is square art: `<CollectionHeader>` calls `useSquareCover` for the
+  collection's one cover. It is the only caller in a collection.
 - **Inside**, under the header — the grid, the rows, a tier list's rows, a
   captioned board's tiles and an award's winner — is `<Poster>`s.
 
-Do not "finish the job" in any direction, and do not turn `squareArt` on for a
-tile so that "the small one matches the big one": they are meant to differ.
-Two details that are easy to undo:
+Do not "finish the job" in any direction, and do not square the stack so that
+"the small one matches the big one": they are meant to differ. One detail that
+is easy to undo:
 
-- **Only the square slots take square art.** A mosaic of two splits into
-  halves and a mosaic of three gives its first cover a whole column — slots
-  twice as tall as wide, where a square would lose half its width and a 2:3
-  box loses a quarter. Those keep the box art.
 - **The page colour is still read from the box art.** `useImmersiveBackground`
   decodes in JavaScript and only takes a thumbnail; SteamGridDB's smallest is
   400×400 (verified live: `…/thumb/<hash>.jpg`), four times what the extractor
@@ -660,8 +676,10 @@ its docblock says what that costs. Everything returns `null` on a miss and
 **every caller must have an IGDB fallback** — `null` is the normal answer, not an
 error. No `EXPO_PUBLIC_SGDB_API_KEY` means no requests at all and every slot keeps
 the IGDB cover. Requests are capped at four in flight (`MAX_CONCURRENT`): the
-square lookup is per *tile*, so a Collections tab is eighty of them leaving at
-once, and a 429 is indistinguishable from "no art" once it has been cached.
+square lookup is per *cover*, and a 429 is indistinguishable from "no art" once
+it has been cached. The cap was written for a Collections tab that mounted
+eighty square tiles at once; nothing is that dense now — a Surprise Me deck is
+the busiest caller — and it stays as the guard that makes a new one safe.
 
 **`useSquareCover()` returns `{ uri, resolved }` and callers must honour
 `resolved`.** Drawing the IGDB cover while the answer is unknown is what made
@@ -714,6 +732,21 @@ Three things that are easy to get wrong, all verified against the live API:
 
 `IStoreBrowseService/GetItems/v1` needs **no API key** and is called as a GET
 with a URL-encoded `input_json` blob, not a POST body.
+
+**Do not hand a `<Poster>` the capsule twice.** `steamAppId` is what draws the
+portrait capsule, and a `<Poster>` reaches `heroUrl` only when `coverUrl` is
+null. Passing the capsule as `coverUrl` as well (the same file, on Steam's
+other host) means that where it is missing it is missing twice: the header is
+never tried and the tile stays blank. Verified live — appids 2520, 3170, 18700
+and 26300 answer 404 for `library_600x900.jpg` on both hosts and 200 for
+`header.jpg`; older and smaller games never got a portrait capsule. The
+library's Steam entries pass `steamAppId` and the header alone (`fromOwned`),
+which matters there because a library tile no longer prints the game's name.
+**Four callers still do it the old way** — the profile's shelf (`lib/games/shelf`),
+`<GameTile>` on the Steam tab's rails, `library-widget` and the achievements
+screen pass the capsule as `coverUrl` with no `steamAppId` — so a game with no
+capsule is a blank tile in each. Not changed: nobody asked, and the shelf's
+would need an appid carried through `<CoverStack>`.
 
 **No HEAD probe, ever.** The direct URL costs nothing to build, so it is used
 optimistically and `<Image onError>` is what triggers the hashed lookup —
@@ -768,11 +801,12 @@ the live Action API:
 
 ## Immersive pages and studio logos
 
-A **collection with one cover** and the **studio page** fill their background
-with a colour taken from their artwork; a collection showing several covers
-stays on the app's page. "One cover" is what is on screen, not the setting: the
-owner's `single` (0033), or a mosaic with only one cover to draw — a one-game
-collection — both count (`collectionCover`). The colour is the artwork's own
+A **collection** and the **studio page** fill their background with a colour
+taken from their artwork. A collection's is its one cover's — the game its
+screen opens on (`collectionCover`) — so every collection with a game in it has
+one; it used to be only those showing a single cover, when the alternative was
+a mosaic of four that had no one colour to give. An empty collection stays on
+the app's page. The colour is the artwork's own
 *tone*, so a dark or grey cover gives a near-black page, correctly: Disco
 Elysium's lands on `#0A0A06`, Marvel's Spider-Man's on `#530000`. The recipe is SimpMusic's, read from its source (`UIExt.kt`
 `toImmersiveBackground` / `artworkScrimBrush`, `AlbumScreen.kt`,
@@ -1016,10 +1050,18 @@ What follows from them, and is easy to get wrong:
   Return ISO strings and arrays from a `queryFn`.
 - **Bump `CACHE_VERSION` when a query's shape changes incompatibly** (a field
   renamed, an array that became an object). Rows of another version are dropped
-  unread. Adding a field needs no bump. It is 2: the one bump so far was not
-  for shape but for *content* — every saved game named the old hero image
-  (see § Artwork), and its page would have opened on an upscaled icon until
-  the fresh record arrived.
+  unread. Adding a field needs no bump. It is 3. The first bump was not for
+  shape but for *content* — every saved game named the old hero image (see
+  § Artwork), and its page would have opened on an upscaled icon until the
+  fresh record arrived. **The second is what forgetting this rule costs:** a
+  collection's summary lost `mosaic` and gained `stack`, nothing was bumped, and
+  every saved list of collections came back without the field its tile maps
+  over. The owner's first launch after that change opened the collections on
+  "cannot read property 'map' of undefined"; the error boundary emptied the
+  cache, which is why "Try again" worked. **A rename is a removal.** When a
+  field a component reads off query data changes name, bump the version in the
+  same change — typecheck and `npm test` both pass without it, because neither
+  has an old row to restore.
 - **What is never written** is in `NEVER_PERSIST` (`query-persist-rules.ts`):
   answers to something typed (`search`, `barcode`), queries that only *read* a
   store the device already keeps (`search-history`, `log-draft`, the colour and
@@ -1095,6 +1137,10 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
   just taken off (`Radius.lg`, half the app's card corner) and the card shadow.
   Nothing is drawn on it. It is *not* `surface`, which sits a step above the
   page; this sits a step below.
+- **A collection's card is this card**, at the owner's direction ("the same
+  card as the review card in the home page"): `<ListTile>` restates the fill,
+  the corner, the inset, the twelve between parts and the shadow. Change one
+  and change the other. See the bullet on collections under § Conventions.
 - **It was "black chrome" for one pass, and the owner took it off. Do not
   rebuild it.** The first build was a plate of near-black metal with a
   spotlight at its top centre, a sideways streak and a violet fringe, as one
@@ -1260,7 +1306,7 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   without the label keeps the age rating.
 - **`<Poster>` wears the badge only when it is given `gameId`.** That is how a
   surface opts out, and two do by the owner's rule: **collections** (every
-  tile, row and mosaic) and **reviews** (the card, the review page, a profile's
+  tile, row and stack) and **reviews** (the card, the review page, a profile's
   Reviews tab, the wall). Do not pass `gameId` there. It is also withheld on
   Surprise Me's dealt card and on the Must Play list, where it would be on
   every cover.
@@ -1387,7 +1433,9 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   busy screenshot. Counts are **inline and neutral** (`ALL GAMES 135`); the red
   badge is opt-in via `alert`, for things genuinely unseen. The profile used to
   carry its own copy of this row and the two drifted the moment one was
-  restyled — if a screen needs tabs, it uses `<TabBar>`.
+  restyled — if a screen needs tabs, it uses `<TabBar>`. `inset` moves the row's
+  first pill onto a margin that is not the app's 15; the profile is its one
+  caller.
 - **Choices are outlined; actions are filled. Selection comes from
   `useSelectable()`.** Any control with an on/off state rests with no fill and a
   1px `outline` (16% white) and a `textSecondary` label, and when selected takes
@@ -1478,10 +1526,13 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   the right (label over value). **The side margin is the reference's 15**
   (`Spacing.x16`) — SimpMusic's Home, Library and every row use it; its
   Analytics screen's 24 is that screen's own. It was 10 while the interface was
-  zoomed out, and it moved on every screen at once, rails included. **The game
-  page's Overview tab is the one exception**: its sections sit at the artist
-  page's 20 (to scale), rails included, so nothing inside it misaligns — the
-  step is at the tab bar, between the masthead's 15 and the sections.
+  zoomed out, and it moved on every screen at once, rails included. **Two
+  places are not on it.** The game page's Overview tab: its sections sit at the
+  artist page's 20 (to scale), rails included, so nothing inside it misaligns —
+  the step is at the tab bar, between the masthead's 15 and the sections. And
+  **the profile screen**, whole: the 20 of the mock it was drawn from
+  (`PROFILE_MARGIN`), at the owner's direction — its top row, its tabs and
+  every list under them, so the screen has one left edge.
 - **Ratings** are an integer 0-100 on `logs.rating`; `constants/score.ts` maps
   that to a verdict band ("Excellent", "Mixed") and a colour.
 - **`logs.rating` is the only score anything reads.** A reviewer can score by
@@ -1560,12 +1611,25 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   which is the whole point of art not riding the ladder. Corner radii were left
   alone — several were already the reference's (16 on a selection card, 18 on a
   field) and art corners are this app's.
-- **A portrait is three across, and a row of games is the game page's
-  franchise rail.** Every grid of games is `PORTRAIT_COLUMNS` (3) wide — the
-  collection, the studio, the library, Must Play, an event's games, a month of
-  the calendar, and Search's results when their toolbar's key flips them to the
-  grid. At four a cover was ~84dp on a 360dp
-  phone, a thumbnail of the box. Every *row* of games — Home's "Games for you" and "Releases", the
+- **A portrait is three across — except in the library — and a row of games
+  is the game page's franchise rail.** Every grid of games is
+  `PORTRAIT_COLUMNS` (3) wide: the inside of a collection, the studio, Must
+  Play, an event's games, a month of the calendar, and Search's results when
+  their toolbar's key flips them to the grid. **Somebody's library is
+  `SHELF_COLUMNS` (4), eight apart (`SHELF_GAP`)** — 76×114 on a 360dp phone.
+  The owner's reference for it is a Letterboxd films tab, four posters to a
+  row with one quiet line under each. **The collection's grid has been ruled
+  on five times and three stands**: three, four, three ("a thumbnail of the
+  box"), then four again when the owner asked for the library's layout "and
+  the same for the collection screen inside" — and, having seen that on a
+  phone, "switch back to the 3 row games inside the collection screen. But
+  keep the 4 rows for the library." Do not make the two match in either
+  direction. (The owner says "rows" for columns.)
+  **A library tile is the box and one line**: the person's score in the score
+  ramp, else their status, else Steam's playtime. The game's name is not
+  printed — the box prints it — and is the tile's spoken label; a tile with no
+  page to open is labelled too. The library spreads `ShelfGridWindow`; a
+  collection's grid, `CoverGridWindow`. Every *row* of games  grids spread `ShelfGridWindow`. Every *row* of games — Home's "Games for you" and "Releases", the
   studio's three rails, Search's "Most popular", "Similar to…" and "Highly
   rated" — is `<GameCoverRail>`: the franchise and editions rail from the game
   page, covers at the album height of the owner's reference with the title in
@@ -1608,7 +1672,7 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   position, a *nullable* `game_id` and the owner's reasons — because
   `list_items`' key is `(list_id, game_id)` and cannot express an empty slot. A
   named winner is mirrored into `list_items` by a trigger in 0016, which is what
-  lets the tile mosaic, the item count, likes and "which lists is this game in"
+  lets the tile's stack, the item count, likes and "which lists is this game in"
   keep working without a single existing query learning that awards exist.
   **Never write `list_items` for an awards list from the client** — two
   categories may name the same game, and deciding when the last one lets go is
@@ -1672,56 +1736,184 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   under "Editions & extras", and a derivative's page swaps the franchise rail for
   its one original. `games.edition_kind` / `parent_game_id` (0017) carry the
   label into collections and feeds, where there is no IGDB response to read.
-- **A profile's games are one shelf, not three widgets.** `<GamesWidget>` shows
-  the five most recent covers as an overlapping staircase — each with a hairline
-  and a short right-cast shadow, both load-bearing: without the outline two dark
-  covers merge into one shape, and without the shadow the stack reads as a flat
-  collage. It replaced a Steam-only library row *and* a four-number achievements
-  block, which were two sections about the same library, and the first of which
-  never appeared for anyone who had not linked Steam. Achievements and hours are
-  now one caption line under the stack. `buildShelf()` merges logs with the
-  Steam library, **logs winning on a tie** — a log carries a real catalogue id,
-  so its art is IGDB box art rather than a Steam capsule that may not exist.
-- **A collection is its first four covers, or the one its owner chose.**
-  `<CollectionMosaic>` is the one artwork for a collection, at both sizes: a
-  96dp block on `<ListTile>` and full-width behind `<CollectionHeader>`, and
-  `lists.cover_style` (0033) says which it draws — `mosaic`, the first four items
-  in `position` order, or `single`, the owner's `cover_game_id` (the menu's
-  "Choose the cover", which switching to one cover opens straight away), falling
-  back to the first item. Tapping the small one must land on the big one showing
-  the *same games*, so the tile and the header resolve them the same way
-  (`resolvePreview` / `singleCover`) — but not the same picture of them: the
-  tile is IGDB box art, centre-cropped, and only the header's square slots take
-  SteamGridDB's square art (`squareArt`; see the SteamGridDB note above). Where
-  SteamGridDB has none the header falls back to the box too, its single one
-  cropped to the banner and
-  anchored a fifth of the way down, where a box's subject and logo sit. The header itself is a
-  music-app playlist hero: ~44% of the display, the art tinted toward the page,
-  then a long early fade into it, so there is no edge where the image stops. A
-  database before 0033 has no `cover_style` at all, and every reader treats that
-  as `mosaic`. A mosaic with only one cover to draw is shown as the single cover
-  — banner crop, page colour and all — except on an award show, whose trophy is
-  drawn over the mosaic. Over the bottom of the art, centred, are the name and
-  one quiet line — "Collection · 12 games". **Under the art, on the page's solid
-  colour, is the owner's layout** — do not put any of it back where it was:
-  one row with **who made it on the left** (picture and name, a link; it used to
-  be the middle line of the title stack, printed on the cover) and **share and
-  like on the right**, as the reference album's 48dp circles filled with the ink
-  at 12% (`AlbumScreen.kt`). The like draws out into a capsule to hold its count
-  once it has one, and lights in `liked` with a solid heart — it was a white
-  "Like" pill in the reference's Play slot, the page's one big button, and the
-  owner had it changed. Then the description — three lines and a More that opens
-  in place, "No description" in the same place and type when nothing is
-  written. The byline, the description, the sort tools and the games share
-  **one left edge, the page's margin**; the body was the reference's own column,
-  32 in, while its row was centred. **The owner's menu is not in the masthead**:
-  it is a glass disc at the top right of the screen, opposite the back button,
-  where SimpMusic's album keeps "more" — `<TopBarDisc>` in the screen's top bar,
+- **The profile is a Letterboxd profile, measured.** The owner's reference for
+  the screen (2026-10-09, a 375pt mock drawn 196px wide, so its figures are
+  good to a couple of points): the numbers are in `constants/profile-layout.ts`,
+  under `npm test`. Six rulings hold it:
+  1. **The tabs are at the top, and each shows only its own content.** Profile ·
+     Reviews · Collections · Steam, `<TabBar>`'s pills in words, fixed under
+     the screen's top row and outside the list. Profile is first and holds the
+     face, the name, the counts, the bio, the favourites and the library, the
+     pinned song and **the wall**; the other three are each a list from the top
+     of the screen. The owner was offered "profile info on every tab" and chose
+     this. It replaced four unlabelled glyphs under the widgets, with Reviews
+     as the opening tab. The list is keyed by tab, so each starts at its own
+     top. **The wall was a tab of its own, the fourth of five, and the owner
+     had it moved "inside the profile tab, under everything else".** So the
+     Profile tab is a list whose header is the profile and whose rows are the
+     wall: an open heading, the composer, the timeline under date headings.
+     With no rows it says so in one quiet line (`WallNotice`), and a failed
+     load does too — a screen-sized "Could not load" under somebody's whole
+     profile would say the profile had failed. Do not give it its tab back.
+  2. **The row above the tabs names the person on both screens.** Your own tab:
+     +, your handle, Settings (unchanged). Someone else's: the back disc, and
+     their handle centred in the disc's own row (`profile/[id]`) — the one
+     pushed screen with a word there, because tabs that started in the disc's
+     corner would have their first one under the glass. So the header's first
+     line is the name alone on both, and `<ProfileView>` no longer takes
+     `handleInBar`.
+  3. **The identity row is the reference's, with the bio under it.** The face a
+     fifth of the display (unchanged — the mock's 20.7% is the share it already
+     had), the name at `h3`, the four counts as a figure (`h4`) centred over its
+     word, spread across the column. The reference sets the bio between the
+     name and the counts; the owner asked for it "below the profile icon and
+     stats". Then the actions, full width.
+  4. **Sections are a box or an open heading** (`components/profile-section`),
+     forty apart. **A box** (`<ProfileBox>` round a `<ProfileBoxSection>`) is
+     the app's `<Card>` holding a title, a hairline, then its content — for
+     what the profile holds whole, **one box each**: the four favourites
+     ("exactly like the 4 films in the attached image. Inside that box."), the
+     library, the pinned song. A section whose title leads somewhere takes
+     `href`: the line is the link and ends in a chevron — the library's. **An
+     open heading** (`<ProfileSectionHeader>`) is a title on the page with a
+     rule under it, for what runs on down the page: the wall. **The library
+     shared the favourites' box for one pass** — the owner asked for it "in the
+     same card as favourites", saw it, and had it "detached from the favourites
+     one". It stays a card; it does not go back to being a door on the page,
+     and it does not go back into the favourites'. **The box is eight inside
+     and the favourites four apart, where the mock is ten and five**: the owner
+     asked for the favourites "a little bit bigger" with the margin held at
+     twenty, and the box's inset and the gaps were all there was to take it
+     from — 71 → 73dp on a 360dp phone. More than that costs the margin or the
+     gaps. They replaced three widgets under three hairlines, twelve apart.
+  5. **The library is a stack of five**, where the reference has "Recent
+     Activity" — see the next bullet — in a box of its own, its five covers
+     from the title's left edge to the chevron's right one and the two lines
+     under them starting at that same left edge.
+     `<GamesWidget>` keeps its content: the
+     five most recent games from `buildShelf()` (logs and the Steam library
+     merged, **logs winning on a tie** — a log carries a real catalogue id, so
+     its art is IGDB box art rather than a Steam capsule that may not exist),
+     the digital · physical line and the achievements and hours under it.
+  6. **The margin is the mock's 20, on this screen alone** (`PROFILE_MARGIN`).
+     The brief kept the app's 15 and the owner asked for the mock's — twice:
+     the second time for "every tab in the profile screen". The top row, the
+     tab row (`<TabBar inset>`), the profile and every list under the other
+     tabs share it; nothing else in the app moved. A collection's card is told
+     its width here (`<ListTile width>`), because it would otherwise start from
+     the app's margin. **A component drawn only on this screen takes no
+     horizontal inset of its own**: the wall's activity rows added four to the
+     margin, which put their glyphs inside the edge everything above them kept.
+  **In the app's materials, not Letterboxd's**, at the owner's direction ("the
+  same material 3 feeling… adapt all of that into the current app language"):
+  the page, the card surface, the pills and the blue are this app's; the mock's
+  slate, green underline, serif bio and star ratings were not carried. **Not
+  built**: the mock's Ratings box and a Games tab. **The first build was seen
+  on a phone by the owner, and so was the second** (one box for favourites and
+  library, a stack that stopped short of the margins); what they changed each
+  time is in the rulings above. The third — a box each, the stack on the
+  margins — was checked on a still drawn from the layout code, not on a device.
+- **A stack of five covers is how a shelf is shown** (`<CoverStack>`,
+  `constants/cover-stack.ts`, tested). The owner's second reference, old
+  Letterboxd's "New from friends" tile, measured exactly: five covers the same
+  size and level, each stepping 0.556 of a cover's width from the one in front
+  of it, so the stack is 3.22 covers wide; **the first cover is whole, in the
+  middle and in front**, the next two tucked behind it either side, the last
+  two behind those. Two places draw it — a profile's library and every
+  collection card — and **in both it is inside a card and five covers span the
+  card's inside exactly**, so the stack is on the margins of the text above
+  and below it: covers 93×140 in a collection's card on a 360dp phone, 94×141
+  in the profile's box. Being in a card is all the smaller it got. **For one
+  pass a full stack took seven-eighths of its row and stood in the middle**,
+  to be "a little bit smaller"; the owner saw it line up with nothing and had
+  it brought back: "whenever there are 5 games in that widget, the widget
+  aligns against the margins of the content inside the card". Do not inset a
+  full stack again.
+  - **The first cover is the one that represents the thing**: a collection's
+    chosen cover (else its first game), a library's newest. The rest alternate
+    left and right outward (`STACK_ORDER`).
+  - **A cover is the size it would be in a full stack**, however many there
+    are. Fewer than five build from the first cover outward, and **a short
+    stack stands in the middle of its row** — the owner's direction: at the
+    left edge, "a collection with 3 games leaves a big gap of nothing at the
+    right". Only a short one: five need no centring, they are the row.
+    The centring is the layout's own: `StackPlace.left` is measured from the
+    row's left edge and `<CoverStack>` is as wide as the row, so no caller can
+    forget it. None is one lettered placeholder, in the middle. No empty slots
+    are drawn.
+  - **Each cover is a `<Poster>`** — the box-art corner, the cover's edge, no
+    Must Play badge — and **casts a drawn shadow** on the one behind it, a strip
+    of gradient 8% of a cover wide. Drawn, because five level covers have no
+    "below" for an elevation to fall on; and drawn **by the cover in front**,
+    hanging outside its own edge, because Android paints a view's children in
+    order of elevation: a flat strip written after an elevated `<Poster>` lands
+    under it. Each cover's wrapper is `collapsable={false}` for the same
+    reason — flattened, all five covers and their strips are sorted by
+    elevation together.
+- **A collection is one cover on its own screen and a stack of five where it is
+  listed. There is no mosaic.** The owner removed it ("remove the mosaic feature
+  from the app, inside the collection screen only have one game displayed"):
+  `<CollectionMosaic>` is deleted, and with it the per-collection choice between
+  four covers and one. `lists.cover_style` (0033) is still in the database —
+  nothing was dropped, as with `posts` — and **nothing reads or writes it**.
+  - **The cover** is `cover_game_id`, the owner's pick (the menu's "Choose the
+    cover", offered whenever there is more than one game), else the first item
+    with art: `resolvePreview` over a summary, `collectionCover` over the full
+    list. The two must agree — it is the same game on the screen and in front
+    of the tile's stack, so a tile leads to the cover it was showing.
+  - **On its own screen** (`<CollectionHeader>`): that one game, for every kind
+    of collection, an award show included — its trophy over the artwork went
+    with the mosaic, and "Award show" is the line under the title. Square art
+    from SteamGridDB where there is any (see the SteamGridDB note above), else
+    the box cropped to the banner and anchored a fifth of the way down, where a
+    box's subject and logo sit. A collection with no games draws its initial —
+    or an award show's trophy — on the app's well. **Every collection with a
+    game takes the cover's page colour** now (§ Immersive pages); it was only
+    those not showing four.
+  - **Where it is listed** (`<ListTile>`: Search, a profile's Collections tab,
+    Discover, the game page's "In collections" sheet): **a card.** The owner's
+    third reference for this tile is a list drawn as a panel — its name top
+    left, "32 Films" top right, its posters under them — with the direction
+    "have the collection UI display inside a card… put everything inside the
+    card". So: the title with its kind's glyph (a gold trophy for an award
+    show) and **the game count at the far end of the title's line**; the stack
+    (`resolveStack` — the cover first, then the rest in order), five covers
+    from the title's left edge to the count's right one; two lines of
+    description if there is one; the owner's picture and name. **The card is
+    the review card** (`<LogCard>`'s: `reviewCard`, `Radius.lg`, fifteen in,
+    the card shadow, no border), by the owner's direction — it was the app's
+    `<Card>` for one pass, a step *above* the page where a review is a step
+    below, and the two in one feed were different objects. **One to a row,
+    twelve apart**, as review cards are; it was thirty-two of air while the
+    tile stood on the bare page. The owner chose one per row over two. **No
+    likes or comments on it** — the owner chose "game count only"; they are on
+    the collection's screen, and `useCollectionEngagement` (a second request
+    per screenful) is gone.
+  - **In the add-to-collection picker**: one small `<Poster>` of the cover, in
+    the 48dp slot the mosaic had.
+  The header itself is a music-app playlist hero: half the display, a long
+  early fade into the page, so there is no edge where the image stops. Over the
+  bottom of the art, centred, are the name and one quiet line — "Collection · 12
+  games". **Under the art, on the page's solid colour, is the owner's layout** —
+  do not put any of it back where it was: one row with **who made it on the
+  left** (picture and name, a link; it used to be the middle line of the title
+  stack, printed on the cover) and **share and like on the right**, as the
+  reference album's 48dp circles filled with the ink at 12% (`AlbumScreen.kt`).
+  The like draws out into a capsule to hold its count once it has one, and
+  lights in `liked` with a solid heart — it was a white "Like" pill in the
+  reference's Play slot, the page's one big button, and the owner had it
+  changed. Then the description — three lines and a More that opens in place,
+  "No description" in the same place and type when nothing is written. The
+  byline, the description, the sort tools and the games share **one left edge,
+  the page's margin**; the body was the reference's own column, 32 in, while its
+  row was centred. **The owner's menu is not in the masthead**: it is a glass
+  disc at the top right of the screen, opposite the back button, where
+  SimpMusic's album keeps "more" — `<TopBarDisc>` in the screen's top bar,
   opening `<CollectionOwnerMenu>`. So `<CollectionHeader>` does not know who is
   looking, and its row is the same width for everybody. The games *inside* a
-  collection are portrait box art
-  (`<Poster>`, see the SteamGridDB note above) — the grid, the rows and a tier
-  list's rows alike — and never wear the Must Play badge.
+  collection are portrait box art (`<Poster>`) — the grid, the rows and a tier
+  list's rows alike — and never wear the Must Play badge. The grid is three
+  across; it was four for one pass (see the bullet on portraits above).
 - **Removing games from a collection is a selection, started by holding one.**
   The owner long-presses a game in the grid, the rows or a tier list; from then
   on a tap ticks or unticks instead of opening, and a bar at the foot of the
@@ -1764,9 +1956,11 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   **Two screens carry no floating bar**: your own profile tab and Home. Home
   opens with an *in-flow* masthead row — wordmark, greeting, notification bell —
   which scrolls away with the content because a root tab has nothing to go back
-  to. The profile tab has a fixed row of its own, Instagram's: the + (quick log
-  or review, `quick-log`), your handle, and Settings, with the profile starting
-  `x32 + x4` under it — the distance Home's greeting sits under its masthead.
+  to. The profile tab has a fixed row of its own: the + (quick log or review,
+  `quick-log`), your handle, and Settings, with the profile's tabs directly
+  under it. **Someone else's profile keeps the floating disc and puts their
+  handle in the disc's row**, centred — see the profile's ruling 2; it is the
+  one pushed screen with a word there.
 - **The bar is a layer, not a surface.** Blur, then a scrim (27% on the disc,
   the reference's), a rim and a sheen of light, then the glyph — no fill of the
   app's own colours, ever. It has nothing of its own to show; it softens
@@ -1917,14 +2111,14 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   the box-art corner (`rounded="image"`, the default, 4dp — which the reference's
   measured 3.9 already was), as an overlay and never as a border: a border
   pushes the art in and shows the frame's fill, a fixed grey on every cover,
-  where this lightens the art under it. The profile's shelf and Surprise Me's
-  entry deck draw their covers by hand and ask for the token by name. **Four
-  things do not wear it**: the game case and its framed PC cover
-  (`rounded="caseImage"` — protected, and it has a frame of its own), a banner
-  that fills its container (`rounded="none"`, the collection header), square
-  art (the owner said portrait), and the mosaic. A wrapper that drew its own
-  hairline round a `<Poster>` had it removed (`community-similar`); a new one
-  would be a doubled line.
+  where this lightens the art under it. Surprise Me's entry deck draws its
+  covers by hand and asks for the token by name; the profile's shelf did too,
+  until it became a `<CoverStack>` of `<Poster>`s. **Three things do not wear
+  it**: the game case and its framed PC cover (`rounded="caseImage"` —
+  protected, and it has a frame of its own), a banner that fills its container
+  (`rounded="none"`), and square art (the owner said portrait). A wrapper that
+  drew its own hairline round a `<Poster>` had it removed (`community-similar`);
+  a new one would be a doubled line.
 - **One score in the masthead: IGDB's, and only when the app has none.** The
   stats strip under the row prints the app's own average and its count
   (`['rating-breakdown', gameId]`). IGDB's `total_rating` — "Community" —
@@ -2719,9 +2913,11 @@ was not this app's code. The rules that keep it that way:
   was busy drawing rows. The list defaults are the cause more often than any
   one row: ten rows a batch and **ten screens either side** kept mounted, which
   for a grid of covers is every cover it has. `CoverGridWindow` (counted in
-  rows of three) and `ArtRowWindow` are on the collection, Search's results,
-  Must Play, an event's games, the library, the platform directory, events,
-  studios and the reviews sheet; the studio page's grid has its own, smaller.
+  rows of three), `ShelfGridWindow` (rows of four — the library alone) and
+  `ArtRowWindow` are on the collection, Search's
+  results, Must Play, an event's games, the library, the platform directory,
+  events, studios and the reviews sheet; the studio page's grid has its own,
+  smaller.
   A new list of covers or cards takes one. The other half is that **a row's
   props must survive a render**: handlers keyed by id and handed down once
   (`<CollectionRow>`, the collection's `GridTile`), never a closure or a JSX

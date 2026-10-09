@@ -6,9 +6,11 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { PlayerArtwork } from '@/components/player/player-bar';
 import { SoundCloudMark } from '@/components/player/soundcloud-mark';
+import { ProfileBox, ProfileBoxSection } from '@/components/profile-section';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { SECTION_GAP } from '@/constants/profile-layout';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getStarredSong } from '@/lib/api';
@@ -38,6 +40,9 @@ const ARTWORK = 56;
  * It draws nothing when the second has no answer to give: the track is gone,
  * SoundCloud is not connected, or the row is an Apple Music id from a database
  * that has not run 0036. A profile is not the place to explain any of those.
+ * That is also why the space above it is its own (`styles.section`) and not the
+ * profile's: a wrapper the profile kept for it would be a gap with nothing
+ * under it on every profile that has no song.
  *
  * ## It plays through the app's one player
  *
@@ -92,18 +97,18 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
      profile under it does not jump when SoundCloud answers. */
   if (lookup.isPending) {
     return (
-      <View style={[styles.widget, { borderTopColor: theme.border }]}>
-        <View style={styles.head}>
-          <Ionicons name="star" size={13} color={theme.primaryText} />
-          <Text variant="itemTitle">Starred song</Text>
-        </View>
-        <View style={styles.row}>
-          <Skeleton width={ARTWORK} height={ARTWORK} />
-          <View style={styles.body}>
-            <Skeleton width="58%" height={13} radius={Radius.sm} />
-            <Skeleton width="40%" height={10} radius={Radius.sm} />
-          </View>
-        </View>
+      <View style={styles.section}>
+        <ProfileBox>
+          <ProfileBoxSection title="Starred song">
+            <View style={styles.row}>
+              <Skeleton width={ARTWORK} height={ARTWORK} />
+              <View style={styles.body}>
+                <Skeleton width="58%" height={13} radius={Radius.sm} />
+                <Skeleton width="40%" height={10} radius={Radius.sm} />
+              </View>
+            </View>
+          </ProfileBoxSection>
+        </ProfileBox>
       </View>
     );
   }
@@ -130,85 +135,75 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
   }
 
   return (
-    <View style={[styles.widget, { borderTopColor: theme.border }]}>
-      <View style={styles.head}>
-        <Ionicons name="star" size={13} color={theme.primaryText} />
-        {/* Matched to Favourites and the shelf: one heading treatment on this
-            page, not three. */}
-        <Text variant="itemTitle" style={styles.heading}>
-          Starred song
-        </Text>
-        {/* SoundCloud's mark, linking to the track there: with the uploader
-            named below, the credit its terms ask for. */}
-        <SoundCloudMark url={track.permalinkUrl} label={`Open ${track.title} on SoundCloud`} />
-      </View>
+    /* A box of its own, like the favourites and the library over it: a
+       thing the profile holds whole (`<ProfileBox>`). SoundCloud's mark is at
+       the far end of the title's line, linking to the track there: with the
+       uploader named below, the credit its terms ask for. */
+    <View style={styles.section}>
+      <ProfileBox>
+        <ProfileBoxSection
+          title="Starred song"
+          action={
+            <SoundCloudMark url={track.permalinkUrl} label={`Open ${track.title} on SoundCloud`} />
+          }>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={
+              playable
+                ? `${playing ? 'Pause' : 'Play'} ${track.title} by ${track.uploader.name}`
+                : `${track.title} by ${track.uploader.name}. SoundCloud does not let it play here.`
+            }
+            accessibilityState={{ disabled: !playable }}
+            disabled={!playable}
+            onPress={toggle}
+            scaleTo={0.99}
+            style={StyleSheet.flatten([styles.row, { opacity: playable ? 1 : 0.6 }])}>
+            <PlayerArtwork uri={track.artworkUrl} size={ARTWORK} />
 
-      <PressableScale
-        accessibilityRole="button"
-        accessibilityLabel={
-          playable
-            ? `${playing ? 'Pause' : 'Play'} ${track.title} by ${track.uploader.name}`
-            : `${track.title} by ${track.uploader.name}. SoundCloud does not let it play here.`
-        }
-        accessibilityState={{ disabled: !playable }}
-        disabled={!playable}
-        onPress={toggle}
-        scaleTo={0.99}
-        style={StyleSheet.flatten([styles.row, { opacity: playable ? 1 : 0.6 }])}>
-        <PlayerArtwork uri={track.artworkUrl} size={ARTWORK} />
+            <View style={styles.body}>
+              <Text variant="itemTitle" numberOfLines={1}>
+                {track.title}
+              </Text>
+              <Text
+                variant="bodySmall"
+                color={trouble ? 'textSecondary' : 'textMuted'}
+                numberOfLines={trouble ? 2 : 1}>
+                {trouble ?? [track.uploader.name, starred?.game_title].filter(Boolean).join(' · ')}
+              </Text>
 
-        <View style={styles.body}>
-          <Text variant="itemTitle" numberOfLines={1}>
-            {track.title}
-          </Text>
-          <Text
-            variant="bodySmall"
-            color={trouble ? 'textSecondary' : 'textMuted'}
-            numberOfLines={trouble ? 2 : 1}>
-            {trouble ?? [track.uploader.name, starred?.game_title].filter(Boolean).join(' · ')}
-          </Text>
-
-          {/* Progress only while it is actually playing — a full-width empty
-              track under a song nobody has tapped is just a rule. */}
-          {playing && (
-            <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
-              <View
-                style={[
-                  styles.fill,
-                  { width: `${progress * 100}%`, backgroundColor: theme.primary },
-                ]}
-              />
+              {/* Progress only while it is actually playing — a full-width empty
+                  track under a song nobody has tapped is just a rule. */}
+              {playing && (
+                <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
+                  <View
+                    style={[
+                      styles.fill,
+                      { width: `${progress * 100}%`, backgroundColor: theme.primary },
+                    ]}
+                  />
+                </View>
+              )}
             </View>
-          )}
-        </View>
 
-        {playable && (
-          <View style={[styles.play, { backgroundColor: theme.controlFill }]}>
-            {starting ? (
-              <ActivityIndicator size="small" color={theme.text} />
-            ) : (
-              <Ionicons name={playing ? 'pause' : 'play'} size={18} color={theme.text} />
+            {playable && (
+              <View style={[styles.play, { backgroundColor: theme.controlFill }]}>
+                {starting ? (
+                  <ActivityIndicator size="small" color={theme.text} />
+                ) : (
+                  <Ionicons name={playing ? 'pause' : 'play'} size={18} color={theme.text} />
+                )}
+              </View>
             )}
-          </View>
-        )}
-      </PressableScale>
+          </PressableScale>
+        </ProfileBoxSection>
+      </ProfileBox>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  /* `flex: 1` because the profile mounts every widget inside a row: without it
-     the widget shrinks to the width of its own text and the artwork ends up
-     sitting in the middle of the page. */
-  widget: {
-    flex: 1,
-    gap: Spacing.x8,
-    paddingTop: Spacing.x12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  /* Takes the row, so SoundCloud's mark sits at its far end. */
-  heading: { flex: 1 },
+  /* A section of the Profile tab, the profile's distance under the one before. */
+  section: { marginTop: SECTION_GAP },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   body: { flex: 1, gap: 2 },
   track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.x4 },

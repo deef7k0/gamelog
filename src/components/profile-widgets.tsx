@@ -4,26 +4,33 @@ import { Link, useRouter } from 'expo-router';
 import { memo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { gridItemWidth } from '@/components/gaming/game-tile';
+import { ProfileBoxSection } from '@/components/profile-section';
 import { Button } from '@/components/ui/button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import { FAVOURITES, favouriteCoverWidth } from '@/constants/profile-layout';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { removeFromList, type ListItem } from '@/lib/api';
 import type { ProfileAchievementStats } from '@/lib/database.types';
 
-/** Four across, edge to edge — the same rule every poster grid in the app uses. */
-const FAVORITE_COLUMNS = 4;
-const FAVORITE_GAP = Spacing.x8;
+/** Four across the box: a set of four, not a grid that happens to have four columns. */
+const FAVORITE_COLUMNS = FAVOURITES.columns;
 
 /**
- * Profile widgets.
+ * The four favourites, in a box.
  *
- * Neither sits in a card. They are sections of the profile, not objects
- * floating on it, so a hairline and their own space separate them — which also
- * hands the favourites row the full page width it needs.
+ * The owner's reference draws a profile's favourite films this way and asked for
+ * it "exactly": a card with its title on the first line, a hairline, and the
+ * four covers across it, close together (`<ProfileBoxSection>`, `FAVOURITES`).
+ * They used to stand on the page under a hairline, spanning its full width with
+ * eight between them; in the box they read as one object — the thing on a
+ * profile people screenshot.
+ *
+ * It renders a section and not the box; the profile puts it in one
+ * (`<ProfileBox>`). The library shared this box for one pass and has its own
+ * again.
  */
 
 /* Memoised: `items` comes through a shared empty-array constant while the
@@ -54,20 +61,14 @@ export const FavoritesWidget = memo(function FavoritesWidget({
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   /*
-   * Four covers spanning the page.
-   *
-   * They were a fixed 52dp, which left most of a phone's width empty and made
-   * someone's top four look like a footnote. This is the one thing on a profile
-   * people screenshot, so it takes the same width the collection and library
-   * grids take — the row runs edge to edge, about 79dp a cover on a 360dp
-   * phone.
+   * Four covers across the inside of the box: 73dp each on a 360dp phone. They
+   * were 71, the reference's share of the display, until the owner asked for
+   * them a little bigger — and with the margin held at twenty, the box's inset
+   * and the gaps between them were all there was to take it from (`BOX`,
+   * `FAVOURITES`). They were a fixed 52dp once, which left most of the width
+   * empty and made someone's top four look like a footnote.
    */
-  const posterWidth = gridItemWidth(
-    Math.min(width, MaxContentWidth),
-    FAVORITE_COLUMNS,
-    Spacing.x16,
-    FAVORITE_GAP
-  );
+  const posterWidth = favouriteCoverWidth(Math.min(width, MaxContentWidth));
   const posterHeight = posterWidth / (2 / 3);
 
   const shown = items.slice(0, FAVORITE_COLUMNS);
@@ -109,16 +110,10 @@ export const FavoritesWidget = memo(function FavoritesWidget({
   }
 
   return (
-    <View style={[styles.widget, { borderTopColor: theme.border }]}>
-      <View style={styles.widgetHead}>
-        <View style={styles.widgetTitle}>
-          <Ionicons name="star" size={13} color={theme.primaryText} />
-          {/* `itemTitle`: a section title in sentence case, not a metadata
-              tag. */}
-          <Text variant="itemTitle">Favourites</Text>
-        </View>
-
-        {canEdit && (
+    <ProfileBoxSection
+      title="Favourites"
+      action={
+        canEdit && (
           /* `hitSlop` rather than padding so the word stays small while the
              target clears the floor. */
           <PressableScale
@@ -133,9 +128,8 @@ export const FavoritesWidget = memo(function FavoritesWidget({
               {editing ? 'Done' : 'Edit'}
             </Text>
           </PressableScale>
-        )}
-      </View>
-
+        )
+      }>
       {shown.length > 0 || editing ? (
         <View style={styles.posters}>
           {shown.map((item, index) => {
@@ -242,7 +236,7 @@ export const FavoritesWidget = memo(function FavoritesWidget({
       {/* What to do with the chosen game — or, until one is chosen, how. */}
       {editing &&
         (selected ? (
-          <View style={styles.editBar}>
+          <View style={[styles.editBar, styles.below]}>
             <Text variant="itemTitle" numberOfLines={1} style={styles.flex}>
               {selected.game?.title ?? 'Favourite game'}
             </Text>
@@ -261,19 +255,19 @@ export const FavoritesWidget = memo(function FavoritesWidget({
             />
           </View>
         ) : (
-          <Text variant="bodySmall" color="textMuted">
+          <Text variant="bodySmall" color="textMuted" style={styles.below}>
             Tap a game to replace or remove it.
           </Text>
         ))}
 
       {remove.isError && (
-        <Text variant="bodySmall" color="danger">
+        <Text variant="bodySmall" color="danger" style={styles.below}>
           {remove.error instanceof Error
             ? remove.error.message
             : 'Could not remove it. Check your connection and try again.'}
         </Text>
       )}
-    </View>
+    </ProfileBoxSection>
   );
 });
 
@@ -357,11 +351,17 @@ const styles = StyleSheet.create({
   },
   widgetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   widgetTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  /* Padding on the horizontal only. The heading row's height is set by the
-     title beside it, so growing this vertically would push the whole row down;
-     `hitSlop` covers the remaining vertical reach instead. */
-  editLink: { paddingHorizontal: Spacing.x8 },
-  posters: { flexDirection: 'row', gap: FAVORITE_GAP },
+  /* Padded on the side facing the title only, so the word ends on the box's
+     inner edge — where the last cover ends, and the chevron of the box under
+     it. Nothing vertical: the heading row's height is set by the title
+     beside it, and `hitSlop` is what reaches the tap floor. */
+  editLink: { paddingStart: Spacing.x8 },
+  /* `space-between`, with four as the least they may stand apart: the covers
+     are whole dp, so a display that does not divide evenly has a dp or two left
+     over, and it goes between them rather than after the last one. */
+  posters: { flexDirection: 'row', justifyContent: 'space-between', gap: FAVOURITES.gap },
+  /* What appears under the covers while they are being edited. */
+  below: { marginTop: Spacing.x12 },
   emptySlot: {
     borderRadius: Radius.image,
     borderWidth: StyleSheet.hairlineWidth,

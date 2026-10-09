@@ -5,10 +5,7 @@ import { ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
-import { useCollectionEngagement } from '@/hooks/use-collection-engagement';
-import { useTheme } from '@/hooks/use-theme';
 import { getPopularCollections, getPopularReviews } from '@/lib/api';
-import { useAuth } from '@/store/auth';
 
 /**
  * The most-liked writing and the most-liked collections.
@@ -45,19 +42,17 @@ function usePopularReviewsData() {
   return { reviews };
 }
 
+/* No likes or comments are fetched beside these any more: the card carries the
+   game count and nothing else about the response to it (see `<ListTile>`), so
+   the second request a screenful of collections used to cost is gone. */
 function usePopularCollectionsData() {
-  const viewerId = useAuth((state) => state.session?.user.id) ?? null;
-
   const collections = useQuery({
     queryKey: ['discover', 'collections'],
     queryFn: () => getPopularCollections(),
     staleTime: 5 * 60_000,
   });
 
-  const ids = (collections.data ?? []).map((list) => list.id);
-  const engagement = useCollectionEngagement(ids, viewerId);
-
-  return { collections, engagement };
+  return { collections };
 }
 
 /**
@@ -163,7 +158,7 @@ export function ReviewsBand({ limit = BAND_LIMIT }: { limit?: number }) {
  * collection is its games, and a title with nothing behind it is a draft.
  */
 export function DiscoverCollections() {
-  const { collections, engagement } = usePopularCollectionsData();
+  const { collections } = usePopularCollectionsData();
 
   if (collections.isLoading) return <LoadingState />;
   if (collections.isLoadingError) {
@@ -171,23 +166,21 @@ export function DiscoverCollections() {
   }
 
   return (
-    /* One across. The tile is a full-width row again — it now carries the
-       owner's description and three counts, none of which fit under a 164dp
-       square — so the two-column wrapper and the separate like badge beside it
-       are both gone. The badge in particular was the tile failing to say
-       something and the screen patching over it; the heart is inside the row
-       now, next to the two numbers it belongs with. */
+    /* One across, by the owner's choice: a collection is a card holding its
+       name, five covers and its owner's words, and two across those covers
+       would be under forty dp wide. A screen holds about three, twelve apart —
+       the interval review cards keep. */
     <FlatList
       data={collections.data ?? []}
       keyExtractor={(list) => list.id}
       contentContainerStyle={styles.content}
-      ItemSeparatorComponent={ListSeparator}
+      ItemSeparatorComponent={TileGap}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       refreshing={collections.isRefetching}
       onRefresh={() => collections.refetch()}
-      renderItem={({ item }) => <ListTile list={item} engagement={engagement?.[item.id]} />}
+      renderItem={renderTile}
       ListEmptyComponent={
         <EmptyState
           title="No collections yet"
@@ -204,7 +197,7 @@ export function DiscoverCollections() {
 
 /** The first few collections, for a host that is already scrolling. */
 export function CollectionsBand({ limit = BAND_LIMIT }: { limit?: number }) {
-  const { collections, engagement } = usePopularCollectionsData();
+  const { collections } = usePopularCollectionsData();
 
   if (collections.isLoadingError) return null;
 
@@ -212,27 +205,29 @@ export function CollectionsBand({ limit = BAND_LIMIT }: { limit?: number }) {
   if (rows.length === 0) return null;
 
   return (
-    <View style={styles.band}>
-      {rows.map((list, index) => (
-        <View key={list.id}>
-          {index > 0 && <ListSeparator />}
-          <ListTile list={list} engagement={engagement?.[list.id]} />
-        </View>
+    <View style={styles.collectionsBand}>
+      {rows.map((list) => (
+        <ListTile key={list.id} list={list} />
       ))}
     </View>
   );
 }
 
+/** One row renderer for the module: a stable prop for the list. */
+function renderTile({ item }: { item: Awaited<ReturnType<typeof getPopularCollections>>[number] }) {
+  return <ListTile list={item} />;
+}
+
 /**
- * A hairline between collections.
+ * The space between two collections.
  *
- * The rows have no surface of their own — a card behind each one would put a
- * container inside the page for a row that is already mostly artwork — so the
- * rule is what separates them, exactly as it does between comments.
+ * It was a hairline with twenty either side, when a collection was a row of
+ * text beside a small picture and needed a rule to say where one ended; then
+ * thirty-two of air, when it was five covers standing on the bare page. It is a
+ * card now, and cards stack twelve apart.
  */
-function ListSeparator() {
-  const theme = useTheme();
-  return <View style={[styles.separator, { backgroundColor: theme.border }]} />;
+function TileGap() {
+  return <View style={styles.tileGap} />;
 }
 
 const styles = StyleSheet.create({
@@ -245,5 +240,7 @@ const styles = StyleSheet.create({
      band, this page, Search, a profile. `band` separates the same cards. */
   cardGap: { height: Spacing.x12 },
   band: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
-  separator: { height: StyleSheet.hairlineWidth, marginVertical: Spacing.x20 },
+  /* The same interval the full list keeps between its cards. */
+  collectionsBand: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
+  tileGap: { height: Spacing.x12 },
 });

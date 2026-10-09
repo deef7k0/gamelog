@@ -82,6 +82,15 @@ export type TabBarProps<T extends string> = {
    * slack to distribute when there is slack.
    */
   align?: 'start' | 'center';
+  /**
+   * How far in from the screen's edge the row starts and ends, when the screen
+   * it is on does not keep the app's 15.
+   *
+   * The first pill lines up with the page's content, and on every screen but
+   * one that is the app's margin — the default. The profile keeps the 20 of the
+   * mock it was drawn from (`PROFILE_MARGIN`), so its tab row has to as well.
+   */
+  inset?: number;
 };
 
 /**
@@ -127,6 +136,7 @@ export function TabBar<T extends string>({
   label,
   iconOnly = false,
   align = 'start',
+  inset,
 }: TabBarProps<T>) {
   const theme = useTheme();
   const accent = useAccent();
@@ -191,11 +201,13 @@ export function TabBar<T extends string>({
     );
   });
 
+  const edge = inset === undefined ? undefined : { paddingHorizontal: inset };
+
   /* A plain row, not a scroller. See the note on `iconOnly`. */
   if (iconOnly) {
     return (
       <View
-        style={[styles.content, styles.contentSpread]}
+        style={[styles.content, styles.contentSpread, edge]}
         accessibilityRole="tablist"
         accessibilityLabel={label}>
         {items}
@@ -222,7 +234,7 @@ export function TabBar<T extends string>({
       keyboardShouldPersistTaps="handled"
       accessibilityRole="tablist"
       accessibilityLabel={label}
-      contentContainerStyle={[styles.content, align === 'center' && styles.contentCenter]}>
+      contentContainerStyle={[styles.content, align === 'center' && styles.contentCenter, edge]}>
       {items}
     </ScrollView>
   );

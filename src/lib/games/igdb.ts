@@ -1187,47 +1187,28 @@ export async function getTimeToBeat(
 // Events
 // ---------------------------------------------------------------------------
 
-/** A showcase, conference or award show a game appeared at. */
-export type GameEvent = {
-  id: number;
-  name: string;
-  /** Unix seconds. Null for an event with no announced date. */
-  startTime: number | null;
-  description: string | null;
-  /** Landscape key art for the event itself, not for the game. */
-  logoUrl: string | null;
-  /** The event's own page, when it publishes one. */
-  liveStreamUrl: string | null;
-};
-
-type IgdbEvent = {
-  id: number;
-  name?: string;
-  start_time?: number;
-  description?: string;
-  event_logo?: IgdbImage;
-  live_stream_url?: string;
-  event_networks?: { url?: string }[];
-};
+/*
+ * The events themselves — the directory, one event and its games — are
+ * `browse.ts`'s. What was here beside this helper was the game page's
+ * "Featured in" rail: every event one game appeared at, asked of `events`
+ * filtered on its own `games` array (IGDB exposes that join in one direction
+ * only; there is no `game.events`). The owner took the rail off the page and the
+ * query went with it.
+ */
 
 /**
  * A YouTube thumbnail for a watch/live/short URL, or null.
  *
- * **This is the fallback that makes the events widget worth having.** IGDB's
- * `event_logo` is populated for a minority of events — the big publisher
- * showcases have one and almost nothing else does — so a widget that only read
- * that field rendered a column of blank cards for most games that had any events
- * at all.
- *
- * Every event that streamed has a URL, and in practice that URL is YouTube.
- * `img.youtube.com/vi/<id>/hqdefault.jpg` is a static path with no API, no key
- * and no quota, and it exists for every public video — so the stream link the
- * event already carries is also a picture of it.
+ * The second rung of an event's picture, after IGDB's `event_logo`
+ * (`browse.ts`). Every event that streamed has a URL, and in practice that URL
+ * is YouTube. `img.youtube.com/vi/<id>/hqdefault.jpg` is a static path with no
+ * API, no key and no quota, and it exists for every public video — so the
+ * stream link the event already carries is also a picture of it.
  *
  * `hqdefault` rather than `maxresdefault`: the latter 404s for any video not
  * uploaded at 1080p or above, which includes most streams from before ~2016,
- * and a 404 here would put us back at the blank card. 480×360 is more than a
- * card this size needs.
+ * and a 404 here would put us back at a blank card. 480×360 is more than a card
+ * this size needs.
  */
 export function youtubeThumbnail(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -1238,68 +1219,6 @@ export function youtubeThumbnail(url: string | null | undefined): string | null 
   );
   if (!match) return null;
   return `https://img.youtube.com/vi/${match[1]}/hqdefault.jpg`;
-}
-
-/**
- * Every event a game was featured in, most recent first.
- *
- * Queried from the `events` endpoint filtered on its `games` array rather than
- * from the game — `games` is a many-to-many and IGDB exposes the join only in
- * this direction, so there is no `game.events` field to add to `GAME_FIELDS`.
- *
- * Most games have none, which is the point: an appearance at The Game Awards or
- * a Nintendo Direct is a fact about the game's life that no other section of the
- * page carries, and it is worth a widget precisely because it is rare.
- */
-export async function getGameEvents(sourceId: string, signal?: AbortSignal): Promise<GameEvent[]> {
-  const numeric = Number(sourceId);
-  if (!Number.isFinite(numeric)) return [];
-
-  /*
-   * Two attempts, richest first.
-   *
-   * IGDB rejects an *entire* query when one field expansion is not valid for the
-   * endpoint, so a single bad name here costs every event rather than one field
-   * of them — and the failure surfaces as an empty widget with nothing to say
-   * why. The narrow retry is the field set `lib/news/discovery.ts` has been
-   * running against this endpoint all along, so it is known-good: worst case the
-   * section renders without artwork instead of not rendering at all.
-   */
-  const raw = await igdbQuery<IgdbEvent[]>(
-    'events',
-    `fields name, start_time, description, event_logo.image_id, live_stream_url,
-            event_networks.url;
-     where games = (${numeric});
-     sort start_time desc;
-     limit 10;`,
-    signal
-  ).catch(() =>
-    igdbQuery<IgdbEvent[]>(
-      'events',
-      `fields name, start_time, description, live_stream_url;
-       where games = (${numeric});
-       sort start_time desc;
-       limit 10;`,
-      signal
-    ).catch(() => [] as IgdbEvent[])
-  );
-
-  return (raw ?? [])
-    .filter((entry) => !!entry.name)
-    .map((entry) => ({
-      id: entry.id,
-      name: entry.name!,
-      startTime: entry.start_time ?? null,
-      description: entry.description ?? null,
-      /* IGDB's own art first, then a frame of the stream it links to. Both can
-         be null, and the widget draws a lettered placeholder when they are —
-         but between the two, most events now have a picture. */
-      logoUrl:
-        imageUrl(entry.event_logo, 'screenshot_med') ??
-        youtubeThumbnail(entry.live_stream_url) ??
-        youtubeThumbnail(entry.event_networks?.[0]?.url),
-      liveStreamUrl: entry.live_stream_url ?? entry.event_networks?.[0]?.url ?? null,
-    }));
 }
 
 // ---------------------------------------------------------------------------

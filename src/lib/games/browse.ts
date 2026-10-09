@@ -417,8 +417,8 @@ const EVENT_FIELDS =
  *
  * Nearly every event carries an `event_logo` now — the live API returned one
  * for all 500 it would list — so the YouTube frame is a second rung for the
- * stragglers rather than the main supply it was when the game page's
- * "Featured in" rail was written.
+ * stragglers rather than the main supply it was when the game page had a
+ * "Featured in" rail (since removed) and this fallback was written for it.
  */
 function eventThumbnail(row: IgdbEventRow, size: string): string | null {
   return (

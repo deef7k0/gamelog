@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { DISSOLVE_STOPS } from '@/constants/game-masthead';
 import { HeroAspectRatio, HeroHeightRatio, Palette, withAlpha } from '@/constants/theme';
 import { useSteamArtwork } from '@/hooks/use-steam-artwork';
 import { useTheme } from '@/hooks/use-theme';
@@ -55,6 +56,25 @@ export const RAMP_COLORS: readonly [string, string, ...string[]] = [
 export const FADE_HEIGHT = 0.62;
 
 /**
+ * The `mask` fade, as the mask's alpha down the hero.
+ *
+ * The game page is its one caller, and the curve is that page's: it starts a
+ * sixth of the way down, eases at both ends and trails off for a long way, so
+ * the picture has no edge where it begins to go or where it has gone — and the
+ * page's cover and title are set into its last tenth. The numbers, and what each
+ * was measured against, are in `constants/game-masthead` and under `npm test`.
+ *
+ * It was `[0, 1 − FADE_HEIGHT, 1]`: full strength, then a straight line. Only
+ * the alpha is read, so every stop is the same ink.
+ */
+const DISSOLVE_LOCATIONS = DISSOLVE_STOPS.map((stop) => stop.at) as [number, number, ...number[]];
+const DISSOLVE_COLORS = DISSOLVE_STOPS.map((stop) => withAlpha(Palette.shadowInk, stop.alpha)) as [
+  string,
+  string,
+  ...string[],
+];
+
+/**
  * How tall a full-bleed hero should be on this display.
  *
  * Never shorter than the art's own 16:9 height: on a wide screen the
@@ -88,7 +108,9 @@ export type HeroArtProps = {
    *    behind it. The only option that works over a **coloured or animated**
    *    backdrop: a ramp to `background` painted over a lit gradient is a dark
    *    band across the middle of the screen, which is exactly the seam this
-   *    replaced. Use it over any backdrop that is not the flat page colour.
+   *    replaced. Use it over any backdrop that is not the flat page colour. Its
+   *    curve is longer and softer than the colour fade's — see
+   *    `DISSOLVE_LOCATIONS` — because the game page sets content into its tail.
    *  - `false` — no fade at all. The caller is covering the edge some other way.
    */
   fade?: 'color' | 'mask' | false;
@@ -238,8 +260,8 @@ export function HeroArt({
       pointerEvents="none"
       maskElement={
         <LinearGradient
-          colors={[Palette.shadowInk, Palette.shadowInk, withAlpha(Palette.shadowInk, 0)]}
-          locations={[0, 1 - FADE_HEIGHT, 1]}
+          colors={DISSOLVE_COLORS}
+          locations={DISSOLVE_LOCATIONS}
           style={styles.fill}
         />
       }>

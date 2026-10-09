@@ -41,15 +41,17 @@ import { parseGameId } from '@/lib/games';
  *
  * ## Three triggers
  *
- * `trigger="more"` is what the game page uses: the **About** heading's way
- * onward, the reference's More at the end of the heading row, named "Details" —
- * the synopsis and the full record are one subject at two depths, so the record
- * belongs to the synopsis's heading rather than to a second section. The card
- * under that heading has a More of its own, which opens the synopsis in place.
+ * `trigger="card"` is what the game page uses: a section of its own, headed
+ * **Details**, whose card is the door. It took About's place in the Overview
+ * when the synopsis moved into the masthead as free-standing text — there was
+ * no heading left to hang the record on.
  *
+ * `trigger="more"` is what it was while About was a card: that heading's way
+ * onward, the reference's More at the end of the heading row, named "Details"
+ * then too — the synopsis and the full record are one subject at two depths.
  * `trigger="row"` is a control at the foot of another card, which is where the
- * page had it before the sections became SimpMusic's. `trigger="card"` is a
- * section of its own, for a caller with neither a heading nor a card to lend.
+ * page had it before the sections became SimpMusic's. Neither is in use; both
+ * are kept for the next caller that has a heading or a card to lend.
  */
 export function GameDetailsSheet({
   gameId,
@@ -109,11 +111,15 @@ export function GameDetailsSheet({
         </PressableScale>
       ) : (
         /* A card that is a door, matching every other panel on the tab rather
-           than being the one full-width button among them. The chevron is what
-           says it opens something; the line under the title says what. */
+           than being the one full-width button among them. The heading's More
+           is what says it opens something; the line in the card says what.
+
+           "Details", the name this door has always had on this page. Not
+           "More information": the tab has "Additional information" (Wikidata's)
+           further down, and the two would be one phrase said twice. */
         <InfoCardButton
-          title="More information"
-          accessibilityLabel="More information about this game"
+          title="Details"
+          accessibilityLabel="Details about this game: genres, modes, age ratings and languages"
           onPress={() => setOpen(true)}>
           <Text variant="body" color="textSecondary">
             Genres, themes, modes, perspectives, engines, age ratings and languages.

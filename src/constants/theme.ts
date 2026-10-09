@@ -179,6 +179,22 @@ export const Colors = {
      * PC-cover frame is drawn in it, and that frame is protected.
      */
     borderStrong: 'rgba(255, 255, 255, 0.12)',
+    /**
+     * The edge of box art: one hairline of cool white, drawn *inside* a cover's
+     * own edge and over its artwork.
+     *
+     * The owner's reference — the poster on a film's page in Letterboxd — and
+     * its numbers: `#DDEEFF` at 35%, measured off the screenshot as `#4B4E55`
+     * where the art under it is black. Over the art, not round it, which is why
+     * it is an alpha and not a grey: on a dark cover it is a lit edge that stops
+     * the box dissolving into a near-black page, and on a white one it is
+     * nothing at all, which is right — a white box needs no help.
+     *
+     * `<Poster>` draws it on every portrait cover at the box-art corner; the
+     * two shelves that draw their own covers use it too. Not the game case's,
+     * whose framed cover keeps `borderStrong` above.
+     */
+    coverEdge: 'rgba(221, 238, 255, 0.35)',
 
     /**
      * The house accent. PlayStation blue, and the app's own colour: the tab

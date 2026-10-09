@@ -66,9 +66,13 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # Surprise Me picks and how long a soundtrack runs
                    # (lib/soundtrack-pick), which of a game's images is its
                    # hero, against IGDB's real records (lib/games/hero-art),
-                   # and the player's arithmetic and
+                   # the player's arithmetic and
                    # the routes the mini player stays off, read against the
-                   # root layout and the route files (lib/player-queue)
+                   # root layout and the route files (lib/player-queue), and
+                   # the game page's masthead: its cover's size, the hero's
+                   # dissolve and where the row sits in it, the cover's halo
+                   # and the synopsis's fade, each against the reference it
+                   # was measured from (constants/game-masthead)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -248,7 +252,8 @@ src/
                      award-show / award-slot  an award ballot, and one row of it
                      game-filter-bar    genre / platform / studio / year pills
                      game-lineage       original game / editions & extras
-                     game-insights      rating histogram, time to beat, events
+                     game-insights      rating histogram, time to beat, the two
+                                        rails of reviews (members', critics')
                      game-details-sheet the full IGDB record, behind a button
                      add-to-collection  pick which collection a game joins
                      store-prices       where to buy, from IsThereAnyDeal
@@ -315,7 +320,13 @@ src/
                                         (its sizes as fractions of the display)
                      ui/expandable-text text in a card that opens in place, the
                                         window's height animating (the
-                                        reference's DescriptionView)
+                                        reference's DescriptionView) — or, with
+                                        `fade`, text standing on a page: its
+                                        last lines dissolving, itself the thing
+                                        you press (the game page's synopsis)
+                     ui/cover-halo      the soft round shadow behind the game
+                                        page's cover: a native radial gradient,
+                                        that page only
                      ui/dropdown-button SimpMusic's DropdownButton: an outlined
                                         pill holding the current choice, and a
                                         menu that opens *from* it (anchored,
@@ -373,6 +384,10 @@ src/
                      copy-stage.ts (the copy showcase's measurements: how large
                      a case stands, how deep it is, its disc's size, which
                      cases open),
+                     game-masthead.ts (the game page's masthead, measured off
+                     the owner's reference: the cover's width, the hero's
+                     dissolve, where the row sits in it, the halo, the
+                     synopsis's fade — pure, tested),
                      similarity.ts (the twelve reasons), reports.ts (what a
                      report can say, per kind), wikidata.ts (every Wikidata
                      property the additional-information screen reads),
@@ -1613,7 +1628,7 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   OpenCritic's.** `aggregated_rating` is one averaged number and a count —
   nothing in the schema says "IGN gave this 90", let alone what IGN wrote.
   `<CriticReviewsWidget>` quotes each outlet's snippet in a card the size of
-  "Featured in" (`<ArtRail shape="wide">`), the quote in the review's own step
+  a screenshot (`<ArtRail shape="wide">`), the quote in the review's own step
   and ink (`reviewExcerpt`, `proseInk`), the score in the score ramp, and a card opens the
   review. **That card is `<ReviewQuote>`, and it is the member's review card
   too**, at the owner's direction: the rail of the app's own reviews above the
@@ -1818,8 +1833,15 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   `import()` behind a latching availability flag and falls back to
   `lib/artwork-color.ts` (pure-JS `jpeg-js`, works anywhere). Dev builds get the
   native extractor; Expo Go gets the decoder; neither branch is a degraded mode.
-- **The game page's masthead: the hero as it always was, and one row under
-  it — four owner rulings, each of which undid something.**
+- **The game page's masthead is a film's page in Letterboxd, measured.** The
+  owner's second reference (2026-10-08, a screenshot of a 360dp display at 3×):
+  every size and interval was read off it and is in
+  `constants/game-masthead.ts`, under `npm test`. Type is matched by capital
+  height — the reference is Graphik, this is Inter. Top to bottom: the hero,
+  one row set into its fade (billing left, cover right), the synopsis as bare
+  text, one full-width rule, the stats strip, the actions, your log. **Seven
+  owner rulings hold it, and the later ones undid earlier ones — do not "restore"
+  any of them:**
   1. **The hero is the backdrop hero** — 38% of the display
      (`heroHeightFor`), the art cropped to fill it, `scrim`, `fade="mask"`,
      running under the status bar. For one pass it was a picture instead: the
@@ -1828,26 +1850,85 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
      art old aspect ratio… you have to keep the fade transition". **Do not
      re-try an uncropped hero or drop the fade.** What stayed from that pass is
      *which* image it is (§ Artwork).
-  2. **The cover and the billing are under the art, not over it.** The cover
-     used to rise 46% of its height into the hero — "a boxed copy propped
-     against a poster" — and the owner had the row moved onto the page's solid
-     colour, with nothing laid on the art. It sits twelve under the hero's
-     bottom edge (`identityUnderHero`): the art has dissolved before that
-     edge, so the fade is the space between them. Never a negative margin
-     larger than the header's gap.
-  3. **The billing is on the left, against the cover.** It was right-aligned
-     against the far margin for one pass, at the owner's request, and brought
-     back by the owner. Leave it left.
-  4. **The billing is larger than anything in `Type`**, at the owner's
-     direction: the name 28/34, the date `h3`, the credits 15/21, the score
-     `h3`. The name and the credits are that row's own sizes
-     (`billingTitle`, `billingCredit`) with their own line heights; the name
-     runs to four lines, because a game's name is not truncated on its own
-     page.
+  2. **The fade is soft, and the row is in it.** "The fade for the hero art
+     should be softer… the title and art should sit just barely above the
+     point where the fade starts. Not below it, not above it, right into it."
+     The mask starts a sixth of the way down, eases at both ends and trails
+     off (`dissolveAt`: `(1 − u^2.4)²`); it was full strength to 38% and then a
+     straight line, which has a corner at each end. The row rises into the
+     hero (`mastheadOverlap`, 11.5% of its height, ~30dp) so the top of the
+     cover is on the last tenth of the art and the art has gone by the title.
+     **This replaced "under the art, twelve below its edge"**, which had
+     replaced the cover rising 46% into the picture ("a boxed copy propped
+     against a poster"). Neither comes back: not a gap under the hero, not a
+     cover over visible art. `fade="mask"` has one caller, so the curve is
+     this page's.
+  3. **The cover is on the right; the billing starts at the margin and is set
+     left.** The reference's arrangement. The billing was right-*aligned* for
+     one pass and brought back; that ruling stands — it is the cover that
+     changed sides. The row is top-aligned and the billing starts twelve under
+     the cover's top, which puts the name's capitals eighteen under it — the
+     reference's — on every game. It was centred against the cover for the
+     first build, and a game with one line under its name dropped out of the
+     fade; slack falls under the billing, beside the foot of the cover.
+  4. **Everything in it is smaller than it was.** The cover is 27.8% of the
+     display (`mastheadCoverWidth`: 100dp on 360; it was a third), the name
+     22/27 (`billingTitle` — it was 28/34), the lines under it `body` (they
+     were `h3` and 15). The name runs to four lines: a game's name is not
+     truncated on its own page. **The box in Platforms kept its third**
+     (`CASE_WIDTH_RATIO`) — it is the case, and was not asked to change.
+  5. **Three plain lines under the name**: date, developer, publisher, in
+     sentence case and the quiet ink. The owner was offered the reference's
+     "2017 · DEVELOPED BY" over a bold name, in capitals or not, and chose
+     "keep today's three lines". No label, no capitals, nothing bold but the
+     name.
+  6. **The inks are the game's own, at the reference's lightness.** Its title
+     is pure white, its bold name L* 93, everything else L* 76–81, on a page
+     at L* 10 — which is M3's 100 / 92 / 82 on tone 10, the ladder a game's
+     page already has. So: `onPrimary` (the palette's one pure white) for the
+     name, `accent.quietInk` for the rest, and Letterboxd's own blue-greys
+     nowhere. The owner chose this over the literal hexes.
+  7. **The synopsis is in the masthead, not in a card.** "Standalone text in
+     the header": under the row, above the strip, three lines, the last line
+     and a quarter fading into the page (`ABOUT_FADE`), the text itself the
+     thing you tap, opening with the card's own motion
+     (`<ExpandableText fade>`). No heading, no More. A game with no synopsis
+     has no block. Under it one hairline runs edge to edge — the reference's,
+     and the only rule in the masthead.
+  Two things came with the cover. **It is a `<Poster>`**, not the case
+  feature's framed cover it used to be drawn through (`<GameCaseFlip>` on a
+  platform with no case): that one has a 12dp corner and its own frame, both
+  protected, and the owner asked for the reference poster's corner and outline.
+  No protected file was edited; the slot changed hands, the landing pose is
+  `<GameCaseFlip>`'s term for term, and the case feature still draws the box in
+  Platforms. **And it stands on a halo** (`<CoverHalo>`): a soft round darkening
+  behind it, ~40dp past its edges, about 30% at the middle of its sides — the
+  reference's is 20%, and the owner asked for one that is "medium sized", not
+  small. An ellipse in the cover's proportions, drawn as the row's first child
+  so it is under the billing as well as the cover. It is the one place a
+  centred, offsetless shadow is right here; do not copy it to a rail.
+  **Not yet seen on a phone.** Types, lint and the geometry's tests pass; the
+  fade's softness, where the row lands in it and the halo's strength are the
+  three things to judge on a device.
+- **Every portrait cover wears one edge.** One hairline of cool white inside
+  the cover's own corner, over the art — `coverEdge`, `#DDEEFF` at 35%, the
+  reference poster's outline, at the owner's direction ("add the outline… to
+  every portrait art in the app"). `<Poster>` draws it whenever it is asked for
+  the box-art corner (`rounded="image"`, the default, 4dp — which the reference's
+  measured 3.9 already was), as an overlay and never as a border: a border
+  pushes the art in and shows the frame's fill, a fixed grey on every cover,
+  where this lightens the art under it. The profile's shelf and Surprise Me's
+  entry deck draw their covers by hand and ask for the token by name. **Four
+  things do not wear it**: the game case and its framed PC cover
+  (`rounded="caseImage"` — protected, and it has a frame of its own), a banner
+  that fills its container (`rounded="none"`, the collection header), square
+  art (the owner said portrait), and the mosaic. A wrapper that drew its own
+  hairline round a `<Poster>` had it removed (`community-similar`); a new one
+  would be a doubled line.
 - **One score in the masthead: IGDB's, and only when the app has none.** The
   stats strip under the row prints the app's own average and its count
   (`['rating-breakdown', gameId]`). IGDB's `total_rating` — "Community" —
-  beside the cover is drawn only when that query has answered with no ratings
+  under the billing is drawn only when that query has answered with no ratings
   (or failed); with one, it was a second, different number about the same game
   a line above the first. Nothing is drawn while the query is pending: a figure
   that appears and is then removed is worse than one a moment late. The page
@@ -1878,7 +1959,7 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   `DescriptionView.kt`, at the owner's direction. Every section is a heading on
   the page (`h4`, the reference's 16sp bold) with its content under it, and
   what the content is decides its shape:
-  - **Pictures → a rail, no card.** Screenshots, Featured in (events), Original
+  - **Pictures → a rail, no card.** Screenshots, Original
     game, Editions & extras and the franchise are `<Section>` + `<ArtRail>`
     (covers through `<GameCoverRail>`): the art, a two-line title always held
     open, one quiet line — the reference's "Singles" / "Albums". Covers are 2:3
@@ -1890,11 +1971,11 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
     title, "is available on …", the platform `<DropdownButton>` and the price.
     No card, because its subject is an object, and the case casts its own
     shadow. **The case lives here, not in the masthead**: the masthead shows
-    the plain cover, still (`PLAIN_COVER`), and has no gesture and no price.
+    the plain cover, still (a `<Poster>`), and has no gesture and no price.
     The section opens on the platform you logged, else the first with a case,
     else the first; its art slot reserves the tallest shape the game can show
     so switching PS5 → PC does not move the page.
-  - **Words and figures → a card.** About, Where to buy, Your copy, Reviews,
+  - **Words and figures → a card.** Details, Where to buy, Your copy, Reviews,
     Time to beat, Developers, Additional information and Achievements are
     `<InfoCard>` (read) or `<InfoCardButton>` (a door, whose heading carries the
     reference's More and whose card is the same door). The card is the
@@ -1903,8 +1984,16 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
     dark-vibrant swatch, and that is the tone the dynamic scheme holds.
   - **A heading's More** (`<SectionMore>`) is the reference's `TextButton`: one
     quiet word at the end of the heading row — all reviews, the copies, the
-    Wikidata screen, the achievements. About's is "Details", the full IGDB
-    record; its card has a More of its own that opens the synopsis in place.
+    Wikidata screen, the achievements, the full IGDB record.
+  - **There is no About here, and no "Featured in".** The synopsis is in the
+    masthead (see the masthead's ruling 7). **Details** — the full IGDB record,
+    which was About's More — took its place as a door card of its own
+    (`<GameDetailsSheet trigger="card">`), so nothing reachable from the tab
+    was lost in the move; it is "Details" and not "More information" because
+    "Additional information" (Wikidata's) is further down the same tab. The
+    rail of showcases a game appeared at was removed by the owner, with
+    `<GameEventsWidget>` and the per-game `events` query behind it; events are
+    still in Search and on `event/[id]`.
   - **Sizes are fractions of the display** (`useSectionMetrics`): the
     reference's dp values over the 360dp phone it was measured on, where its
     180dp album art is exactly half the width. Type stays on `Type`. The
@@ -1916,9 +2005,12 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
     text is laid out and the *height of its window* moves, 250ms on
     FastOutSlowIn, the reference's own method — the clamp itself never
     changes, which is what stops the text being cut before the box catches
-    up. Used by About, a collection's description, a similar pick's suggestion
-    and an award's note. Lists that grow ("Show all 24") are not text and still
-    step.
+    up. Used by a collection's description, an event's, a similar pick's
+    suggestion and an award's note — and, with `fade`, by the synopsis in this
+    page's masthead, where the text stands on the page: no More, its last
+    lines dissolving, the text itself what you press. The veil reads the
+    window's own height, so it has no clock to drift. Lists that grow ("Show
+    all 24") are not text and still step.
   Nothing here is `Radius.cardLarge` any more; the token survives for the
   `Card` panel variant and the welcome screen.
 - **A hidden game is a promise, not a preference.** Double-tapping a cover in
@@ -2462,7 +2554,9 @@ was not this app's code. The rules that keep it that way:
   like every IGDB path; the singular 404s — is keyed on `game_id` and returns
   **seconds** (not minutes — that guess puts every game at 60× its length); `events` is filtered on its own `games` array, since IGDB
   exposes that join in one direction only and there is no `game.events` field to
-  add to `GAME_FIELDS`. `age_ratings` and `language_supports` moved from integer
+  add to `GAME_FIELDS` (the game page's "Featured in" rail asked it that way
+  until the owner removed the rail; `event/[id]` reads the same array from the
+  event's side). `age_ratings` and `language_supports` moved from integer
   enums to referenced rows — expand `rating_category.rating`,
   `organization.name` and `language.name`, or a client mapping the old integers
   gets nothing back and no error.

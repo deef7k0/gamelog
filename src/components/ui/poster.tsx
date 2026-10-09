@@ -73,6 +73,12 @@ export type PosterProps = {
   width: number;
   /** Posters in a scrolling row do not need shadows; detail heroes do. */
   elevated?: boolean;
+  /**
+   * The corner. `image` — the default, and box art's own — also carries the
+   * cover's edge (see `styles.edge`). Any other corner belongs to another
+   * object: the game case's window (`caseImage`), which has a frame of its own,
+   * or a banner that fills its container (`none`). Those are drawn bare.
+   */
   rounded?: keyof typeof Radius;
   /**
    * Fill the parent's height instead of deriving it from `width`.
@@ -177,6 +183,7 @@ export const Poster = memo(function Poster({
   const [steamFailed, setSteamFailed] = useState(false);
   const height = width / PosterAspectRatio;
   const radius = Radius[rounded];
+  const edged = rounded === 'image';
   const badge = width >= BADGE_MIN_WIDTH ? editionLabel(edition) : null;
   /* Rounded, because a fractional inset on one side and its rounding on the
      other would leave a sub-pixel gap at the extreme of the travel — which is
@@ -302,6 +309,25 @@ export const Poster = memo(function Poster({
             />
           </View>
         )}
+
+        {/*
+          The cover's edge: one hairline of cool white inside its own corner,
+          over the art.
+
+          The owner's reference draws every poster this way, and the owner asked
+          for it on every portrait in the app. A sibling of the artwork, like the
+          badges, so a parallax slides the art under it and the edge stays put.
+          An overlay, not a border on the frame: a border would push the art in
+          and show the frame's own fill through it — a fixed grey line on every
+          cover — where this lightens whatever art is under it, so a dark box
+          gets a lit edge and a white one gets none. One inert view per cover.
+        */}
+        {edged && (
+          <View
+            pointerEvents="none"
+            style={[styles.edge, { borderRadius: radius, borderColor: theme.coverEdge }]}
+          />
+        )}
       </View>
     </View>
   );
@@ -374,6 +400,14 @@ const styles = StyleSheet.create({
      opposite corners in either reading direction. */
   mustPlay: { position: 'absolute', top: Spacing.x4, end: Spacing.x4 },
   clip: { width: '100%', height: '100%', overflow: 'hidden' },
+  edge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   image: { width: '100%', height: '100%' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

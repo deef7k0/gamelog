@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Linking, StyleSheet, View } from 'react-native';
 
@@ -17,7 +16,7 @@ import { getRatingBreakdown, getTopGameReviews } from '@/lib/api';
 import type { LogWithRelations } from '@/lib/database.types';
 import { displayNameFor } from '@/lib/format';
 import { getCriticSummary, quotedReviews, type CriticReview } from '@/lib/games/critics';
-import { getGameEvents, getTimeToBeat, type GameEvent } from '@/lib/games/igdb';
+import { getTimeToBeat } from '@/lib/games/igdb';
 import { parseGameId } from '@/lib/games';
 
 /**
@@ -308,7 +307,7 @@ function writerOf(log: LogWithRelations): string {
  * The trade press is a different claim from the people here, so it is its own
  * section rather than a line in the app's own reviews: a sentence of the
  * review, the outlet it ran in, and the score it gave. The cards are the size
- * and rhythm of "Featured in" directly under it (`<ArtRail shape="wide">`),
+ * and rhythm of the screenshots at the top of the tab (`<ArtRail shape="wide">`),
  * with the quote where the picture is, and a card opens the review it quotes.
  *
  * ## Where it comes from
@@ -427,110 +426,6 @@ function criticLine(review: CriticReview): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Events
-// ---------------------------------------------------------------------------
-
-/**
- * Showcases, conferences and award shows the game appeared at.
- *
- * Most games have none, and that is what makes it worth a widget: an appearance
- * at The Game Awards or a Nintendo Direct is a fact about the game's *life* that
- * nothing else on the page carries. A release date says when it shipped; this
- * says when it was a moment.
- *
- * Renders nothing when the list is empty rather than an empty state — an absence
- * here is the normal case and does not need explaining.
- */
-export function GameEventsWidget({ gameId }: { gameId: string }) {
-  const parsed = parseGameId(gameId);
-  const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
-
-  const events = useQuery({
-    queryKey: ['game-events', igdbId],
-    queryFn: ({ signal }) => getGameEvents(igdbId!, signal),
-    enabled: !!igdbId,
-    staleTime: 24 * 60 * 60_000,
-    retry: false,
-  });
-
-  const data = events.data ?? [];
-  if (data.length === 0) return null;
-
-  /* Pictures, so a heading over a rail of them and no card — SimpMusic's
-     "Featured on", with the event's banner where the playlist's cover is. They
-     were rows in a card, with the art cut to a 64dp mark. */
-  return (
-    <Section title="Featured in">
-      <ArtRail
-        data={data}
-        keyOf={(event) => String(event.id)}
-        shape="wide"
-        renderArt={(event, size) => <EventArt event={event} size={size} />}
-        titleOf={(event) => event.name}
-        subtitleOf={(event) => (event.startTime === null ? null : formatEventDate(event.startTime))}
-        labelOf={(event) => (event.liveStreamUrl ? `${event.name}. Opens the event.` : event.name)}
-        onPressItem={(event) => {
-          if (!event.liveStreamUrl) return;
-          Linking.openURL(event.liveStreamUrl).catch(() => {
-            // No handler for the scheme; nothing useful to say about it.
-          });
-        }}
-      />
-    </Section>
-  );
-}
-
-/**
- * An event's banner, at the rail's size.
- *
- * The artwork falls back twice — IGDB's `event_logo`, then a frame of the stream
- * it links to (see `youtubeThumbnail`), then a flat panel carrying the event's
- * initial. The third rung matters: a rail with a hole where a picture should be
- * looks broken, where a lettered panel looks like a thing without a picture.
- */
-function EventArt({ event, size }: { event: GameEvent; size: { width: number; height: number } }) {
-  const accent = useAccent();
-
-  if (event.logoUrl) {
-    return (
-      <Image
-        source={{ uri: event.logoUrl }}
-        style={[size, styles.eventArt]}
-        contentFit="cover"
-        transition={220}
-        accessibilityIgnoresInvertColors
-      />
-    );
-  }
-  return (
-    <View
-      style={[
-        size,
-        styles.eventArt,
-        styles.eventFallback,
-        { backgroundColor: accent.m3.surfaceContainerHigh },
-      ]}>
-      <Text variant="h1" color="textMuted">
-        {event.name.trim().charAt(0).toUpperCase()}
-      </Text>
-    </View>
-  );
-}
-
-/** Unix seconds → "10 December 2020, 20:30" in the reader's own locale. */
-function formatEventDate(unixSeconds: number): string {
-  const date = new Date(unixSeconds * 1000);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-// ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   /* `flex-end` so the bars grow upward from a shared baseline — the whole read
@@ -540,8 +435,4 @@ const styles = StyleSheet.create({
   bar: { width: '100%', borderRadius: Radius.xs },
 
   verdictRow: { gap: 1 },
-
-  eventFallback: { alignItems: 'center', justifyContent: 'center' },
-  /* The app's box-art corner: the rail is SimpMusic's, the art is this app's. */
-  eventArt: { borderRadius: Radius.image },
 });

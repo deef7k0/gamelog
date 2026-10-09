@@ -4,14 +4,13 @@ import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { memo, useCallback, useState, useSyncExternalStore } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
-import { GameCaseFlip } from '@/components/game-case-flip';
 import { GameDetailsSheet } from '@/components/game-details-sheet';
 import {
   CriticReviewsWidget,
-  GameEventsWidget,
   MemberReviewsWidget,
   TimeToBeatWidget,
 } from '@/components/game-insights';
@@ -29,8 +28,10 @@ import { StorePrices } from '@/components/store-prices';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
+import { CoverHalo } from '@/components/ui/cover-halo';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
+import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -40,12 +41,20 @@ import { ArtRail, Section, SectionInsetProvider, useSectionMetrics } from '@/com
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { editionLabel } from '@/constants/game-editions';
+import {
+  ABOUT_FADE,
+  ABOUT_LINES,
+  COVER_GUTTER,
+  mastheadCoverWidth,
+  mastheadOverlap,
+} from '@/constants/game-masthead';
 import { copyStateLine, releaseLine } from '@/constants/physical';
 import { labelFor, scoreColor } from '@/constants/score';
 import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
-import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
+import { useLandingArrival } from '@/hooks/use-arrival';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
@@ -72,31 +81,14 @@ const TABS = [
   { key: 'similar' as const, label: 'Similar' },
 ];
 
-/**
- * The case, sized against the screen rather than a fixed width.
- *
- * 38% leaves the remaining ~55% of the column for the title and the billing
- * beside it. Everything on this page is a ratio of the window
- * for the same reason: the masthead is a *proportion* — art this wide, copy
- * that wide — and a fixed number would make the same composition read as two
- * different designs on a phone and a tablet.
- */
-/**
- * Lines of synopsis before its More: the reference's description card shows
- * five (`limitLine = 5`). IGDB summaries run 500–2000 characters — twenty-odd
- * lines — and at the top of the tab the whole of one would push every other
- * section below a second screenful.
- */
-const SYNOPSIS_LINES = 5;
-
 /*
- * How much of the viewport the case takes, and the ceiling on a wide one.
+ * How wide the Platforms section draws its box, and the ceiling on a wide
+ * display.
  *
- * 0.33, down from 0.38. The case is the subject of this row and it stays the
- * subject — but at 38% it left a 390dp phone with a ~218dp column holding a
- * 26px title, two credit lines and a score row, and the title wrapped to three
- * lines on anything longer than "Red Dead Redemption 2". Four points of width
- * moved to the text is ~20dp of measure, which is most of a word per line.
+ * A third of the display. It was the masthead's cover too, until the masthead
+ * took the reference's smaller one (`mastheadCoverWidth`, 100dp on a 360dp
+ * phone). The box in Platforms kept its size: it is the case — the object this
+ * page exists to show — and nothing about it was asked to change.
  *
  * These are the *page's* choice of how wide to draw the case, not the case's own
  * geometry: `<GameCase>` takes a width and its internal proportions, materials,
@@ -118,21 +110,58 @@ const REVIEW_LINK_SLOP = { top: 15, bottom: 15, left: 8, right: 8 };
 const STUDIO_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
 
 /**
- * The case, memoised from the outside.
+ * The masthead's cover: the game's box art, landing as the page opens.
  *
- * `<GameCaseFlip>` is protected and is not edited; wrapping it here is the
- * page's business. Its props are the game's own fields and constants — all
- * stable references between renders — so a page update that changes none of
- * them (a query landing for another section, the synopsis opening) no longer
- * re-renders the cover and its animated transform.
+ * A `<Poster>` — box art at its own 4dp corner, wearing the cover's edge — and
+ * no longer the case feature's framed cover, which is what this slot drew
+ * through `<GameCaseFlip>` while it stood in for a case with nothing to turn.
+ * That one has a 12dp corner and a frame of its own, both protected; the owner
+ * asked for the reference poster's corner and outline here, so the slot changed
+ * hands and the protected components were left exactly as they are. They still
+ * draw the box in Platforms.
+ *
+ * **It lands as it always has**: raised, a little small and turned, settling on
+ * the arrival spring, with the action row following it in. The pose is
+ * `<GameCaseFlip>`'s, term for term, so the masthead's one authored moment did
+ * not change when the object under it did. `landed` adds the resting pose as a
+ * plain style once the spring is over — see `useLandingArrival` for what is lost
+ * without it.
+ *
+ * Memoised: its props are the game's own fields, so a query landing for another
+ * section, or the synopsis opening, re-renders neither the cover nor its
+ * animated transform.
  */
-const CaseFlip = memo(GameCaseFlip);
+const MastheadCover = memo(function MastheadCover({
+  coverUrl,
+  heroUrl,
+  title,
+  width,
+}: {
+  coverUrl?: string | null;
+  heroUrl?: string | null;
+  title: string;
+  width: number;
+}) {
+  const { progress, landed } = useLandingArrival();
 
-/**
- * A platform with no case, so the masthead's `<GameCaseFlip>` draws the plain
- * cover — and, having no back to show, does not turn. See the masthead.
- */
-const PLAIN_COVER: PlatformKey = 'other';
+  const pose = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 900 },
+      { translateY: interpolate(progress.get(), [0, 1], [-14, 0]) },
+      { scale: interpolate(progress.get(), [0, 1], [0.92, 1]) },
+      { rotateY: `${interpolate(progress.get(), [0, 1], [14, 0])}deg` },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[pose, landed && styles.coverLanded]}>
+      {/* No `gameId` and no `edition`: the Must Play mark is a cell of the
+          strip under this row, and the edition word is printed on the case in
+          Platforms. This is the cover as the game is billed. */}
+      <Poster coverUrl={coverUrl} heroUrl={heroUrl} title={title} width={width} />
+    </Animated.View>
+  );
+});
 
 /** The four sheets this page raises. */
 type SheetName = 'reviews' | 'similar' | 'lists' | 'progress';
@@ -211,6 +240,12 @@ export default function GameDetailScreen() {
 
   const caseWidth = Math.min(CASE_MAX_WIDTH, Math.round(width * CASE_WIDTH_RATIO));
   const heroHeight = heroHeightFor(width, windowHeight);
+  /* The masthead's measurements, each a proportion of this display: the cover
+     the reference's 100dp on 360, and how far the row rises into the hero so
+     its top lands on the last tenth of the fade. `constants/game-masthead`. */
+  const coverWidth = mastheadCoverWidth(width);
+  const coverHeight = Math.round(coverWidth / PosterAspectRatio);
+  const overlap = mastheadOverlap(heroHeight);
 
   const game = useQuery({
     queryKey: ['game', id],
@@ -430,6 +465,12 @@ export default function GameDetailScreen() {
    */
   const showCommunityScore = data.score !== null && !appRatings.isPending && !appRatings.data;
 
+  /* Whether the billing has anything under the name. A boolean, not the
+     `a || b` itself: a year of 0 or an empty name would be drawn as text. */
+  const hasBillingLines = Boolean(
+    data.releaseDate || data.releaseYear || data.developer || data.publisher
+  );
+
   /** The masthead, rendered above every tab. */
   const header = (
     <View style={styles.header}>
@@ -439,12 +480,16 @@ export default function GameDetailScreen() {
             Dissolving the art's own alpha lets whatever is behind show through,
             whatever colour it is.
 
-            The hero is the app's backdrop hero again — 38% of the display, the
-            art cropped to fill it, dissolving into the page — after one pass
-            as a picture shown whole at its own shape, which the owner took
-            back. What survived that pass is *which* image it is: the game's
-            key art, chosen (`lib/games/hero-art.ts`), not IGDB's first
-            artwork, which was as often an icon or a wordmark. */}
+            The hero is the app's backdrop hero — 38% of the display, the art
+            cropped to fill it, dissolving into the page — after one pass as a
+            picture shown whole at its own shape, which the owner took back.
+            What survived that pass is *which* image it is: the game's key art,
+            chosen (`lib/games/hero-art.ts`), not IGDB's first artwork, which
+            was as often an icon or a wordmark.
+
+            The dissolve itself is softer than it was: it starts higher, eases
+            at both ends and trails off, where it used to run in a straight
+            line to the hero's bottom edge and stop. See `<HeroArt>`. */}
         <HeroArt
           uri={data.heroUrl}
           steamAppId={data.steamAppId}
@@ -454,80 +499,72 @@ export default function GameDetailScreen() {
         />
       </View>
 
-      {/* Group 1 — identity, as one row **under** the art: the cover on the
-          left, everything the game *is* set beside it. Stacked and centred,
-          this block was two full screens before the first review; side by side
-          it is one.
+      {/*
+        Group 1 — identity, as one row set into the foot of the art: the
+        billing from the page's margin, the cover against the far one.
 
-          Under, not over. The cover used to rise half its height into the
-          hero, and the owner had the row moved down onto the page's solid
-          colour so that nothing is laid on the art. The art's own fade is the
-          space between them, which is why this row sits closer to the hero
-          than the header's other groups sit to each other. */}
-      <View style={[styles.identity, styles.identityUnderHero]}>
-        {/*
-          Always the plain cover, and still.
+        The arrangement, and every size and interval in it, is the owner's
+        reference — a film's page in Letterboxd — measured off a screenshot and
+        written down in `constants/game-masthead`. Three things about it are
+        the owner's rulings, and each replaced one:
 
-          The case moved to the Overview's Platforms section, with the platform
-          button beside it and the turn-over that shows your record on its back
-          — choosing a platform up here, by holding the box, was a gesture
-          nobody could see. The masthead says *which game*; the section says
-          *which box*. So this is the cover as the game is billed, landing on
-          arrival as it always has, with nothing to press.
+        **It is in the fade.** "Not below it, not above it, right into it": the
+        row rises into the hero until the top of the cover is on the last tenth
+        of the art, and the art has gone by the title a few lines down. It sat
+        twelve under the hero's edge before this, on the rule that nothing is
+        laid on the art — and before that the cover rose half its height into
+        the picture, "a boxed copy propped against a poster". What is under the
+        row now is the art's last trace, which is neither.
 
-          `PLAIN_COVER` is a platform with no case, which is how the protected
-          `<GameCaseFlip>` is asked for the bare cover — and it would announce
-          that key by name. The label is the page's, set outside it, and the
-          object inside is hidden from assistive tech so it is read once.
+        **The cover is on the right.** The billing starts at the margin and is
+        set left, as it always was; the cover changed sides, so the name is the
+        first thing on the row and the box closes it.
 
-          The edition band ("Remake", "Definitive Edition") is printed by the
-          case, so it is on the box in Platforms; a plain cover never carried it.
-        */}
-        <View
-          accessible
-          accessibilityRole="image"
-          accessibilityLabel={[
-            data.title,
-            data.edition ? editionLabel(data.edition) : null,
-            'cover art',
-          ]
-            .filter(Boolean)
-            .join(', ')}>
-          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <CaseFlip
-              coverUrl={data.coverUrl}
-              heroUrl={data.heroUrl}
-              title={data.title}
-              edition={data.edition ? editionLabel(data.edition) : null}
-              platform={PLAIN_COVER}
-              width={caseWidth}
-              log={null}
-            />
-          </View>
-        </View>
+        **It is smaller.** The cover is 28% of the display (it was a third) and
+        the type came down with it — see the billing.
+
+        Top-aligned, the billing twelve under the top of the cover: that puts
+        the name's capitals eighteen under it, where the reference's title is,
+        and keeps them there whatever the billing's length — so the name is in
+        the last of the fade on every game. Centred against the cover, a game
+        with one line under its name dropped out of the fade altogether; any
+        slack falls under the billing instead, beside the foot of the cover.
+      */}
+      <View style={[styles.identity, { marginTop: -overlap }]}>
+        {/* First, so it is under the cover and under the billing both — see
+            `<CoverHalo>`. */}
+        <CoverHalo width={coverWidth} height={coverHeight} />
 
         {/*
-          The billing, beside the cover and a size above the interface.
+          The billing: the name, then what the game is in three quiet lines.
 
-          It has been enlarged twice, both times for the same reason: the cover
-          is fixed dp and does not ride the spacing ladder (DESIGN.md § 4.1), so
-          whenever the chrome was tuned the art stayed put and the type beside
-          it fell away from it. First to `display` / `h4` / `body`; now, at the
-          owner's direction, a step past each of those — 28 for the name, `h3`
-          for the date, 15 for the two credits, `h3` for the score. The name and
-          the credits are sizes of this row's own (`styles.billingTitle`,
-          `billingCredit`), each with its own line height: `Type` has nothing
-          above `display` and no regular step between 13 and 14.
+          Sizes are the reference's, matched to Inter by capital height: 22 for
+          the name (its own step, `styles.billingTitle` — `Type` has nothing
+          between 20 and 23) and `body` for the rest. It was 28 / 18 / 15, a size
+          above the interface, on the argument that the cover beside it does not
+          ride the type scale; the owner had "everything in the top sized down"
+          and the cover with it, so the two still agree.
 
-          Left-aligned, against the cover. It was set against the right margin
-          for one pass and the owner had it brought back.
+          Inks are the reference's too, by lightness: its title is pure white
+          and everything under it a mid blue-grey at L* 76–81, on a page at L*
+          10. A game's page is M3's tone 10 and `accent.quietInk` its tone 82 —
+          the same ladder, carrying this game's trace instead of Letterboxd's.
 
-          Four lines for the name, not three: at 28 a long title — "The Legend
-          of Zelda: Breath of the Wild" — needs the fourth, and a game's name is
-          the one thing on its own page that must not end in an ellipsis.
+          The lines are the three this row always had, at the owner's choice: no
+          "developed by" label, no capitals, nothing bold but the name.
+
+          Four lines for the name, not three: a long title — "The Legend of
+          Zelda: Breath of the Wild" — runs to three at this measure, and a
+          game's name is the one thing on its own page that must not end in an
+          ellipsis.
         */}
-        <View style={styles.identityText}>
-          <Text variant="display" numberOfLines={4} style={styles.billingTitle}>
+        <View style={styles.billing}>
+          {/* `onPrimary` is the palette's one pure white. `text` is a step
+              under it, and the reference's title is not. */}
+          <Text
+            variant="display"
+            numberOfLines={4}
+            style={[styles.billingTitle, { color: theme.onPrimary }]}>
             {data.title}
           </Text>
 
@@ -535,38 +572,43 @@ export default function GameDetailScreen() {
               block — on a tonal accent it resolves to M3's `onSurfaceVariant`,
               which carries a trace of the game's own hue rather than being a
               flat grey dropped onto a coloured page. */}
-          {data.releaseDate ? (
-            <Text variant="h3" style={{ color: accent.quietInk }}>
-              {formatReleaseDate(data.releaseDate)}
-            </Text>
-          ) : data.releaseYear ? (
-            <Text variant="h3" style={{ color: accent.quietInk }}>
-              {data.releaseYear}
-            </Text>
-          ) : null}
+          {hasBillingLines && (
+            <View style={styles.billingLines}>
+              {data.releaseDate ? (
+                <Text variant="body" style={{ color: accent.quietInk }}>
+                  {formatReleaseDate(data.releaseDate)}
+                </Text>
+              ) : data.releaseYear ? (
+                <Text variant="body" style={{ color: accent.quietInk }}>
+                  {data.releaseYear}
+                </Text>
+              ) : null}
 
-          {/* Developer and publisher are different facts and are frequently
-              different companies, so they get a line each rather than being
-              joined by a dot that implies one relationship. */}
-          {data.developer && (
-            <Text style={[styles.billingCredit, { color: accent.quietInk }]} numberOfLines={2}>
-              {data.developer}
-            </Text>
-          )}
-          {data.publisher && data.publisher !== data.developer && (
-            <Text style={[styles.billingCredit, { color: accent.quietInk }]} numberOfLines={2}>
-              {data.publisher}
-            </Text>
+              {/* Developer and publisher are different facts and are frequently
+                  different companies, so they get a line each rather than being
+                  joined by a dot that implies one relationship. */}
+              {data.developer && (
+                <Text variant="body" style={{ color: accent.quietInk }} numberOfLines={2}>
+                  {data.developer}
+                </Text>
+              )}
+              {data.publisher && data.publisher !== data.developer && (
+                <Text variant="body" style={{ color: accent.quietInk }} numberOfLines={2}>
+                  {data.publisher}
+                </Text>
+              )}
+            </View>
           )}
 
           {/* IGDB's score, and only for a game nobody here has rated — see
               `showCommunityScore`. The figure is the score ramp's colour and
               says its verdict to a screen reader, as `<ScoreBadge>` does; it is
-              drawn here because that badge stops at 14. */}
+              drawn here because that badge stops at 14. On the baseline of its
+              label, not centred on it: the two are different sizes. */}
           {showCommunityScore && data.score !== null && (
             <View style={styles.scoreRow}>
               <Text
-                variant="h3"
+                variant="h4"
                 accessibilityLabel={`${Math.round(data.score)} out of 100 — ${labelFor(Math.round(data.score))}`}
                 style={{ color: scoreColor(data.score, theme) }}>
                 {Math.round(data.score)}
@@ -579,18 +621,89 @@ export default function GameDetailScreen() {
             </View>
           )}
         </View>
+
+        {/*
+          The cover, plain and still: nothing to press.
+
+          The case is in the Overview's Platforms section, with the platform
+          button beside it and the turn-over that shows your record on its back.
+          The masthead says *which game*; the section says *which box*.
+
+          One label for the whole thing, set here: the poster inside is hidden
+          from assistive tech so the art is read once, with the edition the case
+          would have printed.
+        */}
+        <View
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={[
+            data.title,
+            data.edition ? editionLabel(data.edition) : null,
+            'cover art',
+          ]
+            .filter(Boolean)
+            .join(', ')}>
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <MastheadCover
+              coverUrl={data.coverUrl}
+              heroUrl={data.heroUrl}
+              title={data.title}
+              width={coverWidth}
+            />
+          </View>
+        </View>
       </View>
+
+      {/*
+        Group 2 — what the game is, in its own words: the synopsis, standing on
+        the page under the row.
+
+        It was the About card at the top of the Overview tab, five lines and a
+        More. The owner moved it here and took the card away: "not a card, it is
+        standalone text in the header". Three lines, the last of them fading
+        into the page as the reference's does; tapping the text opens it in
+        place with the card's own motion — the window's height, 250ms — and
+        tapping again closes it (`<ExpandableText fade>`).
+
+        A game with no synopsis has no block: there is no card left to say "No
+        description" in, and a sentence about an absence does not belong in a
+        masthead. The full IGDB record this used to lead to is a card of its own
+        in the Overview now, where About was.
+      */}
+      {data.description ? (
+        <View style={styles.about}>
+          <ExpandableText
+            lines={ABOUT_LINES}
+            style={[styles.aboutText, { color: accent.quietInk }]}
+            fade={{ to: accent.page, ...ABOUT_FADE }}
+            subject="the description">
+            {data.description}
+          </ExpandableText>
+        </View>
+      ) : null}
+
+      {/* The reference's rule: one hairline, edge to edge, between what the
+          thing is and its numbers. It is what the fading text stands on — and
+          the only rule in the masthead, which is why it may run the full width
+          where the strip's own stop short. */}
+      <View
+        style={[
+          styles.rule,
+          !data.description && styles.ruleUnderRow,
+          { backgroundColor: accent.m3.outlineVariant },
+        ]}
+      />
 
       {/*
         Group 3 — the numbers, between the identity block and the actions.
 
         Above the actions rather than below the whole masthead, which is where
         this sat when it replaced the platform buttons. The order is the order
-        the questions get asked: *what is this* (the case and the billing),
-        *should I bother* (four numbers), *then* the row of things to do about
-        it. With the strip underneath, every reader met the primary button
-        before the one piece of evidence that would tell them whether to press
-        it.
+        the questions get asked: *what is this* (the billing, the cover, the
+        synopsis), *should I bother* (four numbers), *then* the row of things to
+        do about it. With the strip underneath, every reader met the primary
+        button before the one piece of evidence that would tell them whether to
+        press it.
 
         It is also what the Play Store does, for the same reason — rating,
         downloads and content rating sit directly above Install.
@@ -598,15 +711,10 @@ export default function GameDetailScreen() {
       <GameStatsStrip gameId={data.id} onOpenReviews={openReviews} onOpenLists={openLists} />
 
       {/* The actions, at the header's full width rather than squeezed into the
-          right-hand column: they act on the game, not on its metadata.
-
-          No wrapper any more. This and the log block below used to share a tight
-          `record` group on the argument that "what you logged and how to change
-          it are the same subject" — true, and no longer the arrangement: the
-          strip is between them and the log has moved past the actions, so a
-          two-child group with one child left in it was a `<View>` holding
-          nothing but a gap it no longer spanned. */}
-      <GameActions game={data} log={logged ?? null} onOpenProgress={openProgress} />
+          billing's column: they act on the game, not on its metadata. */}
+      <View style={styles.actions}>
+        <GameActions game={data} log={logged ?? null} onOpenProgress={openProgress} />
+      </View>
 
       {/*
         Group 4 — your own record, last in the masthead.
@@ -824,34 +932,24 @@ export default function GameDetailScreen() {
               )}
 
               {/*
-                About: what the game is, before what anybody thought of it or
-                what it costs. The reference's own description card — five lines,
-                then More, and the card opens in place (`<ExpandableText>`). The
-                full IGDB record is the heading's Details. With no synopsis the
-                card says so, as the reference's does, and Details still opens
-                the record.
+                Details: the full IGDB record — genres, modes, engines, age
+                ratings, languages — behind a card that is its door.
+
+                Where About was. The synopsis is in the masthead now, standing
+                on the page, and this was its heading's way onward; with the
+                heading gone the record keeps the place and takes a card of its
+                own, so nothing that could be reached from here was lost in the
+                move. Absent for a game that is not IGDB's, which has no record.
               */}
-              <InfoCard
-                title="About"
-                moreSlot={<GameDetailsSheet gameId={data.id} trigger="more" />}>
-                {data.description ? (
-                  <ExpandableText lines={SYNOPSIS_LINES} subject="the description">
-                    {data.description}
-                  </ExpandableText>
-                ) : (
-                  <Text variant="body" color="textSecondary">
-                    No description
-                  </Text>
-                )}
-              </InfoCard>
+              <GameDetailsSheet gameId={data.id} trigger="card" />
 
               {/*
                 Platforms: which machines it is on, and the box on each — the
                 case, its turn-over and its price, beside the platform button
-                that changes all three. After About, because what the game is
-                comes before which box to get; before Where to buy, because which
-                box comes before which shop. On the page and not in a card: it
-                is the one section here whose subject is an object.
+                that changes all three. After the record, because what the game
+                is comes before which box to get; before Where to buy, because
+                which box comes before which shop. On the page and not in a
+                card: it is the one section here whose subject is an object.
               */}
               {activePlatform && (
                 <GamePlatforms
@@ -864,9 +962,8 @@ export default function GameDetailScreen() {
                 />
               )}
 
-              {/* Below About, not above it: the price is the next question for
-                  a reader who has decided, and the synopsis is how anyone else
-                  decides. */}
+              {/* Under the box, not above it: the price is the next question
+                  for a reader who has decided which one. */}
               <StorePrices gameId={data.id} title={data.title} steamAppId={data.steamAppId} />
 
               {/*
@@ -925,8 +1022,8 @@ export default function GameDetailScreen() {
               {/*
                 What the critics wrote, under what people here wrote: the two
                 kinds of review in the same card, the app's own first. A rail of
-                quotes at the size of "Featured in" below — absent, like that
-                one, for the many games it has nothing for.
+                quotes at the screenshots' size — absent for the many games
+                OpenCritic has nothing for.
               */}
               <CriticReviewsWidget
                 gameId={data.id}
@@ -934,8 +1031,9 @@ export default function GameDetailScreen() {
                 releaseYear={data.releaseYear}
               />
 
+              {/* "Featured in" — the showcases a game appeared at — followed
+                  this, and the owner had it taken off the page. */}
               <TimeToBeatWidget gameId={data.id} />
-              <GameEventsWidget gameId={data.id} />
 
               {/*
                 The companies, one name per line; tapping one opens their
@@ -1192,37 +1290,66 @@ const styles = StyleSheet.create({
   studioRow: { paddingVertical: Spacing.x4 },
   studioName: { flexShrink: 1 },
   /*
-   * `five` between groups, not `four` between every child.
+   * No one gap: every interval in the masthead is its own, and each is the
+   * reference's.
    *
-   * The masthead used one 16dp gap for all seven siblings, which is the failure
-   * where a single repeated interval gives hero, identity, status and actions
-   * exactly equal weight. Three groups separated generously, tight
-   * inside — the rhythm now says what belongs with what.
+   * The intervals were read off the screenshot as the distance from one line's
+   * baseline to the next one's capitals, then turned into the space between two
+   * of this app's line boxes — which is why they look uneven written down (20,
+   * 4, 15, 13) and even on the page. One repeated gap is the failure where the
+   * hero, the billing, the synopsis and the actions all get equal weight; this
+   * is tight inside a group and open between them, to the reference's measure.
    */
-  header: { gap: Spacing.x24, paddingHorizontal: Spacing.x16, marginBottom: Spacing.x24 },
+  header: { paddingHorizontal: Spacing.x16, marginBottom: Spacing.x20 },
   hero: { marginHorizontal: -Spacing.x16 },
-  /* The cover is the fixed shape, so the row is top-aligned to it: the title
-     meets the cover's top edge and any slack falls below, beside the lower
-     half of the cover, where it reads as ordinary margin. `flex-end` aligned
-     the *shorter* child to the taller one's bottom, and the taller child here
-     is often the text. */
-  identity: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x16 },
-  /* Twelve under the hero's bottom edge instead of the header's twenty-four.
-     The art has dissolved to nothing well before that edge, so its fade is
-     already the space above this row; the full gap on top of it read as a
-     hole. Still under the art — the pull is half the gap, never past it. */
-  identityUnderHero: { marginTop: -(Spacing.x24 - Spacing.x12) },
-  identityText: { flex: 1, gap: Spacing.x8 },
-  /* The row's own two sizes — see the note on the billing. Each states its
-     line height: a `fontSize` alone would keep the variant's, and Android
-     clips a glyph to its line box. */
-  billingTitle: { fontSize: 28, lineHeight: 34, letterSpacing: -0.6 },
-  billingCredit: { fontSize: 15, lineHeight: 21, fontFamily: FontFamily.regular },
-  scoreRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  /* Top-aligned, so the cover is held at the top of the row whatever the
+     billing's length, and the billing starts a fixed step under that top — the
+     reference's: its title's capitals are eighteen under its poster's top
+     edge, which is twelve to this line box. The row's pull into the hero is
+     set inline — it is a share of the hero's height. */
+  identity: { flexDirection: 'row', alignItems: 'flex-start', gap: COVER_GUTTER },
+  billing: { flex: 1, paddingTop: Spacing.x12 },
+  /* The name's own size — see the note on the billing. It states its line
+     height: a `fontSize` alone would keep the variant's, and Android clips a
+     glyph to its line box. */
+  billingTitle: { fontSize: 22, lineHeight: 27, letterSpacing: -0.45 },
+  /* Twenty under the name — the reference's 28dp from its baseline to the next
+     line's capitals — and the three lines a paragraph's distance apart. */
+  billingLines: { marginTop: Spacing.x20, gap: Spacing.x4 },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.x8,
+    marginTop: Spacing.x16,
+  },
+  /* `landed = 1`, term for term with the cover's animated pose. */
+  coverLanded: {
+    transform: [{ perspective: 900 }, { translateY: 0 }, { scale: 1 }, { rotateY: '0deg' }],
+  },
+  /* Fifteen under the row puts the synopsis's first capitals twenty under the
+     cover, where the reference's first line under its poster is. */
+  about: { marginTop: Spacing.x16 },
+  /* The reference's measure: 13 on a 20dp line, one more than `body`'s. */
+  aboutText: { lineHeight: 20 },
+  /* Edge to edge: the header's own margin, undone. Thirteen under the synopsis
+     is eighteen under its last baseline, and the two under it stand the strip's
+     figures nineteen below — both the reference's. */
+  rule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: -Spacing.x16,
+    marginTop: 13,
+    marginBottom: 2,
+  },
+  /* With no synopsis the rule follows the row itself, a step further off. */
+  ruleUnderRow: { marginTop: Spacing.x20 },
+  /* The strip pads its own cells by twelve, so this is twenty-four from its
+     labels to the buttons. */
+  actions: { marginTop: Spacing.x12 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
   myLog: {
     gap: Spacing.x8,
     padding: Spacing.x16,
+    marginTop: Spacing.x20,
     borderRadius: Radius.card,
   },
   /* `flex-end`, not `space-between`. The row held the status word on the left

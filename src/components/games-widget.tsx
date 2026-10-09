@@ -6,7 +6,7 @@ import { StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'r
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { PosterAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
+import { PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { formatPlaytime } from '@/lib/gaming';
 
@@ -137,7 +137,9 @@ export type GamesWidgetProps = {
  * Each card carries a hairline and a shadow. Both are load-bearing: with no
  * outline, two dark covers next to each other merge into one shape and the row
  * collapses into a single block, and without the shadow the cards read as a flat
- * collage rather than as objects in front of one another.
+ * collage rather than as objects in front of one another. The hairline is
+ * `coverEdge`, the edge `<Poster>` draws on every other cover in the app — these
+ * are drawn by hand, so they ask for it by name.
  *
  * ## Why the achievements live here
  *
@@ -250,7 +252,7 @@ export const GamesWidget = memo(function GamesWidget({
                          row's right edge. */
                       left: Math.round(index * step),
                       top: 0,
-                      borderColor: withAlpha(theme.text, 0.16),
+                      borderColor: theme.coverEdge,
                       backgroundColor: theme.surfaceElevated,
                       /* Cast to the right, away from the card in front, so each
                          shadow lands on the cover it is meant to lift off. */

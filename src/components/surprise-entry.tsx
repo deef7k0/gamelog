@@ -270,7 +270,9 @@ function DeckCard({ index, press, cover }: DeckCardProps) {
         styles.card,
         {
           backgroundColor: theme.surfaceElevated,
-          borderColor: index === 0 ? theme.borderStrong : theme.border,
+          /* A real cover wears the edge every cover does; the face-down card
+             is the app's own material and keeps the app's edge. */
+          borderColor: index === 0 ? theme.borderStrong : theme.coverEdge,
           shadowColor: theme.shadowInk,
         },
         animated,

@@ -51,10 +51,10 @@ function formatStart(unixSeconds: number): string {
  * One event — a showcase, a conference, an award show — and the games shown at
  * it.
  *
- * Opened from a row in Search's Events. The game page's "Featured in" rail
- * names the events a game appeared at; this is the other direction, an event
- * and everything that appeared at it, which IGDB only exposes from the event's
- * side (`events.games`).
+ * Opened from a row in Search's Events. The game page once had the other
+ * direction — a "Featured in" rail naming the events a game appeared at — until
+ * the owner took it off; this is an event and everything that appeared at it,
+ * which is the only side IGDB exposes the join from (`events.games`).
  *
  * The banner leads and runs under the floating back disc, the way a game or a
  * collection opens — the event's key art is the one picture it has. Under it:

@@ -33,6 +33,10 @@ colors:
   border: "rgba(255,255,255,0.07)"
   # Unchanged: the protected game case's PC-cover frame is drawn in it.
   borderStrong: "rgba(255,255,255,0.12)"
+  # The edge of box art: one hairline inside a cover's own corner, over its
+  # artwork — #DDEEFF at 35%, the poster outline of the owner's Letterboxd
+  # reference. An alpha, not a grey: it lightens the art under it. See § 4.
+  coverEdge: "rgba(221,238,255,0.35)"
   # PlayStation blue, the house accent. Fills only: 3.94:1 on the page, right
   # under white (5.01:1), wrong for a word. Blue *type* uses `primaryText`,
   # and so do the house selected and focus states — a 14% wash of the fill
@@ -1008,6 +1012,35 @@ Landscape key art uses `HeroAspectRatio` (16:9), and a full-bleed hero fills
 Do **not** force a fixed pixel size on a poster. Set the aspect ratio and let the
 rail or grid determine width.
 
+## 4.0.1 The cover's edge
+
+**Every portrait cover wears one hairline of cool white, inside its own corner
+and over its art** — `coverEdge`, `#DDEEFF` at 35%. It is the outline of the
+poster in the owner's reference (a film's page in Letterboxd), measured off a
+screenshot as `#4B4E55` where the art under it is black, and asked for on "every
+portrait art in the app". The corner it follows is `Radius.image`, 4 — which
+the reference's, at 3.9, already was.
+
+It is an overlay, never a border. A border on the frame pushes the art in and
+shows the frame's own fill through it: one fixed grey line on every cover. An
+overlay lightens whatever art is under it, so a dark box gets a lit edge that
+stops it dissolving into a near-black page, and a white box gets nothing, which
+is right.
+
+`<Poster>` draws it whenever it is asked for the box-art corner
+(`rounded="image"`, the default). The two shelves that draw covers by hand — the
+profile's and Surprise Me's entry deck — use the same token as their hairline.
+Four things do **not** wear it:
+
+| Not edged | Why |
+| --- | --- |
+| The game case, and its framed PC cover (`rounded="caseImage"`) | § 4.1: protected, and the framed cover has a frame of its own |
+| A banner that fills its container (`rounded="none"`) | It has no edge to draw one on — the collection header fades into the page |
+| Square art | The owner said portrait |
+| A collection's mosaic | It is a composed picture, not four covers |
+
+A wrapper that draws its own hairline round a `<Poster>` is now a doubled line.
+
 ---
 
 # 4.1 Physical Game Case — **PRESERVED FEATURE**
@@ -1892,61 +1925,137 @@ gradient stop ends on `withAlpha(colour, 0)`, **never** the keyword
 `'transparent'`. `expo-linear-gradient` interpolates through black on Android and
 leaves a grey bruise mid-ramp.
 
+**Two fades.** `fade="color"` — a collection, a studio, the Top 10 — ramps to
+the page colour over the hero's lower 62%. `fade="mask"` dissolves the art's own
+alpha, for a page whose colour is not the app's; the game page is its one
+caller, and its curve is that page's:
+
+| | `mask`, as it was | `mask`, now |
+| --- | --- | --- |
+| Starts | 38% down the hero | 16% down |
+| Shape | a straight line | `(1 − u^2.4)²` — flat where it leaves, flat where it lands |
+| At 90% down | 16% of the art showing | 7% |
+| The last hundredth | 1.6% → 0, an edge | 0.1% → 0 |
+
+A straight line has a corner at each end, and the one at the bottom was a
+visible end to the picture just above the billing. The owner asked for it
+softer, and for the row to be set into it (§ 14). The curve is fitted to the
+reference's own backdrop at the three points it could be measured, drawn as
+fourteen stops, and held by `constants/game-masthead.test.ts`.
+
 ---
 
 # 14. Game Page
 
-The masthead opens on the game's key art (§ 13), fading into the page. **Under
-it, on the page's solid colour** — not over it — is one row: the game's **plain
-cover** on the left, landing on arrival with nothing to press, and beside it
-the game's billing — title, release date, developer, publisher, and a score.
-Actions run full width beneath. The tabs follow; the **physical case** (§ 4.1)
-is in the Overview's Platforms section (§ 14.1), beside the control that
-chooses which platform's case it is.
+The masthead is **a film's page in Letterboxd, measured** — the owner's second
+reference, a screenshot of a 360dp display at 3×. Every size and interval below
+was read off it, is written down in `constants/game-masthead.ts`, and is held to
+what it was measured for by that file's tests. Type is matched by capital
+height: the reference is set in Graphik, this app in Inter.
 
-Three of the owner's rulings hold this shape, and each undid something:
-
-- **Nothing is laid on the art.** The cover used to rise half its height into
-  the hero, "a boxed copy propped against a poster". The row is under the hero
-  now, twelve under its bottom edge: the art has faded out before that edge, so
-  its fade is the space between them.
-- **The billing is on the left, against the cover, and a size above the
-  interface.** It was right-aligned for one pass and brought back. Its type is
-  the largest on the page: the name at 28/34, the date at `h3`, the credits at
-  15/21, the score at `h3`. The name may run to four lines; it is never cut.
-- **One score in the masthead, and it is the app's own when there is one.** The
-  stats strip under the row carries the app's average and how many ratings are
-  behind it. IGDB's aggregate ("Community") is printed beside the cover **only
-  for a game nobody here has rated** — otherwise it was a second, different
-  number about the same game, a line above the first. Nothing is printed while
-  that is still being asked.
+It opens on the game's key art (§ 13), dissolving. **Set into the foot of that
+dissolve** is one row: the billing from the page's margin — the name, then the
+date, the developer and the publisher as three quiet lines, then a score — and
+the game's **plain cover** against the far margin, landing on arrival with
+nothing to press. Under the row the synopsis stands on the page as three lines
+of text, the last fading; then one rule, the numbers, the actions. The tabs
+follow; the **physical case** (§ 4.1) is in the Overview's Platforms section
+(§ 14.1), beside the control that chooses which platform's case it is.
 
 ```text
 ┌──────────────────────────────────────────┐
 │ ◯             HERO (0.38h)               │
 │                                          │
-│          … fading into the page …        │
-└──────────────────────────────────────────┘
-   ┌──────┐   TITLE
-   │COVER │   date
-   │      │   developer · publisher
-   └──────┘   86 Community   ← only when nobody here has rated it
-├──────────────────────────────────────────┤
+│        … dissolving, eased …             │
+│ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ ┌────────┐ ░ │  ← the row's top: the last tenth
+└─────────────────────────────│        │───┘     of the art
+  Title, 22 bold, white       │ COVER  │
+                              │ 27.8%w │       ← in a soft round halo
+  date                        │        │
+  developer                   └────────┘
+  publisher
+  86 Community   ← only when nobody here has rated it
+
+  Three lines of synopsis, on the page,
+  not in a card. Tap it and it opens in
+  place. The third line fades out…
+──────────────────────────────────────────── ← the one rule, edge to edge
+│   92   │   14   │   27h   │   E10+   │
 │  actions (full width)                    │
-├──────────────────────────────────────────┤
-│  synopsis                                │
-├──────────────────────────────────────────┤
-│  score + verdict                         │
-├──────────────────────────────────────────┤
-│  tabs: soundtrack / achievements / …     │
-└──────────────────────────────────────────┘
+│  your log, when there is one             │
+│  tabs: overview / soundtrack / similar   │
 ```
+
+| | Reference, measured | Here |
+| --- | --- | --- |
+| Cover | 100×150dp, 27.8% of the display | `mastheadCoverWidth` — 100 on 360 (it was a third) |
+| Cover corner, edge | 3.9dp; one inset hairline, `#DDEEFF` 35% | `Radius.image`; `coverEdge` (§ 4.0.1) |
+| Halo | black, 20% at the poster's edge, gone 35–40dp out | 30% at the cover's sides, 40dp out (51 above and below) |
+| Name | capitals 15.7dp — 22 bold, white | 22/27 bold, `onPrimary` |
+| Name under the cover's top | capitals 18dp down | the billing 12 down (18 to its capitals) |
+| Lines under it | 12–13, L* 76–81 | `body`, `accent.quietInk` (M3 tone 82) |
+| Name → next line | 28dp, baseline to capitals | 20 between the boxes |
+| Between the lines | 12dp, baseline to capitals | 4 between the boxes |
+| Cover → synopsis | 20dp | 15 between the boxes |
+| Synopsis | 13 on a 20dp line, 3 lines | `body` on a 20dp line, `ABOUT_LINES` |
+| Its fade | mid line 2 → foot of line 3; line 3 from 54% to 12% | `ABOUT_FADE`: 1.25 lines, to 88% |
+| Synopsis → rule → next | 18dp, a hairline, 19dp | 13 + the rule + 2 |
+| Row against the fade | poster's top on the last tenth of the backdrop | `ROW_ENTERS_AT` — 11.5% of the hero, ~30dp |
+| Page | L* 9.7 | M3 tone 10 |
+
+Seven of the owner's rulings hold this shape. The later ones undid earlier ones;
+none is to be "restored":
+
+- **The row is in the fade.** "Not below it, not above it, right into it." It
+  was twelve under the hero's bottom edge, on the rule that nothing is laid on
+  the art; before that the cover rose half its height into the picture, "a boxed
+  copy propped against a poster". Now the top of the cover is on the last tenth
+  of the art and the art has gone by the title. Neither a gap under the hero nor
+  a cover over visible art.
+- **The cover is on the right, and the billing is set left from the margin.**
+  The billing was right-*aligned* for one pass and brought back, and that stands:
+  it is the cover that changed sides. The row is top-aligned and the billing
+  starts twelve under the cover's top, so the name's capitals are eighteen under
+  it — the reference's — whatever the billing's length; slack falls under the
+  billing, never above the name.
+- **It is smaller than it was** — the cover, the name (28 → 22) and the lines
+  under it (18 and 15 → 13). The name may run to four lines; it is never cut.
+  The box in Platforms kept its third of the display.
+- **Three plain lines under the name**, at the owner's choice over the
+  reference's "2017 · DEVELOPED BY" and a bold name: no label, no capitals,
+  nothing bold but the name. § 2.4's sentence case holds.
+- **The inks are the game's own at the reference's lightness** (§ 1.3): white,
+  then M3's tone 82 — the reference's ladder, carrying this game's trace where
+  the reference carries Letterboxd's blue. Not Letterboxd's hexes.
+- **The synopsis is free-standing text**: no card, no heading, no More. The fade
+  is the sign there is more, and the text is what you press; it opens with the
+  description card's motion (§ 14.1). A game with no synopsis has no block.
+- **One score in the masthead, and it is the app's own when there is one.** The
+  stats strip carries the app's average and how many ratings are behind it.
+  IGDB's aggregate ("Community") is printed under the billing **only for a game
+  nobody here has rated** — otherwise it was a second, different number about
+  the same game, a line above the first. Nothing is printed while that is still
+  being asked.
+
+**The cover is a `<Poster>`, and the halo is this page's alone.** The slot used
+to draw the case feature's framed cover — a 12dp corner and a frame of its own,
+both protected (§ 5.3) — through `<GameCaseFlip>`. The owner asked for the
+reference poster's corner and outline here, so the slot changed hands; nothing
+in § 4.1 was edited, and the framed cover is still what Platforms draws for a
+game with no case. The halo (`<CoverHalo>`) is the exception to § 6.1's "a
+large soft shadow reads as a grey smudge": it is not a cast shadow but the page
+going dark round the box, centred and without direction, as the reference's is.
+It belongs behind one cover on one screen — never on a rail or a grid.
+
+**Not yet seen on a phone.** The geometry is under test and was checked on a
+still; the fade's softness, where the row lands in it and the halo's strength
+are to be tuned on a device.
 
 ## 14.1 The Overview tab — SimpMusic's artist page
 
 Below the tabs the page is the reference's artist page, section for section
 (`ArtistScreen.kt`): a bold heading on the page, and under it either a **rail of
-art** — screenshots, events, the original game, editions, the franchise, as its
+art** — screenshots, the original game, editions, the franchise, as its
 "Singles" and "Albums" are — or a **card** of words and figures, as its
 "Description" is. A heading may end in the reference's **More**, one quiet word
 that goes to the rest of the section.
@@ -1954,10 +2063,10 @@ that goes to the rest of the section.
 ```text
 Screenshots
 [ 16:9 ][ 16:9 ][ 16…                      ← the reference's video height
-About                               Details
+Details                                More
 ┌──────────────────────────────────────┐
-│ Five lines of synopsis…              │    ← the description card
-│ More                                 │    ← opens in place, animated
+│ Genres, themes, modes, perspectives, │    ← a door: the full IGDB record
+│ engines, age ratings and languages.  │
 └──────────────────────────────────────┘
 Platforms
 ┌──────┐  Title                            ← no card: the subject is an object
@@ -1976,9 +2085,14 @@ Title   Title   Title
   (`useSectionMetrics`). Inset 20, heading row 40, items 20 apart, card 8 in the
   corner and 16 in. Type stays on the scale — `h2` headings, `itemTitle` over
   `bodySmall` under the art, `body` in a card.
+- **There is no About here, and no "Featured in".** The synopsis moved into
+  the masthead as free-standing text (§ 14). **Details** — the full IGDB record,
+  which was About's More — took its place as a door card of its own, so nothing
+  reachable from the tab was lost. The rail of showcases a game appeared at was
+  removed by the owner; events are in Search and on their own screen.
 - **Platforms** is the one section that is neither a rail nor a card: the box
   for the chosen platform — the case, which turns over to your record, or the
-  plain cover where there is no case — at the masthead's width, beside the
+  plain cover where there is no case — a third of the display wide, beside the
   title, a sentence naming up to three platforms, the platform button and the
   price. The button is SimpMusic's `DropdownButton` (its Home's chart country):
   an outlined 40dp pill with the platform's glyph, its short name and a chevron
@@ -1990,7 +2104,10 @@ Title   Title   Title
   the reference halves Palette's dark-vibrant swatch — with `Elevation.card`.
   Every ink on it clears AA: `textSecondary` 6.4:1, `controlInk` 10.5:1.
 - **Opening in place** animates the height of a window onto the whole text,
-  250ms on FastOutSlowIn (`<ExpandableText>`), never the line clamp.
+  250ms on FastOutSlowIn (`<ExpandableText>`), never the line clamp. The
+  masthead's synopsis opens the same way with a fade in place of the More — a
+  veil over the foot of the window that reads the window's own height, so it
+  lifts as the text opens and has no clock of its own.
 - **The art keeps the app's corner** (`Radius.image`): the layout is the
   reference's, the boxes are this app's.
 

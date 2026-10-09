@@ -16,7 +16,7 @@ import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import type { EditionKind } from '@/constants/game-editions';
 import { SIMILARITY_REASON_LABEL, agreementLine, supportLine } from '@/constants/similarity';
-import { Radius, Spacing, withAlpha } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getCommunitySimilar } from '@/lib/api';
 import type { CommunitySimilarGame, SimilaritySort } from '@/lib/database.types';
@@ -122,8 +122,10 @@ export function CommunitySimilarCard({
         onPress={onOpen}>
         <View style={styles.preview}>
           {/* Stacked like the profile's shelf: the most agreed-with in front,
-              each card a hairline and a short cast so two dark covers never
-              merge into one shape. Drawn back to front — paint order is the
+              each card an edge and a short cast so two dark covers never merge
+              into one shape. The edge is `<Poster>`'s own now — this wrapper
+              drew a hairline of its own until every cover got one, and two
+              would be a doubled line. Drawn back to front — paint order is the
               stacking order. */}
           <View
             style={[
@@ -140,7 +142,6 @@ export function CommunitySimilarCard({
                     styles.cover,
                     {
                       left: index * STACK_STEP,
-                      borderColor: withAlpha(theme.text, 0.16),
                       shadowColor: theme.shadowInk,
                     },
                   ]}>
@@ -363,7 +364,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     borderRadius: Radius.image,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
     /* Cast sideways onto the cover behind, the way the profile's shelf does. */
     shadowOpacity: 0.45,

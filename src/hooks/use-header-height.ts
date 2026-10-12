@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TopBarHeight } from '@/constants/theme';
+import { TOP_BAR_DISC_ROOM, TOP_BAR_ROW } from '@/constants/top-bar';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 
 /**
@@ -29,18 +29,31 @@ export function useTopBarInset(modal?: boolean): number {
 }
 
 /**
- * Total height the floating top bar occupies, inset included.
+ * Total height the top bar occupies, inset included.
  *
  * Needed because `<FrostedTopBar>` is `position: absolute` — it draws over the
- * page and pushes nothing down. Screens that open on artwork want exactly that;
- * every other screen reserves the space back with `<Screen insetHeader>`, which
- * is the only caller that should need this number directly.
+ * page and pushes nothing down, so that a list has something to slide under
+ * and the frost something to frost. A page that opens on a list or a form
+ * reserves the space back with `<Screen insetHeader>`, which is the only
+ * caller that should need this number directly.
  *
- * The bar is one height on both platforms, so there is no `Platform.select` on
- * the row itself any more: the native stack header this replaced was 44pt on iOS
- * and 56dp on Android, and matching those would have made the same title sit at
- * two different heights for no reason once the bar stopped being native.
+ * The row is 64 on both platforms — Material 3's bar, as the reference draws
+ * it (`TOP_BAR_ROW`). A page that opens on artwork has no bar at rest and
+ * wants `useDiscRoom()` instead.
  */
 export function useHeaderHeight(modal?: boolean): number {
-  return useTopBarInset(modal) + TopBarHeight;
+  return useTopBarInset(modal) + TOP_BAR_ROW;
+}
+
+/**
+ * How much of its top a page that opens on artwork keeps clear for the glass
+ * discs, inset included: the disc and its distance from the corner.
+ *
+ * Four dp less than `useHeaderHeight()`. The review's art, Surprise Me's card,
+ * the soundtrack's disc and a copy's stage were all laid out under the discs,
+ * and those pages still have discs — so they kept this number when the bar's
+ * row became 64, and none of them moved.
+ */
+export function useDiscRoom(modal?: boolean): number {
+  return useTopBarInset(modal) + TOP_BAR_DISC_ROOM;
 }

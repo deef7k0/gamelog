@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Screen } from '@/components/ui/screen';
 import { Button } from '@/components/ui/button';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/store/auth';
@@ -66,11 +67,15 @@ export default function SignUpScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} padded insetHeader topBar={<FrostedTopBar back />}>
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      topBar={<FrostedTopBar back title="Create account" />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+        <PageScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
@@ -112,7 +117,7 @@ export default function SignUpScreen() {
 
             <Button title="Create account" onPress={handleSubmit} loading={busy} fullWidth />
           </View>
-        </ScrollView>
+        </PageScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -20,10 +20,11 @@ import { TopReviewCard } from '@/components/top-review-card';
 import { SwipeEdge } from '@/components/surprise-swipe-edge';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Motion, Palette, Spacing } from '@/constants/theme';
-import { useHeaderHeight, useTopBarInset } from '@/hooks/use-header-height';
+import { useDiscRoom, useTopBarInset } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { extractSeedColor } from '@/hooks/use-album-art-color';
@@ -672,7 +673,7 @@ export default function SurpriseScreen() {
   );
 
   /* The band the floating discs occupy, reserved in content. See the masthead. */
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useDiscRoom();
   const barInset = useTopBarInset();
 
   /* One recogniser for the whole screen. See the note at `<GestureDetector>`. */
@@ -697,7 +698,7 @@ export default function SurpriseScreen() {
         insetHeader
         padded
         miniPlayer={false}
-        topBar={<FrostedTopBar back />}>
+        topBar={<FrostedTopBar back title="Surprise Me" />}>
         {/* `flex: 1` is load-bearing now that this has a sibling. Yoga defaults
             `flexShrink` to 0 — unlike the web — so a `ScrollView` with no flex
             style sizes to its content and pushes anything after it off the
@@ -705,20 +706,14 @@ export default function SurpriseScreen() {
             the same reason it was turned off: with the button pinned below,
             the bar is now reporting the *settings*, which genuinely continue
             past the fold and have no other cue that they do. */}
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.form}>
-          {/* There is no header anywhere in this app, so a screen opening on a
-              form states what it is in its own content. */}
-          <View style={styles.intro}>
-            <Text variant="display" accessibilityRole="header">
-              Surprise me
-            </Text>
-            <Text variant="body" color="textSecondary">
-              One game, one song, no browsing.
-            </Text>
-          </View>
+        <PageScrollView style={styles.scroll} contentContainerStyle={styles.form}>
+          {/* The bar says what this is; the page says what it does. */}
+          <Text variant="body" color="textSecondary">
+            One game, one song, no browsing.
+          </Text>
 
           {settings}
-        </ScrollView>
+        </PageScrollView>
 
         {/*
           The deal, pinned out of the scroll.
@@ -906,12 +901,12 @@ export default function SurpriseScreen() {
             {/*
               The screen's own heading, in the band the floating discs occupy.
 
-              `<FrostedTopBar>` is two 44dp discs pinned to the corners and
-              nothing between them — it has no `title` prop and must not grow one
-              (CLAUDE.md). A screen that needs a heading states it in content,
-              which is what this is: a row exactly `useHeaderHeight()` tall, with
-              the status-bar inset as its top padding, so the word centres in the
-              same 56dp band the discs centre in and the three read as one row.
+              Over a card this page's bar is two discs of glass in the corners
+              and nothing between them — it carries a name only once a page has
+              scrolled its artwork away, and this page never scrolls. So the
+              name is stated in content: a row exactly `useDiscRoom()` tall,
+              with the status-bar inset as its top padding, so the word centres
+              in the band the discs centre in and the three read as one row.
 
               It is also the fix for the artwork. The square is 84% of the width
               and the content started at the top of the display, so the two discs
@@ -1044,7 +1039,6 @@ const styles = StyleSheet.create({
      below is now what does that. Keeping both would read as a gap someone
      forgot to fill. */
   form: { gap: Spacing.x32, paddingTop: Spacing.x24, paddingBottom: Spacing.x24 },
-  intro: { gap: Spacing.x8 },
   /* Enough to separate the button from the last row of chips without drawing a
      rule to do it — the page's own fill is the divider, per DESIGN.md's
      preference for a tonal step over an edge. */

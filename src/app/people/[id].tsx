@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { PersonRow } from '@/components/person-row';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Button } from '@/components/ui/button';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Spacing } from '@/constants/theme';
 import { getFollowers, getFollowing, getFriends, getProfile } from '@/lib/api';
 import { displayNameFor } from '@/lib/format';
@@ -86,7 +87,7 @@ export default function PeopleScreen() {
 
   if (!id) {
     return (
-      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back title="People" />}>
         <EmptyState title="Profile not found" />
       </Screen>
     );
@@ -94,13 +95,12 @@ export default function PeopleScreen() {
 
   return (
     /* `insetHeader`: this screen leads with a tab strip rather than artwork, so
-       content starts below the bar instead of running under it. The bar keeps
-       its title at all times for the same reason CLAUDE.md gives for News and
-       Search — it names the thing the tabs underneath are filtering. */
-    <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
+       content starts below the bar instead of running under it. The bar names
+       whose people these are — the thing the tabs underneath are filtering. */
+    <Screen edges={[]} insetHeader topBar={<FrostedTopBar back title={owner ?? 'People'} />}>
       <TabBar tabs={TABS} value={tab} onChange={setTab} />
 
-      <FlatList
+      <PageFlatList
         data={people.data ?? []}
         keyExtractor={(person) => person.id}
         contentContainerStyle={styles.content}

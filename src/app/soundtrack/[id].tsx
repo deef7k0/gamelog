@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, type ReactNode } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { GameDisc } from '@/components/game-disc';
 import { PlayerBar } from '@/components/player/player-bar';
@@ -10,6 +10,7 @@ import { SoundCloudMark, openOnSoundCloud } from '@/components/player/soundcloud
 import { SoundtrackUnavailable } from '@/components/soundtrack-section';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
@@ -18,7 +19,7 @@ import { ArtRowWindow } from '@/constants/list-window';
 import { Radius, Spacing } from '@/constants/theme';
 import { AccentProvider, useAccent } from '@/hooks/use-accent';
 import { useGameSoundtrack } from '@/hooks/use-game-soundtrack';
-import { useHeaderHeight } from '@/hooks/use-header-height';
+import { useDiscRoom } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import { getStarredSong, starSong, unstarSong } from '@/lib/api';
 import { getGameById } from '@/lib/games';
@@ -30,6 +31,9 @@ import { player, usePlayer, type PlayerPhase, type PlayerQueue } from '@/store/p
 
 /** The disc at the head of the list. */
 const DISC = 196;
+
+/** The name and the line under the disc, and the gap over them, near enough. */
+const HEADING_BLOCK = 72;
 /** The first column of a row: a track's number, or what it is doing. */
 const LEAD = 26;
 /** The star and the link at the end of a row — glyphs at a finger's width. */
@@ -226,7 +230,7 @@ function Soundtrack({
   }
 
   return (
-    <Shell docked={<PlayerBar queue={queue} />} scrolls>
+    <Shell docked={<PlayerBar queue={queue} />} scrolls title={title}>
       <TrackList
         soundtrack={soundtrack}
         title={title}
@@ -255,12 +259,16 @@ function Shell({
   children,
   docked,
   scrolls = false,
+  title,
 }: {
   children: ReactNode;
   docked?: ReactNode;
   scrolls?: boolean;
+  /** The game's name, for the bar that follows the disc off the page. */
+  title?: string | null;
 }) {
   const accent = useAccent();
+  const discRoom = useDiscRoom();
 
   return (
     <Screen
@@ -268,7 +276,18 @@ function Shell({
       insetHeader={!scrolls}
       background={accent.page}
       miniPlayer={false}
-      topBar={<FrostedTopBar back />}>
+      /* Always the artwork kind: this page's subject is the disc, in every
+         state, and its back control is the glass disc in every state. The bar
+         comes in with the game's name once the disc and its heading have gone
+         under where it sits. */
+      topBar={
+        <FrostedTopBar
+          back
+          variant="art"
+          title={title ?? undefined}
+          header={discRoom + Spacing.x8 + DISC + HEADING_BLOCK}
+        />
+      }>
       <View style={styles.flex}>{children}</View>
       {docked}
     </Screen>
@@ -298,7 +317,7 @@ function TrackList({
   onPlay,
   onStar,
 }: TrackListProps) {
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useDiscRoom();
   const tracks = soundtrack.tracks;
 
   /* What the player holds, by id: a row lights up for a song whoever started
@@ -310,7 +329,7 @@ function TrackList({
   const spinning = phase === 'playing' && !!currentUrn && urns.has(currentUrn);
 
   return (
-    <FlatList
+    <PageFlatList
       data={tracks}
       keyExtractor={(track) => track.urn}
       /* Only the row that is playing changes with these; the rest keep their props. */
@@ -354,8 +373,9 @@ type SoundtrackHeaderProps = {
 /**
  * The disc, the game's name, and whose music this is.
  *
- * The screen has no title bar, so the heading is here: the game, then
- * "Soundtrack" with what it holds. Under it the credit — the one place the
+ * Over the disc this screen has no bar — only the glass disc — so the heading
+ * is here: the game, then "Soundtrack" with what it holds. (The bar that comes
+ * in once this has scrolled away says the game's name again.) Under it the credit — the one place the
  * upload is named as a whole, and where SoundCloud's own mark and the link to
  * the playlist are.
  */
@@ -536,7 +556,7 @@ const TrackRow = memo(function TrackRow({
 
 /** The list's own shape, while it is being fetched: the disc, two lines, rows. */
 function LoadingSoundtrack() {
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useDiscRoom();
 
   return (
     <View

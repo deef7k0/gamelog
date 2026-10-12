@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
@@ -130,7 +131,7 @@ export default function ModerationScreen() {
 
   if (moderator.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Moderation" />}>
         <LoadingState />
       </Screen>
     );
@@ -138,7 +139,7 @@ export default function ModerationScreen() {
 
   if (!moderator.data) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Moderation" />}>
         <EmptyState title="Moderators only" message="This queue is for Gamelog’s moderators." />
       </Screen>
     );
@@ -152,7 +153,6 @@ export default function ModerationScreen() {
 
   const header = (
     <View style={styles.head}>
-      <Text variant="h1">Moderation</Text>
       <TabBar tabs={TABS} value={tab} onChange={setTab} label="What to review" />
       {tab === 'releases' && queue.data && (
         <Text variant="label" color="textMuted">
@@ -189,7 +189,7 @@ export default function ModerationScreen() {
   switch (tab) {
     case 'releases':
       list = (
-        <FlatList
+        <PageFlatList
           data={queue.data ?? []}
           keyExtractor={(entry) => entry.id}
           contentContainerStyle={styles.content}
@@ -216,7 +216,7 @@ export default function ModerationScreen() {
       break;
     case 'picks':
       list = (
-        <FlatList
+        <PageFlatList
           data={reports.data ?? []}
           keyExtractor={(entry) => entry.similarity_id}
           contentContainerStyle={styles.content}
@@ -241,7 +241,7 @@ export default function ModerationScreen() {
       break;
     case 'suggestions':
       list = (
-        <FlatList
+        <PageFlatList
           data={suggestionReports.data ?? []}
           keyExtractor={(entry) => `${entry.similarity_id}:${entry.author_id}`}
           contentContainerStyle={styles.content}
@@ -269,7 +269,7 @@ export default function ModerationScreen() {
       break;
     case 'reviews':
       list = (
-        <FlatList
+        <PageFlatList
           data={reviewReports.data ?? []}
           keyExtractor={(entry) => entry.log_id}
           contentContainerStyle={styles.content}
@@ -295,7 +295,7 @@ export default function ModerationScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Moderation" />}>
       {list}
     </Screen>
   );
@@ -497,7 +497,7 @@ function ReviewReportCard({ entry }: { entry: ReviewReportQueueRow }) {
       queryClient.invalidateQueries({ queryKey: ['review-stats', entry.game_id] });
       queryClient.invalidateQueries({ queryKey: ['user-logs', entry.author_id] });
       queryClient.invalidateQueries({ queryKey: ['feed'] });
-      queryClient.invalidateQueries({ queryKey: ['home-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['home-activity'] });
       queryClient.invalidateQueries({ queryKey: ['discover', 'reviews'] });
     },
   });

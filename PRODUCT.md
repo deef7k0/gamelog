@@ -84,7 +84,7 @@ reads or writes it.
 ## Capabilities and Constraints
 
 **Confirmed functionality.** Auth; IGDB game search; game detail with hero art,
-case, synopsis, screenshots, franchise, studio and cast; logging with status,
+case, synopsis, screenshots, franchise and studio; logging with status,
 0–100 score, completion %, platinum, hours, played-on; per-game achievements;
 profiles with follows, friends and walls; feed; posts, articles, likes and
 threaded comments; collections, ranked lists, tier lists, favourites, wishlist;
@@ -128,6 +128,8 @@ this app.
 re-attempted, and so nothing fabricates them:
 
 - IGDB has no achievement data at all, and no cast, credits or actor data.
+  (Cast and credits were once read from Wikidata on an "Additional
+  information" screen; that feature was scrapped and must not be rebuilt.)
 - Steam exposes no purchase dates and no badge names or icons.
 - PlayStation has no public trophy API; `logs.platinum` is self-reported.
 - No pricing API is referenced anywhere. Inventory carries `market_hash_name`

@@ -87,8 +87,8 @@ export type TabBarProps<T extends string> = {
    * it is on does not keep the app's 15.
    *
    * The first pill lines up with the page's content, and on every screen but
-   * one that is the app's margin — the default. The profile keeps the 20 of the
-   * mock it was drawn from (`PROFILE_MARGIN`), so its tab row has to as well.
+   * one that is the app's margin — the default. The profile keeps a margin of
+   * its own (`PROFILE_MARGIN`), so its tab row has to as well.
    */
   inset?: number;
 };
@@ -228,6 +228,14 @@ export function TabBar<T extends string>({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      /* **Never let this grow.** A `ScrollView` is `flexGrow: 1` out of the box
+         — a horizontal one too — so in a column it takes a share of whatever
+         height is spare. Above a list long enough to fill the screen there is
+         none and the row is its 48; above anything shorter, or anything that
+         is `flex: 1` itself, the row took half the screen and pushed the
+         content into what was left. That was Search with nothing typed, and
+         every tab whose list had not filled yet. See CLAUDE.md § Gotchas. */
+      style={styles.scroller}
       /* A tab is tapped with a keyboard up on Search, where the row sits under
          a focused field. Without this the first tap only puts the keyboard
          away and the tab needs a second. */
@@ -241,6 +249,8 @@ export function TabBar<T extends string>({
 }
 
 const styles = StyleSheet.create({
+  /* As tall as its pills, and no taller — see the note on the scroller. */
+  scroller: { flexGrow: 0 },
   /* No wrapper and no hairline. The bar sits directly on whatever is behind it
      — page, artwork, a blurred header — and the pill is what carries selection,
      so the divider the underline needed is gone with it.

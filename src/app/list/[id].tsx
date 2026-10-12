@@ -2,18 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  BackHandler,
-  FlatList,
-  Share,
-  StyleSheet,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { Alert, BackHandler, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AwardShow } from '@/components/award-show';
 import {
+  COLLECTION_COVER_RATIO,
   CollectionHeader,
   CollectionOwnerMenu,
   collectionCover,
@@ -26,6 +19,7 @@ import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -121,7 +115,7 @@ export default function ListDetailScreen() {
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
   const selecting = selected.size > 0;
 
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const gridWidth = gridItemWidth(width, GRID_COLUMNS, Spacing.x16, GRID_GAP);
 
   const list = useQuery({
@@ -379,10 +373,16 @@ export default function ListDetailScreen() {
    * The top of the screen, as SimpMusic's album has it: back at the left, and —
    * for whoever made the collection — its menu at the right, in the same disc
    * of glass. A visitor has nothing to edit and gets no second disc.
+   *
+   * The discs leave with the cover, as the reference's do; once the cover has
+   * gone under where the bar sits, the bar comes in with the collection's name
+   * and the same two controls as bare glyphs.
    */
   const topBar = (
     <FrostedTopBar
       back
+      title={list.data?.title}
+      header={Math.round(windowHeight * COLLECTION_COVER_RATIO)}
       right={
         isOwner ? (
           <TopBarDisc
@@ -566,7 +566,7 @@ export default function ListDetailScreen() {
   if (isCaptioned) {
     return (
       <Screen edges={['bottom']} background={background} topBar={topBar}>
-        <FlatList
+        <PageFlatList
           data={[null]}
           keyExtractor={() => 'board'}
           contentContainerStyle={styles.content}
@@ -608,7 +608,7 @@ export default function ListDetailScreen() {
   if (!isTierList && layout === 'rows' && !pickingCover) {
     return (
       <Screen edges={['bottom']} background={background} topBar={topBar}>
-        <FlatList
+        <PageFlatList
           data={ordered}
           key="collection-rows"
           keyExtractor={(item) => item.game_id}
@@ -658,7 +658,7 @@ export default function ListDetailScreen() {
       /* The cover runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
       <Screen edges={['bottom']} background={background} topBar={topBar}>
-        <FlatList
+        <PageFlatList
           data={ordered}
           key="collection-grid"
           numColumns={GRID_COLUMNS}
@@ -707,7 +707,7 @@ export default function ListDetailScreen() {
 
   return (
     <Screen edges={['bottom']} background={background} topBar={topBar}>
-      <FlatList
+      <PageFlatList
         data={items}
         keyExtractor={(item) => item.game_id}
         {...ArtRowWindow}

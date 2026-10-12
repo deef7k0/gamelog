@@ -25,7 +25,6 @@ import {
   AppState,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -46,6 +45,7 @@ import { formatReleaseDate } from '@/components/game-actions';
 import { ReviewQuote } from '@/components/review-quote';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { RichText } from '@/components/ui/rich-text';
 import { ROUND_ACTION } from '@/components/ui/round-action';
@@ -57,7 +57,7 @@ import { CONTRIBUTION_STATUS_LABEL } from '@/constants/physical';
 import { CASE_TEMPLATE_SIZE } from '@/constants/platform-cases';
 import { Radius, Spacing, Type } from '@/constants/theme';
 import { AccentProvider, useAccent, useGameAccent } from '@/hooks/use-accent';
-import { useHeaderHeight } from '@/hooks/use-header-height';
+import { useDiscRoom } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import {
   COPY_NOTES_MAX,
@@ -134,6 +134,9 @@ export default function CopyScreen() {
     copy.data?.game?.genres
   );
 
+  const discRoom = useDiscRoom();
+  const stageRoom = useStageRoom();
+
   let body: React.ReactNode;
   if (copy.isLoading) body = <StageSkeleton />;
   else if (copy.isLoadingError)
@@ -157,7 +160,17 @@ export default function CopyScreen() {
     <Screen
       edges={['bottom']}
       background={copy.data ? accent.page : undefined}
-      topBar={<FrostedTopBar back />}>
+      /* The disc of glass leaves with the stage. The bar that follows names
+         the game, once the stage and the name under it have gone — which is
+         the room the stage was given, the caption under it, and the disc's own
+         band over it. */
+      topBar={
+        <FrostedTopBar
+          back
+          title={copy.data?.game?.title}
+          header={discRoom + stageRoom + CAPTION_ROOM}
+        />
+      }>
       {body}
     </Screen>
   );
@@ -166,7 +179,7 @@ export default function CopyScreen() {
 /** The height the stage may take on this display: the first screen, less what sits under it. */
 function useStageRoom(): number {
   const { height } = useWindowDimensions();
-  const header = useHeaderHeight();
+  const header = useDiscRoom();
   const insets = useSafeAreaInsets();
   return height - header - insets.bottom - CAPTION_ROOM - KEYS_ROOM - PEEK;
 }
@@ -176,7 +189,7 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
   const accent = useAccent();
   const { width, height } = useWindowDimensions();
   const room = useStageRoom();
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useDiscRoom();
   const router = useRouter();
   const queryClient = useQueryClient();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
@@ -298,7 +311,7 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -469,7 +482,7 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
             </View>
           )}
         </View>
-      </ScrollView>
+      </PageScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -563,7 +576,7 @@ function StageSkeleton() {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
   const room = useStageRoom();
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useDiscRoom();
   const stage = stageMetrics(
     width,
     height,

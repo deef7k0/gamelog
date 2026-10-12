@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { GameCoverRail } from '@/components/game-rail';
@@ -8,6 +8,7 @@ import { HomeSection } from '@/components/home-section';
 import { LOGO_WIDTH_RATIO, StudioIdentity } from '@/components/studio-identity';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { HeroArt } from '@/components/ui/hero-art';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
@@ -266,7 +267,7 @@ export default function StudioScreen() {
 
   if (!Number.isFinite(companyId)) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Studio" />}>
         <EmptyState title="Studio not found" />
       </Screen>
     );
@@ -274,10 +275,15 @@ export default function StudioScreen() {
 
   return (
     /* No `insetHeader`: the banner runs under the floating back disc, the way
-       every screen that opens on artwork does. The disc carries its own scrim.
-       `background` is the banner's immersive colour, or the app's page. */
-    <Screen edges={['bottom']} background={pageColor ?? undefined} topBar={<FrostedTopBar back />}>
-      <FlatList
+       every screen that opens on artwork does. The disc carries its own scrim
+       and leaves with the banner; the bar that follows it carries the studio's
+       name, and is frosted with `background` — the banner's immersive colour,
+       or the app's page. */
+    <Screen
+      edges={['bottom']}
+      background={pageColor ?? undefined}
+      topBar={<FrostedTopBar back title={name} header={bannerHeight} />}>
+      <PageFlatList
         data={ordered}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}
@@ -404,11 +410,12 @@ export default function StudioScreen() {
               because a heading is a claim and a two-poster rail under "Best from
               the studio" is not one this data can make.
             */}
-            {/* The game page's franchise rail, as every row of games is: the
-                rail runs edge to edge (`railBleed` cancels the list's padding)
-                and its first cover starts in line with the heading above it. */}
+            {/* Rows of games, as every one in the app is: a heading on the
+                page and small covers under it. The rail runs edge to edge
+                (`railBleed` cancels the list's padding) and its first cover
+                starts in line with the heading above it. */}
             {best.length > 0 && (
-              <HomeSection title="Best from the studio" subtitle="Their highest-rated originals.">
+              <HomeSection title="Best from the studio">
                 <View style={styles.railBleed}>
                   <GameCoverRail games={best} inset={RAIL_INSET} />
                 </View>
@@ -416,9 +423,7 @@ export default function StudioScreen() {
             )}
 
             {redone.length >= RAIL_FLOOR && (
-              <HomeSection
-                title="Remakes & remasters"
-                subtitle="Games they have gone back to — including ports.">
+              <HomeSection title="Remakes & remasters">
                 <View style={styles.railBleed}>
                   <GameCoverRail games={redone} inset={RAIL_INSET} />
                 </View>
@@ -426,9 +431,7 @@ export default function StudioScreen() {
             )}
 
             {repackaged.length >= RAIL_FLOOR && (
-              <HomeSection
-                title="Special editions"
-                subtitle="Definitive cuts, complete editions and bundles.">
+              <HomeSection title="Special editions">
                 <View style={styles.railBleed}>
                   <GameCoverRail games={repackaged} inset={RAIL_INSET} />
                 </View>

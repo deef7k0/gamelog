@@ -91,7 +91,12 @@ export default function AddToListScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        modal
+        topBar={<FrostedTopBar dismiss title="Add games" />}>
         <EmptyState title="Collection not found" />
       </Screen>
     );
@@ -101,7 +106,11 @@ export default function AddToListScreen() {
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. `dismiss` for the same
        reason the chevron is wrong here: a sheet closes, it does not go back. */
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title="Add games" />}>
       <View style={styles.header}>
         <TextField
           value={input}

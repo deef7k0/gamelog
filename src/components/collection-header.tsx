@@ -22,7 +22,7 @@ import type { Profile } from '@/lib/database.types';
  * How much of the display the artwork block occupies: half, SimpMusic's album
  * and playlist header (`screenInfo.hDP / 2`), full width and cropped.
  */
-const COVER_RATIO = 0.5;
+export const COLLECTION_COVER_RATIO = 0.5;
 
 /**
  * How much of the artwork the scrim covers, from the bottom: 70%, the
@@ -186,7 +186,7 @@ export function CollectionHeader({
 
   const { liked, likeCount, toggle } = useLikeToggle('list', collection.id, engagement);
 
-  const coverHeight = Math.round(height * COVER_RATIO);
+  const coverHeight = Math.round(height * COLLECTION_COVER_RATIO);
 
   const actionFill = withAlpha(theme.text, ACTION_FILL);
   const ownerName = owner ? displayNameFor(owner) : null;

@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { ReportFlag, reportHref } from '@/components/report-flag';
 import { Avatar } from '@/components/ui/avatar';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -94,7 +95,7 @@ export default function SimilarPairScreen() {
   else body = <PairDetail pair={pair.data} gameId={gameId} />;
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Similar game" />}>
       {body}
     </Screen>
   );
@@ -364,7 +365,7 @@ function PairDetail({ pair, gameId }: { pair: CommunitySimilarGame; gameId: stri
   );
 
   return (
-    <FlatList
+    <PageFlatList
       data={said}
       keyExtractor={(entry) => entry.author_id}
       ListHeaderComponent={header}

@@ -55,15 +55,16 @@ const SCOPE_TABS = SEARCH_SCOPE_INFO.map((scope) => ({ key: scope.key, label: sc
  * pills under the field (`<TabBar>`), on from the moment the tab opens, with
  * Games chosen. Each is its own list (`*Results`), with content before a word
  * is typed or a sentence saying why it has none; Games untyped is Discover — a
- * door to the release calendar, a way in by genre, what is popular, what is
- * rated.
+ * slider of the month's biggest releases, then rows of what is popular, what
+ * is like the last game you reviewed, what the people here rated highest.
  *
  * For one pass the tab rested on a menu instead: eight large buttons, one per
  * scope and one for the calendar, with the pills arriving only after a choice.
  * The owner took it out. A menu in front of the search is a tap before
  * anything can be seen, and it hid Discover — the screen's best answer to
  * "what should I play" — behind the first of its buttons. The scopes are tabs
- * again, and the calendar is a button at the top of Discover.
+ * again, and the calendar is the last slide at the head of Discover (it was a
+ * button there, until the slider took the button's place).
  *
  * ## One field, shared
  *

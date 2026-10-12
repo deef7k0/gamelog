@@ -4,13 +4,14 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { ChoiceChips } from '@/components/choice-chips';
 import { GamePicker } from '@/components/game-picker';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -173,7 +174,16 @@ export default function AddReleaseScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={
+        <FrostedTopBar
+          dismiss
+          title={existing.data ? 'Edit your submission' : 'Add this release'}
+        />
+      }>
       {body}
     </Screen>
   );
@@ -312,12 +322,11 @@ function ReleaseForm({
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Text variant="h1">{existing ? 'Edit your submission' : 'Add this release'}</Text>
           <Text variant="bodySmall" color="textMuted">
             Barcode {displayBarcode(code)}
           </Text>
@@ -541,7 +550,7 @@ function ReleaseForm({
             onPress={confirmWithdraw}
           />
         )}
-      </ScrollView>
+      </PageScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -676,7 +685,7 @@ function ResultView({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.result}>
+    <PageScrollView contentContainerStyle={styles.result}>
       <Ionicons name={icon} size={44} color={theme.textSecondary} />
       <Text variant="h2" style={styles.centred} accessibilityLiveRegion="polite">
         {title}
@@ -691,7 +700,7 @@ function ResultView({
         )}
         <Button title="Done" variant="ghost" fullWidth onPress={done} />
       </View>
-    </ScrollView>
+    </PageScrollView>
   );
 }
 

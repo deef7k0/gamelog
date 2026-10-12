@@ -61,18 +61,20 @@ export type ReviewQuoteProps = {
  *   username                          84
  * ```
  *
- * This began as the critics' card on the game page — a quote and a score in
- * the corner — and at the owner's direction it is the member's review card
- * too, on that page and in the reviews sheet: the same object, with the
- * writer's name at the bottom left. A critic's card has no name inside it
- * because its rail prints the outlet underneath.
+ * The critics' card on the game page — a quote and a score in the corner, the
+ * outlet printed under the card by its rail — and the card a copy's screen
+ * shows its owner's review in, with their name and picture at the foot.
  *
- * **Text, a name and a score, and nothing else.** No platform mark, no hours,
- * no heart and no flag: those are on the review's own page, which a tap on the
- * card opens. The card is not pressable itself — the rail or the row around it
- * is, so there is one target and one spoken label. In the reviews sheet the
- * name is led by the writer's picture (`avatarUrl`), at the owner's request:
- * a list of everything written about one game is a list of people.
+ * **It was the member's review card too**, on the game page and in the reviews
+ * sheet, for a while: text, a name and a score, and nothing else. The owner
+ * replaced that with `<MemberReviewCard>` (2026-10-09), which is drawn as a
+ * review is on a film's page in Letterboxd — a face, the score and replies on
+ * the name's line, the likes under the words. The card itself — this fill,
+ * corner, inset and shadow — is what that one kept.
+ *
+ * The card is not pressable itself: the rail or the row around it is, so
+ * there is one target and one spoken label. `avatarUrl` leads the name with
+ * the writer's picture.
  *
  * The words are set in `reviewExcerpt` and `proseInk`: review prose keeps its
  * own step and its own quieter ink, in the same family as everything else. The

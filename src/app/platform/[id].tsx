@@ -8,10 +8,12 @@ import { usePlatformDirectory } from '@/components/search/platform-directory';
 import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { LogoMark } from '@/components/ui/logo-mark';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Pager } from '@/components/ui/pager';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
+import { useHeaderHeight } from '@/hooks/use-header-height';
 import {
   getPlatformGameCount,
   getPlatformGamesPage,
@@ -78,6 +80,7 @@ export default function PlatformScreen() {
   const [sort, setSort] = useState<PlatformSort>('popular');
   const [page, setPage] = useState(1);
   const listRef = useRef<FlatList<GameSearchResult>>(null);
+  const headerHeight = useHeaderHeight();
 
   /* Already in the cache when this was opened from the directory; a deep link
      fetches it once. It carries the logo and the facts under the name. */
@@ -165,15 +168,28 @@ export default function PlatformScreen() {
 
   if (!valid) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Platform" />}>
         <EmptyState title="Platform not found" />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <FlatList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      /*
+       * The artwork kind of bar, on a page that keeps the bar's row clear.
+       *
+       * This page opens on the platform's own mark and name, as an artist's
+       * page opens on the artist — so the bar does not say the name over it.
+       * It is the disc while the mark is in sight and comes in, carrying the
+       * name, once the mark has gone under it.
+       */
+      topBar={
+        <FrostedTopBar back variant="art" title={title} header={headerHeight + LOGO.height} />
+      }>
+      <PageFlatList
         ref={listRef}
         data={rows}
         keyExtractor={(game) => game.id}

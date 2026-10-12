@@ -812,11 +812,14 @@ export async function getAchievementStats(profileId: string): Promise<ProfileAch
 /**
  * One review of this game, with its like count and whether you liked it.
  *
- * `likes` is what ranks it, `likedByViewer` is what the like button reads.
+ * `likes` is what ranks it, `likedByViewer` is what the like button reads, and
+ * `comments` is what the game page's card prints beside the score — one more
+ * tally from the batch that counts the likes.
  */
 export type TopReview = {
   log: LogWithRelations;
   likes: number;
+  comments: number;
   likedByViewer: boolean;
 };
 
@@ -887,45 +890,9 @@ export async function getTopGameReview(
   return {
     log: best,
     likes: engagement[best.id]?.likes ?? 0,
+    comments: engagement[best.id]?.comments ?? 0,
     likedByViewer: engagement[best.id]?.likedByViewer ?? false,
   };
-}
-
-/**
- * The reviews worth showing for a game, most liked first — the game page's
- * rail.
- *
- * `getTopGameReview`'s ranking, kept whole instead of cut to its winner: the
- * newest `RANKED_REVIEWS` written reviews, ordered by likes with recency
- * breaking ties. The rows arrive newest-first and the sort is stable, which is
- * what makes that tiebreak hold. No viewer: the rail's cards carry no heart,
- * so nothing here needs to know who is looking.
- *
- * One review skips the likes query — there is nothing to rank.
- */
-export async function getTopGameReviews(gameId: string): Promise<LogWithRelations[]> {
-  const { data, error } = await supabase
-    .from('logs')
-    .select(LOG_WITH_RELATIONS)
-    .eq('game_id', gameId)
-    .not('review', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(RANKED_REVIEWS);
-
-  if (error) throw new Error(error.message);
-
-  const written = rememberLogs((data as LogWithRelations[] | null) ?? []).filter(
-    (log) => (log.review ?? '').trim().length > 0
-  );
-  if (written.length < 2) return written;
-
-  const engagement = await getEngagement(
-    'log',
-    written.map((log) => log.id),
-    null
-  );
-
-  return written.sort((a, b) => (engagement[b.id]?.likes ?? 0) - (engagement[a.id]?.likes ?? 0));
 }
 
 /* -------------------------------------------------------------------------

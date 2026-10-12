@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Linking,
   Platform,
-  ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -18,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -382,7 +382,7 @@ function ManualEntry({
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={styles.manual}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
@@ -433,7 +433,7 @@ function ManualEntry({
             )}
           </>
         )}
-      </ScrollView>
+      </PageScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -621,7 +621,7 @@ function PendingResult({
   });
 
   return (
-    <ScrollView
+    <PageScrollView
       style={styles.resultScroll}
       contentContainerStyle={styles.result}
       showsVerticalScrollIndicator={false}>
@@ -696,7 +696,7 @@ function PendingResult({
         )}
         <Button title="Scan another" variant="ghost" fullWidth onPress={onScanAgain} />
       </View>
-    </ScrollView>
+    </PageScrollView>
   );
 }
 

@@ -74,7 +74,12 @@ export default function LabelGamesScreen() {
 
   if (moderator.data === false) {
     return (
-      <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        modal
+        topBar={<FrostedTopBar dismiss title={`Label games ${words.title}`} />}>
         <EmptyState
           title="Moderators only"
           message={`${words.title} is set by GameLog’s moderators.`}
@@ -84,14 +89,12 @@ export default function LabelGamesScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title={`Label games ${words.title}`} />}>
       <View style={styles.header}>
-        {/* No bar title anywhere in this app, so a screen opening on a field
-            says what it is for in its own content. */}
-        <Text variant="h2" accessibilityRole="header">
-          {`Label games ${words.title}`}
-        </Text>
-
         <TextField
           value={input}
           onChangeText={setInput}

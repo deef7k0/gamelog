@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -57,7 +58,10 @@ export default function PlaythroughsScreen() {
 
   if (!userId) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen
+        edges={['bottom']}
+        insetHeader
+        topBar={<FrostedTopBar back title="Your playthroughs" />}>
         <EmptyState title="Sign in to log playthroughs" />
       </Screen>
     );
@@ -67,21 +71,20 @@ export default function PlaythroughsScreen() {
   const error = game.error ?? log.error ?? runs.error;
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <FlatList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={<FrostedTopBar back title="Your playthroughs" />}>
+      <PageFlatList
         data={runs.data ?? []}
         keyExtractor={(run) => run.id}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.head}>
-            {/* No title bar exists to say which game this is (CLAUDE.md), so
-                the page says it. */}
+            {/* The bar says what this is a list of; the page says of which game. */}
             <Text variant="h1" numberOfLines={2}>
-              {game.data?.title ?? 'Playthroughs'}
-            </Text>
-            <Text variant="label" color="textMuted">
-              YOUR PLAYTHROUGHS
+              {game.data?.title ?? ''}
             </Text>
           </View>
         }

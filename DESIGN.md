@@ -635,9 +635,11 @@ defined in the frontmatter, which is normative where this prose disagrees:
   page at its brightest, so it can stay fixed while the page scrolls through it
   without dragging any text below AA. The earlier glow was a `<SoftGlow>` that
   faded out on scroll; it read as a lit corner rather than as light.
-- **The frosted bar.** `<FrostedTopBar>` is blur plus a 30% scrim and no fill of
-  its own. It is a layer, not a surface: it has nothing to show and exists to
-  soften what the page put behind it.
+- **The frosted bar.** `<FrostedTopBar>` is clear until the page moves under
+  it; then it is blur plus a wash of the page's own colour — 30%, or 55% where
+  the colour is artwork's — and no fill of its own. It is a layer, not a
+  surface: it has nothing to show and exists to soften what the page put behind
+  it. § 7.
 
 **Key characteristics:**
 
@@ -919,7 +921,7 @@ the studio page, the game page's stats and cards, the collection rows.
   `bodySmall` line under them — a game in a collection, a collection in a list,
   a search result.
 - **Sections breathe.** ~32dp between sections, ~16dp from a heading to what it
-  heads (`<HomeSection>`: `x16`, 15), ~15dp inside a card. The game page's sections
+  heads (`<HomeSection>`: `x12`, as cards stack), ~15dp inside a card. The game page's sections
   are measured from the reference's artist page instead (§ 14).
 - **A header over artwork** puts the title first, then a row: the subject on the
   left (a bold figure over a quiet line) and one measurement on the right,
@@ -983,9 +985,43 @@ reaches both edges and runs under the transparent header.
 
 ## 3.3 Rails and grids
 
-A horizontal rail is a `FlatList` with `horizontal`, a 12 gap, and the page's 16
-padding applied as `contentContainerStyle` so the first poster aligns with the
-text above it.
+**A row of games is covers under a heading on the page.** It is the shape of
+every row of games in the app — Home, Search, a studio, a game's franchise and
+editions (`<HomeSection>` or `<Section>` over a `<GameCoverRail>`;
+`constants/cover-rail`, under `npm test`).
+
+```text
+Popular this month                        ›   one line, `h4`; a chevron if it leads on
+▯▯▯▯▯▯   ▯▯▯▯▯▯   ▯▯▯                         120×180, 20 apart, 2½ in view (360dp)
+
+        32 to the next section
+```
+
+| | On a 360dp phone | Rule |
+| --- | --- | --- |
+| Cover | 120 × 180 | a third of the display wide, 2:3 — the album height of SimpMusic's artist page |
+| Between covers | 20 | |
+| In view | ≈ 2½ | from the page's margin, running off the far edge |
+| Heading to covers | 12 | |
+| Between sections | 32 | |
+
+- **The size is the old one, and it stays.** For one build the covers were
+  82×123 — Letterboxd's poster to scale, nearly four in view. The owner saw
+  them on a phone: "They are too tiny."
+- **Nothing is printed under a cover.** The box is the label; the title is the
+  cover's spoken label. A row prints one line only for what the box cannot say:
+  a chart's rank, a release date, GameLog's score, a face with a name and a
+  score. Those lines are `textSecondary` — Home's light passes under them.
+- **No subtitle, no "See all".** A heading that leads somewhere is the link, the
+  whole line, and ends in a quiet chevron. One small control may take the
+  chevron's place.
+- **Never in a card.** The owner's reference for these sections (Letterboxd's
+  home) draws each in a rounded panel and the first build copied it; the owner
+  saw it on a phone and had the cards removed — "leave the game's rails on
+  their own". On a game's page too.
+
+A rail of *wide* art — screenshots, the critics' quotes in the reviews sheet —
+is the same thing at the reference's video height (`<ArtRail>`).
 
 A grid is a `FlatList` with `numColumns`, sized from `useWindowDimensions()`.
 There are no media queries in React Native. Three across, with one exception:
@@ -1059,9 +1095,10 @@ A wrapper that draws its own hairline round a `<Poster>` is now a doubled line.
 
 ## 4.0.2 The cover stack
 
-**A shelf is shown as five covers overlapping, the first one whole and in
-front, across the inside of a card.** A profile's library and a collection,
-wherever collections are listed (`<CoverStack>`). The owner's reference is old
+**A collection is shown as five covers overlapping, the first one whole and in
+front, across the inside of a card** — wherever collections are listed
+(`<CoverStack>`), and nowhere else: a profile's library drew it for a while
+and is four separate covers now (§ 18.1). The owner's reference is old
 Letterboxd's "New from friends" tile, and every figure of the overlap is read
 off it, where a poster is 72 pixels wide:
 
@@ -1728,10 +1765,38 @@ the worked example.
 
 # 7. Header
 
-There is no header: a **disc of glass floats over the top-left corner of the
-page** and holds the back chevron (`<FrostedTopBar>`, through `<Screen topBar>`).
-It is SimpMusic's back button, at the owner's direction, measured from its
-album screen (`AlbumScreen.kt`, `LiquidGlassContainer.kt`).
+The top bar is **SimpMusic's**, at the owner's direction: its size, how it
+looks, and what it does as the page scrolls — read from the reference's source
+(`NotificationScreen.kt`, `AlbumScreen.kt`, `HomeScreen.kt`, `UIExt.kt`) and
+kept as numbers in `constants/top-bar.ts`. It is drawn by `<FrostedTopBar>`,
+through `<Screen topBar>`. CLAUDE.md § The top bar is the code-level statement.
+
+```ts
+row:      64 high, under the status bar            // Material 3's small app bar
+control:  a 24 glyph, 48 to touch, a 40 circle while held
+chevron:  chevron-back, its glyph 16 from the edge; a cross on a modal
+title:    h3 (18) — one line, starting at 56; at 16 with no control before it
+controls: at the far end, the same bare glyphs
+frost:    the page behind it, blurred
+          the page's own colour over that — 30%, or 55% on a page coloured by artwork
+          below Android 12: no blur, that colour, opaque
+```
+
+**The bar is never an opaque strip, and it is not always there.** It floats
+over the page with nothing behind it and becomes frost only when there is
+something under it to frost. How is decided by what the page opens on:
+
+- **A list or a form.** The bar is there from the start: clear while the page
+  is at its very top, frost the moment it is not. The two cross-fade over
+  300ms on Material's standard curve.
+- **Artwork.** No bar at rest — discs of glass in the corners, and they belong
+  to the artwork: they scroll away with it. When the artwork has gone under
+  where the bar sits, the bar comes in from above — half its own height, on a
+  spring that does not overshoot, fading in — already frost, carrying the
+  page's name. A long name scrolls rather than being cut.
+- **Home.** The first kind, and its row folds away while the page is read
+  downward and returns on any move back up. Folded, the frost stays over the
+  status bar.
 
 ```ts
 disc:    48 across, on both platforms
@@ -1741,7 +1806,7 @@ glass:   what is behind it, blurred lightly
          a 27% black scrim over that
          a one-dp rim of light — bright at the top left, fading round the circle
          a faint sheen across the top left of the pane
-reserve: 60 above the safe-area inset (`TopBarHeight`), where a screen needs it
+reserve: 60 above the safe-area inset, where a page lays itself out under them
 ```
 
 The reference's glass is a shader — blur, a lens, a scrim and a rim. This app
@@ -1750,15 +1815,21 @@ and the sheen are, and those are drawn. The rim changes round its circle on
 purpose: a uniform hairline is the outline of a button, and a rim that catches
 light on one side is the edge of a piece of glass.
 
-**A control at the other end of the row is the same disc** (`<TopBarDisc>`):
-the owner's menu on a collection, Surprise Me's settings, the scanner's torch.
-Never an `<IconButton>` there — that is a filled grey circle beside one of
-glass.
+**A control at the other end of the row is the same object as the back
+control** (`<TopBarDisc>`): a disc of glass over artwork and a bare glyph in
+the bar — the owner's menu on a collection, Surprise Me's settings, the
+scanner's torch. Never an `<IconButton>` there — that is a filled grey circle
+beside one of glass.
 
-Screens leading with artwork (game, collection, review, profile, Top 10) let
-content run underneath. Every other screen passes `<Screen insetHeader>` to
-reserve the space, and states its own heading in content: there is no title up
-here to carry one.
+**A screen's name is its bar's title.** A page that opens on a list or a form
+prints no heading of its own under the bar; what it says first is what the name
+cannot — which game, ranked by what. A page that opens on artwork, or on its
+own mark (a platform's logo, the Must Play badge), says its name there, and the
+bar repeats it only once that has scrolled away. The same words are never on
+screen twice.
+
+Under Reduce Motion the frost still fades — a fade is not movement — the bar
+after artwork fades in without sliding, and Home's row does not fold.
 
 ---
 
@@ -2153,14 +2224,33 @@ are to be tuned on a device.
 
 Below the tabs the page is the reference's artist page, section for section
 (`ArtistScreen.kt`): a bold heading on the page, and under it either a **rail of
-art** — screenshots, the original game, editions, the franchise, as its
-"Singles" and "Albums" are — or a **card** of words and figures, as its
-"Description" is. A heading may end in the reference's **More**, one quiet word
-that goes to the rest of the section.
+art** — screenshots, then further down the game's editions and its franchise —
+or a **card** of words and figures, as its "Description" is. A heading may end
+in the reference's **More**, one quiet word that goes to the rest of the
+section.
+
+**Screenshots first, then what the people here made of the game** — three
+things from a film's page in Letterboxd, the owner's redesign (2026-10-09).
+Each is absent when it has nothing to show.
 
 ```text
 Screenshots
 [ 16:9 ][ 16:9 ][ 16…                      ← the reference's video height
+╭ Ratings ───────────────── 128 ratings ╮   the reviews sheet's own summary,
+│ ───────────────────────────────────── │   in a card that opens the sheet
+│ Great                            ┌──┐ │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▒▒▒▒  ░░      │84│ │
+╰───────────────────────────────────────╯
+╭ Played by ──── 214 ╮ ╭ From your friends ╮  two faces each; under a face,
+│  ◍      ◍          │ │  ◍      ◍         │  the score that person gave
+│  84     Playing    │ │  91     77        │
+╰────────────────────╯ ╰───────────────────╯
+Reviews                              More
+┌───────────────────────────────────────┐
+│ ◍  Ada                       84  ◔ 12 │   the most liked review, one card
+│    Finally a sequel that knows what…  │
+│    ♥ 87 likes                         │
+└───────────────────────────────────────┘
 Details                                More
 ┌──────────────────────────────────────┐
 │ Genres, themes, modes, perspectives, │    ← a door: the full IGDB record
@@ -2173,16 +2263,31 @@ Platforms
 │      │  ( ◉ PS5  ⌄ )                     ← the dropdown, outlined (§ 9.4)
 └──────┘  $59.99
 Editions & extras
-[cover][cover][cover][co…                  ← 2:3 at the album height
-Title   Title   Title
-2019    2020    2021
+▯▯▯▯  ▯▯▯▯  ▯▯▯▯  ▯▯▯                      ← a row of games (§ 3.3): on the page,
+                                              nothing under a cover, never a card
 ```
 
+- **Ratings is the sheet's three-part bar, not a histogram** — the owner's
+  choice, offered both. One component (`<ScoreSummary>`) in both places.
+- **Ratings and the two squares** are titled inside in `h5` with a hairline
+  under the title, as the profile's boxes are; a face is 44, and opens that
+  person's record of the game. With players and none of yours, the second
+  square says so.
+- **The review card** keeps the card it replaced — fill, corner, inset, shadow
+  — and takes the reference's contents: a 36 face at the left; the name, and at
+  the far end of its line the score (the score ramp's colour, never stars) and
+  the reply count; the words in `reviewExcerpt` / `proseInk`; the likes. The
+  heart on the likes line lights in `liked` when you liked it. A count of
+  nothing is not drawn. Every row of the reviews sheet is this card on the
+  sheet's neutral `surface`.
+- **No critics and no "Developers" card here.** The critics' quotes are the
+  first section of the reviews sheet, over the app's own reviews; the
+  companies are links in the header (§ 14), a developer's name in bold.
 - **Sizes are fractions of the display**: the reference's dp over the 360dp
   phone it was measured on, where its 180dp album art is half the width
   (`useSectionMetrics`). Inset 20, heading row 40, items 20 apart, card 8 in the
-  corner and 16 in. Type stays on the scale — `h2` headings, `itemTitle` over
-  `bodySmall` under the art, `body` in a card.
+  corner and 16 in. Type stays on the scale — `h4` headings, `itemTitle` over
+  `bodySmall` under wide art, `body` in a card.
 - **There is no About here, and no "Featured in".** The synopsis moved into
   the masthead as free-standing text (§ 14). **Details** — the full IGDB record,
   which was About's More — took its place as a door card of its own, so nothing
@@ -2260,29 +2365,36 @@ playtime → interactions**. Nothing competes equally.
 > A review **card** never contains a game case (§ 4.1.2). A review **masthead**
 > may.
 
+That is a review in a *list* (`<LogCard>`). On a game's own screens — the head
+of its Overview and the reviews sheet — a member's review is
+`<MemberReviewCard>`, drawn in § 14.1; the critics' quotes and a copy's screen
+keep `<ReviewQuote>`, a card of words with a score in its corner.
+
 ---
 
 # 17. Section Headers
 
-**A band label is `h2` — 19 / 24 bold, in `text`.** This section used to
-specify the opposite (`caption` or `bodySmall` in `textMuted`, with an explicit
-ban on `h1`/`h2`), and the code has never matched it. The code is right.
+**A section's heading is `h4` — 16 / 21 bold, in `text` — and it stands on the
+page.** Over a row of games (§ 3.3) and over what is not one: news, the
+genres, collections, a studio's grid (`<HomeSection>`). One line; a heading
+that leads somewhere is the link and ends in a quiet chevron. A heading over
+something that does not explain itself — a grid of genres — may carry one
+muted line under it; a row of covers never needs one.
 
-A band heading has to win against the artwork *directly underneath it*. At 14px
-bold in a muted grey it lost to every cover on the page, and Home stopped
-reading as separate sections at all — it read as one continuous scroll with
-captions floating in it. 19px bold is the step where the heading reads first.
-The quiet-label rule was written for a page whose bands were lists of text; this
-app's bands are walls of box art, which is a different problem.
+It was `h2` (20), and the argument for it was a real one: a band heading had to
+win against a rail of 180dp covers directly underneath it. A row's covers are
+123 now, and 20 over them was shouting.
+
+Small labelled cards — the Ratings card and the Played by squares on a game's
+page, the profile's boxes — title themselves a step down, in `h5`, with a
+hairline under the title.
 
 Metadata-style labels above dense content still use `label` — 10 / 13, medium,
 `textMuted`, uppercase, 0.8px tracking. That is a different job: it names a
-*column or a group inside* a band, not the band. Home's "MORE FROM EVERYONE"
-seam is the canonical use.
+*column or a group inside* a section, not the section.
 
 The rule that survives: **a page has one page title.** `h1` is the page's
-subject, `h2` is a band inside it, and nothing on a band heading goes above
-`h2`.
+subject, and nothing on a section heading goes above `h4`.
 
 ---
 
@@ -2299,9 +2411,20 @@ widens outward:
 | # | Band | Question | Source |
 |---|---|---|---|
 | 1 | Games for you | what might I play | your logs → IGDB similarity |
-| 2 | Reviews | what did people write | Postgres |
+| 2 | New from friends | what did people play | Postgres |
 | 3 | Releases | what came out, what's next | IGDB |
 | 4 | Latest news | what happened | RSS |
+
+The first three are rows of games (§ 3.3); the news stands under its own
+heading the same way. None of them is in a card.
+
+**Band 2 is a row of covers with a face under each** — the row of that name on
+Letterboxd's home, the owner's reference (2026-10-09). It took the place of a
+stack of review cards. Under a cover: a 22 face, the person's name, and the
+score they gave in the score ramp's colour, with a mark when there are words
+behind it. When the people you follow have logged nothing, or you follow
+nobody, the same row is headed **"New on GameLog"** and is everyone's — one row
+that is honest about whose it is, never two and never blended.
 
 It was seven, and two of those pairs were the same band twice. "Latest releases"
 and "Coming soon" were both 92dp poster rails with an inverted date predicate,
@@ -2324,90 +2447,118 @@ personalised band means adding a band, not unpicking a merged timeline.
 
 ---
 
+# 18.0 Search's Discover
+
+Search with nothing typed, on the Games tab: the answer to "what should I
+play". The owner's reference (2026-10-09) is Letterboxd's home; the field and
+the seven tabs stay pinned above all of it.
+
+```text
+  ⌕ Search games…                 ▥      the field, and the tabs, as before
+  GAMES  Reviews  People  …
+  ░░░░░░░░░░░░░░░░░░░░░░░░░░ [New]       the slider: 3:2, edge to edge
+  ░░░░░░░ landscape art ░░░░░░░░░
+  Game name
+  Developer
+  ━━━━   ────   ────   ────              four segments; the current one fills
+  Popular this month               ›
+  ▯▯▯▯▯▯   ▯▯▯▯▯▯   ▯▯▯
+  Similar to Hades
+  ▯▯▯▯▯▯   ▯▯▯▯▯▯   ▯▯▯
+  Beloved by the community   Month ▾
+  ▯▯▯▯▯▯   ▯▯▯▯▯▯   ▯▯▯
+  Highly rated
+  ▯▯▯▯▯▯   ▯▯▯▯▯▯   ▯▯▯
+  Browse by genre
+```
+
+No collections on this page — they have a tab of their own — and **no glow**.
+
+**The slider** (`constants/search-spotlight`, under `npm test`). Up to four
+slides: the two biggest games out this month, the most followed game still to
+come, and the release calendar. On each, a name in `h2` over two lines with one
+developer under it, a badge top right — "New", a countdown, "Calendar" — and
+the segments at the foot.
+
+- **The badge is near-black at 82% with white type**, as the edition word on a
+  cover is. The reference's is orange; colour on artwork belongs to the game.
+- **The words stand on a scrim**: black from nothing to 88% over the lower 72%
+  of the art, flat where it starts and full under every line. It holds 3:1
+  under the name and 4.5:1 under the small line on *white* art, on the
+  narrowest phone. It never blacks the art out.
+- **The calendar slide is drawn**, not a picture: the month as the calendar
+  screen draws one, the days a notable game is out on lit, today ringed.
+- **It moves by itself** every six seconds, the lit segment filling as the
+  timer, until it is dragged once. Still under Reduce Motion, for a screen
+  reader, and whenever it cannot be seen.
+
+**There is no light under the slider.** The owner asked for one — "a glow like
+the one in the home page… like a neon light above a door" — saw two versions of
+it on a phone, and had it removed. Home's light is Home's alone.
+
+**"Beloved by the community"** is the one row with a control in its heading:
+a 32dp outlined dropdown — Week, Month, Year — where a chevron would be. Under
+each cover, GameLog's average in the score ramp's colour, bold.
+
+---
+
 # 18.1 Profile
 
-**A Letterboxd profile, measured, in this app's materials.** The owner's
-reference is a profile mock (a 375pt screen, 196 pixels wide — so its figures
-are good to a couple of points); the numbers are in
-`constants/profile-layout.ts`. The page, the card, the pills and the blue are the
-app's: the mock's slate, green underline, serif bio and star ratings were not
-carried.
+**The old Instagram-shaped profile, at a margin of ten.** It was a
+Letterboxd-style profile for about a week — a 20pt margin, the widgets as cards
+forty apart, tabs at the top — and the owner went back (2026-10-12): "go back
+to the old profile page layout, remove the widgets being inside cards… make the
+margins 10". The numbers are in `constants/profile-layout.ts`.
 
 ```text
 ┌──────────────────────────────────────────┐
 │ (+)            handle              (⚙)   │  ← your tab; someone else's: (‹) handle
-│ [PROFILE] REVIEWS COLLECTIONS STEAM      │  ← fixed; the list scrolls under it
 │                                          │
 │ (face)   Name                            │
-│          128     12       9       4      │  ← a figure centred over its word
-│         Logged Followers Following Friends
-│ The bio, under the row.                  │
+│          128      12        9            │  ← a bold figure over its word, flush left
+│          Logged   Followers Following    │
+│ The bio, set tight under the face.       │
 │ [ Edit profile                ][ share ] │
-│                                          │
-│ ┌ Favourites ───────────────────── Edit ┐│  ← a box
-│ │ ───────────────────────────────────── ││
-│ │ [▮▮▮]  [▮▮▮]  [▮▮▮]  [▮▮▮]            ││
-│ └───────────────────────────────────────┘│
-│                                          │
-│ ┌ Ada's games ──────────────────────  › ┐│  ← a box of its own; its title is the way in
-│ │ ───────────────────────────────────── ││
-│ │ ▮▮▮▮▮▮▮[ ▮▮▮▮▮▮▮▮▮ ]▮▮▮▮▮▮▮           ││  ← § 4.0.2, margin to margin
-│ │ 128 digital · 14 physical             ││
-│ └───────────────────────────────────────┘│
-│                                          │
-│ Wall                                     │  ← open, and last
 │ ──────────────────────────────────────── │
-│ [ What's on your mind?                 ] │
-│ Today ────────────────────────────────── │
+│ ★ Favourites                        Edit │  ← a hairline and a heading; no card
+│ [▮▮▮]   [▮▮▮]   [▮▮▮]   [▮▮▮]            │
+│ ──────────────────────────────────────── │
+│ Ada’s games                  View all ›  │
+│ [▮▮▮]   [▮▮▮]   [▮▮▮]   [▮▮▮]            │  ← the favourites' row, with other games
+│ 128 digital · 14 physical                │
+│ ──────────────────────────────────────── │
+│ ★ Starred song                           │
+│    ▤         ▥         ◌         ◍       │  ← the tabs: four glyphs, under the widgets
+│ ┌ a review ─────────────────────────────┐│  ← the chosen tab's rows
 └──────────────────────────────────────────┘
 ```
 
-| | Mock | Here |
-| --- | --- | --- |
-| Margin | 20pt | `PROFILE_MARGIN`, 20 — this screen alone, and every tab of it; the app's is 15 |
-| Tabs | words, under the title bar, 48pt row | `<TabBar>` pills in words, fixed, 48dp row: Profile, Reviews, Collections, Steam |
-| Face | 77pt, 20.7% of the width | 21% of the display, 72–96 |
-| Name | 18 bold | `h3` |
-| Counts | 16 bold over 11, centred, 27pt apart | `h4` over `bodySmall`, centred, spread across the column |
-| Box | ~6pt corner, 10pt inside; title 14.5, a hairline, the content | `<Card>` (§ 11), **8 inside**; `h5`, hairline, content |
-| Favourites | four posters 75×115pt, 5pt apart | four covers **73×110** on a 360dp phone, **4 apart** |
-| Open section | title and chevron, a rule under | `h5`, a `borderStrong` rule; no chevron — the wall is not a door |
-| Between sections | 38–42pt | 40 |
+| | Here |
+| --- | --- |
+| Margin | `PROFILE_MARGIN`, **10** — this screen alone; the app's is 15 |
+| Between the head's parts | 12 (`HEADER_GAP`): the face's row, the bio, the actions, each widget, the tabs |
+| Face | 21% of the display, 72–96; 20 from the column beside it |
+| Name | `h4`, one line |
+| Counts | three — Logged, Followers, Following — `h5` over `bodySmall`, flush left, 24 apart |
+| Widget | a hairline, 12, a heading in `itemTitle`, 8, the content |
+| Covers in a widget | four, 8 apart, margin to margin: **79×118** on a 360dp phone |
+| Tabs | four glyphs under the widgets (`<TabBar iconOnly>`): Reviews, Collections, Wall, Steam |
 
-- **Each tab shows only its own content.** Profile is the first and holds the
-  face, the counts, the bio, the favourites, the library, the pinned song and
-  the wall; Reviews, Collections and Steam are each a list from the top of the
-  screen. The screen opens on Profile.
-- **The wall is the foot of the Profile tab, not a tab.** It was the fourth of
-  five; the owner had it moved "inside the profile tab, under everything else".
-  Its heading, the composer (the owner's always, an accepted friend's), then the
-  timeline under date headings. With nothing on it, or when it fails to load, it
-  says so in one quiet line — never a screen-sized state under somebody's whole
-  profile.
-- **The favourites are a little larger than the mock's**, at the owner's
-  direction, and the margin could not pay for it: two dp came off each side of
-  the box's inset and one off each gap. That is 71 → 73 on a 360dp phone, and it
-  is all there is while the margin is twenty.
-- **The bio is under the row**, at the owner's direction; the mock sets it
-  between the name and the counts.
-- **Two section shapes, and what a section is decides which.** A *box* for what
-  the profile holds whole — the four favourites, the library, the pinned song,
-  one box each. An *open* section — a title on the page with a rule under it —
-  for what runs on down the page: the wall.
-- **The library has a box of its own.** It stood on the page as a door; the
-  owner had it put in a card, it shared the favourites' for one pass, and the
-  owner had it "detached from the favourites one". Its title keeps its chevron
-  and is the way into the library; five covers run from the title's left edge
-  to the chevron's right one, and the two caption lines start at that left edge.
-- **A box is a card, so it has no border** (§ 11): the surface step and the card
-  shadow draw it. Its title is on its first line with a hairline under it — the
-  one place in the app a heading sits *inside* its card, because the mock's
-  does, and a box that is four covers wide needs its name on it.
-- Section headings here are `h5`, not § 17's `h2`: this is one person's page of
-  small sets, not a feed of bands, and a 20sp heading over four 71dp covers
-  would outweigh them.
-
-**Not yet seen on a phone.** Checked on a still against the mock.
+- **The widgets are not cards.** Sections of the profile, not objects floating
+  on it: a hairline and their own space separate them, which also hands a row
+  of covers the page's full width. They were boxed for a week; do not box them.
+- **Friends is not a count here.** It was the fourth; the owner had it taken off
+  the top of the page and kept as a tab of the screen the Followers and
+  Following counts open.
+- **The games are drawn exactly as the favourites are**: four separate covers
+  at the favourites' size, a dashed slot where there is no fourth. Not a stack
+  (§ 4.0.2 is a collection's). Its two caption lines stay under the covers.
+- **The tabs are under the widgets and the profile is always above them.** One
+  list: pressing a tab changes the rows and leaves the page where it is.
+  Reviews is the opening tab; the wall is a tab.
+- **The bio is under the row**, clamped at four lines.
+- **Headings here are `itemTitle`**, not § 17's `h4`: this is one person's page
+  of small sets, not a feed of sections.
 
 ---
 

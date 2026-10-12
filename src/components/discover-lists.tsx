@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
 import { getPopularCollections, getPopularReviews } from '@/lib/api';
@@ -10,27 +11,16 @@ import { getPopularCollections, getPopularReviews } from '@/lib/api';
 /**
  * The most-liked writing and the most-liked collections.
  *
- * Each one ships in two shapes and they share their query, so the band on
- * Discover and the full page behind its "See all" are guaranteed to agree:
+ * Each is a full page — `<DiscoverReviews>` and `<DiscoverCollections>`, the
+ * `/reviews` and `/collections` routes: the whole ranked list, scrolling,
+ * refreshable.
  *
- *   - `<DiscoverReviews>` / `<DiscoverCollections>` — the whole ranked list,
- *     scrolling, refreshable. These are the `/reviews` and `/collections`
- *     routes.
- *   - `<ReviewsBand>` / `<CollectionsBand>` — the first few, as a plain `View`
- *     for a caller that is already inside a scroller.
- *
- * The band shape is a `View` and not a `FlatList` on purpose: a vertical list
- * nested inside a vertical scroller unmounts its own virtualisation and warns
- * about it, so the host owns the scrolling and the band just renders rows.
- *
- * They were tabs in Search until it was pointed out that a *popularity chart* is
- * not a *search scope* — the field could not filter either of them, so half the
- * tab bar ignored the screen's primary control. They are bands now, which is
- * what Home already does with the same content.
+ * **Both were bands on Search's Discover too**, three cards each. The owner
+ * replaced the reviews band with "Beloved by the community" — a row of the
+ * games GameLog's own scores rank highest — and then had the collections band
+ * taken out of the Games tab as well. Each is still what its own Search tab
+ * shows before a word is typed.
  */
-
-/** How many rows a band shows before deferring to its "See all". */
-const BAND_LIMIT = 3;
 
 function usePopularReviewsData() {
   const reviews = useQuery({
@@ -73,7 +63,7 @@ export function DiscoverReviews() {
     return <ErrorState error={reviews.error} onRetry={() => reviews.refetch()} />;
 
   return (
-    <FlatList
+    <PageFlatList
       data={reviews.data ?? []}
       keyExtractor={(log) => log.id}
       contentContainerStyle={styles.content}
@@ -128,27 +118,6 @@ function CardGap() {
   return <View style={styles.cardGap} />;
 }
 
-/** The first few reviews, for a host that is already scrolling. */
-export function ReviewsBand({ limit = BAND_LIMIT }: { limit?: number }) {
-  const { reviews } = usePopularReviewsData();
-
-  /* A band is supporting content, so it fails quietly: a hard error state here
-     would replace someone's whole Discover feed because one section of it could
-     not load. The full page behind "See all" reports properly. */
-  if (reviews.isLoadingError) return null;
-
-  const rows = (reviews.data ?? []).slice(0, limit);
-  if (rows.length === 0) return null;
-
-  return (
-    <View style={styles.band}>
-      {rows.map((log) => (
-        <LogCard key={log.id} log={log} />
-      ))}
-    </View>
-  );
-}
-
 /**
  * The most-liked collections, in full.
  *
@@ -170,7 +139,7 @@ export function DiscoverCollections() {
        name, five covers and its owner's words, and two across those covers
        would be under forty dp wide. A screen holds about three, twelve apart —
        the interval review cards keep. */
-    <FlatList
+    <PageFlatList
       data={collections.data ?? []}
       keyExtractor={(list) => list.id}
       contentContainerStyle={styles.content}
@@ -192,24 +161,6 @@ export function DiscoverCollections() {
         />
       }
     />
-  );
-}
-
-/** The first few collections, for a host that is already scrolling. */
-export function CollectionsBand({ limit = BAND_LIMIT }: { limit?: number }) {
-  const { collections } = usePopularCollectionsData();
-
-  if (collections.isLoadingError) return null;
-
-  const rows = (collections.data ?? []).slice(0, limit);
-  if (rows.length === 0) return null;
-
-  return (
-    <View style={styles.collectionsBand}>
-      {rows.map((list) => (
-        <ListTile key={list.id} list={list} />
-      ))}
-    </View>
   );
 }
 
@@ -236,11 +187,8 @@ const styles = StyleSheet.create({
      nothing to fill — so the same component rendered directly was centred and
      rendered as a list's empty state was pinned to the top. */
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48, flexGrow: 1 },
-  /* The interval between review cards everywhere they are stacked: Home's
-     band, this page, Search, a profile. `band` separates the same cards. */
+  /* The interval between review cards everywhere they are stacked: this page,
+     Search, a profile. */
   cardGap: { height: Spacing.x12 },
-  band: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
-  /* The same interval the full list keeps between its cards. */
-  collectionsBand: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
   tileGap: { height: Spacing.x12 },
 });

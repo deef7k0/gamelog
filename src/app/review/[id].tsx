@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CommentSection } from '@/components/comment-section';
 import { formatReleaseDate } from '@/components/game-actions';
@@ -12,6 +12,7 @@ import { SpoilerNotice } from '@/components/spoiler-notice';
 import { Avatar } from '@/components/ui/avatar';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { MarqueeText } from '@/components/ui/marquee-text';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { RoundAction } from '@/components/ui/round-action';
@@ -25,7 +26,7 @@ import { EDITIONS, type EditionKind } from '@/constants/game-editions';
 import { parseReviewMetrics } from '@/constants/review-metrics';
 import { PosterAspectRatio, Spacing } from '@/constants/theme';
 import { AccentProvider, useAccent } from '@/hooks/use-accent';
-import { useHeaderHeight, useTopBarInset } from '@/hooks/use-header-height';
+import { useDiscRoom, useTopBarInset } from '@/hooks/use-header-height';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
@@ -101,7 +102,7 @@ export default function ReviewScreen() {
    */
   if (log.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back variant="art" />}>
         <LoadingState label="Loading review" />
       </Screen>
     );
@@ -109,7 +110,7 @@ export default function ReviewScreen() {
 
   if (log.isLoadingError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back variant="art" />}>
         <ErrorState error={log.error} onRetry={() => void log.refetch()} />
       </Screen>
     );
@@ -117,7 +118,7 @@ export default function ReviewScreen() {
 
   if (!log.data) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back variant="art" />}>
         <EmptyState
           title="Review not found"
           message="It may have been deleted by the person who wrote it."
@@ -152,6 +153,13 @@ const MAX_COLUMN = 520;
 const DISC_CLEARANCE = Spacing.x16 + 44 + Spacing.x8;
 
 /**
+ * The row under the art — the game's name beside the two round actions — and
+ * the gap over it, near enough: the top bar comes in with that same name once
+ * this has gone under it, and not before.
+ */
+const TITLE_BLOCK = 72;
+
+/**
  * Lifts the byline to the platform floor **without reserving any height**. A
  * 24dp avatar beside one line of type is about 26dp; slop grows only the touch
  * area, so the band keeps the height the discs are centred in.
@@ -166,7 +174,7 @@ function ReviewPage({ review }: { review: LogWithRelations }) {
 
   /* The band the floating disc occupies, reserved in content — the same row
      Surprise Me states its own name in. */
-  const headerHeight = useHeaderHeight();
+  const headerHeight = useDiscRoom();
   const barInset = useTopBarInset();
 
   const engagement = useQuery({
@@ -214,8 +222,19 @@ function ReviewPage({ review }: { review: LogWithRelations }) {
   }
 
   return (
-    <Screen edges={['bottom']} background={accent.page} topBar={<FrostedTopBar back />}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <Screen
+      edges={['bottom']}
+      background={accent.page}
+      /* The disc leaves with the art; the bar that follows names the game the
+         review is of, once the art and the title under it have gone. */
+      topBar={
+        <FrostedTopBar
+          back
+          title={game?.title ?? 'Review'}
+          header={headerHeight + column + TITLE_BLOCK}
+        />
+      }>
+      <PageScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/*
           Who wrote it, centred in the disc's band — where Surprise Me says its
           own name.
@@ -377,7 +396,7 @@ function ReviewPage({ review }: { review: LogWithRelations }) {
             <CommentSection targetType="log" targetId={review.id} />
           </View>
         </View>
-      </ScrollView>
+      </PageScrollView>
     </Screen>
   );
 }

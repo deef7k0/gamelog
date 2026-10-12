@@ -6,11 +6,10 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { PlayerArtwork } from '@/components/player/player-bar';
 import { SoundCloudMark } from '@/components/player/soundcloud-mark';
-import { ProfileBox, ProfileBoxSection } from '@/components/profile-section';
+import { ProfileWidget } from '@/components/profile-section';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { SECTION_GAP } from '@/constants/profile-layout';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getStarredSong } from '@/lib/api';
@@ -97,19 +96,15 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
      profile under it does not jump when SoundCloud answers. */
   if (lookup.isPending) {
     return (
-      <View style={styles.section}>
-        <ProfileBox>
-          <ProfileBoxSection title="Starred song">
-            <View style={styles.row}>
-              <Skeleton width={ARTWORK} height={ARTWORK} />
-              <View style={styles.body}>
-                <Skeleton width="58%" height={13} radius={Radius.sm} />
-                <Skeleton width="40%" height={10} radius={Radius.sm} />
-              </View>
-            </View>
-          </ProfileBoxSection>
-        </ProfileBox>
-      </View>
+      <ProfileWidget title="Starred song" icon="star">
+        <View style={styles.row}>
+          <Skeleton width={ARTWORK} height={ARTWORK} />
+          <View style={styles.body}>
+            <Skeleton width="58%" height={13} radius={Radius.sm} />
+            <Skeleton width="40%" height={10} radius={Radius.sm} />
+          </View>
+        </View>
+      </ProfileWidget>
     );
   }
 
@@ -135,75 +130,70 @@ export function StarredSongWidget({ profileId }: { profileId: string }) {
   }
 
   return (
-    /* A box of its own, like the favourites and the library over it: a
-       thing the profile holds whole (`<ProfileBox>`). SoundCloud's mark is at
-       the far end of the title's line, linking to the track there: with the
-       uploader named below, the credit its terms ask for. */
-    <View style={styles.section}>
-      <ProfileBox>
-        <ProfileBoxSection
-          title="Starred song"
-          action={
-            <SoundCloudMark url={track.permalinkUrl} label={`Open ${track.title} on SoundCloud`} />
-          }>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={
-              playable
-                ? `${playing ? 'Pause' : 'Play'} ${track.title} by ${track.uploader.name}`
-                : `${track.title} by ${track.uploader.name}. SoundCloud does not let it play here.`
-            }
-            accessibilityState={{ disabled: !playable }}
-            disabled={!playable}
-            onPress={toggle}
-            scaleTo={0.99}
-            style={StyleSheet.flatten([styles.row, { opacity: playable ? 1 : 0.6 }])}>
-            <PlayerArtwork uri={track.artworkUrl} size={ARTWORK} />
+    /* A widget like the favourites and the games over it: a hairline, a
+       heading, the song (`<ProfileWidget>`) — not a card. SoundCloud's mark is
+       at the far end of the heading's line, linking to the track there: with
+       the uploader named below, the credit its terms ask for. */
+    <ProfileWidget
+      title="Starred song"
+      icon="star"
+      action={
+        <SoundCloudMark url={track.permalinkUrl} label={`Open ${track.title} on SoundCloud`} />
+      }>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={
+          playable
+            ? `${playing ? 'Pause' : 'Play'} ${track.title} by ${track.uploader.name}`
+            : `${track.title} by ${track.uploader.name}. SoundCloud does not let it play here.`
+        }
+        accessibilityState={{ disabled: !playable }}
+        disabled={!playable}
+        onPress={toggle}
+        scaleTo={0.99}
+        style={StyleSheet.flatten([styles.row, { opacity: playable ? 1 : 0.6 }])}>
+        <PlayerArtwork uri={track.artworkUrl} size={ARTWORK} />
 
-            <View style={styles.body}>
-              <Text variant="itemTitle" numberOfLines={1}>
-                {track.title}
-              </Text>
-              <Text
-                variant="bodySmall"
-                color={trouble ? 'textSecondary' : 'textMuted'}
-                numberOfLines={trouble ? 2 : 1}>
-                {trouble ?? [track.uploader.name, starred?.game_title].filter(Boolean).join(' · ')}
-              </Text>
+        <View style={styles.body}>
+          <Text variant="itemTitle" numberOfLines={1}>
+            {track.title}
+          </Text>
+          <Text
+            variant="bodySmall"
+            color={trouble ? 'textSecondary' : 'textMuted'}
+            numberOfLines={trouble ? 2 : 1}>
+            {trouble ?? [track.uploader.name, starred?.game_title].filter(Boolean).join(' · ')}
+          </Text>
 
-              {/* Progress only while it is actually playing — a full-width empty
+          {/* Progress only while it is actually playing — a full-width empty
                   track under a song nobody has tapped is just a rule. */}
-              {playing && (
-                <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
-                  <View
-                    style={[
-                      styles.fill,
-                      { width: `${progress * 100}%`, backgroundColor: theme.primary },
-                    ]}
-                  />
-                </View>
-              )}
+          {playing && (
+            <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
+              <View
+                style={[
+                  styles.fill,
+                  { width: `${progress * 100}%`, backgroundColor: theme.primary },
+                ]}
+              />
             </View>
+          )}
+        </View>
 
-            {playable && (
-              <View style={[styles.play, { backgroundColor: theme.controlFill }]}>
-                {starting ? (
-                  <ActivityIndicator size="small" color={theme.text} />
-                ) : (
-                  <Ionicons name={playing ? 'pause' : 'play'} size={18} color={theme.text} />
-                )}
-              </View>
+        {playable && (
+          <View style={[styles.play, { backgroundColor: theme.controlFill }]}>
+            {starting ? (
+              <ActivityIndicator size="small" color={theme.text} />
+            ) : (
+              <Ionicons name={playing ? 'pause' : 'play'} size={18} color={theme.text} />
             )}
-          </PressableScale>
-        </ProfileBoxSection>
-      </ProfileBox>
-    </View>
+          </View>
+        )}
+      </PressableScale>
+    </ProfileWidget>
   );
 }
 
 const styles = StyleSheet.create({
-  /* A section of the Profile tab, the profile's distance under the one before. */
-  section: { marginTop: SECTION_GAP },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   body: { flex: 1, gap: 2 },
   track: { height: 3, borderRadius: Radius.pill, overflow: 'hidden', marginTop: Spacing.x4 },

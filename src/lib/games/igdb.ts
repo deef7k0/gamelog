@@ -1,7 +1,16 @@
 import { editionKindFor, editionRank } from '../../constants/game-editions';
 import { supabase } from '../supabase';
+import { precisionOf, type DatePrecision } from './calendar';
 import { chooseHero } from './hero-art';
 import { rememberGame } from './seen-games';
+import {
+  freshFrom,
+  monthEnd,
+  pickAwaited,
+  pickFresh,
+  releaseDaysOf,
+  type SpotlightCandidate,
+} from './spotlight';
 import { makeGameId, yearFrom, type Game, type GameProvider, type GameSearchResult } from './types';
 
 /**
@@ -302,6 +311,132 @@ async function getById(sourceId: string, signal?: AbortSignal): Promise<Game | n
 
   const first = raw?.[0];
   return first ? toFullGame(first) : null;
+}
+
+// ---------------------------------------------------------------------------
+// The spotlight: what Search's slider opens on
+// ---------------------------------------------------------------------------
+
+/**
+ * `GAME_FIELDS` and the three things choosing a slide needs on top of it: how
+ * followed a game is, how many have rated it, and how exactly its date is
+ * known. The whole record rides along on purpose — a slide opens the game's
+ * page, and a complete record is what lets it open without a second request.
+ */
+const SPOTLIGHT_FIELDS = GAME_FIELDS.trim().replace(
+  /;$/,
+  `, hypes, total_rating_count, release_dates.date, release_dates.date_format;`
+);
+
+type IgdbSpotlightGame = IgdbGame & {
+  hypes?: number;
+  total_rating_count?: number;
+  release_dates?: { date?: number; date_format?: number }[];
+};
+
+/** How many of the window's most-followed games are weighed for the two "new" slides. */
+const SPOTLIGHT_WINDOW = 40;
+/** How many of the most-followed games still to come are looked at for one with usable art. */
+const SPOTLIGHT_AWAITED = 8;
+
+/** One game on the slider: the row a tap opens, its landscape art, and its date. */
+export type SpotlightGame = {
+  game: GameSearchResult;
+  /** Landscape key art at the slide's own size. */
+  art: string;
+  /** Unix seconds, midnight UTC of the release day. */
+  releasedAt: number;
+  precision: DatePrecision;
+};
+
+export type Spotlight = {
+  /** The biggest games that have just come out — at most two. */
+  fresh: SpotlightGame[];
+  /** The most followed game still to come. */
+  awaited: SpotlightGame | null;
+  /** The days of this month a notable game releases on, for the calendar slide. */
+  releaseDays: number[];
+};
+
+/**
+ * The games Search's slider opens on: the two biggest releases of the month,
+ * and the most awaited game still to come.
+ *
+ * Two requests, in parallel. The first is the forty most-followed games from
+ * the start of the window to the end of this month — the releases to rank
+ * (`pickFresh`), and the days the calendar slide lights. The second is the
+ * eight most-followed games with a date still ahead, because the most awaited
+ * game is rarely due this month. Which rows become slides is decided in
+ * `spotlight.ts`, which is pure and tested.
+ *
+ * Art is `t_720p`: the slide is the display's width by two thirds of it, 1080
+ * by 720 pixels on a 3x phone, which 1280x720 fills at its own height. The
+ * hero's 1080p would be twice the bytes for nothing the slot can show.
+ */
+export async function getSpotlight(now: number, signal?: AbortSignal): Promise<Spotlight> {
+  const filter = 'hypes != null & cover != null & version_parent = null';
+
+  const [recent, upcoming] = await Promise.all([
+    igdbQuery<IgdbSpotlightGame[]>(
+      'games',
+      `${SPOTLIGHT_FIELDS}
+       where first_release_date >= ${freshFrom(now)}
+         & first_release_date < ${monthEnd(now)} & ${filter};
+       sort hypes desc; limit ${SPOTLIGHT_WINDOW};`,
+      signal
+    ),
+    igdbQuery<IgdbSpotlightGame[]>(
+      'games',
+      `${SPOTLIGHT_FIELDS}
+       where first_release_date > ${now} & ${filter};
+       sort hypes desc; limit ${SPOTLIGHT_AWAITED};`,
+      signal
+    ),
+  ]);
+
+  type Row = SpotlightCandidate & { slide: SpotlightGame | null };
+
+  const describe = (raw: IgdbSpotlightGame): Row | null => {
+    if (!raw.first_release_date) return null;
+    const hero = chooseHero(raw.artworks, raw.screenshots);
+    const art = imageUrl(hero?.image, '720p');
+    const precision = precisionOf(raw.first_release_date, raw.release_dates);
+
+    return {
+      id: makeGameId('igdb', raw.id),
+      releasedAt: raw.first_release_date,
+      precision,
+      hypes: raw.hypes ?? 0,
+      ratings: raw.total_rating_count ?? 0,
+      artAspect: art ? (hero?.aspect ?? null) : null,
+      slide: art
+        ? {
+            game: toSearchResult(toFullGame(raw)),
+            art,
+            releasedAt: raw.first_release_date,
+            precision,
+          }
+        : null,
+    };
+  };
+
+  const present = (row: Row | null): row is Row => row !== null;
+  const window = (recent ?? []).map(describe).filter(present);
+  const ahead = (upcoming ?? []).map(describe).filter(present);
+
+  const fresh = pickFresh(window, now);
+  const awaited = pickAwaited(
+    [...ahead, ...window],
+    now,
+    fresh.map((row) => row.id)
+  );
+
+  const slideOf = (row: Row) => row.slide;
+  return {
+    fresh: fresh.map(slideOf).filter((slide): slide is SpotlightGame => slide !== null),
+    awaited: awaited?.slide ?? null,
+    releaseDays: releaseDaysOf(window, now),
+  };
 }
 
 /**
@@ -1069,7 +1204,7 @@ export async function getSurprisePoolSize(
  * the same: 1 console, 5 handheld, 6 computer) and a `where` on the old name
  * does not fail — it matches nothing, so this returned an empty list and the
  * award picker's platform filter had no platforms in it. The same rename that
- * took `external_games.category`; see CLAUDE.md § Wikidata.
+ * took `external_games.category`; see CLAUDE.md § Steam CDN artwork.
  */
 export async function getGenres(signal?: AbortSignal): Promise<IgdbTag[]> {
   const raw = await igdbQuery<IgdbTag[]>(

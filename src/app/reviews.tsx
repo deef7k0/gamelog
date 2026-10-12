@@ -15,16 +15,13 @@ import { Spacing } from '@/constants/theme';
  * "See all" for both of those bands and nothing else, which is a page that can
  * be linked to and arrived at rather than a mode you have to know to switch on.
  *
- * States its own heading in content, because there is no header anywhere in this
- * app and a screen that opens on a list has nothing else to name it.
+ * Its name is its bar's title; the line under the bar says what the list is
+ * ranked by.
  */
 export default function ReviewsScreen() {
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Reviews" />}>
       <View style={styles.head}>
-        <Text variant="h1" accessibilityRole="header">
-          Reviews
-        </Text>
         <Text variant="bodySmall" color="textMuted">
           The most-liked writing on GameLog. Only logs with words in them are ranked.
         </Text>

@@ -41,8 +41,7 @@ npx eslint src     # lint
 npx prettier --write "src/**/*.{ts,tsx}"
 npm test           # node:test — pure modules only: the M3 scheme generator, the
                    # genre reach order, barcodes, progress choices, review filters,
-                   # the report reasons against 0031's CHECKs, the Wikidata
-                   # claim parsing and game lookup (lib/wikidata), the Commons
+                   # the report reasons against 0031's CHECKs, the Commons
                    # logo licence check, the immersive page colour
                    # (Palette port, Oklab darkening), the PNG decoder (against
                    # Node's zlib and a real Commons thumbnail), the RSS
@@ -75,8 +74,17 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # was measured from (constants/game-masthead), the cover
                    # stack — that five covers span their row and fewer stand
                    # in the middle of it — against its reference
-                   # (constants/cover-stack), and the profile's margin, face,
-                   # box and favourites (constants/profile-layout)
+                   # (constants/cover-stack), the profile's margin, face
+                   # and four-cover rows (constants/profile-layout), a row of
+                   # covers — the cover's size and how many are in view,
+                   # against the reference (constants/cover-rail),
+                   # Search's slider — its shape, and the scrim under its
+                   # words at AA on white art (constants/search-spotlight),
+                   # which games the slider opens on and what each says
+                   # about its date (lib/games/spotlight), and the top bar:
+                   # its size against Material 3's, the frost, how far the
+                   # glass discs go with the page, where the bar comes in
+                   # after the artwork, and Home's fold (constants/top-bar)
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -121,7 +129,10 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    the same sentence. `0035` is the OpenCritic answer cache and is optional —
    see step 7. `0036` is SoundCloud — see step 8, and **read its header before
    running it: it deletes every starred song and drops `game_soundtracks`**.
-   The app is on SoundCloud's shape already, so until it runs a star cannot
+   `0037` is "Beloved by the community" — one function, `beloved_games`, and
+   nothing else: without it that one row is absent from Search's Discover and
+   nothing errors. The app is on SoundCloud's shape already, so until 0036 runs
+   a star cannot
    be saved (the old table still requires a title and an artist).
    `0006`, `0015`, `0019` and `0022` each add an enum value and must run
    **alone** — see the notes in those files.
@@ -184,9 +195,6 @@ src/
     game/[id]        game detail + reviews + action row
     log/[id]         create/edit a log (modal)
     achievements/[id]  per-game achievement list
-    game-info/[id]   Additional information: awards, nominations, cast, budget
-                     and the people behind a game, from Wikidata. Opened from
-                     the Overview tab; see § Wikidata
     list/[id]        a list / tier list / award show
     add-to-list/[id]   pick a game to add to that list (modal)
     award-game/[id]    pick the winner of one award (modal)
@@ -249,8 +257,19 @@ src/
                      player. See § Soundtracks
     sign-in, sign-up
   components/        shared UI; components/ui/ is the primitive layer
-                     ui/frosted-top-bar a floating 48dp disc of glass holding the
-                                        back chevron. Not a bar; see § Conventions
+                     ui/frosted-top-bar the top bar — SimpMusic's: a 64dp row
+                                        (chevron, the page's name, its controls)
+                                        that is clear at the top of a page and
+                                        frost once it scrolls; over artwork,
+                                        glass discs that leave with the art and
+                                        a bar that comes in after it.
+                                        `<FoldingTopBar>` is Home's. See § The
+                                        top bar
+                     ui/page-scroll     `<PageScrollView>`, `<PageFlatList>`,
+                                        `<PageSectionList>`: a page's main
+                                        scroller, which is how its bar learns
+                                        the page moved. A pushed screen that
+                                        scrolls uses one
                      app-tab-bar        the bottom navigation: SimpMusic's 64dp
                                         capsule (Home, Search, News, Profile)
                                         with a sliding 56dp indicator, floating
@@ -260,8 +279,30 @@ src/
                      award-show / award-slot  an award ballot, and one row of it
                      game-filter-bar    genre / platform / studio / year pills
                      game-lineage       original game / editions & extras
-                     game-insights      rating histogram, time to beat, the two
-                                        rails of reviews (members', critics')
+                     game-insights      the head of a game's Overview — the
+                                        Ratings card, the two Played by squares,
+                                        the most liked review — then time to
+                                        beat and the critics' rail
+                     score-summary      GameLog's verdict on a game: the word,
+                                        the score tile, the three-part bar. The
+                                        Ratings card's and the reviews sheet's,
+                                        one component
+                     member-review-card a member's review on a game's own
+                                        screens: face, name, score and replies,
+                                        the words, the likes. The Overview's
+                                        card and every row of the reviews sheet
+                     ui/panel           a small card that titles itself — the
+                                        Ratings card and the two Played by
+                                        squares on a game's Overview. Never a
+                                        row of games; see § Conventions
+                     critic-reviews     what the critics wrote, from OpenCritic:
+                                        the section at the head of the reviews
+                                        sheet (it was a rail on the Overview)
+                     game-rail          `<GameCoverRail>`: small covers in a
+                                        row, nothing under them unless it is
+                                        data. `<CoverRail>` is the generic one
+                     activity-rail      Home's "New from friends": covers with
+                                        a face, a name and a score under each
                      game-details-sheet the full IGDB record, behind a button
                      add-to-collection  pick which collection a game joins
                      store-prices       where to buy, from IsThereAnyDeal
@@ -270,17 +311,17 @@ src/
                      ui/cover-stack     up to five covers as one stack, the
                                         first whole and in front — five span
                                         their row, fewer stand in its middle: a
-                                        profile's
-                                        library and a collection wherever
-                                        collections are listed. See § Conventions
+                                        collection wherever collections are
+                                        listed, and nowhere else. See
+                                        § Conventions
                      list-tile          a collection in a list, in the review
                                         card's own card: its title and how many
                                         games, its stack, two lines of
                                         description, whose it is
-                     profile-section    the Profile tab's two section shapes: a
-                                        box (the favourites, the library and the
-                                        pinned song, one each) and a ruled
-                                        heading on the page (the wall)
+                     profile-section    `<ProfileWidget>`: a hairline, a small
+                                        heading and its content — the profile's
+                                        favourites, games and pinned song. Not
+                                        a card
                      ui/ambient-light   Home's soft light in the top-left
                                         corner (a native CSS gradient, no Skia)
                      surprise-deck / -bloom / -sheen / -page-wash
@@ -324,8 +365,6 @@ src/
                      cd-disc-underside  the disc's mirrored side; the showcase
                                         alone turns a disc over
                      library-stats      the head of a library (0028)
-                     game-info-sections the Wikidata screen's cards — awards,
-                                        cast, budget, credits, people
                      studio-identity    a studio's name, or its Commons logo in
                                         its place; see § Immersive pages
                      ui/smooth-scrim    SimpMusic's artworkScrimBrush: artwork
@@ -357,8 +396,9 @@ src/
                                         per scope — reviews, people,
                                         collections, studios, events, and the
                                         platform directory — and
-                                        calendar-button, the door at the top of
-                                        Discover. logo-tile is a platform or a
+                                        spotlight-slider, the slider at the
+                                        head of Discover. logo-tile is a
+                                        platform or a
                                         studio as a square with its name under
                                         it. See § Search
                      ui/pager           previous / next / the pages around you /
@@ -406,16 +446,22 @@ src/
                      synopsis's fade — pure, tested),
                      cover-stack.ts (where five overlapping covers go, and
                      fewer — pure, tested),
-                     profile-layout.ts (the profile's margin, face, box,
-                     favourites and section gap — pure, tested),
+                     profile-layout.ts (the profile's margin of ten, its
+                     face, the head's rhythm and the four covers of a widget
+                     — pure, tested),
                      similarity.ts (the twelve reasons), reports.ts (what a
-                     report can say, per kind), wikidata.ts (every Wikidata
-                     property the additional-information screen reads),
+                     report can say, per kind), wikidata.ts (the five Wikidata
+                     properties the studio logo is found by),
+                     cover-rail.ts (a row of covers — pure, tested), search-spotlight.ts (Search's slider, its scrim
+                     and its light — pure, tested),
                      game-labels.ts (the labels a moderator can set — must_play),
                      list-window.ts (how much of a long list is mounted at once;
                      see § Gotchas, performance traps), player.ts (the mini
                      player's measurements, shared by the bar, the tab bar's
-                     clearance and `<Screen>`)
+                     clearance and `<Screen>`),
+                     top-bar.ts (the top bar: its row, its controls, the glass
+                     discs, the frost, and the arithmetic of how each moves
+                     with the page — pure, tested; see § The top bar)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -425,12 +471,15 @@ src/
     use-album-art-color the seed for the above — native extractor on a dev build,
                         pure-JS JPEG decoder in Expo Go. Never import
                         react-native-image-colors statically; see § Conventions
-    use-screen-chrome   what a page publishes to its top bar (Android blur
-                        target, modal flag) + `useTopBarScroll()`
-    use-header-height   how much space the floating back disc occupies
+    use-screen-chrome   what a page publishes to its top bar: the Android
+                        blur target, the modal flag, the page's fill, whether
+                        it reserves the bar's row, and `scrollY` — its scroll
+                        offset on the UI thread, written by its page scroller
+    use-header-height   `useHeaderHeight()`: the bar's row and the inset, what
+                        `<Screen insetHeader>` reserves. `useDiscRoom()`: the
+                        four dp less a page that opens on artwork keeps clear
+                        for its discs
     use-steam-artwork   Steam CDN URLs + the hashed-path fallback, cached 7 days
-    use-wikidata-game-info  one query per game: its Wikidata item, claims and
-                        labels, cached a day. Null means "nothing found"
     use-immersive-background  a page colour from one piece of artwork, or null
                         for the app's page. Background only — never a control
     use-studio-catalogue  a studio's company (identity + game ids) and its
@@ -471,13 +520,15 @@ src/
                      sharp-cover.ts for a cover at 1080p — the copy showcase
                      only, the one slot that draws it that large.
                      hero-art.ts for which of a game's images is its hero.
-                     Pure, tested
-    wikidata/        the additional-information screen's data: finding a game's
-                     item by exact id (lookup.ts), reading claims (claims.ts,
-                     normalize.ts — pure, under `npm test`), and the Action API
-                     (client.ts). See § Wikidata. Also the studio logo:
-                     commons.ts (the licence check — pure, tested) and
-                     studio-logo.ts (finding the file)
+                     Pure, tested.
+                     spotlight.ts for which games Search's slider opens on and
+                     what each says about its date. Pure, tested
+    wikidata/        the studio logo, and nothing else any more: commons.ts
+                     (the licence check — pure, tested), studio-logo.ts
+                     (finding the file), claims.ts and client.ts (reading a
+                     statement; the Action API). The game's "Additional
+                     information" lived here too and was scrapped — see
+                     § Immersive pages
     immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
                      darkened in Oklab, and the scrim's stops. Pure, tested
     logo-luminance.ts   how light a logo's ink is, from a 250px thumbnail
@@ -563,7 +614,9 @@ supabase/
                      0035 the OpenCritic answer cache,
                      0036 SoundCloud: the app's token, which upload matched a
                      game (ids only) — and it EMPTIES starred_songs and DROPS
-                     game_soundtracks
+                     game_soundtracks,
+                     0037 beloved_games(): GameLog's own top-rated games over a
+                     period, a damped average
                      (0006, 0015, 0019 and 0022 each add an enum value and must
                       run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
@@ -715,6 +768,13 @@ file was most of what filled the image cache for anyone with Steam linked. The
 hashed fallback asks `GetItems` for `library_capsule` for the same reason, and
 `use-steam-artwork`'s cache is versioned (`v2`) so stored 2× URLs were dropped.
 
+**`steamAppId` is null on every IGDB game today, so all of this is inert for
+them.** IGDB renamed `external_games.category` to `external_game_source` (same
+numbers; Witcher 3's appid 292030 comes back as `external_game_source: 1`), and
+`GAME_FIELDS` still requests `category`, so `steamAppIdOf` never matches. Only
+legacy `steam:` rows and a linked Steam library carry an appid. Fixing the field
+changes covers app-wide, so it is its own decision.
+
 Three things that are easy to get wrong, all verified against the live API:
 
 - **`asset_url_format` is a template, not a prefix.** It comes back as
@@ -754,47 +814,28 @@ one round trip per game per week, versus fifty probes to discover that
 forty-eight were already right. `hooks/use-steam-artwork` batches those failures
 into one call and persists the result for 7 days.
 
-## Wikidata
+## Wikidata: the game screen is gone
 
-The game page's **Additional information** door opens `game-info/[id]`:
-awards (P166), nominations (P1411), cast with their characters (P161/P725,
-characters from *that statement's* P453/P4633 qualifiers), budget (P2130), and
-producers, composers, designers, screenwriters and a deduplicated People
-section. Every property id is in `constants/wikidata.ts`. All verified against
-the live Action API:
+A game's **Additional information** screen — awards, nominations, cast, budget
+and credits read from the game's Wikidata item (`game-info/[id]`) — was
+**scrapped at the owner's direction** (2026-10-09: "remove that from the code
+itself, I want that feature scrapped"). The route, its door on the Overview,
+its sections, its hook, the item lookup, the claim normaliser and their tests
+are deleted. **Do not rebuild it**, and do not read "IGDB has no cast or
+credits" as a gap to fill from somewhere else: that was this, and it was
+removed.
 
-- **A game is found by exact identifier, never by title.** The IGDB slug — the
-  last segment of `storeUrl`, which is IGDB's `url` — through
-  `haswbstatement:P5794=<slug>`, then the Steam appid through P1733. A search
-  must return exactly one item; two is narrowed once by the IGDB numeric id
-  (`P5794=<slug>[P9043=<id>]`, a qualifier search Wikidata does index) and is
-  otherwise given up. A found item whose own P5794 record names a *different*
-  IGDB game is rejected (`itemMatchesGame`). No match is `null` — "no
-  additional information" — never a guess.
-- **`steamAppId` is null on every IGDB game today.** IGDB renamed
-  `external_games.category` to `external_game_source` (same numbers; Witcher 3's
-  appid 292030 comes back as `external_game_source: 1`), and `GAME_FIELDS` still
-  requests `category`, so `steamAppIdOf` never matches. The Wikidata lookup
-  does not need it — the slug covers the catalogue — but the Steam CDN artwork
-  preference above has been inert for IGDB games for the same reason. Fixing
-  the field changes covers app-wide, so it is its own decision.
-- **Labels are requested as `en|mul`.** Wikidata now keeps one `mul` label for
-  names spelled the same in every language and removes the `en` copy: Doom and
-  Overwatch have no `en` label at all. English-only drops them silently.
+What is left under `lib/wikidata/` is the **studio logo** (next section), which
+the owner did not ask to remove: `client.ts` (the Action API), `claims.ts`
+(reading a statement), `commons.ts` (the licence rule) and `studio-logo.ts`.
+`constants/wikidata.ts` is the five properties it is found by. Three things
+about the API still matter to it:
+
 - **Anonymous traffic is rate-limited per IP, and it bites.** A burst of test
-  calls got `429 text/plain` with `retry-after: 25`. The client runs its three
-  or four requests in series, the query is cached for a day, and a 429 is
-  surfaced, not retried. Space out anything you script against it.
+  calls got `429 text/plain` with `retry-after: 25`. A 429 is surfaced, not
+  retried. Space out anything you script against it.
 - **API errors are HTTP 200 with an `error` object**, and a missing entity is
-  `{"missing": ""}`, not an error. `wbgetentities` takes 50 ids per request
-  anonymously. A merged item answers under the id you asked for with the
-  survivor's labels and `redirects.to`, so identity is the returned `id`.
-- **Who is a person is asked of search, not of claims:**
-  `haswbstatement:P31=Q5 pageid:<a>|<b>` returns the humans among those pages in
-  one small response, where reading each P31 means fetching every claim (43 KB
-  for Nintendo). **`pageid:` with an empty list is ignored and returns every
-  human on Wikidata** — never send an empty batch, and only read back pages you
-  asked about.
+  `{"missing": ""}`, not an error.
 - `origin=*` is what makes the API answer CORS, so the same requests work on
   `npm run web`; browsers cannot set `User-Agent`, so the client also sends
   `Api-User-Agent`, which the preflight allows.
@@ -890,11 +931,66 @@ an eighth scope is an entry there plus a results component.
   removed: "just have them as tabs in the search screen that the user can cycle
   between". Do not bring back a screen of buttons, and do not hide the tabs in
   any state — they are there over Discover and over the recent searches too.
-- **The Calendar is a button at the top of Discover**, not a tab
-  (`<CalendarButton>`, the first thing in `<DiscoverFeed>`): a year of releases
-  has nothing to type into.
-- **Games untyped is Discover**: the Calendar button, Browse by genre, then the
-  rails. Typed, it is the results.
+- **Games untyped is Discover, and it is Letterboxd's home** — the owner's
+  reference (2026-10-09), in the app's materials (`<DiscoverFeed>`). Top to
+  bottom: the slider, then four rows of games — Popular this month, Similar to
+  (the game you reviewed last), Beloved by the community, Highly rated — then
+  Browse by genre. Every one is a heading on the page with its content under
+  it, thirty-two apart. Typed, it is the results. **No collections here**: a
+  band of the most-liked ones closed the page and the owner had it removed
+  from the Games tab — the Collections tab shows the same list. Three owner
+  rulings from the same day:
+  - **Field, tabs, then slider.** The field and the seven tabs stay pinned
+    exactly as they were; the slider is the first thing *under* them. Offered
+    the field as glass over the art, or the tabs under the slider, they chose
+    neither.
+  - **"Popular this month", not "this week"**, though the reference says week:
+    the chart is IGDB's and it is the month's (`/top-games` says why a week of
+    it moves too little). A heading states what the data is.
+  - **"Similar to <game>", not "For you".** Home has "Games for you"; two rows
+    with one name and different games would look broken.
+- **The slider is four slides** (`<SpotlightSlider>`, `constants/search-spotlight`,
+  `lib/games/spotlight` — both pure and tested): the two biggest games out this
+  month, the most followed game still to come with its countdown as the badge,
+  and the release calendar. 3:2, edge to edge, a name in two lines with one
+  developer under it, a badge top right, four segments at the foot.
+  - **Which games is `getSpotlight`**: two requests — the forty most-followed
+    games from the start of the window to the end of this month, and the eight
+    most-followed with a date ahead — ranked as the calendar ranks
+    (`calendarWeight`), so the slider and the screen its last slide opens agree.
+    "This month" is the calendar month; a game from it goes ahead of a bigger
+    one from the thirty days before, which the window reaches back to so the
+    2nd of a month is not empty. Verified live on 2026-10-09: Gears of War:
+    E-Day, End of Abyss, and Grand Theft Auto VI at "41 days".
+  - **A countdown only where IGDB knows the day.** A month-precise game's badge
+    is the month, a year-precise one's the year (`countdownLabel`).
+  - **Art is the hero rule's, at `t_720p`, and never a cover.** A game whose
+    chosen art is a banner, a portrait or a wordmark (`usableArt`) gives its
+    slide to the next one.
+  - **The calendar slide is drawn, and always there.** The month as the
+    calendar screen draws one, the days a notable game is out on lit — from the
+    spotlight's own request, so it costs nothing. It needs no request to exist,
+    so the slider is never empty.
+  - **It moves by itself until it is touched.** Every six seconds, the lit
+    segment filling as the timer. One drag stops it for as long as the screen
+    stays up; it is still under Reduce Motion, for a screen reader, in the
+    background, on another tab, and once scrolled past.
+  - **The badge is near-black with white type**, as the word on a cover is. The
+    reference's is orange; colour on artwork belongs to the game.
+- **There is no glow on Search. Do not add one.** The owner asked for "a glow
+  like the one in the home page… like a neon light above a door" under the
+  slider, saw it on a phone twice in one day — hung from the slider's top
+  edge, then lying along its foot and fixed there — and then: "Remove the glow
+  from the search screen." `<DoorLight>` and its numbers are deleted. Home
+  keeps its own light (`<AmbientLight>`).
+- **"Beloved by the community" is GameLog's own scores** (`getBelovedGames`,
+  migration 0037's `beloved_games`), where the band of most-liked reviews was.
+  The period — week, month, year — is a small `<DropdownButton>` at the far end
+  of the heading; the score under each cover is the real average, in the score
+  ramp. The order is a *damped* average (three imaginary ratings at the
+  period's mean), so one 100 does not top thirty 94s and a week with four
+  ratings still has a row. `null` from the query means the database has not
+  run 0037 and the row is absent; an empty period says so and keeps the control.
 - **Recent searches take the body while the field is focused** and nothing is
   typed — never over Platforms, which records nothing. A tap on the Search tab
   while it is open returns it to Games with the field empty.
@@ -926,7 +1022,7 @@ an eighth scope is an entry there plus a results component.
   - **`platforms.category` is now `platform_type`**, and a `where` on the old
     name matches nothing instead of failing — `getPlatforms()` had been
     returning an empty list to the award picker. Same rename as
-    `external_games.category` (§ Wikidata).
+    `external_games.category` (§ Steam CDN artwork).
   - **`offset` holds to at least 250,000** at the latency of offset 0.
   - Nearly every event has an `event_logo` now; `youtubeThumbnail` is a second
     rung, not the supply.
@@ -1107,7 +1203,7 @@ the sideloaded build (§ APK size).
   because it cannot be seen working from this machine and it detaches refs
   while a screen is frozen — `<Screen>`'s Android blur target is a ref held in
   state (§ Gotchas), which is exactly what a freeze would disturb. It is two
-  lines; try it on a phone, alone, and open a screen with a floating back disc
+  lines; try it on a phone, alone, and open a screen with a frosted top bar
   after returning to it.
 - **A skeleton in the page's shape, cross-faded.** SimpMusic's loading state is
   `HomeShimmer` under a `Crossfade`; `<LoadingState>` is a spinner. Rules 1, 3
@@ -1118,20 +1214,38 @@ the sideloaded build (§ APK size).
 
 **Two styles, and where each goes is the rule.** A review in a *list of
 reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
-`<ReviewQuote>`.
+`<MemberReviewCard>`.
 
-- **`<LogCard>` is every list**: Home's band, a profile's Reviews tab, Search's
-  Reviews, the most-liked page. It began on Home alone, as the owner's new
-  look; they then had it "replace the rest of the review cards in the app". It
-  took the place of the Letterboxd-style card `log-card.tsx` used to hold and
-  of the profile's square-art rows (`review-list-row`, deleted — which is why
-  SteamGridDB has three surfaces now, not four). Cards stack `Spacing.x12`
-  apart everywhere.
-- **`<ReviewQuote>` is a game's own screens** — "keep the review style from the
-  game pages": the game page's rail, the reviews sheet, and a copy's screen.
-  Text, a name and a score; the game is already the subject there, and the list
-  card would only say it again. Surprise Me keeps `<ReviewCard>` for the same
-  reason.
+- **`<LogCard>` is every list**: a profile's Reviews tab, Search's Reviews, the
+  most-liked page. It began on Home alone, as the owner's new look; they then
+  had it "replace the rest of the review cards in the app". It took the place
+  of the Letterboxd-style card `log-card.tsx` used to hold and of the profile's
+  square-art rows (`review-list-row`, deleted — which is why SteamGridDB has
+  three surfaces now, not four). Cards stack `Spacing.x12` apart everywhere.
+  **Home no longer has one**: its band of reviews became "New from friends", a
+  row of covers (§ Conventions, rows of games).
+- **`<MemberReviewCard>` is a game's own screens**: the one card on the game
+  page's Overview (the most liked review) and every row of the reviews
+  sheet. The owner's direction (2026-10-09): "keep the current card style and
+  material color, but the content inside the card should replicate" a review
+  on a film's page in Letterboxd. So the card is the one it replaced — the
+  fill, the 8dp corner, the inset, the shadow; the game's dark tone on its
+  page, the app's neutral `surface` in the sheet — and inside it: the writer's
+  face at the left, their name with **the score and the reply count at the far
+  end of that line**, the words (`reviewExcerpt`, `proseInk`), then the likes.
+  A spoiler notice takes the words' place. Three things that are not in it:
+  - **No stars.** A score is 0–100, the number in the score ramp's colour.
+  - **No orange heart beside the score.** In the reference it means the writer
+    marked the film as liked; GameLog records no such fact about a game. The
+    heart is on the likes line and lights (`liked`) when *you* liked the review.
+  - **No count of nothing.** "0 likes" and "0 replies" are not drawn.
+  The likes and replies were already in the sheet's query; `getTopGameReview`
+  carries `comments` now for the Overview's.
+- **`<ReviewQuote>` is what it began as**: the critics' card — a quote and a
+  score, the outlet printed under it by its rail — and the card a copy's screen
+  shows its owner's review in. It was the member's card too ("text, a name and
+  a score, and nothing else") until the change above; do not put a member's
+  review back in it. Surprise Me keeps `<ReviewCard>`.
 - **A flat card, almost the colour of the page.** One solid fill (`reviewCard`,
   `#111419`) — the page three levels darker in each channel, 1.03:1 — corners
   just taken off (`Radius.lg`, half the app's card corner) and the card shadow.
@@ -1307,7 +1421,7 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
 - **`<Poster>` wears the badge only when it is given `gameId`.** That is how a
   surface opts out, and two do by the owner's rule: **collections** (every
   tile, row and stack) and **reviews** (the card, the review page, a profile's
-  Reviews tab, the wall). Do not pass `gameId` there. It is also withheld on
+  Reviews tab, the wall, Home's "New from friends"). Do not pass `gameId` there. It is also withheld on
   Surprise Me's dealt card and on the Must Play list, where it would be on
   every cover.
 - **The badge is the one coloured thing on box art.** A green disc (`mustPlay`,
@@ -1324,6 +1438,158 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   one short list of ids shared by every cover on screen. A failed fetch or a
   database before 0034 is an empty list — no badges, no error.
 
+## The top bar: SimpMusic's
+
+The owner's direction (2026-10-12): "look at how SimpMusic does their top bar
+in the app, the animation when it scrolls, the size, how it looks, etc. And do
+it for gamelog". It was read from the reference's source, not its screens —
+`NotificationScreen.kt`, `SettingScreen.kt`, `AlbumScreen.kt`,
+`ArtistScreen.kt`, `PlaylistScreen.kt`, `HomeScreen.kt`, `LibraryScreen.kt`,
+`SearchScreen.kt` and `UIExt.kt` (`isScrollingUp`, `barBlurStyle`) — and
+`constants/top-bar.ts` holds every number with the place it was read from,
+under `npm test`.
+
+**This reverses a long-standing rule, on purpose.** For months there was no bar
+at all: one disc of glass pinned in the corner of every screen, no titles
+("screens state their own heading in content"), and "nothing hides on scroll".
+That was the answer to an older full-width frosted strip that sat over every
+piece of key art. The reference solves the same problem differently, and the
+owner asked for its way. Do not restore the pinned disc, and do not print a
+screen's heading under its bar again.
+
+- **What it is.** Material 3's small app bar, as every bar in the reference is:
+  a row **64 high** under the status bar; a back chevron (a 24dp glyph, 48 to
+  touch, its glyph 16 from the edge); the page's name in `h3` — the reference's
+  `titleMedium`, 18 — starting at 56; the page's controls at the far end. **It
+  is never an opaque strip.** It floats over the page with nothing behind it
+  and turns to **frost** when there is something under it: the page blurred,
+  washed with the page's own colour.
+- **Which of three ways it behaves is the page's, not a prop's:**
+  1. **A page that opens on a list or a form** — `<Screen insetHeader>`. The
+     bar is there from the start, clear while the page is at its very top and
+     frost the moment it is not; the two cross-fade over 300ms. Every list
+     page, every modal form.
+  2. **A page that opens on artwork** — no `insetHeader`. At rest there is no
+     bar: discs of glass, 48 across and 12 from the corner, and they are *part
+     of the artwork* — they scroll away with it. Once the header has gone under
+     where the bar sits, the bar comes in from above (a spring, half its own
+     height, fading in), already frost, carrying the page's name in a marquee.
+     The game page, a collection, a studio, a review, an event, the Top 10, a
+     soundtrack, a copy. The page tells it how tall its header is
+     (`<FrostedTopBar header={…}>`); the bar arrives as the header's foot
+     reaches its own, so it never lands on the art.
+  3. **Home** — `<FoldingTopBar>`: the first kind, and its row also folds away
+     while the page is read downward and comes back on any move up, leaving
+     frost over the status bar. It stays open through the first 300dp (the
+     reference keeps it for its first shelf) and needs 6dp of travel to answer,
+     which the reference does not have and a thumb resting on glass needs.
+- **A screen's name is its bar's `title`.** Twenty-odd screens printed an `h1`
+  at the top of their content because no bar existed to carry it — several
+  said so in a comment. Those headings are the bars' titles now and are gone
+  from the content; what was the line *under* the heading stayed, and where it
+  named the subject (the game a copy or a playthrough is of) it was promoted a
+  step. A new screen does the same: `title="Settings"`, and no heading.
+- **A page that opens on its own mark keeps it, and uses the artwork kind under
+  an inset.** A platform opens on its logo and name and Must Play on its badge
+  and name, as an artist's page opens on the artist. Their bar is
+  `variant="art"` *with* `<Screen insetHeader>`: the disc while the mark is in
+  sight, the named bar once it has gone — so the name is never printed twice.
+  The same prop is on the loading and error states of an artwork page (a
+  review, an event), so the back control does not change shape when the page
+  arrives.
+- **A page that scrolls uses a page scroller**, or its bar never learns it
+  moved: `<PageScrollView>`, `<PageFlatList>`, `<PageSectionList>`
+  (`ui/page-scroll`) — drop-in, and each writes its offset to the `scrollY`
+  that `<Screen>` publishes (`use-screen-chrome`). The value is `<Screen>`'s
+  and not the route's because the route is *above* `<Screen>`: it could only
+  hand a value to both ends as props, which is how eleven screens once carried
+  a scroll handler nothing read. Three things about them:
+  - **They are plain lists**, not `Animated.FlatList` (which wraps every
+    cell). `useScrollOffset` needs only a ref it can read on the UI thread; it
+    registers for the native scroll event by tag, so the offset never reaches
+    the JS thread and a scrolling page still renders nothing.
+  - **One per page, and it is the page's** — never a rail, a sheet's list or a
+    menu; they would all write the same value.
+  - **A list that mounts says it is at its top**, so a screen that swaps lists
+    under tabs (moderation, a library) is not left frosted over a list that
+    has not moved.
+- **Right-hand controls are `<TopBarDisc>`s, written once.** One is a disc of
+  glass over artwork and a bare glyph in the bar; it reads which from context.
+  An `<IconButton>` there would be an opaque circle beside glass.
+- **Two room sizes.** `useHeaderHeight()` is the bar's row and the inset — what
+  `<Screen insetHeader>` reserves. `useDiscRoom()` is four dp less: the disc
+  and its distance from the corner, which is what a review's art, Surprise
+  Me's card, the soundtrack's disc and a copy's stage were laid out under. They
+  kept that number, so none of them moved when the row became 64.
+- **The frost fades by its strength, never by anyone's opacity.** A blur
+  inside a view that is itself fading is not a blur on iOS until the fade ends.
+  So the blur's `intensity` and the wash's opacity are both driven by one
+  value, and only a transform is ever shared with a parent. The wash is the
+  page's colour — `<Screen background>`, so a game's page frosts in the game's
+  tone — at 30% over a list and 55% over a page coloured by artwork
+  (`barBlurStyle`). **Below Android 12 there is no blur and the bar is that
+  colour, opaque**: the reference's own rule, and the old path blurs a
+  full-width strip in software on every frame of a scroll.
+- **Three things expo-blur's Android view does, read from `ExpoBlurView.kt`
+  after the first of them shipped.** They apply to any `<BlurView>` whose
+  strength is animated or ever low, not only this one:
+  - **It cannot be set up at a strength of nothing.** `configureBlurView()`
+    runs when the view is handed its target and passes the radius straight to
+    the platform's blur effect, which at exactly 0 throws — logged as *Cannot
+    set prop 'blurTargetId' … nativePtr is null*, on every screen, because the
+    bar mounted clear. (A later change *to* zero is guarded; the setup is not.)
+    The frost's strength therefore has a floor (`frostStrength`,
+    `FROST.floor`), and what hides a frost that is away is a `veil` that is
+    opacity 0 or 1 and nothing between — so it is never a fade over a blur.
+  - **It paints the material's own grey over the blur, as opaque as the
+    strength is high**, and re-applies it after every prop update
+    (`OnViewDidUpdateProps`), so it follows an animated strength. At 85, the
+    thinnest dark material is #252525 at 47%: a lid lighter than the page,
+    where the reference has only the page's colour. So Android is asked for a
+    strength of 4 through a `blurReductionFactor` of 4/21 — the same radius,
+    the grey at 2%. `FROST.androidIntensity` has the arithmetic, under test.
+  - **`dimezisBlurViewSdk31Plus` is only honoured when the method is set.** A
+    view handed its target afterwards — every one, since the target is found
+    after the first render — is set up with the software blur switched on
+    below Android 12. So there the frost's blur view is not mounted at all.
+- **The bar is a layer, not a surface.** It has nothing of its own to show; it
+  softens what the page put behind it, which is why a page's ambience
+  (`<SoftGlow>`, `<AmbientLight>`) belongs in `<Screen backdrop>` and never in
+  the bar. A gradient of the bar's own would be two ramps meeting at its foot —
+  a seam.
+- **Every animated value on it survives a re-render, and how is easy to
+  break.** "Frosted or not" and "discs carried off by 340dp" are the scroll
+  offset, which React never hears, so the lost-end-value gotcha cannot be
+  answered here by restating a pose. The bar bumps a `pulse` on every render
+  and every style reads it — the copy showcase's remedy — **but Reanimated
+  re-sends a style only when it differs from the last one, key by key, and an
+  opacity that settled at 1 does not.** A transform is an array, never the same
+  object twice: so every style on the bar carries one, if only a transform by
+  nothing, and the blur's strength, which is a prop and not a style, is moved
+  by a hundredth on alternate renders. Take either out and a bar on a busy
+  page can lose its frost for good.
+- **Between the disc leaving and the bar arriving there is no back control on
+  screen** — a hundred dp or so of scroll on a game's page. That is the
+  reference's, exactly; the system's back gesture is still there. If the owner
+  asks for the disc to stay until the bar takes over, it is the `discShift` in
+  `<ArtBar>` and nothing else.
+- **What was not changed.** Search, News and your own profile tab keep the
+  rows they had — a field and tabs, tabs, and + / handle / Settings — because
+  each was ruled on by the owner and none is a bar. The scanner and the
+  sign-in options have a bar with no title: each state there prints a heading
+  that is a sentence, not a name.
+- **Run on a phone once, by the owner, and tuned to nothing yet.** Its first
+  run logged the blur's set-up error above, on every screen; that is fixed,
+  and it is all that is known about how the bar looks or behaves on a device.
+  Types, lint, the measurements' tests and the UI-thread code as the worklets
+  plugin ships it were checked here. Still to judge on a device: the frost's
+  strength (`FROST.androidRadius`, 21; `FROST.intensity`, 85, on iOS) and its
+  two washes; that a plain list really reports its offset through
+  an animated ref (if a bar never frosts, that is where to look first); where
+  each artwork page's bar comes in (`header`, per screen — three of them are
+  estimates and say so); Home's fold; and whether the animated blur holds its
+  frame rate on an older phone.
+
 ## Conventions
 
 - **State**: server data → TanStack Query; auth session → the zustand store.
@@ -1338,8 +1604,13 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   `['similar-suggestions', pairId]`, and the reviews sheet's three:
   `['game-review-list', gameId, …]`, `['rating-breakdown', gameId]`,
   `['review-stats', gameId]` — anything that writes a log's status, completion,
-  score or co-op invalidates all three. `['top-reviews', gameId]` is the game
-  page's rail of reviews: the log form and a moderator's removal invalidate it. Labels: `['labelled-games', label]`
+  score or co-op invalidates all three. `['top-reviews', gameId, viewerId]` is the
+  game page's most liked review: the log form and a moderator's removal
+  invalidate it by its first two parts. `['game-players', gameId, viewerId]` is
+  the Overview's two Played by squares and `['home-activity', userId]` Home's
+  "New from friends" — a follow or an unfollow invalidates both, and a
+  moderator's removal the second. `['beloved-games', period]` and
+  `['spotlight', day]` are Search's. Labels: `['labelled-games', label]`
   (the list screen) and `['labelled-game-ids', label]` (the picker) — a label
   write invalidates both and updates the badge store (`setGameLabelLocally`).
   Browse: `['platform-directory']`, `['platform-games', id, sort, page]`,
@@ -1433,9 +1704,10 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   busy screenshot. Counts are **inline and neutral** (`ALL GAMES 135`); the red
   badge is opt-in via `alert`, for things genuinely unseen. The profile used to
   carry its own copy of this row and the two drifted the moment one was
-  restyled — if a screen needs tabs, it uses `<TabBar>`. `inset` moves the row's
-  first pill onto a margin that is not the app's 15; the profile is its one
-  caller.
+  restyled — if a screen needs tabs, it uses `<TabBar>`. `inset` moves the row
+  onto a margin that is not the app's 15; the profile is its one caller, and
+  its row is the one `iconOnly` strip — four glyphs spread across the column
+  under the widgets.
 - **Choices are outlined; actions are filled. Selection comes from
   `useSelectable()`.** Any control with an on/off state rests with no fill and a
   1px `outline` (16% white) and a `textSecondary` label, and when selected takes
@@ -1519,7 +1791,7 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   tracked micro-labels on a stat strip, a masthead fact or a notice. A row or a
   card in a list titles itself in `itemTitle` (13 semibold) with a `bodySmall`
   line under it. Sections sit ~32dp apart (`x32`) with ~16dp from heading to
-  content (`<HomeSection>` uses `x16`, 15); a card's inset is ~15dp. The game page's
+  content (`<HomeSection>` uses `x12`, as cards stack); a card's inset is ~15dp. The game page's
   sections are measured from SimpMusic's artist page instead, as fractions of
   the display — see the Overview bullet below. The studio page's banner is the worked example: the name, then the
   subject on the left (a bold figure over a quiet line) and one measurement on
@@ -1530,9 +1802,9 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   places are not on it.** The game page's Overview tab: its sections sit at the
   artist page's 20 (to scale), rails included, so nothing inside it misaligns —
   the step is at the tab bar, between the masthead's 15 and the sections. And
-  **the profile screen**, whole: the 20 of the mock it was drawn from
-  (`PROFILE_MARGIN`), at the owner's direction — its top row, its tabs and
-  every list under them, so the screen has one left edge.
+  **the profile screen**, whole: ten (`PROFILE_MARGIN`), at the owner's
+  direction — its top row, its head, its tabs and every list under them, so
+  the screen has one left edge.
 - **Ratings** are an integer 0-100 on `logs.rating`; `constants/score.ts` maps
   that to a verdict band ("Excellent", "Mixed") and a colour.
 - **`logs.rating` is the only score anything reads.** A reviewer can score by
@@ -1611,8 +1883,8 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   which is the whole point of art not riding the ladder. Corner radii were left
   alone — several were already the reference's (16 on a selection card, 18 on a
   field) and art corners are this app's.
-- **A portrait is three across — except in the library — and a row of games
-  is the game page's franchise rail.** Every grid of games is
+- **A portrait is three across — except in the library.** (A *row* of games
+  is the next bullet.) Every grid of games is
   `PORTRAIT_COLUMNS` (3) wide: the inside of a collection, the studio, Must
   Play, an event's games, a month of the calendar, and Search's results when
   their toolbar's key flips them to the grid. **Somebody's library is
@@ -1629,17 +1901,64 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   ramp, else their status, else Steam's playtime. The game's name is not
   printed — the box prints it — and is the tile's spoken label; a tile with no
   page to open is labelled too. The library spreads `ShelfGridWindow`; a
-  collection's grid, `CoverGridWindow`. Every *row* of games  grids spread `ShelfGridWindow`. Every *row* of games — Home's "Games for you" and "Releases", the
-  studio's three rails, Search's "Most popular", "Similar to…" and "Highly
-  rated" — is `<GameCoverRail>`: the franchise and editions rail from the game
-  page, covers at the album height of the owner's reference with the title in
-  two held lines and one quiet line under it (year, studio or rank). It replaced
-  three rails with three sizes — the 92dp poster rail, Home's captioned card
-  rail and Search's scaling chart carousel. `inset` puts the first cover in line
-  with the heading on a screen that keeps the app's 15dp margin; `parallax` is
-  Home's drift, kept. The Steam library rail on a profile is still sized by
+  collection's grid, `CoverGridWindow`. The Steam library rail on a profile is still sized by
   `usePortraitWidth()`. The profile's four favourites stay four — a set, not a
   grid.
+- **A row of games is covers under a heading on the page, and nothing is
+  printed under a cover.** The owner's reference (2026-10-09) is
+  Letterboxd's home; they asked for it "for the entire app… the franchise
+  games in the game page, studio games, etc". `constants/cover-rail.ts` has the
+  numbers, under `npm test`:
+  - **The cover is the old size: 120×180 on a 360dp phone**, a third of the
+    display, twenty from the next, two and a half in view — the album height
+    of SimpMusic's artist page, which every rail was before. For one build the
+    covers were the reference's — 82×123, nearly four in view — and the owner
+    saw them on a phone: "Go back to the old sizes of game's portraits across
+    the app on the rails. They are too tiny." **Do not shrink them again.**
+    What the reference still gives a row is its one-line heading and the bare
+    cover. One size on every screen that shows a row.
+  - **The box is the label.** No title and no year under a cover; the title is
+    the cover's spoken label. A row prints a line only for what the box cannot
+    say (`lineOf` / `footOf`): a chart's rank, a release date on Home's
+    Releases, GameLog's score under Beloved, a face, a name and a score under
+    "New from friends". The owner chose this over "one line: the title" and
+    over "title and a quiet line, as now". Do not add captions back.
+  - **NOT IN A CARD.** The reference draws each section inside a rounded
+    panel, and the first build did too — every rail in the app. The owner saw
+    it on a phone: "You also placed every rail inside a card. That's not what
+    I want. You should remove the cards and leave the game's rails on their
+    own. They should not be inside a card." And of the game page: "Same thing
+    with the game's rails." A row is its heading on the page and its covers
+    under it, starting at the page's margin and running off the far edge.
+    **Do not wrap a row of games in a card, a panel or a band, on any screen.**
+  - **The heading** (`<HomeSection>`; `<Section>` on a game's page) is one
+    line of `h4`, no subtitle, and no "See all" — a heading that leads
+    somewhere is the link, the whole line, and ends in a quiet chevron.
+    `trailing` puts one small control there instead (Beloved's period).
+    Sections are `x32` apart. `<HomeSection>` also heads what is not a row —
+    news, the genres, collections, a studio's grid — and there it may carry
+    one muted line of explanation.
+  - **Who draws one**: Home (Games for you, New from friends, Releases), Search
+    (four), the studio's three rails, and the game page's Franchise, Editions
+    & extras and Original game. `<CoverRail>` is the generic row;
+    `<GameCoverRail>` is it for games; `<ActivityRail>` for people's logs.
+  - **Lines under covers are `textSecondary`, not `textMuted`**: Home's light
+    and Search's are behind the page, and the muted grey falls below AA on
+    them.
+  - `parallax` is Home's drift, kept.
+  - **`<Panel>` (`ui/panel`) is not for this.** It is the small card that
+    titles itself — Ratings and the two Played by squares on a game's
+    Overview — and nothing else.
+- **Home's "New from friends" is where the review cards were** (`<ActivityRail>`,
+  `getHomeActivity`). Covers, and under each a face, a name and the score they
+  gave — a mark beside it when there are words behind the number. A log with a
+  score *or* a review is in it; your own never are. **One row, and its heading
+  says whose it is**: "New from friends" when the people you follow (and your
+  accepted friends — `getCircleIds`) have logged something, "New on GameLog"
+  when they have not or there are none, and then it is everyone's. Never both,
+  never blended — the owner chose this over "friends only" and over two rows. A
+  cover opens the review when one was written, else that person's record of
+  the game (`game-stats`). These covers wear no Must Play badge.
 - **Search has one "Similar to **<game>**" rail, from the game you reviewed
   last.** The heading is `<HomeSection lead="Similar to" title={…}>` — the
   title bold after a regular lead. It said "Because you loved/played …", split
@@ -1688,23 +2007,20 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   reuses `note` rather than adding a `caption` column. No sort row: the
   arrangement is authored, so re-ordering it by release year is not a view of the
   same thing.
-- **IGDB has no critic reviews; the game page's "Critic reviews" rail is
-  OpenCritic's.** `aggregated_rating` is one averaged number and a count —
-  nothing in the schema says "IGN gave this 90", let alone what IGN wrote.
-  `<CriticReviewsWidget>` quotes each outlet's snippet in a card the size of
-  a screenshot (`<ArtRail shape="wide">`), the quote in the review's own step
-  and ink (`reviewExcerpt`, `proseInk`), the score in the score ramp, and a card opens the
-  review. **That card is `<ReviewQuote>`, and it is the member's review card
-  too**, at the owner's direction: the rail of the app's own reviews above the
-  critics' (`<MemberReviewsWidget>`, the most liked first) and every row of the
-  reviews sheet are the same object with the writer's name at the bottom left
-  and the score at the bottom right — text, a name and a score, and nothing
-  else. No platform mark, no hours, no heart, no flag: those are on the
-  review's page, which the card opens. In the sheet the name is led by the
-  writer's profile picture (`avatarUrl`), which the owner asked back. On the game page it takes the game's
-  dark tone; **in the sheet it takes the app's neutral `surface`**, not the
-  game's colour. A review flagged for spoilers prints the notice in place of
-  its words. Surprise Me keeps the older `<ReviewCard>`. It comes through `functions/opencritic` (`getCriticSummary`), which
+- **IGDB has no critic reviews; the "Critic reviews" at the head of the
+  reviews sheet are OpenCritic's.** `aggregated_rating` is one averaged number
+  and a count — nothing in the schema says "IGN gave this 90", let alone what
+  IGN wrote. `<CriticReviews>` (`components/critic-reviews`) quotes each
+  outlet's snippet in a card the size of a screenshot (`<ArtRail
+  shape="wide">`), the quote in the review's own step and ink
+  (`reviewExcerpt`, `proseInk`), the score in the score ramp, and a card opens
+  the review. That card is `<ReviewQuote>`, on the sheet's neutral `surface`.
+  **It is in the sheet, not on the game page**: it was a rail on the Overview
+  until the owner moved it — "a section at the top for critic's reviews, and
+  then below is the app's user reviews". The sheet's two sections are headed
+  "Critic reviews" and "GameLog reviews". When OpenCritic has nothing to
+  quote, the critics' section is IGDB's one averaged number, said as that;
+  with neither there is no critics' section. It comes through `functions/opencritic` (`getCriticSummary`), which
   needs `OPENCRITIC_API_KEY`; undeployed, or deployed from before snippets, the
   summary has nothing to quote and the section is absent, exactly as ITAD
   prices are. Three things are easy to undo:
@@ -1736,101 +2052,80 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   under "Editions & extras", and a derivative's page swaps the franchise rail for
   its one original. `games.edition_kind` / `parent_game_id` (0017) carry the
   label into collections and feeds, where there is no IGDB response to read.
-- **The profile is a Letterboxd profile, measured.** The owner's reference for
-  the screen (2026-10-09, a 375pt mock drawn 196px wide, so its figures are
-  good to a couple of points): the numbers are in `constants/profile-layout.ts`,
-  under `npm test`. Six rulings hold it:
-  1. **The tabs are at the top, and each shows only its own content.** Profile ·
-     Reviews · Collections · Steam, `<TabBar>`'s pills in words, fixed under
-     the screen's top row and outside the list. Profile is first and holds the
-     face, the name, the counts, the bio, the favourites and the library, the
-     pinned song and **the wall**; the other three are each a list from the top
-     of the screen. The owner was offered "profile info on every tab" and chose
-     this. It replaced four unlabelled glyphs under the widgets, with Reviews
-     as the opening tab. The list is keyed by tab, so each starts at its own
-     top. **The wall was a tab of its own, the fourth of five, and the owner
-     had it moved "inside the profile tab, under everything else".** So the
-     Profile tab is a list whose header is the profile and whose rows are the
-     wall: an open heading, the composer, the timeline under date headings.
-     With no rows it says so in one quiet line (`WallNotice`), and a failed
-     load does too — a screen-sized "Could not load" under somebody's whole
-     profile would say the profile had failed. Do not give it its tab back.
-  2. **The row above the tabs names the person on both screens.** Your own tab:
-     +, your handle, Settings (unchanged). Someone else's: the back disc, and
-     their handle centred in the disc's own row (`profile/[id]`) — the one
-     pushed screen with a word there, because tabs that started in the disc's
-     corner would have their first one under the glass. So the header's first
-     line is the name alone on both, and `<ProfileView>` no longer takes
-     `handleInBar`.
-  3. **The identity row is the reference's, with the bio under it.** The face a
-     fifth of the display (unchanged — the mock's 20.7% is the share it already
-     had), the name at `h3`, the four counts as a figure (`h4`) centred over its
-     word, spread across the column. The reference sets the bio between the
-     name and the counts; the owner asked for it "below the profile icon and
-     stats". Then the actions, full width.
-  4. **Sections are a box or an open heading** (`components/profile-section`),
-     forty apart. **A box** (`<ProfileBox>` round a `<ProfileBoxSection>`) is
-     the app's `<Card>` holding a title, a hairline, then its content — for
-     what the profile holds whole, **one box each**: the four favourites
-     ("exactly like the 4 films in the attached image. Inside that box."), the
-     library, the pinned song. A section whose title leads somewhere takes
-     `href`: the line is the link and ends in a chevron — the library's. **An
-     open heading** (`<ProfileSectionHeader>`) is a title on the page with a
-     rule under it, for what runs on down the page: the wall. **The library
-     shared the favourites' box for one pass** — the owner asked for it "in the
-     same card as favourites", saw it, and had it "detached from the favourites
-     one". It stays a card; it does not go back to being a door on the page,
-     and it does not go back into the favourites'. **The box is eight inside
-     and the favourites four apart, where the mock is ten and five**: the owner
-     asked for the favourites "a little bit bigger" with the margin held at
-     twenty, and the box's inset and the gaps were all there was to take it
-     from — 71 → 73dp on a 360dp phone. More than that costs the margin or the
-     gaps. They replaced three widgets under three hairlines, twelve apart.
-  5. **The library is a stack of five**, where the reference has "Recent
-     Activity" — see the next bullet — in a box of its own, its five covers
-     from the title's left edge to the chevron's right one and the two lines
-     under them starting at that same left edge.
-     `<GamesWidget>` keeps its content: the
-     five most recent games from `buildShelf()` (logs and the Steam library
-     merged, **logs winning on a tie** — a log carries a real catalogue id, so
-     its art is IGDB box art rather than a Steam capsule that may not exist),
-     the digital · physical line and the achievements and hours under it.
-  6. **The margin is the mock's 20, on this screen alone** (`PROFILE_MARGIN`).
-     The brief kept the app's 15 and the owner asked for the mock's — twice:
-     the second time for "every tab in the profile screen". The top row, the
-     tab row (`<TabBar inset>`), the profile and every list under the other
-     tabs share it; nothing else in the app moved. A collection's card is told
-     its width here (`<ListTile width>`), because it would otherwise start from
-     the app's margin. **A component drawn only on this screen takes no
-     horizontal inset of its own**: the wall's activity rows added four to the
-     margin, which put their glyphs inside the edge everything above them kept.
-  **In the app's materials, not Letterboxd's**, at the owner's direction ("the
-  same material 3 feeling… adapt all of that into the current app language"):
-  the page, the card surface, the pills and the blue are this app's; the mock's
-  slate, green underline, serif bio and star ratings were not carried. **Not
-  built**: the mock's Ratings box and a Games tab. **The first build was seen
-  on a phone by the owner, and so was the second** (one box for favourites and
-  library, a stack that stopped short of the margins); what they changed each
-  time is in the rulings above. The third — a box each, the stack on the
-  margins — was checked on a still drawn from the layout code, not on a device.
-- **A stack of five covers is how a shelf is shown** (`<CoverStack>`,
+- **The profile is the old Instagram-shaped layout, at a margin of ten.**
+  Face beside name-over-counts → bio → full-width actions → the widgets under
+  hairlines → four glyph tabs → the chosen tab's rows (`<ProfileView>`,
+  `constants/profile-layout.ts`, under `npm test`). **It was a Letterboxd-style
+  profile for about a week** — a 20pt margin, the widgets as cards forty
+  apart, a bigger name, centred counts, tabs at the top — measured off a mock
+  and ruled on six times. The owner used it and went back (2026-10-12): "go
+  back to the old profile page layout, remove the widgets being inside cards,
+  etc. make the margins 10". What holds it now:
+  1. **The head is compact: twelve between its parts** (`HEADER_GAP`) — the
+     face's row, the bio, the actions, each widget, the tabs — so it reads as
+     one thing about one person. The name is `h4`, the counts a bold figure
+     (`h5`) over a quiet word, flush left. The bio is under the row, four
+     lines at most.
+  2. **The widgets are not cards.** The favourites, the games and the pinned
+     song are each `<ProfileWidget>` (`components/profile-section`): a
+     hairline, a small heading (`itemTitle`, the star glyph on Favourites and
+     the song), then the content, spanning the page. `<ProfileBox>` is
+     deleted. **Do not box them again.** The games' heading is the way into
+     the library and ends in "View all".
+  3. **The margin is ten** (`PROFILE_MARGIN`) — the owner's number, on this
+     screen alone: the top row, the head, the tab row and every list under it.
+     The old layout's was the app's 15 and the week between's was 20. A
+     collection's card is told its width here (`<ListTile width>`), because it
+     would otherwise start from the app's margin. **A component drawn only on
+     this screen takes no horizontal inset of its own.**
+  4. **Three counts: Logged, Followers, Following.** Friends was the fourth
+     and the owner had it taken off the top of the page, to "keep it as a tab
+     in the screen that opens up when the user taps on the following/follower
+     count" — `people/[id]`, whose Friends tab is untouched, as is the Friend
+     button under the bio. The three sit in a row from the name's left edge,
+     not spread to the far margin. (I read "move the friends counter" as
+     *remove*; if they meant something else, this is the ruling to revisit.)
+  5. **The games are four separate covers, exactly as the favourites are** —
+     an earlier ruling that survived the return (2026-10-09: "Drop the stacked
+     games widget and use the 4 separated games one"). Both rows are
+     `favouriteCoverWidth`: four covers eight apart from margin to margin,
+     79dp each on a 360dp phone, a dashed slot where there is no fourth. The
+     games come from `buildShelf()` (logs and the Steam library merged, **logs
+     winning on a tie**); a cover opens its game, a Steam title with no page
+     the library. Under them: the digital · physical line and the achievements
+     and hours. **Not a stack** — that is a collection's, and only a
+     collection's.
+  6. **The tabs are under the widgets, as four glyphs**: Reviews · Collections
+     · Wall · Steam, `<TabBar iconOnly>`, Reviews chosen. One list — its
+     header is the profile and the tab row — so pressing a tab changes the
+     rows and leaves the page where it is. **The wall is a tab.** They were at
+     the top for a few days, with the wall folded into a "Profile" tab; the
+     owner reversed that on 2026-10-09 ("The tabs are below the game and
+     starred song"). Do not move them back.
+  7. **The bar above names the person on both screens** — your own tab: +,
+     your handle, Settings; someone else's: the top bar, with their handle as
+     its title, centred (`profile/[id]`, the one `<FrostedTopBar centerTitle>`).
+     That is from the week between and was not asked back, so the header's
+     first line is the name alone.
+- **A stack of five covers is how a collection is shown** (`<CoverStack>`,
   `constants/cover-stack.ts`, tested). The owner's second reference, old
   Letterboxd's "New from friends" tile, measured exactly: five covers the same
   size and level, each stepping 0.556 of a cover's width from the one in front
   of it, so the stack is 3.22 covers wide; **the first cover is whole, in the
   middle and in front**, the next two tucked behind it either side, the last
-  two behind those. Two places draw it — a profile's library and every
-  collection card — and **in both it is inside a card and five covers span the
-  card's inside exactly**, so the stack is on the margins of the text above
-  and below it: covers 93×140 in a collection's card on a 360dp phone, 94×141
-  in the profile's box. Being in a card is all the smaller it got. **For one
+  two behind those. **One place draws it: a collection's card**, wherever
+  collections are listed. (A profile's library drew it too, for three passes,
+  until the owner had it replaced with four separate covers — the profile's
+  rule 5.) It is inside the card and **five covers span the card's inside
+  exactly**, so the stack is on the margins of the text above and below it:
+  covers 93×140 on a 360dp phone. Being in a card is all the smaller it got. **For one
   pass a full stack took seven-eighths of its row and stood in the middle**,
   to be "a little bit smaller"; the owner saw it line up with nothing and had
   it brought back: "whenever there are 5 games in that widget, the widget
   aligns against the margins of the content inside the card". Do not inset a
   full stack again.
   - **The first cover is the one that represents the thing**: a collection's
-    chosen cover (else its first game), a library's newest. The rest alternate
+    chosen cover (else its first game). The rest alternate
     left and right outward (`STACK_ORDER`).
   - **A cover is the size it would be in a full stack**, however many there
     are. Fewer than five build from the first cover outward, and **a short
@@ -1930,59 +2225,21 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   the screen — the Top 10, the News chart. A CoverTile has no card, no pill and
   no badge on purpose: wrapping covers in the app's rounded containers turns a
   wall of art into a list of buttons with pictures on them.
-- **There is no header anywhere — native or otherwise.** `app/_layout.tsx` and
-  `app/(tabs)/_layout.tsx` both set `headerShown: false`, and `<FrostedTopBar>`
-  is no longer a bar: it is a **48dp disc of glass holding a back
-  chevron**, floated over the page through `<Screen topBar={…}>` — SimpMusic's
-  back button, at the owner's direction, read from `AlbumScreen.kt` and
-  `LiquidGlassContainer.kt`: 48 across on both platforms (it was `TapTarget`),
-  **12 from the corner on both axes** (it was the page's 15 and 8), which
-  makes `TopBarHeight` 60 — `frosted-top-bar.test.ts` holds the disc and the
-  room reserved for it to the same sum. The reference's glass is a shader
-  (blur, a lens, a scrim, a rim of light); there is no Skia here, so the disc
-  draws the three that read at 48dp — a one-dp rim that is bright at the top
-  left and fades round the circle, a 27% scrim, a faint sheen — over a lighter
-  blur, and leaves the lens out. The full-width
-  version cost `inset + 56` — about 111dp, 13% of an 844pt display — to carry one
-  word and one chevron, and it blurred the top of every piece of key art in an
-  app whose subject is artwork.
-  **Screens therefore have no title and must state their own heading in
-  content** if they open on a list or a form rather than on art; `award-edit` and
-  `award-game` are the worked examples. `title`, `subtitle`,
-  `revealTitleOnScroll` and `hideOnScroll` no longer exist as props — do not
-  reintroduce them. Right-hand controls go through the exported `<TopBarDisc>`
-  so both ends of the row are the same object; an `<IconButton>` there would be an
-  opaque circle beside one of frosted glass.
-  **Two screens carry no floating bar**: your own profile tab and Home. Home
-  opens with an *in-flow* masthead row — wordmark, greeting, notification bell —
-  which scrolls away with the content because a root tab has nothing to go back
-  to. The profile tab has a fixed row of its own: the + (quick log or review,
-  `quick-log`), your handle, and Settings, with the profile's tabs directly
-  under it. **Someone else's profile keeps the floating disc and puts their
-  handle in the disc's row**, centred — see the profile's ruling 2; it is the
-  one pushed screen with a word there.
-- **The bar is a layer, not a surface.** Blur, then a scrim (27% on the disc,
-  the reference's), a rim and a sheen of light, then the glyph — no fill of the
-  app's own colours, ever. It has nothing of its own to show; it softens
-  what the page put behind it, which is why a page's ambience (`<SoftGlow>`,
-  `<AmbientLight>`) belongs in `<Screen backdrop>` and never in the bar. Giving
-  the bar its own gradient would put two ramps in the same column meeting at its
-  bottom edge, which is a seam — the exact thing `<Ambience>` exists to avoid.
+- **The top bar is SimpMusic's, and § The top bar is the whole statement.**
+  There is still no *native* header anywhere (`app/_layout.tsx` and
+  `app/(tabs)/_layout.tsx` set `headerShown: false`); every pushed screen draws
+  `<FrostedTopBar>` through `<Screen topBar={…}>`. In short: a screen's name is
+  its bar's `title`, never a heading printed under the bar; a page that scrolls
+  uses a page scroller; right-hand controls are `<TopBarDisc>`s.
 - **`<Screen topBar>` is a slot, not a child.** The bar blurs the page, so it has
   to be a *sibling* of the content it blurs and sit outside the `<BlurTargetView>`
   that `<Screen>` wraps around everything else. A bar rendered as a child would be
-  inside its own blur source. It reserves no space, exactly like the header it
-  replaced: screens leading with artwork (game, collection, review, profile,
-  Top 10) let content run underneath, and everything else passes
-  `<Screen insetHeader>`. Modals additionally pass `<Screen modal>` — an iOS sheet
-  starts below the status bar and must not be inset again; see `useTopBarInset`.
-- **Nothing hides on scroll any more.** The disc is small enough to stay put, and
-  a back affordance that slides out of reach is a trap rather than a saving.
-  `useTopBarScroll()` survives as a general-purpose UI-thread scroll offset,
-  and nothing calls it: eleven screens used to, and read nothing from it — a
-  worklet write per frame of every scroll, on lists that were `Animated.FlatList`
-  only to carry it. They are plain `FlatList`s and `SectionList`s again. A
-  screen that genuinely needs its offset on the UI thread can take it back.
+  inside its own blur source. It reserves no space: screens leading with artwork
+  (game, collection, review, studio, Top 10) let content run underneath, and
+  everything else passes `<Screen insetHeader>` — **which is also what decides
+  the kind of bar the page gets**. Modals additionally pass `<Screen modal>` —
+  an iOS sheet starts below the status bar and must not be inset again; see
+  `useTopBarInset`.
 - **Gradients end on `withAlpha(colour, 0)`, never `'transparent'`.**
   `expo-linear-gradient` interpolates through black on Android, so fading to the
   keyword leaves a grey bruise mid-ramp. `withAlpha` is in `constants/theme.ts`.
@@ -2071,11 +2328,22 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
      were `h3` and 15). The name runs to four lines: a game's name is not
      truncated on its own page. **The box in Platforms kept its third**
      (`CASE_WIDTH_RATIO`) — it is the case, and was not asked to change.
-  5. **Three plain lines under the name**: date, developer, publisher, in
-     sentence case and the quiet ink. The owner was offered the reference's
-     "2017 · DEVELOPED BY" over a bold name, in capitals or not, and chose
-     "keep today's three lines". No label, no capitals, nothing bold but the
-     name.
+  5. **Plain lines under the name — date, developer, publisher — and the
+     companies are links.** Sentence case, no label, no capitals: the owner
+     was offered the reference's "2017 · DEVELOPED BY" over a bold name and
+     chose "keep today's three lines". Then (2026-10-09) they had the
+     Overview's "Developers" card removed in favour of these lines: "have them
+     be clickable from the header. The developer's names should be in bold to
+     make them stand out." So **a developer's name is bold and in the full
+     ink** — the one thing here besides the game's name that is — and a
+     publisher's keeps the quiet ink; each is a link to that company's games
+     (`<CompanyLink>`), one line a company, every developer and then every
+     publisher that is not also one. The ids come from `getGameExtras`, which
+     the page asks for on every tab now; until it answers, and for a game
+     that is not IGDB's, the two names are the record's own and not pressable.
+     The lines are four apart, so a link's slop is two either side and its
+     target is under the tap floor — the price of links in a stack of 19dp
+     lines.
   6. **The inks are the game's own, at the reference's lightness.** Its title
      is pure white, its bold name L* 93, everything else L* 76–81, on a page
      at L* 10 — which is M3's 100 / 92 / 82 on tone 10, the ladder a game's
@@ -2149,16 +2417,51 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   muted placed in that corner later needs the same step. `<SoftGlow>` itself
   survives for Surprise Me's bloom and swipe edge.
 - **The game page's Overview tab is SimpMusic's artist page, section for
-  section** — read from `ArtistScreen.kt`, `AdapterItems.kt` and
-  `DescriptionView.kt`, at the owner's direction. Every section is a heading on
-  the page (`h4`, the reference's 16sp bold) with its content under it, and
-  what the content is decides its shape:
-  - **Pictures → a rail, no card.** Screenshots, Original
-    game, Editions & extras and the franchise are `<Section>` + `<ArtRail>`
-    (covers through `<GameCoverRail>`): the art, a two-line title always held
-    open, one quiet line — the reference's "Singles" / "Albums". Covers are 2:3
-    at the albums' height; 16:9 art is at its videos' height. The art keeps the
-    app's `Radius.image`: the rails are SimpMusic's, the boxes are this app's.
+  section — with a head from Letterboxd** — read from `ArtistScreen.kt`,
+  `AdapterItems.kt` and `DescriptionView.kt`, at the owner's direction. Every
+  section is a heading on the page (`h4`, the reference's 16sp bold) with its
+  content under it, and what the content is decides its shape:
+  - **Screenshots are first**, then what the people here made of it. The
+    three things below led the tab for one build, as they do on the
+    reference's film page; the owner had the screenshots moved "back to the
+    top of the page". The three — the owner's redesign (2026-10-09), from a
+    film's page in Letterboxd — are each absent when they have nothing to show:
+    1. **Ratings** (`<RatingsCard>`): a card titled inside, the count at the
+       far end of the title, a hairline, then `<ScoreSummary>` — the verdict,
+       the score tile and the three-part bar. **The reviews sheet's own
+       summary, one component in both places**: the owner was offered a
+       ten-bar histogram like the reference's and chose "the sheet's
+       three-part bar, as it is". The card is a door to the sheet. Do not put
+       a histogram here; the unused one (`RatingBreakdownGraph`) was deleted.
+    2. **Played by / From your friends** (`<PlayedBy>`, `getGamePlayers`): two
+       equal squares, two faces each, each face over the score that person
+       gave — or the word for where they are with it. Played is playing,
+       played, paused or dropped, not backlog; friends are follows and
+       accepted friends; you are in neither. A face opens that person's record
+       of the game (`game-stats`). The pair is absent when nobody else has
+       played it; with players and none of yours, the second square says so
+       in a sentence. There is no "everyone who played this" list.
+    3. **Reviews** (`<TopReview>`): the heading, its More to the sheet, and
+       **one** card — the most liked review (`getTopGameReview`), as a
+       `<MemberReviewCard>`. It was a rail of ten.
+    Ratings and the two squares are cards titled *inside* (`<Panel>`: `h5`, a
+    hairline) — small labelled cards, as the profile's boxes are — where the
+    rest of the tab titles on the page.
+  - **Pictures → a rail, no card.** Screenshots are `<Section>` + `<ArtRail>`:
+    16:9 at the reference's video height. Original game, Editions & extras and
+    the franchise are `<Section>` + `<GameCoverRail>`: small covers under a
+    heading on the page (the rows-of-games bullet above — and its rule that a
+    row is never in a card holds here by the owner's own words). The art keeps
+    the app's `Radius.image`.
+  - **The critics are not on this tab.** Their quotes were a rail here; the
+    owner moved them into the reviews sheet, as its first section
+    (`<CriticReviews>`), over the app's own reviews. The page still asks
+    OpenCritic as it opens (`useCriticSummary` in `<GameSheets>`), so the
+    sheet does not grow a section after it is up.
+  - **The companies are in the header, not in a card.** There was a
+    "Developers" card of tappable rows; the owner had it removed — "have them
+    be clickable from the header. The developer's names should be in bold to
+    make them stand out." See the masthead's ruling 5.
   - **The object → on the page.** Platforms (`<GamePlatforms>`) is the one
     section that is neither: the game's box on the left — the console case for
     the chosen platform, which turns over to your record — and beside it the
@@ -2169,8 +2472,8 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
     The section opens on the platform you logged, else the first with a case,
     else the first; its art slot reserves the tallest shape the game can show
     so switching PS5 → PC does not move the page.
-  - **Words and figures → a card.** Details, Where to buy, Your copy, Reviews,
-    Time to beat, Developers, Additional information and Achievements are
+  - **Words and figures → a card.** Details, Where to buy, Your copy, Time to
+    beat and Achievements are
     `<InfoCard>` (read) or `<InfoCardButton>` (a door, whose heading carries the
     reference's More and whose card is the same door). The card is the
     reference's description card: 8 in the corner, 16 in, filled with
@@ -2178,13 +2481,13 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
     dark-vibrant swatch, and that is the tone the dynamic scheme holds.
   - **A heading's More** (`<SectionMore>`) is the reference's `TextButton`: one
     quiet word at the end of the heading row — all reviews, the copies, the
-    Wikidata screen, the achievements, the full IGDB record.
+    achievements, the full IGDB record.
   - **There is no About here, and no "Featured in".** The synopsis is in the
     masthead (see the masthead's ruling 7). **Details** — the full IGDB record,
     which was About's More — took its place as a door card of its own
     (`<GameDetailsSheet trigger="card">`), so nothing reachable from the tab
-    was lost in the move; it is "Details" and not "More information" because
-    "Additional information" (Wikidata's) is further down the same tab. The
+    was lost in the move. ("Additional information", Wikidata's, was further
+    down the same tab until the owner had it scrapped — § Wikidata.) The
     rail of showcases a game appeared at was removed by the owner, with
     `<GameEventsWidget>` and the per-game `events` query behind it; events are
     still in Search and on `event/[id]`.
@@ -2194,7 +2497,7 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
     Overview pads nothing sideways; `<SectionInsetProvider>` hands every
     heading, card and rail the reference's inset, so a rail runs edge to edge
     and still starts in line with its heading. Screens that pad themselves (the
-    additional-information screen, the Similar tab) leave the inset at 0.
+    Similar tab) leave the inset at 0.
   - **A card that opens in place animates** (`<ExpandableText>`): the whole
     text is laid out and the *height of its window* moves, 250ms on
     FastOutSlowIn, the reference's own method — the clamp itself never
@@ -2897,6 +3200,21 @@ was not this app's code. The rules that keep it that way:
   to `t_thumb` and Steam to `capsule_sm_120.jpg`, returns null for any other
   host (the genre hue takes over), and the decoder is capped at 0.1 MP and
   120 KB. Never feed it a URL it has not shrunk.
+- **A `ScrollView` grows unless it is told not to — a horizontal one too.** Its
+  base style is `flexGrow: 1; flexShrink: 1`, so a row of pills written as
+  `<ScrollView horizontal>` directly in a screen's column takes a share of
+  whatever height is spare. `<TabBar>` was that, and for a long time nobody
+  could tell: the list under it was a `ScrollView` whose content was taller
+  than the screen, so there was no spare height to share. Above anything
+  shorter — an empty list, a loading state, a tab that had not filled yet — or
+  above a `flex: 1` view, the row took **half the screen** and squeezed the
+  page into what was left. The owner had seen it "sometimes… with other tabs";
+  it became permanent on Search the day Discover's root changed from a
+  `ScrollView` to a `<View style={{ flex: 1 }}>`. The fix is `flexGrow: 0` on
+  the row's scroller (`styles.scroller` in `ui/tab-bar`). A horizontal
+  scroller inside a wrapper that is as tall as its content, or inside a
+  vertical scroller's content, has nothing to grow into and is safe; one that
+  is a direct child of a screen's column is not.
 - **Performance traps that have already cost this app.** A one-item `FlatList`
   wrapping a whole page (`data={[null]}`) re-renders its page-sized cell whenever
   `renderItem` changes identity — which, as an inline arrow, is every render; use

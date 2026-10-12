@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { SurpriseHiddenList } from '@/components/surprise-hidden-list';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -86,21 +87,15 @@ export default function SettingsScreen() {
      in permanently. */
   if (!userId) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Settings" />}>
         <EmptyState title="Settings" message="Sign in to change how the app behaves." />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader padded topBar={<FrostedTopBar back />}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {/* There is no header anywhere in this app, so a screen opening on a
-            list states what it is in its own content. */}
-        <Text variant="display" accessibilityRole="header">
-          Settings
-        </Text>
-
+    <Screen edges={['bottom']} insetHeader padded topBar={<FrostedTopBar back title="Settings" />}>
+      <PageScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.group}>
           <Text variant="label" color="textMuted">
             SURPRISE ME
@@ -176,7 +171,7 @@ export default function SettingsScreen() {
             {signingOut && <ActivityIndicator size="small" color={theme.textMuted} />}
           </PressableScale>
         </View>
-      </ScrollView>
+      </PageScrollView>
     </Screen>
   );
 }

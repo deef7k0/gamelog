@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { GameFilterBar } from '@/components/game-filter-bar';
 import { GameListItem } from '@/components/game-list-item';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -103,7 +104,7 @@ export default function AwardGamePickerScreen() {
     if (results.isLoadingError) return <ErrorState error={results.error} />;
 
     return (
-      <FlatList
+      <PageFlatList
         data={results.data ?? []}
         keyExtractor={(game) => game.id}
         keyboardShouldPersistTaps="handled"
@@ -129,12 +130,13 @@ export default function AwardGamePickerScreen() {
   return (
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. */
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      /* Which award this pick is for. */
+      topBar={<FrostedTopBar dismiss title={award?.label ?? 'Pick the winner'} />}>
       <View style={styles.head}>
-        {/* Which award this pick is for. The bar used to say it; it carries a
-            back disc and nothing else now, so the page does. */}
-        <Text variant="h1">{award?.label ?? 'Pick the winner'}</Text>
-
         <TextField
           value={input}
           onChangeText={setInput}
@@ -162,6 +164,6 @@ export default function AwardGamePickerScreen() {
 }
 
 const styles = StyleSheet.create({
-  head: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x16, gap: Spacing.x8 },
+  head: { paddingHorizontal: Spacing.x16, gap: Spacing.x8 },
   list: { padding: Spacing.x16, paddingBottom: Spacing.x48, gap: Spacing.x8 },
 });

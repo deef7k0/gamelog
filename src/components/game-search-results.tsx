@@ -1,7 +1,7 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import type { CollectionLayout } from '@/components/collection-toolbar';
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
@@ -12,6 +12,7 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState } from '@/components/ui/screen';
 import { useTabBarClearance } from '@/components/app-tab-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import {
   PLATFORM_FAMILIES,
   platformFamilies,
@@ -222,7 +223,7 @@ export function GameSearchResults({
     return <ErrorState error={games.error} onRetry={() => games.refetch()} />;
 
   return (
-    <FlatList
+    <PageFlatList
       data={ordered}
       /* `numColumns` cannot change on a mounted list — React Native refuses to
          re-lay it out — so each layout is its own list, and the key swaps it. */

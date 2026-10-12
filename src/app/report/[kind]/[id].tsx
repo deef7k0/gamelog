@@ -2,11 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { ChoiceChips, type Choice } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { EmptyState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -130,11 +131,22 @@ export default function ReportScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title={target ? REPORT_TITLE[target.kind] : 'Report'} />}>
       {body}
     </Screen>
   );
 }
+
+/** What the bar calls the form, per kind of thing reported. */
+const REPORT_TITLE: Record<ReportKind, string> = {
+  pick: 'Report this pick',
+  suggestion: 'Report this suggestion',
+  review: 'Report this review',
+};
 
 function targetFrom(params: Params): ReportTarget | null {
   if (!params.id || !isReportKind(params.kind)) return null;
@@ -186,7 +198,6 @@ function PickReport({
 
   return (
     <ReportForm
-      title="Report this pick"
       context={context}
       choices={PICK_CHOICES}
       send={(reason, note) => reportSimilarity(userId, target.pairId, reason, note)}
@@ -217,7 +228,6 @@ function SuggestionReport({
 
   return (
     <ReportForm
-      title="Report this suggestion"
       context={name ? `${name}’s reasons` : null}
       quote={comment ? `“${comment}”` : reasons || null}
       choices={CONTENT_CHOICES}
@@ -251,7 +261,6 @@ function ReviewReport({
 
   return (
     <ReportForm
-      title="Report this review"
       context={review ? `${name}’s review of ${review.game?.title ?? 'a game'}` : null}
       /* A review behind a spoiler warning is not quoted: whoever is reporting
          it may have tapped the flag without uncovering it, and this is no
@@ -277,7 +286,6 @@ function ReviewReport({
 const QUOTE_LINES = 4;
 
 function ReportForm<R extends string>({
-  title,
   context,
   quote = null,
   asReview = false,
@@ -287,7 +295,6 @@ function ReportForm<R extends string>({
   onSent,
   promise,
 }: {
-  title: string;
   /** Whose, and about what. Null until the target has loaded. */
   context: string | null;
   /** The words being reported, if there are any to show. */
@@ -316,16 +323,13 @@ function ReportForm<R extends string>({
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Text variant="h1" accessibilityRole="header">
-            {title}
-          </Text>
           {context && (
-            <Text variant="bodySmall" color="textMuted">
+            <Text variant="h4" accessibilityRole="header">
               {context}
             </Text>
           )}
@@ -386,7 +390,7 @@ function ReportForm<R extends string>({
             {promise}
           </Text>
         </View>
-      </ScrollView>
+      </PageScrollView>
     </KeyboardAvoidingView>
   );
 }

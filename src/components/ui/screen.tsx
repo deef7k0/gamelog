@@ -19,14 +19,16 @@ export type ScreenProps = {
   edges?: readonly Edge[];
   padded?: boolean;
   /**
-   * Reserve the height of the floating stack header.
+   * Reserve the top bar's row.
    *
-   * The header is transparent app-wide, so it no longer pushes anything down.
-   * Screens that open on artwork — a game, a collection, the Top 10 — want
-   * exactly that and leave this off. Screens that open on a list, a form or a
-   * grid would otherwise have their first row sitting under the back arrow, and
-   * set it. Includes the status bar, so it replaces a `'top'` edge rather than
-   * stacking with one.
+   * The bar floats over the page and pushes nothing down. Screens that open on
+   * artwork — a game, a collection, the Top 10 — want exactly that and leave
+   * this off, **and that is also what makes their bar the artwork kind**: glass
+   * discs that leave with the art, and a bar that comes in once it has gone.
+   * Screens that open on a list, a form or a grid would otherwise have their
+   * first row under the title, and set it; theirs is a bar from the start,
+   * clear until the page moves. Includes the status bar, so it replaces a
+   * `'top'` edge rather than stacking with one.
    */
   insetHeader?: boolean;
   /**
@@ -51,9 +53,9 @@ export type ScreenProps = {
    * outside the `<BlurTargetView>` below. A bar rendered as a child would be
    * inside its own blur source.
    *
-   * It draws over the content and reserves no space, exactly like the native
-   * header it replaces — screens that do not open on artwork pair it with
-   * `insetHeader`.
+   * It draws over the content and reserves no space — screens that do not open
+   * on artwork pair it with `insetHeader`. **A page that scrolls under it uses
+   * a page scroller** (`ui/page-scroll`), which is how the bar learns to frost.
    */
   topBar?: ReactNode;
   /**
@@ -128,7 +130,10 @@ export function Screen({
       : 0;
 
   return (
-    <ScreenChromeProvider modal={modal}>
+    <ScreenChromeProvider
+      modal={modal}
+      background={background ?? theme.background}
+      insetHeader={insetHeader}>
       {({ blurTargetRef }) => (
         <View style={styles.flex}>
           {/*

@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { memo } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -55,17 +56,19 @@ export default function CopiesScreen() {
   const ownerName = isSelf ? 'You' : displayNameFor(owner.data ?? null);
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <FlatList
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={
+        <FrostedTopBar back title={gameTitle ? `Copies of ${gameTitle}` : 'Physical collection'} />
+      }>
+      <PageFlatList
         data={copies.data ?? []}
         keyExtractor={(copy) => copy.id}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.head}>
-            <Text variant="h1" numberOfLines={2}>
-              {gameTitle ? `Copies of ${gameTitle}` : 'Physical collection'}
-            </Text>
             {copies.data && (
               <Text variant="label" color="textMuted">
                 {`${ownerName === 'You' ? 'YOUR' : `${ownerName.toUpperCase()}’S`} ${count} ${

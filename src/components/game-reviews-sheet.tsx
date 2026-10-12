@@ -4,18 +4,17 @@ import { useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
+import { CriticReviews } from '@/components/critic-reviews';
+import { MemberReviewCard } from '@/components/member-review-card';
 import { ReviewBreakdown } from '@/components/review-breakdown';
-import { ReviewQuote } from '@/components/review-quote';
+import { ScoreSummary } from '@/components/score-summary';
 import { Button } from '@/components/ui/button';
-import { ScoreTile } from '@/components/ui/score-tile';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { useSelectable } from '@/components/ui/selectable';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
-import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { PLATFORM_FAMILIES, familyForStored } from '@/constants/platform-family';
-import { ratingVerdict } from '@/constants/score';
 import { ArtRowWindow } from '@/constants/list-window';
 import { ControlHeight, Radius, SmallControlSlop, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -90,22 +89,24 @@ const PLAY_OPTIONS: readonly SortOption<ReviewPlayFilter | 'any'>[] = [ANY, ...P
 /** A stored platform → its family's key: the resolver `review-facets` folds by. */
 const familyKeyOf = (stored: string) => familyForStored(stored)?.key ?? null;
 
-/** The bar's three segments, in the order they are drawn. */
-const SEGMENTS = [
-  { key: 'low', tone: 'scoreLow' as const, from: 0, to: 4 },
-  { key: 'mid', tone: 'scoreMid' as const, from: 5, to: 6 },
-  { key: 'high', tone: 'scoreHigh' as const, from: 7, to: 9 },
-];
-
 export type GameReviewsSheetProps = {
   gameId: string;
   gameTitle: string;
-  /** IGDB's aggregate, which the masthead already shows as COMMUNITY. */
+  /** For matching the game on OpenCritic, which goes by title and year. */
+  releaseYear: number | null;
+  /** IGDB's aggregate of critics' scores: the critics' section, when OpenCritic has no quotes. */
   criticScore: number | null;
 };
 
 /**
- * Every review of one game, sorted and filtered.
+ * Everything written about one game: what the critics made of it, then every
+ * review the people here wrote, sorted and filtered.
+ *
+ * **Critics first, members under them** — the owner's direction (2026-10-09).
+ * The critics' quotes were a rail on the game page's Overview; they are the
+ * section at the head of this sheet now (`<CriticReviews>`), and under it,
+ * headed as its own section, is the app's: GameLog's verdict, how it divides
+ * by how people played, and the list.
  *
  * Lives inside `<SlideUpSheet>` rather than on a route, which is what lets the
  * game page stay mounted underneath and be revealed by a drag rather than by a
@@ -113,7 +114,12 @@ export type GameReviewsSheetProps = {
  * behind a control that also switched between a synopsis and a similar-games
  * rail, and reviews are the one thing on that page somebody comes back for.
  */
-export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviewsSheetProps) {
+export function GameReviewsSheet({
+  gameId,
+  gameTitle,
+  releaseYear,
+  criticScore,
+}: GameReviewsSheetProps) {
   const theme = useTheme();
   const selectable = useSelectable();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
@@ -188,129 +194,132 @@ export function GameReviewsSheet({ gameId, gameTitle, criticScore }: GameReviews
   });
 
   const header = (
-    <View style={styles.header}>
-      <Text variant="h1" numberOfLines={2}>
-        {gameTitle}
-      </Text>
-      <Text variant="label" color="textMuted">
-        REVIEWS
-      </Text>
-
-      <ScoreSummary breakdown={breakdown.data ?? null} loading={breakdown.isPending} />
-
-      <ReviewBreakdown
-        sections={sections}
-        failed={stats.isLoadingError}
-        onRetry={() => void stats.refetch()}
-      />
-
-      {criticScore !== null && (
-        <View style={[styles.critics, { borderTopColor: theme.border }]}>
-          <View style={styles.criticText}>
-            <Text variant="label" color="textMuted">
-              CRITICS
-            </Text>
-            <Text variant="bodySmall" color="textSecondary">
-              {ratingVerdict(criticScore, 999).label}
-            </Text>
-            {/* No distribution to draw: IGDB publishes one averaged number and a
-                count, never the spread. A bar here would be invented. */}
-            <Text variant="caption" color="textMuted">
-              Aggregated by IGDB
-            </Text>
-          </View>
-          <ScoreTile score={criticScore} size="medium" />
-        </View>
-      )}
-
-      <View style={styles.controls}>
-        <SortBar
-          options={SORTS}
-          value={sort}
-          onChange={setSort}
-          accessibilityLabel="Sort reviews"
-        />
-
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityState={{ expanded: filtersOpen }}
-          accessibilityLabel={activeFilters > 0 ? `Filters, ${activeFilters} active` : 'Filters'}
-          onPress={() => setFiltersOpen((open) => !open)}
-          scaleTo={0.96}
-          hitSlop={SmallControlSlop}
-          /* Lit while any filter is on, so a narrowed list says so even with
-             the panel folded away. */
-          pressedColor={filterLook.pressedColor}
-          focusRing={filterLook.focusRing}
-          style={StyleSheet.flatten([styles.filterButton, filterLook.style])}>
-          <Ionicons
-            name="options-outline"
-            size={16}
-            color={activeFilters > 0 ? theme.text : theme.textSecondary}
-          />
-          <Text variant="bodySmall" color={filterLook.label}>
-            {activeFilters > 0 ? `Filters · ${activeFilters}` : 'Filters'}
-          </Text>
-          <Ionicons
-            name={filtersOpen ? 'chevron-up' : 'chevron-down'}
-            size={14}
-            color={theme.textMuted}
-          />
-        </PressableScale>
+    <View>
+      <View style={styles.title}>
+        <Text variant="h1" numberOfLines={2}>
+          {gameTitle}
+        </Text>
+        <Text variant="label" color="textMuted">
+          REVIEWS
+        </Text>
       </View>
 
-      {/* Four questions, each one choice, and they compose: PC + Finished +
+      {/* What the critics wrote, or — when OpenCritic has nothing to quote —
+          IGDB's average of their scores. Nothing at all when there is neither.
+          Outside the padded block below: its rail runs to the sheet's edges. */}
+      <CriticReviews
+        gameId={gameId}
+        title={gameTitle}
+        releaseYear={releaseYear}
+        igdbScore={criticScore}
+      />
+
+      <View style={styles.header}>
+        {/* The app's own, headed as a section so it reads as the second of
+            two — and so a sheet with no critics still says whose these are. */}
+        <Text variant="h4" accessibilityRole="header" style={styles.members}>
+          GameLog reviews
+        </Text>
+
+        {/* The same summary the Ratings card on the Overview draws
+            (`<ScoreSummary>`). No "GAMELOG" label over it: the heading says it. */}
+        <ScoreSummary breakdown={breakdown.data ?? null} loading={breakdown.isPending} />
+
+        <ReviewBreakdown
+          sections={sections}
+          failed={stats.isLoadingError}
+          onRetry={() => void stats.refetch()}
+        />
+
+        <View style={styles.controls}>
+          <SortBar
+            options={SORTS}
+            value={sort}
+            onChange={setSort}
+            accessibilityLabel="Sort reviews"
+          />
+
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityState={{ expanded: filtersOpen }}
+            accessibilityLabel={activeFilters > 0 ? `Filters, ${activeFilters} active` : 'Filters'}
+            onPress={() => setFiltersOpen((open) => !open)}
+            scaleTo={0.96}
+            hitSlop={SmallControlSlop}
+            /* Lit while any filter is on, so a narrowed list says so even with
+             the panel folded away. */
+            pressedColor={filterLook.pressedColor}
+            focusRing={filterLook.focusRing}
+            style={StyleSheet.flatten([styles.filterButton, filterLook.style])}>
+            <Ionicons
+              name="options-outline"
+              size={16}
+              color={activeFilters > 0 ? theme.text : theme.textSecondary}
+            />
+            <Text variant="bodySmall" color={filterLook.label}>
+              {activeFilters > 0 ? `Filters · ${activeFilters}` : 'Filters'}
+            </Text>
+            <Ionicons
+              name={filtersOpen ? 'chevron-up' : 'chevron-down'}
+              size={14}
+              color={theme.textMuted}
+            />
+          </PressableScale>
+        </View>
+
+        {/* Four questions, each one choice, and they compose: PC + Finished +
           Co-op is three clauses on one request (`lib/review-facets.ts`). The
           platforms offered are only the families somebody has reviewed this
           game on; the other three are fixed vocabularies, and one that finds
           nothing says so in the list below. */}
-      {filtersOpen && (
-        <View style={styles.filters}>
-          <FilterGroup label="SCORE">
-            <SortBar
-              options={SCORES.map(({ key, label }) => ({ key, label }))}
-              value={score}
-              onChange={setScore}
-              accessibilityLabel="Filter by score"
-            />
-          </FilterGroup>
-
-          {facets.length > 0 && (
-            <FilterGroup label="PLATFORM">
+        {filtersOpen && (
+          <View style={styles.filters}>
+            <FilterGroup label="SCORE">
               <SortBar
-                options={[ANY, ...facets.map(({ key, label }) => ({ key, label }))]}
-                value={family ?? 'any'}
-                onChange={(key) => setFamily(key === 'any' ? null : key)}
-                accessibilityLabel="Filter by platform"
+                options={SCORES.map(({ key, label }) => ({ key, label }))}
+                value={score}
+                onChange={setScore}
+                accessibilityLabel="Filter by score"
               />
             </FilterGroup>
-          )}
 
-          <FilterGroup label="PROGRESS">
-            <SortBar
-              options={PROGRESS_OPTIONS}
-              value={progress ?? 'any'}
-              onChange={(key) => setProgress(key === 'any' ? null : key)}
-              accessibilityLabel="Filter by how far the reviewer got"
-            />
-          </FilterGroup>
+            {facets.length > 0 && (
+              <FilterGroup label="PLATFORM">
+                <SortBar
+                  options={[ANY, ...facets.map(({ key, label }) => ({ key, label }))]}
+                  value={family ?? 'any'}
+                  onChange={(key) => setFamily(key === 'any' ? null : key)}
+                  accessibilityLabel="Filter by platform"
+                />
+              </FilterGroup>
+            )}
 
-          <FilterGroup label="SOLO OR CO-OP">
-            <SortBar
-              options={PLAY_OPTIONS}
-              value={play ?? 'any'}
-              onChange={(key) => setPlay(key === 'any' ? null : key)}
-              accessibilityLabel="Filter by solo or co-op"
-            />
-          </FilterGroup>
+            <FilterGroup label="PROGRESS">
+              <SortBar
+                options={PROGRESS_OPTIONS}
+                value={progress ?? 'any'}
+                onChange={(key) => setProgress(key === 'any' ? null : key)}
+                accessibilityLabel="Filter by how far the reviewer got"
+              />
+            </FilterGroup>
 
-          {activeFilters > 0 && (
-            <View style={styles.clear}>
-              <Button title="Clear filters" variant="ghost" size="small" onPress={clearFilters} />
-            </View>
-          )}
-        </View>
-      )}
+            <FilterGroup label="SOLO OR CO-OP">
+              <SortBar
+                options={PLAY_OPTIONS}
+                value={play ?? 'any'}
+                onChange={(key) => setPlay(key === 'any' ? null : key)}
+                accessibilityLabel="Filter by solo or co-op"
+              />
+            </FilterGroup>
+
+            {activeFilters > 0 && (
+              <View style={styles.clear}>
+                <Button title="Clear filters" variant="ghost" size="small" onPress={clearFilters} />
+              </View>
+            )}
+          </View>
+        )}
+      </View>
     </View>
   );
 
@@ -361,94 +370,20 @@ function FilterGroup({ label, children }: { label: string; children: React.React
 }
 
 /**
- * The distribution bar and the app's own average.
+ * One review, as the reference draws one on a film's page: the writer's face,
+ * their name with the score and the replies at the far end of its line, the
+ * words, and how many people liked it.
  *
- * Three segments, sized by how many reviews fall in each band — so a game with
- * eighty positives and two negatives shows a sliver of red, which is the honest
- * picture and the thing an average alone cannot say.
- */
-function ScoreSummary({
-  breakdown,
-  loading,
-}: {
-  breakdown: { buckets: number[]; total: number; average: number } | null;
-  loading: boolean;
-}) {
-  const theme = useTheme();
-
-  if (loading) {
-    return (
-      <View style={styles.summary}>
-        <View style={styles.summaryText}>
-          <Skeleton width="55%" height={13} radius={Radius.sm} />
-          <Skeleton width="40%" height={11} radius={Radius.sm} />
-        </View>
-        <Skeleton width={62} height={62} radius={Radius.image} />
-      </View>
-    );
-  }
-
-  if (!breakdown) return null;
-
-  const verdict = ratingVerdict(breakdown.average, breakdown.total);
-  const counts = SEGMENTS.map((segment) =>
-    breakdown.buckets.slice(segment.from, segment.to + 1).reduce((sum, n) => sum + n, 0)
-  );
-  const total = counts.reduce((sum, n) => sum + n, 0) || 1;
-
-  return (
-    <View style={styles.summaryBlock}>
-      <View style={styles.summary}>
-        <View style={styles.summaryText}>
-          <Text variant="label" color="textMuted">
-            GAMELOG
-          </Text>
-          <Text variant="h4">{verdict.label}</Text>
-          <Text variant="caption" color="textMuted">
-            Based on {breakdown.total} {breakdown.total === 1 ? 'review' : 'reviews'}
-          </Text>
-        </View>
-        <ScoreTile score={breakdown.average} size="medium" />
-      </View>
-
-      {/* Each segment is a flex weight, so the three always fill the bar exactly
-          and no rounding gap opens between them. A band with no reviews renders
-          nothing at all rather than a 1px sliver claiming one. */}
-      <View
-        style={styles.bar}
-        accessible
-        accessibilityLabel={`${counts[2]} positive, ${counts[1]} mixed, ${counts[0]} negative`}>
-        {SEGMENTS.map((segment, index) =>
-          counts[index] > 0 ? (
-            <View
-              key={segment.key}
-              style={{
-                flex: counts[index] / total,
-                backgroundColor: theme[segment.tone],
-                borderRadius: Radius.pill,
-              }}
-            />
-          ) : null
-        )}
-      </View>
-    </View>
-  );
-}
-
-/**
- * One review: its words, and under them who wrote it and what they scored it.
+ *     ◍   username                    84  ◔ 3
+ *         the first line of the review…
+ *         the second line…
+ *         ♥ 12 likes
  *
- *     the first line of the review…
- *     the second line…
- *     the third line…
- *
- *     username                       84
- *
- * The card is `<ReviewQuote>` — the critics' card from the game page, which at
- * the owner's direction is the member's review card too, there and here. Text,
- * a name — with the writer's picture, in this list — and a score: the platform
- * mark, the hours, the heart and the report flag this row used to carry are on
- * the review's own page, which a tap opens.
+ * The card is `<MemberReviewCard>` — the one the game page's Overview shows
+ * the most liked review in, so a row here and that card are the same object
+ * (the owner's direction, 2026-10-09). It was `<ReviewQuote>`: words, a name
+ * and a score. The likes and replies it prints are already in this list's
+ * query; nothing more is asked for.
  *
  * **Neutral, not the game's colour.** On the game page the card takes the
  * game's dark tone; this sheet is raised over that page and keeps the app's
@@ -481,17 +416,24 @@ const ReviewRow = memo(function ReviewRow({ item }: { item: ReviewListItem }) {
           headline ? `${name}’s review, “${headline}”` : `${name}’s review`,
           log.rating !== null ? `scored ${Math.round(log.rating)}` : null,
           log.spoilers ? 'Contains spoilers' : null,
+          item.likes > 0 ? `${item.likes} ${item.likes === 1 ? 'like' : 'likes'}` : null,
+          item.comments > 0
+            ? `${item.comments} ${item.comments === 1 ? 'reply' : 'replies'}`
+            : null,
           'Read all of it.',
         ]
           .filter(Boolean)
           .join('. ')}
         onPress={onPress}
         scaleTo={0.99}>
-        <ReviewQuote
-          text={log.review ?? ''}
-          byline={name}
+        <MemberReviewCard
+          name={name}
           avatarUrl={log.profile?.avatar_url ?? null}
+          text={log.review ?? ''}
           score={log.rating}
+          likes={item.likes}
+          comments={item.comments}
+          likedByViewer={item.likedByViewer}
           lines={REVIEW_LINES}
           spoiler={!!log.spoilers}
           fill={theme.surface}
@@ -505,36 +447,12 @@ const renderReviewRow = ({ item }: { item: ReviewListItem }) => <ReviewRow item=
 
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
-  header: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12, gap: Spacing.x8 },
-  summaryBlock: { gap: Spacing.x8, marginTop: Spacing.x12 },
-  summary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
-  summaryText: { flex: 1, gap: 2 },
-  /*
-   * `gap`, and it is not decoration.
-   *
-   * Adjacent segments measure 1.17:1 against each other (amber against green) —
-   * a boundary a protanopic reader cannot see at all, so the bar would read as
-   * one undivided block and say nothing. Two points of page colour between them
-   * is the second carrier, and the only one available to somebody looking rather
-   * than listening; the accessible label carries the three counts for everyone
-   * else.
-   */
-  bar: {
-    flexDirection: 'row',
-    gap: 2,
-    height: 8,
-    borderRadius: Radius.pill,
-    overflow: 'hidden',
-  },
-  critics: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    paddingTop: Spacing.x12,
-    marginTop: Spacing.x4,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  criticText: { flex: 1, gap: 2 },
+  title: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12, gap: Spacing.x8 },
+  /* `x24` over each section's heading — the critics' has its own row's height
+     above it, this one a margin: the two sections start the same distance
+     under whatever is over them. */
+  header: { paddingHorizontal: Spacing.x16, gap: Spacing.x8 },
+  members: { marginTop: Spacing.x24, marginBottom: Spacing.x4 },
   controls: { gap: Spacing.x8, marginTop: Spacing.x16 },
   /* A filter pill like the sort pills above it, drawn at 32 and touched at
      the floor. */

@@ -4,7 +4,7 @@ import { Link, useRouter } from 'expo-router';
 import { memo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { ProfileBoxSection } from '@/components/profile-section';
+import { ProfileWidget } from '@/components/profile-section';
 import { Button } from '@/components/ui/button';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -15,22 +15,15 @@ import { useTheme } from '@/hooks/use-theme';
 import { removeFromList, type ListItem } from '@/lib/api';
 import type { ProfileAchievementStats } from '@/lib/database.types';
 
-/** Four across the box: a set of four, not a grid that happens to have four columns. */
+/** Four across the page: a set of four, not a grid that happens to have four columns. */
 const FAVORITE_COLUMNS = FAVOURITES.columns;
 
 /**
- * The four favourites, in a box.
+ * The four favourites: a widget on the profile, its covers spanning the page.
  *
- * The owner's reference draws a profile's favourite films this way and asked for
- * it "exactly": a card with its title on the first line, a hairline, and the
- * four covers across it, close together (`<ProfileBoxSection>`, `FAVOURITES`).
- * They used to stand on the page under a hairline, spanning its full width with
- * eight between them; in the box they read as one object — the thing on a
- * profile people screenshot.
- *
- * It renders a section and not the box; the profile puts it in one
- * (`<ProfileBox>`). The library shared this box for one pass and has its own
- * again.
+ * Under a hairline and a small heading (`<ProfileWidget>`), not in a card. For
+ * about a week it was a box after a Letterboxd-style reference; the owner went
+ * back to this layout and had the cards removed.
  */
 
 /* Memoised: `items` comes through a shared empty-array constant while the
@@ -61,12 +54,10 @@ export const FavoritesWidget = memo(function FavoritesWidget({
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   /*
-   * Four covers across the inside of the box: 73dp each on a 360dp phone. They
-   * were 71, the reference's share of the display, until the owner asked for
-   * them a little bigger — and with the margin held at twenty, the box's inset
-   * and the gaps between them were all there was to take it from (`BOX`,
-   * `FAVOURITES`). They were a fixed 52dp once, which left most of the width
-   * empty and made someone's top four look like a footnote.
+   * Four covers spanning the page: 79dp each on a 360dp phone, at the
+   * profile's margin of ten. They were a fixed 52dp once, which left most of
+   * the width empty and made someone's top four look like a footnote — this is
+   * the one thing on a profile people screenshot.
    */
   const posterWidth = favouriteCoverWidth(Math.min(width, MaxContentWidth));
   const posterHeight = posterWidth / (2 / 3);
@@ -110,8 +101,9 @@ export const FavoritesWidget = memo(function FavoritesWidget({
   }
 
   return (
-    <ProfileBoxSection
+    <ProfileWidget
       title="Favourites"
+      icon="star"
       action={
         canEdit && (
           /* `hitSlop` rather than padding so the word stays small while the
@@ -267,7 +259,7 @@ export const FavoritesWidget = memo(function FavoritesWidget({
             : 'Could not remove it. Check your connection and try again.'}
         </Text>
       )}
-    </ProfileBoxSection>
+    </ProfileWidget>
   );
 });
 
@@ -351,12 +343,12 @@ const styles = StyleSheet.create({
   },
   widgetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   widgetTitle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  /* Padded on the side facing the title only, so the word ends on the box's
-     inner edge — where the last cover ends, and the chevron of the box under
-     it. Nothing vertical: the heading row's height is set by the title
-     beside it, and `hitSlop` is what reaches the tap floor. */
+  /* Padded on the side facing the title only, so the word ends on the page's
+     margin — where the last cover ends, and "View all" under it. Nothing
+     vertical: the heading row's height is set by the title beside it, and
+     `hitSlop` is what reaches the tap floor. */
   editLink: { paddingStart: Spacing.x8 },
-  /* `space-between`, with four as the least they may stand apart: the covers
+  /* `space-between`, with eight as the least they may stand apart: the covers
      are whole dp, so a display that does not divide evenly has a dp or two left
      over, and it goes between them rather than after the last one. */
   posters: { flexDirection: 'row', justifyContent: 'space-between', gap: FAVOURITES.gap },

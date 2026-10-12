@@ -9,6 +9,7 @@ import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ErrorState, Screen } from '@/components/ui/screen';
@@ -209,8 +210,8 @@ export default function CalendarScreen() {
           : 'This month';
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <ScrollView
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Release calendar" />}>
+      <PageScrollView
         ref={scroller}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -221,8 +222,8 @@ export default function CalendarScreen() {
           scrolled.current = event.nativeEvent.contentOffset.y;
         }}
         scrollEventThrottle={64}>
-        {/* No bar title anywhere in this app, so the screen names itself — and
-            the name is the year, which is also the control that changes it. */}
+        {/* The bar says what this is; the page opens on which year, and the
+            year is also the control that changes it. */}
         <View style={styles.yearRow}>
           <IconButton
             icon="chevron-back"
@@ -405,7 +406,7 @@ export default function CalendarScreen() {
             )}
           </>
         )}
-      </ScrollView>
+      </PageScrollView>
     </Screen>
   );
 }

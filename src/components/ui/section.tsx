@@ -58,12 +58,10 @@ function metricsFor(windowWidth: number) {
     /** Under an item's last line. */
     itemBottom: at(6),
     /**
-     * Box art, 2:3, at the height of the reference's 180dp album squares — the
-     * reference's own rule for an item that is not square: its videos are sized
-     * by height (160) too. Two and a half covers across a phone.
+     * 16:9 — screenshots, a review's card — at the reference's video height.
+     * Box art is not here: a row of covers has its own measurements, from
+     * another reference (`constants/cover-rail`).
      */
-    cover: { width: at(120), height: at(180) },
-    /** 16:9 — screenshots, events — at the reference's video height. */
     wide: { width: at(284.5), height: at(160) },
     /** The description card: 8 of corner, 16 of padding. */
     cardRadius: at(8),
@@ -86,9 +84,10 @@ export function useSectionMetrics(): SectionMetrics {
  * them, and where a rail's first item starts.
  *
  * Zero unless a screen says otherwise: a container that pads itself — the
- * additional-information screen, the Similar tab — keeps its own margin. The
- * Overview tab sets the reference's inset and pads nothing, so its rails can
- * run the full width and still start in line with the headings above them.
+ * Similar tab — keeps its own margin. The Overview tab sets the reference's
+ * inset and pads nothing, so its rails can run the full width and still start
+ * in line with the headings above them. A `<Panel>` reads this too: an inset
+ * is how it knows it is on a game's page.
  */
 const SectionInsetContext = createContext(0);
 
@@ -266,7 +265,11 @@ export function Section({
   );
 }
 
-export type ArtShape = 'cover' | 'wide';
+/**
+ * The one shape left here. Box art was the other, at the reference's album
+ * height; rows of games are `<GameCoverRail>` now, in a `<Panel>`.
+ */
+export type ArtShape = 'wide';
 
 /**
  * A row of artwork under a heading: the reference's `LazyRow` of

@@ -2,12 +2,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { ChoiceChips } from '@/components/choice-chips';
 import { GamePicker } from '@/components/game-picker';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { PartialDateField } from '@/components/ui/partial-date-field';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { SelectionCard } from '@/components/ui/selection-card';
@@ -161,7 +162,11 @@ export default function AddCopyScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title={existing.data ? 'Edit copy' : 'Add a copy'} />}>
       {body}
     </Screen>
   );
@@ -273,13 +278,12 @@ function CopyForm({
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Text variant="h1">{existing ? 'Edit copy' : 'Add a copy'}</Text>
-          <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
+          <Text variant="h2" numberOfLines={2}>
             {game.title}
           </Text>
         </View>
@@ -414,7 +418,7 @@ function CopyForm({
             Choose the platform your copy is for.
           </Text>
         )}
-      </ScrollView>
+      </PageScrollView>
     </KeyboardAvoidingView>
   );
 }

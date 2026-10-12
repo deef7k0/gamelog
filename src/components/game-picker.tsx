@@ -8,7 +8,7 @@ import { Spacing } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 export type GamePickerProps = {
-  /** The screen's heading — there is no title bar to carry it (CLAUDE.md). */
+  /** The question this picker is asking, over its field. */
   heading: string;
   /** What the prompt under the field asks for before anything is typed. */
   prompt: { title: string; message?: string };

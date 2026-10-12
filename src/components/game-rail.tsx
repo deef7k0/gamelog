@@ -1,11 +1,20 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
+import { useMemo, type ReactNode } from 'react';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useReducedMotion,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import { Poster } from '@/components/ui/poster';
-import { ArtRail, useSectionInset, useSectionMetrics } from '@/components/ui/section';
+import { PressableScale } from '@/components/ui/pressable-scale';
+import { useSectionInset } from '@/components/ui/section';
 import { Skeleton } from '@/components/ui/surface';
-import { Radius, Type } from '@/constants/theme';
+import { Text } from '@/components/ui/text';
+import { RAIL_FOOT, railLayout, type RailLayout } from '@/constants/cover-rail';
+import { Radius } from '@/constants/theme';
 import { useRailDrift } from '@/hooks/use-rail-drift';
 import type { GameSearchResult } from '@/lib/games';
 
@@ -18,62 +27,165 @@ export type CoverRailGame = Pick<
   steamAppId?: string | null;
 };
 
-/**
- * Games in a row, the one way the app draws one: the game page's franchise and
- * editions, taken everywhere a row of games appears — Home, Search, a studio.
- *
- * SimpMusic's "Singles" and "Albums" rails with box art in place of album
- * squares (`<ArtRail>`, shape `cover`): each cover at the albums' height, its
- * title under it in two lines always held open, and one quiet line under that —
- * the release year unless the caller says otherwise (a studio, a rank).
- *
- * This replaced three rails that each had their own sizes: the 92dp poster
- * rail, Home's captioned card rail and Search's chart carousel. A cover is now
- * one size and one shape on every screen that shows a row of them. These are
- * browsing surfaces, so they use `<Poster />`; `<GameCase />` is reserved for a
- * game's own page — see the rule in CLAUDE.md.
- */
-export function GameCoverRail<T extends CoverRailGame>({
-  games,
-  subtitleOf = (game) => (game.releaseYear === null ? null : String(game.releaseYear)),
-  labelOf,
-  inset,
-  parallax = false,
-}: {
-  games: readonly T[];
-  subtitleOf?: (game: T) => string | null;
-  /** What a screen reader says for a cover, when its title alone is not enough. */
-  labelOf?: (game: T) => string;
-  /** Where the first cover starts, when it is not the section inset in force. */
+/** A row's covers for this window. See `constants/cover-rail`. */
+export function useRailLayout(): RailLayout {
+  const { width } = useWindowDimensions();
+  return useMemo(() => railLayout(width), [width]);
+}
+
+export type CoverRailProps<T> = {
+  data: readonly T[];
+  keyOf: (item: T) => string;
+  /** The game whose box an item draws. */
+  gameOf: (item: T) => CoverRailGame;
+  /** What stands under a cover, when something does. Its height is the caller's to keep equal. */
+  footOf?: (item: T, width: number) => ReactNode;
+  /** What a screen reader says for an item. The game's title, when absent. */
+  labelOf?: (item: T) => string;
+  onPressItem: (item: T) => void;
+  /**
+   * Let a cover wear the game's label (Must Play). Off for a row that is about
+   * people rather than the catalogue — CLAUDE.md § Labels.
+   */
+  labelled?: boolean;
+  /** Where the first cover starts, when it is not the inset in force. */
   inset?: number;
   /**
    * The art slides behind its frame as the rail moves — Home's rails, which
    * always have. Off elsewhere, and under a reduced-motion preference.
    */
   parallax?: boolean;
+};
+
+/**
+ * Covers in a row: the one shape a row of games takes in the app.
+ *
+ * The owner's reference is Letterboxd's home (`constants/cover-rail` has the
+ * numbers): small box art, a little over three in view, and **nothing printed
+ * under a cover** — the box is the label. A row prints under its covers only
+ * what the box cannot say, through `footOf`: whose activity it is, what the
+ * people here scored it, where it stands in a chart.
+ *
+ * A title that is not drawn is still spoken: each cover is one button, named
+ * for its game.
+ *
+ * It stands on the page under its section's heading — never in a card: the
+ * first build put every row in a panel, and the owner had the panels removed.
+ * `inset` is where its first cover starts (the page's margin, or the section
+ * inset on a game's page), and it runs off the far edge. Windowed like every
+ * rail in the app: a screenful and a little more up front, one screen either
+ * side.
+ */
+export function CoverRail<T>({
+  data,
+  keyOf,
+  gameOf,
+  footOf,
+  labelOf,
+  onPressItem,
+  labelled = true,
+  inset: insetProp,
+  parallax = false,
+}: CoverRailProps<T>) {
+  const layout = useRailLayout();
+  const contextInset = useSectionInset();
+  const inset = insetProp ?? contextInset;
+  const reduceMotion = useReducedMotion();
+  const { width } = layout.cover;
+
+  /* Written and read on the UI thread, so a drag never enters JS. */
+  const scrollX = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollX.set(event.contentOffset.x);
+  });
+  const driver = parallax && !reduceMotion ? scrollX : null;
+
+  return (
+    <Animated.FlatList
+      data={data}
+      horizontal
+      keyExtractor={keyOf}
+      showsHorizontalScrollIndicator={false}
+      initialNumToRender={5}
+      windowSize={3}
+      onScroll={driver ? onScroll : undefined}
+      scrollEventThrottle={16}
+      contentContainerStyle={{ paddingHorizontal: inset, gap: layout.gap }}
+      renderItem={({ item, index }) => {
+        const game = gameOf(item);
+        return (
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={labelOf?.(item) ?? game.title}
+            onPress={() => onPressItem(item)}
+            scaleTo={0.96}>
+            <View style={{ width }}>
+              <RailCover
+                game={game}
+                width={width}
+                index={index}
+                scrollX={driver}
+                leading={inset}
+                gap={layout.gap}
+                labelled={labelled}
+              />
+              {footOf && <View style={styles.foot}>{footOf(item, width)}</View>}
+            </View>
+          </PressableScale>
+        );
+      }}
+    />
+  );
+}
+
+/**
+ * A row of games, each opening its page.
+ *
+ * `lineOf` is the one quiet line a cover may carry — a rank, a date — and
+ * there is none unless a caller gives one: the game's name and year are on
+ * its box and its page. `footOf` is for a row whose line is not plain text
+ * (a score in the score's own colour).
+ */
+export function GameCoverRail<T extends CoverRailGame>({
+  games,
+  lineOf,
+  footOf,
+  labelOf,
+  inset,
+  parallax = false,
+}: {
+  games: readonly T[];
+  lineOf?: (game: T) => string | null;
+  footOf?: (game: T, width: number) => ReactNode;
+  /** What a screen reader says for a cover, when its title alone is not enough. */
+  labelOf?: (game: T) => string;
+  inset?: number;
+  parallax?: boolean;
 }) {
   const router = useRouter();
 
+  const foot =
+    footOf ??
+    (lineOf
+      ? (game: T) => (
+          /* `textSecondary`, not `textMuted`: a panel is see-through and the
+             light behind Home and Search passes under these lines, where the
+             muted grey falls under AA. */
+          <Text variant="bodySmall" color="textSecondary" numberOfLines={1} style={styles.line}>
+            {lineOf(game) ?? ''}
+          </Text>
+        )
+      : undefined);
+
   return (
-    <ArtRail
+    <CoverRail
       data={games}
       keyOf={(game) => game.id}
-      shape="cover"
+      gameOf={(game) => game}
+      footOf={foot}
+      labelOf={labelOf}
       inset={inset}
       parallax={parallax}
-      renderArt={(game, size, context) => (
-        <RailCover
-          game={game}
-          width={size.width}
-          index={context.index}
-          scrollX={context.scrollX}
-          leading={context.inset}
-          gap={context.itemGap}
-        />
-      )}
-      titleOf={(game) => game.title}
-      subtitleOf={subtitleOf}
-      labelOf={labelOf}
       onPressItem={(game) => router.push({ pathname: '/game/[id]', params: { id: game.id } })}
     />
   );
@@ -87,6 +199,7 @@ function RailCover({
   scrollX,
   leading,
   gap,
+  labelled,
 }: {
   game: CoverRailGame;
   width: number;
@@ -94,6 +207,7 @@ function RailCover({
   scrollX: SharedValue<number> | null;
   leading: number;
   gap: number;
+  labelled: boolean;
 }) {
   const drift = useRailDrift(scrollX, index, { pitch: width + gap, leading, itemWidth: width });
 
@@ -103,7 +217,7 @@ function RailCover({
       heroUrl={game.heroUrl}
       title={game.title}
       edition={game.edition}
-      gameId={game.id}
+      gameId={labelled ? game.id : undefined}
       steamAppId={game.steamAppId}
       width={width}
       rounded="image"
@@ -113,31 +227,32 @@ function RailCover({
 }
 
 /**
- * The rail's shape while its games load: the same covers and the same two
- * held lines, so nothing moves when the real ones arrive.
+ * The rail's shape while its games load: the same covers, and the same room
+ * under them when the real row will have a foot, so nothing moves when it
+ * arrives.
  */
-export function CoverRailSkeleton({ count = 4, inset }: { count?: number; inset?: number }) {
-  const metrics = useSectionMetrics();
+export function CoverRailSkeleton({
+  count = 5,
+  foot = 0,
+  inset,
+}: {
+  count?: number;
+  /** The height of what the real row prints under a cover (`footHeight`). */
+  foot?: number;
+  inset?: number;
+}) {
+  const layout = useRailLayout();
   const contextInset = useSectionInset();
-  const { width, height } = metrics.cover;
+  const { width, height } = layout.cover;
 
   return (
     <View
-      style={[
-        styles.skeleton,
-        {
-          paddingLeft: inset ?? contextInset,
-          paddingTop: metrics.artTop,
-          gap: metrics.itemGap,
-        },
-      ]}
+      style={[styles.skeleton, { paddingLeft: inset ?? contextInset, gap: layout.gap }]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants">
       {Array.from({ length: count }, (_, index) => (
-        <View key={index} style={{ width, gap: metrics.titleTop }}>
+        <View key={index} style={{ width, paddingBottom: foot }}>
           <Skeleton width={width} height={height} radius={Radius.image} />
-          <Skeleton width={width * 0.8} height={Type.itemTitle.lineHeight - 6} />
-          <Skeleton width={width * 0.4} height={Type.bodySmall.lineHeight - 5} />
         </View>
       ))}
     </View>
@@ -145,7 +260,10 @@ export function CoverRailSkeleton({ count = 4, inset }: { count?: number; inset?
 }
 
 const styles = StyleSheet.create({
-  /* Clipped rather than scrolled: four covers run off the right edge as the
+  foot: { paddingTop: RAIL_FOOT.top },
+  /* Held at one line whatever it says, so a row is one height. */
+  line: { height: RAIL_FOOT.line },
+  /* Clipped rather than scrolled: the covers run off the trailing edge as the
      real rail's do. */
   skeleton: { flexDirection: 'row', overflow: 'hidden' },
 });

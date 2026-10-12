@@ -69,8 +69,9 @@ export type LogCardProps = {
 };
 
 /**
- * A review, everywhere it appears in a list: Home, a profile's Reviews tab,
- * Search, the most-liked page.
+ * A review, everywhere it appears in a list: a profile's Reviews tab, Search,
+ * the most-liked page. (Home had the first one; its band of reviews is a row
+ * of covers now — `<ActivityRail>` — at the owner's direction.)
  *
  * ## The shape
  *
@@ -94,10 +95,10 @@ export type LogCardProps = {
  * replace "the rest of the review cards in the app". It took the place of the
  * Letterboxd-style card this file used to hold (title and year over the art,
  * five lines of review, the score on the art's baseline) and of the profile's
- * square-art review rows. **A game's own screens keep theirs**: the game page's
- * rail, the reviews sheet and a copy's screen draw `<ReviewQuote>` — text, a
- * name and a score — because there the game is already the subject and this
- * card would only say it again. Surprise Me keeps its own (`<ReviewCard>`) for
+ * square-art review rows. **A game's own screens keep theirs**: the game page
+ * and the reviews sheet draw `<MemberReviewCard>` — a face, a name, the score
+ * and the words — and a copy's screen `<ReviewQuote>`, because there the game
+ * is already the subject and this card would only say it again. Surprise Me keeps its own (`<ReviewCard>`) for
  * the same reason.
  *
  * ## A flat card, almost the colour of the page

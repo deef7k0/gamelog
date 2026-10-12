@@ -82,8 +82,8 @@ export type TopReviewCardProps = {
  * What one person thought, under the game they thought it about.
  *
  * Surprise Me's, under the dealt card. The game page's Overview shared it —
- * both ask a game the same question, is this worth my evening — until its
- * reviews became a rail of `<ReviewQuote>` cards (`<MemberReviewsWidget>`).
+ * both ask a game the same question, is this worth my evening — until that
+ * page took a card of its own (`<MemberReviewCard>`, in `<TopReview>`).
  * `bare`, `footer` and the five-line `lines` below were that page's.
  *
  * ## Why the score is the artwork

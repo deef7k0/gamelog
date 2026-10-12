@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
@@ -75,19 +76,19 @@ export default function AwardEditScreen() {
   return (
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. */
-    <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title={title} />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+        <PageScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          {/* The page states its own heading. The top bar carries a back disc
-              and nothing else now, so a screen that opens on a form rather than
-              on artwork has to say what it is — see `<FrostedTopBar>`. */}
-          <Text variant="h1">{title}</Text>
-
           {ready && (
             <AwardForm
               key={initial}
@@ -105,7 +106,7 @@ export default function AwardEditScreen() {
               {save.error instanceof Error ? save.error.message : 'Could not save that.'}
             </Text>
           )}
-        </ScrollView>
+        </PageScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );

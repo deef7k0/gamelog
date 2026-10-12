@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 
 import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { RICH_TEXT_HINT } from '@/components/ui/rich-text';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -81,11 +82,16 @@ export default function NewListScreen() {
     /* `modal`: an iOS sheet already begins below the status bar, so the bar must
        not inset itself again — see `useTopBarInset`. `dismiss` for the same
        reason the chevron is wrong here: a sheet closes, it does not go back. */
-    <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title="New collection" />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+        <PageScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
@@ -136,7 +142,7 @@ export default function NewListScreen() {
             disabled={!title.trim()}
             fullWidth
           />
-        </ScrollView>
+        </PageScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );

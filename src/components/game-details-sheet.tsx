@@ -114,9 +114,7 @@ export function GameDetailsSheet({
            than being the one full-width button among them. The heading's More
            is what says it opens something; the line in the card says what.
 
-           "Details", the name this door has always had on this page. Not
-           "More information": the tab has "Additional information" (Wikidata's)
-           further down, and the two would be one phrase said twice. */
+           "Details", the name this door has always had on this page. */
         <InfoCardButton
           title="Details"
           accessibilityLabel="Details about this game: genres, modes, age ratings and languages"

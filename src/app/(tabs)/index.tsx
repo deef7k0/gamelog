@@ -1,27 +1,36 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigation, useRouter } from 'expo-router';
-import { useEffect, useMemo } from 'react';
-import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { useAnimatedRef } from 'react-native-reanimated';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  RefreshControl,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type ScrollView,
+} from 'react-native';
 
+import { ActivityRail } from '@/components/activity-rail';
 import { CoverRailSkeleton, GameCoverRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
-import { LOG_CARD_HEIGHT, LogCard } from '@/components/log-card';
 import { ArticleCard } from '@/components/news-cards';
 import { SurpriseEntry } from '@/components/surprise-entry';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { FoldingTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
 import { AmbientLight } from '@/components/ui/ambient-light';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { useTabBarClearance } from '@/components/app-tab-bar';
+import { footHeight } from '@/constants/cover-rail';
 import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { useHeaderHeight } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
-import { getHomeReviews, getUnreadCount, getUserLogs } from '@/lib/api';
+import { getHomeActivity, getUnreadCount, getUserLogs } from '@/lib/api';
 import { displayNameFor, greetingFor } from '@/lib/format';
 import { recommendFromLogs } from '@/lib/games/recommend';
 import { getGamingNews, getNewReleases, getUpcomingReleases } from '@/lib/news';
@@ -29,8 +38,8 @@ import { useAuth } from '@/store/auth';
 
 /** How many news items Home shows before "See all". Enough to be worth a look. */
 const NEWS_PREVIEW = 3;
-/** Reviews per band. Home is a summary; the pages it links to are the lists. */
-const REVIEW_PREVIEW = 3;
+/** Covers in the row of people's activity. A few screenfuls sideways. */
+const ACTIVITY_LIMIT = 20;
 /** Games in the recommendation rail. Roughly five screenfuls of scrolling. */
 const RECOMMENDED_LIMIT = 12;
 /** Posters in the merged releases rail, split evenly between out-now and upcoming. */
@@ -66,14 +75,28 @@ function newsCardHeight(width: number): number {
  * ingredients.
  *
  * **Four bands, and the order is the argument.** The page opens on *you* and
- * widens outward — what you might play, what people wrote, what came out, what
- * happened. Every band is a different question; none of them is a second
+ * widens outward — what you might play, what people played, what came out,
+ * what happened. Every band is a different question; none of them is a second
  * helping of the one above it.
  *
- *   Games for you  — from your own logs, via IGDB similarity
- *   Reviews        — your circle first, then everyone else   (Postgres)
- *   Releases       — just out, and what is next              (IGDB)
- *   Latest news    — what happened                           (RSS)
+ *   Games for you     — from your own logs, via IGDB similarity
+ *   New from friends  — what your circle scored and wrote about   (Postgres)
+ *   Releases          — just out, and what is next                (IGDB)
+ *   Latest news       — what happened                             (RSS)
+ *
+ * **The first three are rows of games**: a one-line heading on the page over
+ * small covers — the shape of the sections on Letterboxd's home, the owner's
+ * reference (2026-10-09), without the cards the reference draws them in (the
+ * owner had those removed). The news stands under its own heading the same way.
+ *
+ * **"New from friends" is where the review cards were.** The band was a stack
+ * of `<LogCard>`s — your circle's, then everyone's under a rule. The owner
+ * replaced it with the reference's row of that name: covers, and under each a
+ * face, a name and a score. When the people you follow have logged nothing —
+ * or you follow nobody — the same row is headed "New on GameLog" and shows
+ * everyone's; it is never both, and never blended (`getHomeActivity`). The
+ * review card is still every *list* of reviews in the app; Home no longer has
+ * one.
  *
  * It used to be seven. Two pairs of those were the same band twice: "Latest
  * releases" and "Coming soon" were both 92dp poster rails with an inverted date
@@ -120,7 +143,9 @@ export default function HomeScreen() {
    * most: it hides its own bar on the way down, so without this the only way
    * back to the notification bell from the footer is a long reverse flick.
    */
-  const scroller = useAnimatedRef<Animated.ScrollView>();
+  const scroller = useRef<ScrollView>(null);
+  /* The floating bar's height, kept clear at the top of the scroll. */
+  const headerHeight = useHeaderHeight();
 
   useEffect(() => {
     const unsubscribe = navigation.addListener(
@@ -168,16 +193,12 @@ export default function HomeScreen() {
     staleTime: 30 * 60_000,
   });
 
-  const reviews = useQuery({
-    queryKey: ['home-reviews', userId],
-    queryFn: () => getHomeReviews(userId!, REVIEW_PREVIEW),
+  const activity = useQuery({
+    queryKey: ['home-activity', userId],
+    queryFn: () => getHomeActivity(userId!, ACTIVITY_LIMIT),
     enabled: !!userId,
     staleTime: 2 * 60_000,
   });
-
-  /* No likes batch for the Reviews band: the review card carries no like row
-     (see `<LogCard>`), so a count for each card would be a request
-     whose answer is never drawn. Liking happens on the review's own page. */
 
   const news = useQuery({
     queryKey: ['news', 'articles'],
@@ -210,7 +231,7 @@ export default function HomeScreen() {
   const refreshing =
     logs.isRefetching ||
     recommended.isRefetching ||
-    reviews.isRefetching ||
+    activity.isRefetching ||
     news.isRefetching ||
     releases.isRefetching ||
     upcoming.isRefetching;
@@ -218,7 +239,7 @@ export default function HomeScreen() {
   function refreshAll() {
     logs.refetch();
     recommended.refetch();
-    reviews.refetch();
+    activity.refetch();
     news.refetch();
     releases.refetch();
     upcoming.refetch();
@@ -267,9 +288,12 @@ export default function HomeScreen() {
       .map((game) => ({ coverUrl: game.coverUrl, heroUrl: game.heroUrl }));
   }, [recommended.data, releases.data]);
 
-  const followed = reviews.data?.followed ?? [];
-  const newest = reviews.data?.newest ?? [];
-  const hasReviews = followed.length > 0 || newest.length > 0;
+  const activityLogs = activity.data?.logs ?? [];
+  /* The heading is the row's claim about whose games these are. While the
+     first answer is on its way it is the row's own name. */
+  const activityTitle = activity.data?.scope === 'everyone' ? 'New on GameLog' : 'New from friends';
+  const personFoot = footHeight('person');
+  const lineFoot = footHeight('line');
 
   return (
     <Screen
@@ -288,8 +312,72 @@ export default function HomeScreen() {
          scroll-faded. See `ui/ambient-light`. The old glow itself — a far
          stronger `<SoftGlow>` that faded out on scroll — was removed at the
          owner's request: it read as a lit corner rather than as light. */
-      backdrop={<AmbientLight />}>
-      <Animated.ScrollView
+      backdrop={<AmbientLight />}
+      /*
+        The app's own bar — SimpMusic's Home, at the owner's direction.
+
+        It floats over the page: clear while the page is at its very top, so
+        the light in the corner is behind the wordmark, and frosted the moment
+        the page has moved. Reading down past the first band it folds away and
+        leaves the frost over the status bar; any move back up brings it down
+        again. `<FoldingTopBar>` is the mechanism and `constants/top-bar` the
+        numbers.
+
+        (For a long while this row was the scroll's first child and went away
+        with the content for good, which made the bell a long flick from the
+        foot of the page.)
+
+        One control: what happened while you were away. Settings moved to the
+        profile's top bar, beside the other things that are about you.
+      */
+      topBar={
+        <FoldingTopBar>
+          <View style={styles.masthead}>
+            <View style={styles.mastheadTitles}>
+              {/* `h3`: the reference's app name is `titleMedium`, 18 — a step
+                  under the 20 its shelves are titled in. */}
+              <Text variant="h3">GameLog</Text>
+              {/* `textSecondary`, not `textMuted`: this line sits on the corner
+                  light's brightest pixels, where the muted grey is under AA. */}
+              <Text variant="bodySmall" color="textSecondary">
+                {greetingFor()}
+              </Text>
+            </View>
+
+            <View style={styles.mastheadActions}>
+              {/* Round keys in the action grey, as every icon-only control in the
+                  app is. Not `<IconButton>`, which has nowhere to hang the unread
+                  badge. */}
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={
+                  unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+                }
+                onPress={() => router.push('/notifications')}
+                scaleTo={0.92}
+                pressedColor={theme.controlPressed}
+                focusRing={accent.ring}
+                style={StyleSheet.flatten([styles.key, { backgroundColor: theme.controlFill }])}>
+                <Ionicons name="notifications-outline" size={20} color={theme.text} />
+                {unreadCount > 0 && (
+                  /* Ringed in the page colour so the badge reads as sitting on
+                     the key rather than as a stain on its edge. */
+                  <View
+                    style={[
+                      styles.badge,
+                      { backgroundColor: theme.primary, borderColor: theme.homeBackground },
+                    ]}>
+                    <Text variant="caption" style={{ color: theme.onPrimary }}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </PressableScale>
+            </View>
+          </View>
+        </FoldingTopBar>
+      }>
+      <PageScrollView
         ref={scroller}
         /*
          * Bands resolve at different times and some of them are over a thousand
@@ -309,65 +397,14 @@ export default function HomeScreen() {
             tintColor={theme.primary}
             /* Otherwise the spinner drops out of the very top of the display,
                behind the bar, and a pull-to-refresh looks like it did nothing. */
-            progressViewOffset={Spacing.x24}
+            progressViewOffset={headerHeight}
           />
         }>
-        {/*
-          The app's own header, and it is *in the scroll*.
-
-          Not a `<Screen topBar>`: a floating bar draws over the page and has to
-          be paid for with reserved space, and Home is a root tab — there is
-          nothing to go back to, so the only thing a floating layer would carry
-          here is two icons. As a first row it scrolls away with the content,
-          which is the arrangement the reference uses and the honest one: the
-          furniture is part of the page, not a lid on it.
-
-          One control: what happened while you were away. Settings moved to the
-          profile's top bar, beside the other things that are about you.
-        */}
-        <View style={styles.masthead}>
-          <View style={styles.mastheadTitles}>
-            {/* `h3`: the reference's app name is `titleMedium`, 18 — a step
-                under the 20 its shelves are titled in. */}
-            <Text variant="h3">GameLog</Text>
-            {/* `textSecondary`, not `textMuted`: this line sits on the corner
-                light's brightest pixels, where the muted grey is under AA. */}
-            <Text variant="bodySmall" color="textSecondary">
-              {greetingFor()}
-            </Text>
-          </View>
-
-          <View style={styles.mastheadActions}>
-            {/* Round keys in the action grey, as every icon-only control in the
-                app is. Not `<IconButton>`, which has nowhere to hang the unread
-                badge. */}
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={
-                unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
-              }
-              onPress={() => router.push('/notifications')}
-              scaleTo={0.92}
-              pressedColor={theme.controlPressed}
-              focusRing={accent.ring}
-              style={StyleSheet.flatten([styles.key, { backgroundColor: theme.controlFill }])}>
-              <Ionicons name="notifications-outline" size={20} color={theme.text} />
-              {unreadCount > 0 && (
-                /* Ringed in the page colour so the badge reads as sitting on
-                   the key rather than as a stain on its edge. */
-                <View
-                  style={[
-                    styles.badge,
-                    { backgroundColor: theme.primary, borderColor: theme.homeBackground },
-                  ]}>
-                  <Text variant="caption" style={{ color: theme.onPrimary }}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </PressableScale>
-          </View>
-        </View>
+        {/* The room the floating bar is drawn over, as the scroll's first row —
+            the reference's `Spacer(topAppBarHeight)`. A row and not a padding,
+            so the rows after it keep their places in the list (see
+            `maintainVisibleContentPosition` above). */}
+        <View style={{ height: headerHeight }} />
 
         {/* Who you are, and a way into your own profile. Two lines rather than
             one because "Welcome back, Ada" buries the name inside a sentence —
@@ -404,7 +441,7 @@ export default function HomeScreen() {
         <SurpriseEntry covers={deckCovers} />
 
         {/*
-         * Band 1 — what you might play, or, on a first run, the ask.
+         * Band 1 — on a first run, the ask.
          *
          * This slot used to render its heading and five skeleton cards for a
          * brand-new account and then **delete itself** once `logs` resolved
@@ -417,7 +454,7 @@ export default function HomeScreen() {
          * PRODUCT.md's success metric is someone coming back to write about a
          * *second* game. Nothing on this page moved anyone toward the first.
          */}
-        {isFirstRun ? (
+        {isFirstRun && (
           <View style={styles.firstRun}>
             <EmptyState
               title="Start your shelf"
@@ -431,98 +468,80 @@ export default function HomeScreen() {
               }
             />
           </View>
-        ) : (
-          (recommendedGames.length > 0 || seedsPending) && (
-            <HomeSection
-              title="Games for you"
-              /* Not "rated highest": `recommendFromLogs` seeds from logs with a
-                 null rating too, so the old subtitle described a filter that
-                 does not exist. */
-              subtitle="Based on the games you've played.">
-              {/* The game page's franchise rail, as every row of games is now:
-                  covers at the albums' height, the title in two held lines, the
-                  studio under it. Home's rails keep the parallax — see the note
-                  above `PARALLAX_OVERSCAN` in `ui/poster.tsx`. */}
-              {seedsPending ? (
-                <CoverRailSkeleton inset={Spacing.x16} />
-              ) : (
-                <GameCoverRail
-                  games={recommendedGames}
-                  subtitleOf={(game) => game.developer}
-                  inset={Spacing.x16}
-                  parallax
-                />
-              )}
-            </HomeSection>
-          )
         )}
 
         {/*
-         * Band 2 — the writing. Your circle first, then everyone else.
-         *
-         * One band, not two. These were the same component fed by the same
-         * query, and `newest` is literally what is left after `followed` is
-         * subtracted — so as two bands 2,900dp apart they read as the page
-         * repeating itself. Adjacent, with a rule and a label between them, the
-         * distinction the data actually makes is legible in one glance.
+         * What you might play. From your own logs — not "rated highest":
+         * `recommendFromLogs` seeds from logs with a null rating too. Home's
+         * rails keep the parallax — see the note above `PARALLAX_OVERSCAN` in
+         * `ui/poster.tsx`.
          */}
-        {reviews.isLoading ? (
-          <HomeSection title="Reviews" subtitle="From your circle, and everyone else.">
-            <View style={styles.stack}>
-              {Array.from({ length: REVIEW_PREVIEW }).map((_, index) => (
-                <Skeleton key={index} width="100%" height={LOG_CARD_HEIGHT} />
-              ))}
+        {!isFirstRun && (recommendedGames.length > 0 || seedsPending) && (
+          <HomeSection title="Games for you">
+            {seedsPending ? (
+              <CoverRailSkeleton inset={Spacing.x16} />
+            ) : (
+              <GameCoverRail games={recommendedGames} inset={Spacing.x16} parallax />
+            )}
+          </HomeSection>
+        )}
+
+        {/*
+         * What people played: your circle's, or — when they have been quiet,
+         * or there is nobody in it — everyone's, under the heading that says
+         * which. Absent only when nobody on GameLog has scored or written
+         * about anything at all.
+         */}
+        {activity.isLoading ? (
+          <HomeSection title={activityTitle}>
+            <CoverRailSkeleton foot={personFoot} inset={Spacing.x16} />
+          </HomeSection>
+        ) : activity.isLoadingError ? (
+          <HomeSection title={activityTitle}>
+            <View style={styles.inset}>
+              <BandError
+                label="What people are playing could not load."
+                onRetry={() => activity.refetch()}
+              />
             </View>
           </HomeSection>
-        ) : reviews.isLoadingError ? (
-          <HomeSection title="Reviews">
-            <BandError label="Reviews could not load." onRetry={() => reviews.refetch()} />
-          </HomeSection>
-        ) : hasReviews ? (
-          <HomeSection
-            title="Reviews"
-            subtitle="From your circle, and everyone else."
-            seeAll="/reviews">
-            <View style={styles.stack}>
-              {followed.map((log) => (
-                <LogCard key={log.id} log={log} />
-              ))}
-
-              {followed.length > 0 && newest.length > 0 && (
-                <View style={[styles.divider, { borderTopColor: theme.border }]}>
-                  <Text variant="label" color="textMuted">
-                    MORE FROM EVERYONE
-                  </Text>
-                </View>
-              )}
-
-              {newest.map((log) => (
-                <LogCard key={log.id} log={log} />
-              ))}
-            </View>
+        ) : activityLogs.length > 0 ? (
+          <HomeSection title={activityTitle}>
+            <ActivityRail logs={activityLogs} inset={Spacing.x16} />
           </HomeSection>
         ) : null}
 
         {/*
-         * Band 3 — the catalogue. Out now and coming next, as one timeline.
-         *
-         * Two rails of 92dp posters with an inverted date predicate, stacked
-         * 48dp apart, are one rail that has been cut in half. The year under
-         * each poster already separates them.
+         * The catalogue. Out now and coming next, as one timeline — two rails
+         * with an inverted date predicate are one rail cut in half. The date
+         * under each cover is what separates the halves, and is the one thing
+         * here its box does not say.
          */}
-        <HomeSection title="Releases" subtitle="Just out, and what's next." seeAll="/releases">
+        <HomeSection title="Releases" seeAll="/releases">
           {releases.isLoading || upcoming.isLoading ? (
-            <CoverRailSkeleton inset={Spacing.x16} />
+            <CoverRailSkeleton foot={lineFoot} inset={Spacing.x16} />
           ) : releases.isLoadingError && upcoming.isLoadingError ? (
-            <BandError
-              label="Releases could not load."
-              onRetry={() => {
-                releases.refetch();
-                upcoming.refetch();
-              }}
-            />
+            <View style={styles.inset}>
+              <BandError
+                label="Releases could not load."
+                onRetry={() => {
+                  releases.refetch();
+                  upcoming.refetch();
+                }}
+              />
+            </View>
           ) : (
-            <GameCoverRail games={releaseRail} inset={Spacing.x16} parallax />
+            <GameCoverRail
+              games={releaseRail}
+              inset={Spacing.x16}
+              lineOf={(game) => releaseLabel(game.releaseDate, game.releaseYear)}
+              labelOf={(game) =>
+                [game.title, releaseLabel(game.releaseDate, game.releaseYear)]
+                  .filter(Boolean)
+                  .join(', ')
+              }
+              parallax
+            />
           )}
         </HomeSection>
 
@@ -556,7 +575,7 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={14} color={theme.primaryText} />
           </PressableScale>
         </Link>
-      </Animated.ScrollView>
+      </PageScrollView>
     </Screen>
   );
 }
@@ -594,28 +613,38 @@ function BandError({ label, onRetry }: { label: string; onRetry: () => void }) {
   );
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 /**
- * A poster rail's placeholder, at the height of the rail it stands in for.
- *
- * 138 was the poster alone; the real `RailPoster` carries a two-line title and
- * a year under it. Same class of bug as the news skeleton, smaller blast
- * radius — the rail is the last thing in its band, so the understatement moved
- * one section instead of four.
+ * A release date as the line under a cover: "3 Oct", and the year with it when
+ * that year is not this one. Read in UTC, as IGDB stores it — local time moves
+ * every game west of Greenwich back a day.
  */
+function releaseLabel(releaseDate: string | null, releaseYear: number | null): string | null {
+  if (!releaseDate) return releaseYear === null ? null : String(releaseYear);
+
+  const date = new Date(`${releaseDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return releaseYear === null ? null : String(releaseYear);
+
+  const day = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
+  return date.getUTCFullYear() === new Date().getUTCFullYear()
+    ? day
+    : `${day} ${date.getUTCFullYear()}`;
+}
 
 /** Lifts a one-line inline link to the platform floor without moving the text. */
 const FOOTER_SLOP = { top: 14, bottom: 14, left: 8, right: 8 };
 
 const styles = StyleSheet.create({
-  /* The masthead sits in the content column, so the row owns the page margin
-     and its first band starts flush with everything below it. */
+  /* The bar's row, filled: the page's own margin at either end, so the
+     wordmark starts on the line every band under it starts on. */
   masthead: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Spacing.x12,
     paddingHorizontal: Spacing.x16,
-    paddingTop: Spacing.x8,
   },
   mastheadTitles: { flex: 1, gap: 1 },
   /* `x8` (8) between the two keys: Material's gap between touch targets. */
@@ -663,14 +692,10 @@ const styles = StyleSheet.create({
      to centre in. */
   firstRun: { minHeight: 260, justifyContent: 'center' },
   stack: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
-  /* A rule with its label sitting on the gap above it, so the two halves of the
-     Reviews band read as one band with a seam rather than as two lists. */
-  divider: { paddingTop: Spacing.x12, borderTopWidth: StyleSheet.hairlineWidth },
-  bandError: {
-    paddingHorizontal: Spacing.x16,
-    gap: Spacing.x4,
-    alignItems: 'flex-start',
-  },
+  /* No inset of its own: the news band's stack already has the page's margin,
+     and a band of games gives it `inset`. */
+  bandError: { gap: Spacing.x4, alignItems: 'flex-start' },
+  inset: { paddingHorizontal: Spacing.x16 },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',

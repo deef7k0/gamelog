@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Card } from '@/components/ui/surface';
@@ -85,7 +86,7 @@ export default function AchievementsScreen() {
 
   if (game.isLoading || achievements.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Achievements" />}>
         <LoadingState />
       </Screen>
     );
@@ -93,7 +94,7 @@ export default function AchievementsScreen() {
 
   if (achievements.isLoadingError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Achievements" />}>
         <ErrorState error={achievements.error} />
       </Screen>
     );
@@ -107,8 +108,8 @@ export default function AchievementsScreen() {
 
   return (
     <AccentProvider artwork={game.data?.coverUrl ?? game.data?.heroUrl} genres={game.data?.genres}>
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-        <FlatList
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Achievements" />}>
+        <PageFlatList
           data={list}
           keyExtractor={(entry) => entry.id}
           contentContainerStyle={list.length === 0 ? styles.emptyContent : styles.content}

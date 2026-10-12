@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { PartialDateField } from '@/components/ui/partial-date-field';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -80,7 +81,12 @@ export default function PlaythroughEditScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title={run ? `Playthrough #${number}` : 'New playthrough'} />}>
       {body}
     </Screen>
   );
@@ -191,14 +197,13 @@ function PlaythroughForm({
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        {/* The heading the missing title bar would have carried. */}
+        {/* The bar says which run; the page says of which game. */}
         <View style={styles.head}>
-          <Text variant="h1">{run ? `Playthrough #${number}` : `New playthrough`}</Text>
-          <Text variant="bodySmall" color="textMuted" numberOfLines={2}>
+          <Text variant="h2" numberOfLines={2}>
             {game.title}
           </Text>
         </View>
@@ -311,7 +316,7 @@ function PlaythroughForm({
             onPress={confirmRemove}
           />
         )}
-      </ScrollView>
+      </PageScrollView>
     </KeyboardAvoidingView>
   );
 }

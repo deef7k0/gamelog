@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { GameListItem } from '@/components/game-list-item';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
@@ -58,11 +59,8 @@ export default function GenreScreen() {
 
   return (
     <AccentProvider genres={[title]}>
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title={title} />}>
         <View style={styles.head}>
-          <Text variant="h1" accessibilityRole="header">
-            {title}
-          </Text>
           <Text variant="bodySmall" color="textMuted">
             Well-reviewed {title.toLowerCase()} games from the whole catalogue.
           </Text>
@@ -73,7 +71,7 @@ export default function GenreScreen() {
         ) : games.isLoadingError ? (
           <ErrorState error={games.error} onRetry={() => games.refetch()} />
         ) : (
-          <FlatList
+          <PageFlatList
             data={ordered}
             keyExtractor={(game) => game.id}
             contentContainerStyle={styles.content}

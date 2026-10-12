@@ -1,31 +1,52 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
-import { memo, type ReactNode } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { createContext, memo, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, {
+  Easing,
+  runOnJS,
+  useAnimatedProps,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withSpring,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 
+import { MarqueeText } from '@/components/ui/marquee-text';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { Text } from '@/components/ui/text';
 import { MaxContentWidth, Spacing, withAlpha } from '@/constants/theme';
+import {
+  BAR_SLIDE,
+  BAR_SPRING,
+  FROST,
+  HOME_BAR,
+  TOP_BAR_DISC,
+  TOP_BAR_DISC_ROOM,
+  TOP_BAR_EDGE,
+  TOP_BAR_GLYPH,
+  TOP_BAR_KEY,
+  TOP_BAR_KEY_FILL,
+  TOP_BAR_ROW,
+  TOP_BAR_SIDE,
+  TOP_BAR_TITLE_GAP,
+  TOP_BAR_TITLE_INSET,
+  discShift,
+  frostStrength,
+  homeBarMoved,
+  homeBarOpen,
+  isScrolled,
+  revealOffset,
+} from '@/constants/top-bar';
 import { useTopBarInset } from '@/hooks/use-header-height';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 
-/**
- * Diameter of the disc, in dp: 48 on both platforms.
- *
- * The owner's reference, SimpMusic — its album screen's back button is
- * `LiquidGlassIconButton(…, Modifier.size(48.dp))`. It was `TapTarget`, 44 on
- * iOS and 48 on Android; one size now, and at or over the floor on both.
- */
-export const TOP_BAR_DISC = 48;
 const DISC = TOP_BAR_DISC;
-
-/**
- * How far a disc sits from the corner it is in, on both axes: the reference's
- * `padding(12.dp)` under the status bar. With the disc that is the 60 of
- * `TopBarHeight`, which is what a screen reserves for it.
- */
-export const TOP_BAR_EDGE = 12;
 
 /*
  * The glass, as far as it can be had without a shader.
@@ -58,56 +79,100 @@ const SHEEN = 'linear-gradient(135deg, rgba(255,255,255,0.13) 0%, rgba(255,255,2
 const PANE_SCRIM = 0.27;
 
 /**
- * A floating circular back button, over the page — SimpMusic's, at its size
- * and in its corner (`AlbumScreen.kt`): a 48dp disc of glass, 12 from the edge
- * and 12 under the status bar, holding a back chevron. Controls at the other
- * end of the row are the same disc.
+ * Whether the frost is a blur on this device.
  *
- * ## What this replaced, and why
+ * Android blurs from 12 up. Below that the bar is the page's colour, opaque —
+ * the reference's own rule (`barBlurStyle`: "Where haze does not blur (Android
+ * 11 and below), the bar is that colour, opaque"), and for its reason: the old
+ * path blurs in software, a strip the width of the display on every frame of a
+ * scroll.
+ */
+const FROST_BLURS = Platform.OS !== 'android' || Number(Platform.Version) >= 31;
+
+/**
+ * The blur at full strength, as each platform is asked for it, and what
+ * Android divides that by to get a radius. `FROST` says why they differ.
+ */
+const BLUR_MAX = Platform.OS === 'android' ? FROST.androidIntensity : FROST.intensity;
+const ANDROID_REDUCTION = FROST.androidIntensity / FROST.androidRadius;
+
+/** Compose's `FastOutSlowInEasing`, the default of the reference's `tween(300)`. */
+const FROST_EASING = Easing.bezier(...FROST.easing);
+
+/**
+ * A page that opens on artwork and does not say how tall its header is: this
+ * much of the display, which is the least any of them opens with (a game's
+ * hero is 38%).
+ */
+const DEFAULT_HEADER = 0.38;
+
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
+
+/**
+ * How a control is drawn where it is: a disc of glass over artwork, or a bare
+ * glyph in the bar. `<TopBarDisc>` reads it, so a screen writes its right-hand
+ * controls once and they are right in both.
+ */
+const TopBarForm = createContext<'disc' | 'bar'>('disc');
+
+/**
+ * The top bar — SimpMusic's, at the owner's direction: its size, how it
+ * looks, and what it does as the page scrolls. `constants/top-bar.ts` has the
+ * numbers and says where in the reference's source each was read.
  *
- * A full-width sheet of frosted glass with a title on it, pinned across the top
- * of every screen. It was a good bar and it cost too much: `inset + 56` is about
- * **111dp of a 844pt display — 13%** — permanently occupied by a strip whose
- * entire content was one word and one chevron. It also blurred and scrimmed the
- * top of every piece of key art in the app, which on a page whose subject *is*
- * artwork is the chrome dimming the content to make room for a label naming the
- * content.
+ * ## What it is
  *
- * A disc says the same thing in 44dp. The page keeps its full height, the
- * artwork is uninterrupted, and the affordance is exactly where a thumb reaches
- * for it.
+ * A row 64 high under the status bar: a back chevron, the page's name in the
+ * title step, the page's controls at the far end. **It is never a fixed
+ * opaque strip.** It floats over the page with nothing behind it, and turns to
+ * frosted glass — the page blurred, washed with the page's own colour — when
+ * there is something under it to frost. Which of two ways it does that is
+ * decided by the page:
  *
- * **The cost, stated plainly: screens no longer carry a title.** Wayfinding now
- * comes from what the page opens with — a game's own case and name, a
- * collection's cover, a profile's face — which on every artwork-led screen
- * was already saying it louder than the bar was. On the handful of screens that
- * lead with a list rather than art, this is a genuine loss and the page is
- * expected to state its own heading in the content.
+ *  - **A page that opens on a list or a form** (`<Screen insetHeader>`). The
+ *    bar is there from the start, clear while the page is at its very top and
+ *    frost the moment it is not; the two cross-fade over 300ms. The page uses
+ *    a page scroller (`ui/page-scroll`) so the bar can tell.
+ *  - **A page that opens on artwork** (no `insetHeader`). At rest there is no
+ *    bar: a disc of glass in each corner, 48 across and 12 in, and they are
+ *    part of the artwork — they scroll away with it. Once the header has gone
+ *    under where the bar would be, the bar comes in from above, already frost,
+ *    carrying the page's name. Tell it how tall the header is (`header`).
  *
- * ## Still glass, and more of it
+ * Home's is a third, `<FoldingTopBar>` below.
  *
- * The blur is the same `expo-blur` layer at the same intensity; only the shape
- * changed. The scrim over it is lighter than the bar's 30% — a disc floating on
- * artwork wants to read as glass rather than as a hole punched in the page, and
- * with only a glyph to keep legible it can afford the transparency the
- * full-width bar could not.
+ * ## What this replaced
+ *
+ * For a long while there was no bar: only the disc, on every screen, pinned.
+ * The bar before *that* was a full-width sheet of frost fixed across the top —
+ * 111dp of an 844pt display, blurring the top of every piece of key art in an
+ * app whose subject is artwork — and the disc was the answer to it. This is
+ * the reference's answer to the same problem, and it keeps what the disc won:
+ * nothing is drawn over artwork except two small circles, and a list page
+ * gives up no more than it did. What it gives back is the page's name, which
+ * no pushed screen had carried since.
+ *
+ * So **a screen's heading is its bar's `title`**, and a page that opens on a
+ * list no longer prints a heading of its own under it.
  *
  * ## Android still needs a target
  *
- * Unchanged from the bar: a `<BlurView>` with `blurMethod: 'dimezisBlurView'`
- * and no `blurTarget` silently falls back to a flat translucent slab. The target
- * is the page content, wrapped by `<Screen>` in `<BlurTargetView>` and passed
- * here through `useScreenChrome()`. Outside a `<Screen>` this still renders; it
- * just loses the blur on Android.
+ * A `<BlurView>` with a dimezis `blurMethod` and no `blurTarget` silently
+ * falls back to a flat translucent slab. The target is the page content,
+ * wrapped by `<Screen>` in `<BlurTargetView>` and passed here through
+ * `useScreenChrome()`. Outside a `<Screen>` this still renders; it just loses
+ * the blur on Android, and never frosts.
  *
  * @example
  * ```tsx
- * <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+ * <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Settings" />}>
+ *   <PageScrollView>…</PageScrollView>
+ * </Screen>
  * ```
  */
 export type FrostedTopBarProps = {
   /**
-   * Show the back disc.
+   * Show the back control.
    *
    * A chevron, never a word and never a glyph typed as text: `chevron-back` is
    * the same shape both platforms use, and it points at the edge you came from.
@@ -118,18 +183,43 @@ export type FrostedTopBarProps = {
   /** Swaps the chevron for a close cross. Modals dismiss, they do not go back. */
   dismiss?: boolean;
   /**
-   * Controls on the right — a bell, a menu, a share.
+   * The page's name, on one line.
    *
-   * Lay them out yourself, but give them the same disc: `<TopBarDisc>` is
-   * exported for exactly that, so the two ends of the row read as one family.
+   * In the bar from the start on a list or a form. On a page that opens on
+   * artwork it is in the bar that comes in once the artwork has gone — the
+   * page said its own name in its header until then.
+   */
+  title?: string;
+  /**
+   * Controls at the far end — a menu, an add, a torch — as `<TopBarDisc>`s.
+   * Each is a disc of glass over artwork and a bare glyph in the bar.
    */
   right?: ReactNode;
   /**
-   * Blur strength, 1–100.
+   * How tall the page's header is, from the top of the page, when it opens on
+   * artwork: the bar comes in as the header's foot reaches the bar's.
+   *
+   * @default 38% of the display
+   */
+  header?: number;
+  /**
+   * Centre the title on the screen instead of starting it after the chevron.
+   * Somebody else's profile, whose bar mirrors your own tab's.
+   */
+  centerTitle?: boolean;
+  /**
+   * Which kind this is, for the rare page whose inset does not say: `'art'`
+   * for discs over artwork, `'bar'` for a bar from the start.
+   *
+   * @default by the page — `'bar'` under `<Screen insetHeader>`, else `'art'`
+   */
+  variant?: 'bar' | 'art';
+  /**
+   * A disc's blur strength, 1–100.
    *
    * @default 60 — the reference blurs what is behind its button by 8dp, light
    * enough that shapes still show through it; that is what makes it glass
-   * rather than a grey button. It was 80.
+   * rather than a grey button.
    */
   intensity?: number;
 };
@@ -138,11 +228,15 @@ export const FrostedTopBar = memo(function FrostedTopBar({
   back = false,
   onBack,
   dismiss = false,
+  title,
   right,
+  header,
+  centerTitle = false,
+  variant,
   intensity = 60,
 }: FrostedTopBarProps) {
   const router = useRouter();
-  const inset = useTopBarInset();
+  const chrome = useScreenChrome();
 
   function goBack() {
     if (onBack) return onBack();
@@ -150,43 +244,477 @@ export const FrostedTopBar = memo(function FrostedTopBar({
   }
 
   const showLeading = back || dismiss;
-  if (!showLeading && !right) return null;
+  if (!showLeading && !right && !title) return null;
 
-  return (
-    /*
-     * `box-none`, and it is the whole reason this can float.
-     *
-     * The row spans the width so the right-hand controls can sit at the far
-     * edge, but it draws nothing and must not intercept taps — a transparent
-     * full-width strip over the top of the page would swallow every press on
-     * the artwork beneath it. `box-none` lets the discs stay tappable while the
-     * row itself is not there as far as the touch system is concerned.
-     */
-    <View style={[styles.layer, { paddingTop: inset + TOP_BAR_EDGE }]} pointerEvents="box-none">
-      <View style={styles.row} pointerEvents="box-none">
-        {showLeading ? (
-          <TopBarDisc
-            icon={dismiss ? 'close' : 'chevron-back'}
-            label={dismiss ? 'Close' : 'Go back'}
-            onPress={goBack}
-            intensity={intensity}
-            /* Optically nudged: `chevron-back` is drawn with its mass to the
-               right of its own box, so a centred glyph sits visibly right of
-               the circle's middle. */
-            nudge={-1}
-          />
-        ) : (
-          <View />
-        )}
+  const leading = showLeading
+    ? {
+        icon: dismiss ? ('close' as const) : ('chevron-back' as const),
+        label: dismiss ? 'Close' : 'Go back',
+        onPress: goBack,
+        /* Optically nudged: `chevron-back` is drawn with its mass to the right
+           of its own box, so a centred glyph sits visibly right of the middle. */
+        nudge: dismiss ? 0 : -1,
+      }
+    : null;
 
-        {!!right && <View style={styles.trailing}>{right}</View>}
-      </View>
-    </View>
+  const kind = variant ?? (chrome && !chrome.insetHeader ? 'art' : 'bar');
+
+  return kind === 'art' ? (
+    <ArtBar leading={leading} title={title} right={right} header={header} intensity={intensity} />
+  ) : (
+    <PlainBar leading={leading} title={title} right={right} centerTitle={centerTitle} />
   );
 });
 
+type Leading = { icon: IconName; label: string; onPress: () => void; nudge: number } | null;
+type IconName = keyof typeof Ionicons.glyphMap;
+
+/**
+ * A value that changes on every render, for animated styles to depend on.
+ *
+ * Reanimated keeps a settled animated value in a registry the native side
+ * empties after two seconds, and a render after that puts the view back at
+ * its first frame (CLAUDE.md § Gotchas). The usual answer is to restate the
+ * resting pose as a plain style, which needs a pose React can name; "frosted
+ * or not" and "discs carried off by 340dp" are the page's scroll offset, which
+ * React never hears. So every style here reads this, and a render re-applies
+ * them all the frame after — the copy showcase's remedy.
+ *
+ * **Re-applies only what differs from the last value.** Reanimated compares a
+ * style with the one before it key by key and sends nothing when every key is
+ * identical — and an opacity that settled at 1 is identical. A transform is an
+ * array, never the same object twice, so every style here carries one, if only
+ * a transform by nothing; and the one value that is a prop and not a style,
+ * the blur's strength, is moved by a hundredth on alternate renders instead
+ * (`<Frost>`).
+ */
+function usePulse(): SharedValue<number> {
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    pulse.set(pulse.get() + 1);
+  });
+  return pulse;
+}
+
+/** The page's scroll offset, or a still zero outside a `<Screen>`. */
+function usePageOffset(): SharedValue<number> {
+  const still = useSharedValue(0);
+  return useScreenChrome()?.scrollY ?? still;
+}
+
+/**
+ * The bar of a page that opens on a list or a form: there from the start,
+ * clear at the top of the page, frost under way (`NotificationScreen.kt`).
+ */
+function PlainBar({
+  leading,
+  title,
+  right,
+  centerTitle,
+}: {
+  leading: Leading;
+  title?: string;
+  right?: ReactNode;
+  centerTitle: boolean;
+}) {
+  const theme = useTheme();
+  const chrome = useScreenChrome();
+  const inset = useTopBarInset();
+  const scrollY = usePageOffset();
+  const pulse = usePulse();
+  const frost = useSharedValue(0);
+
+  /* A fade, so it runs unchanged under Reduce Motion: nothing here moves. */
+  useAnimatedReaction(
+    () => isScrolled(scrollY.get()),
+    (scrolled, was) => {
+      if (scrolled === was) return;
+      frost.set(withTiming(scrolled ? 1 : 0, { duration: FROST.ms, easing: FROST_EASING }));
+    }
+  );
+
+  return (
+    /* Not `box-none`: once the page is under the bar, a tap on the bar must
+       not reach a row the frost is hiding. At the top of the page there is
+       nothing under it to reach — the page kept this room clear. */
+    <View style={[styles.layer, { height: inset + TOP_BAR_ROW }]}>
+      <Frost
+        progress={frost}
+        pulse={pulse}
+        tint={chrome?.background ?? theme.background}
+        alpha={FROST.pageTint}
+      />
+      <BarRow inset={inset} leading={leading} right={right}>
+        <BarTitle title={title} leading={!!leading} centre={centerTitle} />
+      </BarRow>
+    </View>
+  );
+}
+
+/**
+ * The bar of a page that opens on artwork (`AlbumScreen.kt`): discs of glass
+ * that leave with the art, and a frosted bar that comes in once it has gone.
+ */
+function ArtBar({
+  leading,
+  title,
+  right,
+  header,
+  intensity,
+}: {
+  leading: Leading;
+  title?: string;
+  right?: ReactNode;
+  header?: number;
+  intensity: number;
+}) {
+  const theme = useTheme();
+  const chrome = useScreenChrome();
+  const inset = useTopBarInset();
+  const scrollY = usePageOffset();
+  const pulse = usePulse();
+  const reduceMotion = useReducedMotion();
+  const { height: display } = useWindowDimensions();
+
+  const barHeight = inset + TOP_BAR_ROW;
+  const revealAt = revealOffset(header ?? Math.round(display * DEFAULT_HEADER), barHeight);
+  /* The discs' foot: carried this far, they are off the top of the display. */
+  const discLimit = inset + TOP_BAR_DISC_ROOM;
+
+  /* The pinned bar: 0 away, 1 in. */
+  const shown = useSharedValue(0);
+  /* The same thing where React can read it — for what may be touched and what
+     a screen reader is offered, neither of which a worklet can say. */
+  const [pinned, setPinned] = useState(false);
+
+  useAnimatedReaction(
+    () => {
+      const offset = scrollY.get();
+      return isScrolled(offset) && offset >= revealAt;
+    },
+    (past, was) => {
+      if (past === was || (was === null && !past)) return;
+      const to = past ? 1 : 0;
+      /* The slide is movement and is left out under Reduce Motion (the style
+         below); the fade is kept, at the frost's own pace. */
+      shown.set(
+        reduceMotion
+          ? withTiming(to, { duration: FROST.ms, easing: FROST_EASING })
+          : withSpring(to, BAR_SPRING)
+      );
+      runOnJS(setPinned)(past);
+    },
+    [revealAt, reduceMotion]
+  );
+
+  const discsStyle = useAnimatedStyle(() => {
+    pulse.get();
+    return {
+      /* Gone as the bar arrives, for the page whose header is so short that
+         the discs are still in sight when it does. */
+      opacity: 1 - shown.get(),
+      transform: [{ translateY: discShift(scrollY.get(), discLimit) }],
+    };
+  });
+
+  const barStyle = useAnimatedStyle(() => {
+    pulse.get();
+    const away = 1 - shown.get();
+    return { transform: [{ translateY: reduceMotion ? 0 : -away * barHeight * BAR_SLIDE }] };
+  });
+
+  const contentStyle = useAnimatedStyle(() => {
+    pulse.get();
+    return { opacity: shown.get(), transform: [{ translateY: 0 }] };
+  });
+
+  return (
+    <>
+      {/*
+        `box-none`, and it is the whole reason the discs can float.
+
+        The row spans the width so the right-hand controls can sit at the far
+        edge, but it draws nothing and must not intercept taps — a transparent
+        full-width strip over the top of the page would swallow every press on
+        the artwork beneath it.
+      */}
+      <Animated.View
+        style={[styles.layer, { paddingTop: inset + TOP_BAR_EDGE }, discsStyle]}
+        pointerEvents={pinned ? 'none' : 'box-none'}
+        accessibilityElementsHidden={pinned}
+        importantForAccessibility={pinned ? 'no-hide-descendants' : 'auto'}>
+        <View style={styles.discRow} pointerEvents="box-none">
+          {leading ? <GlassDisc {...leading} intensity={intensity} /> : <View />}
+          {!!right && <View style={styles.discs}>{right}</View>}
+        </View>
+      </Animated.View>
+
+      {/*
+        The whole bar is moved, and nothing above the blur is faded: a blur
+        inside a view that is itself fading is not a blur on iOS until the fade
+        ends. So the frost fades by its own strength and the row by its own
+        opacity, and only the transform is shared.
+      */}
+      <Animated.View
+        style={[styles.layer, { height: barHeight }, barStyle]}
+        pointerEvents={pinned ? 'auto' : 'none'}
+        accessibilityElementsHidden={!pinned}
+        importantForAccessibility={pinned ? 'auto' : 'no-hide-descendants'}>
+        <Frost
+          progress={shown}
+          pulse={pulse}
+          tint={chrome?.background ?? theme.background}
+          alpha={FROST.artTint}
+        />
+        <Animated.View style={contentStyle}>
+          <BarRow inset={inset} leading={leading} right={right}>
+            {/* The reference's `basicMarquee`: a game's or a collection's name
+                is not ours to shorten. Mounted only while the bar is in — a
+                marquee is a loop, and this one would run behind the artwork. */}
+            <View style={[styles.title, { marginLeft: leading ? TOP_BAR_TITLE_GAP : TITLE_ALONE }]}>
+              {pinned && !!title && (
+                <MarqueeText text={title} variant="h3" accessibilityRole="header" />
+              )}
+            </View>
+          </BarRow>
+        </Animated.View>
+      </Animated.View>
+    </>
+  );
+}
+
+/**
+ * A top bar for a root tab, which has nothing to go back to — Home's
+ * (`HomeScreen.kt`): its row floats over the page, clear at the top and frost
+ * under way like any other, **and folds away while the page is read downward
+ * and comes back on the way up**. Folded, what is left is the frost over the
+ * status bar, so the clock is never set on moving content.
+ *
+ * The row is the caller's: a wordmark and a bell, in Home's case. It is 64
+ * high and the page keeps `useHeaderHeight()` clear at its top.
+ *
+ * The fold is movement, so it does not happen under Reduce Motion; the row
+ * stays where it is and only frosts.
+ */
+export function FoldingTopBar({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+  const chrome = useScreenChrome();
+  const inset = useTopBarInset();
+  const scrollY = usePageOffset();
+  const pulse = usePulse();
+  const reduceMotion = useReducedMotion();
+
+  const frost = useSharedValue(0);
+  /* 1 open, 0 folded — and the same as a flag, for the reaction to compare. */
+  const open = useSharedValue(1);
+  const isOpen = useSharedValue(true);
+  /* Where the page was when the row last answered it. */
+  const anchor = useSharedValue(0);
+  const [folded, setFolded] = useState(false);
+
+  useAnimatedReaction(
+    () => scrollY.get(),
+    (offset, was) => {
+      if (offset === was) return;
+
+      const scrolled = isScrolled(offset);
+      if (was === null || scrolled !== isScrolled(was)) {
+        frost.set(withTiming(scrolled ? 1 : 0, { duration: FROST.ms, easing: FROST_EASING }));
+      }
+
+      if (reduceMotion) return;
+      const next = homeBarOpen(isOpen.get(), anchor.get(), offset, HOME_BAR.hold, HOME_BAR.slop);
+      if (homeBarMoved(anchor.get(), offset, HOME_BAR.slop)) anchor.set(offset);
+      if (next === isOpen.get()) return;
+      isOpen.set(next);
+      open.set(withSpring(next ? 1 : 0, BAR_SPRING));
+      runOnJS(setFolded)(!next);
+    },
+    [reduceMotion]
+  );
+
+  /* `fadeOut() + shrinkVertically()`: the row goes up by its own height as it
+     fades, and the frost's foot goes up with it to the status bar's. */
+  const frostStyle = useAnimatedStyle(() => {
+    pulse.get();
+    return { transform: [{ translateY: -(1 - open.get()) * TOP_BAR_ROW }] };
+  });
+  const rowStyle = useAnimatedStyle(() => {
+    pulse.get();
+    const shut = 1 - open.get();
+    return { opacity: 1 - shut, transform: [{ translateY: -shut * TOP_BAR_ROW }] };
+  });
+
+  return (
+    <View style={[styles.layer, { height: inset + TOP_BAR_ROW }]} pointerEvents="box-none">
+      <Animated.View style={[styles.fill, frostStyle]} pointerEvents="none">
+        <Frost
+          progress={frost}
+          pulse={pulse}
+          tint={chrome?.background ?? theme.background}
+          /* The reference's Home uses its blur library's stock ultra-thin
+             material, whose numbers are not in its own repository; this is the
+             wash it wrote down for the pages it says follow "Home's rule". */
+          alpha={FROST.pageTint}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={[styles.foldRow, { marginTop: inset }, rowStyle]}
+        pointerEvents={folded ? 'none' : 'auto'}
+        accessibilityElementsHidden={folded}
+        importantForAccessibility={folded ? 'no-hide-descendants' : 'auto'}>
+        {children}
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * The frost: the page behind the bar, blurred, and the page's own colour over
+ * it at `alpha` — the reference's `barBlurStyle(tint, tintAlpha)`.
+ *
+ * It fades by its **strength**, not by anybody's opacity: `progress` drives
+ * the blur's intensity and the wash together, which is the way expo-blur is
+ * meant to be animated — a blur inside a view that is itself fading is not a
+ * blur on iOS until the fade ends.
+ *
+ * ## Two things Android's blur view does, both of which bit
+ *
+ *  - **It cannot be set up at a strength of nothing.** It is configured when
+ *    it is handed its target, at the strength it has then, and a radius of
+ *    exactly zero throws ("nativePtr is null"). So the strength never reaches
+ *    zero (`frostStrength`), and what hides a frost that is away is the
+ *    `veil` — an opacity that is 0 or 1 and nothing between, so it is never a
+ *    fade over a blur.
+ *  - **It paints its own grey over the blur, in proportion to the strength.**
+ *    So the strength it is given is small and the radius is made up through
+ *    `blurReductionFactor`; the wash below is then the only tint, which is
+ *    the reference's recipe. `FROST.androidIntensity` has the arithmetic.
+ */
+function Frost({
+  progress,
+  pulse,
+  tint,
+  alpha,
+}: {
+  progress: SharedValue<number>;
+  pulse: SharedValue<number>;
+  tint: string;
+  alpha: number;
+}) {
+  const chrome = useScreenChrome();
+
+  const blur = useAnimatedProps(() => {
+    /* A hundredth stronger on every other render, which nobody can see and
+       which is what gets the value sent again; see `usePulse`. */
+    const nudge = (pulse.get() % 2) * 0.01;
+    return { intensity: frostStrength(progress.get(), BLUR_MAX, FROST.floor) + nudge };
+  });
+  const veil = useAnimatedStyle(() => {
+    pulse.get();
+    return { opacity: progress.get() > 0 ? 1 : 0, transform: [{ translateY: 0 }] };
+  });
+  const wash = useAnimatedStyle(() => {
+    pulse.get();
+    return { opacity: progress.get(), transform: [{ translateY: 0 }] };
+  });
+
+  return (
+    <View style={styles.fill} pointerEvents="none">
+      {/* Not mounted at all where there is no blur to be had. The blur view's
+          "from Android 12" method is only honoured when the method is set; one
+          that is handed its target afterwards — every one, since the target is
+          found after the first render — is set up with the old software blur
+          switched on, and would redraw the page into a bitmap on every frame
+          for a frost the opaque wash below covers. */}
+      {FROST_BLURS && (
+        <Animated.View style={[styles.fill, veil]}>
+          <AnimatedBlurView
+            animatedProps={blur}
+            /* The thinnest dark material there is — the reference's own word
+               for its bars is "ultraThin". */
+            tint="systemUltraThinMaterialDark"
+            style={styles.fill}
+            {...(Platform.OS === 'android'
+              ? {
+                  blurMethod: 'dimezisBlurViewSdk31Plus' as const,
+                  blurTarget: chrome?.blurTarget,
+                  blurReductionFactor: ANDROID_REDUCTION,
+                }
+              : null)}
+          />
+        </Animated.View>
+      )}
+      <Animated.View
+        style={[styles.fill, { backgroundColor: withAlpha(tint, FROST_BLURS ? alpha : 1) }, wash]}
+      />
+    </View>
+  );
+}
+
+/** The bar's row: a control, the title, the page's controls. */
+function BarRow({
+  inset,
+  leading,
+  right,
+  children,
+}: {
+  inset: number;
+  leading: Leading;
+  right?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <TopBarForm.Provider value="bar">
+      <View style={[styles.row, { marginTop: inset }]}>
+        {leading && <BarKey {...leading} />}
+        {children}
+        {!!right && <View style={styles.keys}>{right}</View>}
+      </View>
+    </TopBarForm.Provider>
+  );
+}
+
+function BarTitle({
+  title,
+  leading,
+  centre,
+}: {
+  title?: string;
+  leading: boolean;
+  centre: boolean;
+}) {
+  if (centre) {
+    return (
+      <>
+        <View style={styles.title} />
+        {!!title && (
+          <View style={styles.centred} pointerEvents="none">
+            <Text variant="h3" numberOfLines={1} accessibilityRole="header">
+              {title}
+            </Text>
+          </View>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <View style={[styles.title, { marginLeft: leading ? TOP_BAR_TITLE_GAP : TITLE_ALONE }]}>
+      {!!title && (
+        /* `h3`: the reference's `titleMedium`, 18 — "a sheet's or a screen's
+           title" in this app's scale. */
+        <Text variant="h3" numberOfLines={1} accessibilityRole="header">
+          {title}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export type TopBarDiscProps = {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IconName;
   /** Required: the glyph is the only content, so there is no label to fall back on. */
   label: string;
   onPress: () => void;
@@ -196,13 +724,43 @@ export type TopBarDiscProps = {
 };
 
 /**
- * One disc of glass with a glyph in it.
+ * A control at the top of a page: a disc of glass with a glyph in it over
+ * artwork, and the bare glyph once it is in the bar.
  *
  * Exported so a screen's right-hand controls are the same object as its back
- * button. A bare `<IconButton>` beside this would be a filled grey circle — a
- * different material in the same row.
+ * control in both places. A bare `<IconButton>` beside this would be a filled
+ * grey circle — a different material in the same row.
  */
-export function TopBarDisc({ icon, label, onPress, intensity = 60, nudge = 0 }: TopBarDiscProps) {
+export function TopBarDisc(props: TopBarDiscProps) {
+  const form = useContext(TopBarForm);
+  return form === 'bar' ? <BarKey {...props} /> : <GlassDisc {...props} />;
+}
+
+/**
+ * A control in the bar: Material 3's icon button, as the reference's bars use
+ * it — a 24dp glyph, nothing behind it until it is held, 48 to touch.
+ */
+function BarKey({ icon, label, onPress, nudge = 0 }: TopBarDiscProps) {
+  const theme = useTheme();
+
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      scaleTo={0.9}
+      hitSlop={(TOP_BAR_KEY - TOP_BAR_KEY_FILL) / 2}
+      /* Held, the 40dp circle M3 calls the state layer. It rests on white at
+         nothing so there is a colour for the press to ease in from. */
+      pressedColor={theme.controlPressed}
+      style={StyleSheet.flatten([styles.key, { backgroundColor: withAlpha(theme.text, 0) }])}>
+      <Ionicons name={icon} size={TOP_BAR_GLYPH} color={theme.text} style={{ marginLeft: nudge }} />
+    </PressableScale>
+  );
+}
+
+/** One disc of glass with a glyph in it. */
+function GlassDisc({ icon, label, onPress, intensity = 60, nudge = 0 }: TopBarDiscProps) {
   const theme = useTheme();
   const chrome = useScreenChrome();
 
@@ -243,11 +801,14 @@ export function TopBarDisc({ icon, label, onPress, intensity = 60, nudge = 0 }: 
   );
 }
 
+/** The title's start when no control is in front of it, less the row's own padding. */
+const TITLE_ALONE = TOP_BAR_TITLE_INSET - TOP_BAR_SIDE;
+
 const styles = StyleSheet.create({
   /*
-   * Absolute, so it reserves no space and the page runs underneath it. Screens
-   * that do not open on artwork pair it with `<Screen insetHeader>`, exactly as
-   * they did with the bar.
+   * Absolute, so it reserves no space and the page runs underneath it — which
+   * is what gives the frost something to frost. A page that does not open on
+   * artwork takes the room back with `<Screen insetHeader>`.
    */
   layer: {
     position: 'absolute',
@@ -257,6 +818,42 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   row: {
+    height: TOP_BAR_ROW,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: TOP_BAR_SIDE,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+  },
+  foldRow: {
+    height: TOP_BAR_ROW,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+  },
+  title: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  /* Centred on the screen, not on what is left between the controls: inset at
+     both ends by one control, so a long name stops short of either. */
+  centred: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: TOP_BAR_SIDE + TOP_BAR_KEY + TOP_BAR_TITLE_GAP,
+    right: TOP_BAR_SIDE + TOP_BAR_KEY + TOP_BAR_TITLE_GAP,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keys: { flexDirection: 'row', alignItems: 'center' },
+  key: {
+    width: TOP_BAR_KEY_FILL,
+    height: TOP_BAR_KEY_FILL,
+    borderRadius: TOP_BAR_KEY_FILL / 2,
+    margin: (TOP_BAR_KEY - TOP_BAR_KEY_FILL) / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  discRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -267,7 +864,7 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  trailing: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  discs: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   disc: {
     width: DISC,
     height: DISC,

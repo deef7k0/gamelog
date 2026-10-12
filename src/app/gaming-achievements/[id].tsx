@@ -7,6 +7,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 
 import { steamCoverUrl, steamHeaderUrl } from '@/components/gaming/game-tile';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
@@ -71,7 +72,7 @@ export default function GamingAchievementsScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Achievements" />}>
         <EmptyState title="Not found" />
       </Screen>
     );
@@ -79,7 +80,11 @@ export default function GamingAchievementsScreen() {
 
   if (!account.isLoading && !account.data) {
     return (
-      <Screen edges={['bottom']} padded insetHeader topBar={<FrostedTopBar back />}>
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        topBar={<FrostedTopBar back title="Achievements" />}>
         <EmptyState
           title="No Steam account linked"
           message={
@@ -97,8 +102,8 @@ export default function GamingAchievementsScreen() {
   const overall = stats.data;
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <FlatList
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Achievements" />}>
+      <PageFlatList
         data={games}
         keyExtractor={(game) => game.appId}
         renderItem={({ item }) => <GameProgressRow game={item} userId={id} />}

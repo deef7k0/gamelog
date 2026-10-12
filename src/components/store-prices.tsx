@@ -269,8 +269,7 @@ const styles = StyleSheet.create({
   labels: { gap: 1 },
   priceLine: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.x4 },
   struck: { textDecorationLine: 'line-through' },
-  /* The folding lists' toggle (`game-info-sections.tsx`): as wide as its label,
-     tall enough to hit. */
+  /* The folding list's toggle: as wide as its label, tall enough to hit. */
   toggle: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { Alert, FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Alert, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { GameGridTile } from '@/components/game-grid-tile';
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { MustPlayBadge } from '@/components/must-play-badge';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import type { EditionKind } from '@/constants/game-editions';
@@ -14,6 +15,7 @@ import { GAME_LABEL_TEXT, type GameLabel } from '@/constants/game-labels';
 import { CoverGridWindow } from '@/constants/list-window';
 import { Spacing } from '@/constants/theme';
 import { refreshGameLabel, setGameLabelLocally } from '@/hooks/use-game-labels';
+import { useHeaderHeight } from '@/hooks/use-header-height';
 import { getLabelledGames, isModerator, removeGameLabel, type LabelledGame } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 
@@ -47,6 +49,7 @@ const HEAD_BADGE = 56;
  */
 export default function MustPlayScreen() {
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id);
   const { width } = useWindowDimensions();
@@ -90,9 +93,18 @@ export default function MustPlayScreen() {
     );
   }
 
+  /*
+   * The artwork kind of bar, on a page that keeps the bar's row clear: this
+   * page opens on the badge and its name, so the bar does not say the name
+   * over them. It is discs while they are in sight, and comes in carrying the
+   * name once they have gone under it.
+   */
   const topBar = (
     <FrostedTopBar
       back
+      variant="art"
+      title={GAME_LABEL_TEXT[LABEL].title}
+      header={headerHeight + HEAD_BADGE}
       right={
         canEdit ? (
           <TopBarDisc
@@ -153,7 +165,7 @@ export default function MustPlayScreen() {
 
   return (
     <Screen edges={['bottom']} insetHeader topBar={topBar}>
-      <FlatList
+      <PageFlatList
         data={games.data ?? []}
         numColumns={PORTRAIT_COLUMNS}
         keyExtractor={(entry) => entry.game.id}

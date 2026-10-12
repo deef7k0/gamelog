@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
@@ -45,15 +46,14 @@ export default function SubmissionsScreen() {
   });
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <FlatList
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Your submissions" />}>
+      <PageFlatList
         data={submissions.data ?? []}
         keyExtractor={(entry) => entry.id}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.head}>
-            <Text variant="h1">Your submissions</Text>
             <Text variant="bodySmall" color="textMuted">
               Barcodes you have described. A release goes in once someone else with the same box
               agrees, or a moderator approves it.

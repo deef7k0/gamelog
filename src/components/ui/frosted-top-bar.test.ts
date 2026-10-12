@@ -2,39 +2,42 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
+import { TOP_BAR_DISC_ROOM, TOP_BAR_ROW } from '../../constants/top-bar';
+
 /*
- * The back disc's size and place are in `<FrostedTopBar>`; the room a screen
- * leaves for it is `TopBarHeight`, in the theme. Neither can import the other
- * (see the note on `TopBarHeight`), and neither can be loaded here — both reach
- * React Native — so the two files are read. Move the disc without moving the
- * room and a screen's first row slides under it, on every screen at once.
+ * The bar's measurements are in `constants/top-bar.ts`, with their own tests.
+ * What is held here is that the things built on them still say what they
+ * measure: the bar, the hooks a screen reserves room with, and the list a
+ * page scrolls. None of the three can be loaded here — each reaches React
+ * Native — so their sources are read.
  */
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-function constant(source: string, name: string): number {
-  const match = new RegExp(`export const ${name} = (\\d+);`).exec(source);
-  assert.ok(match, `${name} is not a plain number any more`);
-  return Number(match[1]);
-}
-
-describe('the floating back disc', () => {
+describe('the top bar', () => {
   const bar = read('./frosted-top-bar.tsx');
-  const theme = read('../../constants/theme.ts');
+  const heights = read('../../hooks/use-header-height.ts');
+  const scrollers = read('./page-scroll.tsx');
 
-  it('ends where the room a screen reserves for it ends', () => {
-    const disc = constant(bar, 'TOP_BAR_DISC');
-    const edge = constant(bar, 'TOP_BAR_EDGE');
-    assert.equal(edge + disc, constant(theme, 'TopBarHeight'));
+  it('has no size of its own — every number is the constants’', () => {
+    /* A second `TOP_BAR_…` declared beside the first is how the disc and the
+       room reserved for it came apart once. */
+    assert.doesNotMatch(bar, /const TOP_BAR_[A-Z_]+ = \d/);
+    assert.match(bar, /from '@\/constants\/top-bar'/);
   });
 
-  it('is SimpMusic’s: 48 across, 12 from the corner', () => {
-    assert.equal(constant(bar, 'TOP_BAR_DISC'), 48);
-    assert.equal(constant(bar, 'TOP_BAR_EDGE'), 12);
+  it('reserves the bar’s row under a list, and the discs’ room under artwork', () => {
+    assert.match(heights, /useTopBarInset\(modal\) \+ TOP_BAR_ROW/);
+    assert.match(heights, /useTopBarInset\(modal\) \+ TOP_BAR_DISC_ROOM/);
+    /* A page laid out under its discs does not move when the bar's row grows. */
+    assert.equal(TOP_BAR_ROW - TOP_BAR_DISC_ROOM, 4);
   });
 
-  it('is never smaller than a finger', () => {
-    /* 48 is Android's floor and over iOS's 44. */
-    assert.ok(constant(bar, 'TOP_BAR_DISC') >= 48);
+  it('is told how far the page has scrolled by the page’s own scroller', () => {
+    /* The offset the bar reads and the one a page scroller writes are the
+       same value, published by `<Screen>`. */
+    assert.match(bar, /useScreenChrome\(\)\?\.scrollY/);
+    assert.match(scrollers, /useScreenChrome\(\)\?\.scrollY/);
+    assert.match(scrollers, /useScrollOffset\(scroller, offset\)/);
   });
 
   it('fades its light to white at nothing, never to a keyword', () => {
@@ -43,5 +46,23 @@ describe('the floating back disc', () => {
     const gradients = bar.match(/linear-gradient\([^']+\)/g) ?? [];
     assert.ok(gradients.length >= 2, 'the rim and the sheen');
     for (const gradient of gradients) assert.doesNotMatch(gradient, /transparent/);
+  });
+
+  it('never hands the blur a strength of nothing', () => {
+    /* The one way to the blur's strength is `frostStrength`, which has a
+       floor; a literal `intensity: 0`, or a strength multiplied straight from
+       the frost's progress, is the "nativePtr is null" this app shipped once. */
+    assert.match(bar, /intensity: frostStrength\(progress\.get\(\), BLUR_MAX, FROST\.floor\)/);
+    assert.doesNotMatch(bar, /intensity:\s*0\b/);
+    assert.doesNotMatch(bar, /intensity=\{0\}/);
+  });
+
+  it('gives no worklet a default that names a constant', () => {
+    /* A parameter default is evaluated before a worklet's closure is unpacked
+       (CLAUDE.md § Gotchas); under Node it would pass and on a phone throw. */
+    const maths = read('../../constants/top-bar.ts');
+    const worklets = maths.match(/export function \w+\([^)]*\)[^{]*\{\s*'worklet'/g) ?? [];
+    assert.ok(worklets.length >= 5, 'the worklets are still marked');
+    for (const worklet of worklets) assert.doesNotMatch(worklet, /=/, worklet);
   });
 });

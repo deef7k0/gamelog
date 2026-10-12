@@ -39,8 +39,8 @@ export type InfoCardProps = {
  * do. The title used to be inside a `cardLarge` panel of the page's own tone;
  * the heading moved out and the card took the reference's corner and colour.
  *
- * Every screen that uses this is about one game — its page, its additional
- * information, its Similar tab — so all of them changed together.
+ * Every screen that uses this is about one game — its page, its Similar tab —
+ * so all of them changed together.
  */
 export function InfoCard({
   title,

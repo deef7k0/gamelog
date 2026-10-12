@@ -36,6 +36,12 @@ export type DropdownButtonProps<T extends string> = {
   value: T;
   options: readonly DropdownOption<T>[];
   onChange: (value: T) => void;
+  /**
+   * `small` is the chip's 32, for a control that sits at the far end of a
+   * heading's line (a panel's period) and must not make that line taller than
+   * its neighbours'. It centres itself in the row it is in.
+   */
+  size?: 'medium' | 'small';
 };
 
 /**
@@ -48,10 +54,6 @@ export type DropdownButtonProps<T extends string> = {
  * one thing in its section you can press — and slop takes it to the floor.
  */
 const BUTTON_HEIGHT = 40;
-const BUTTON_SLOP = {
-  top: Math.max(0, (TapTarget - BUTTON_HEIGHT) / 2),
-  bottom: Math.max(0, (TapTarget - BUTTON_HEIGHT) / 2),
-};
 
 /** A menu row is the platform floor plus a breath, as the collection menu's are. */
 const ROW_HEIGHT = TapTarget + Spacing.x4;
@@ -132,6 +134,7 @@ export function DropdownButton<T extends string>({
   value,
   options,
   onChange,
+  size = 'medium',
 }: DropdownButtonProps<T>) {
   const theme = useTheme();
   const accent = useAccent();
@@ -173,6 +176,8 @@ export function DropdownButton<T extends string>({
   }
 
   const open = phase === 'open';
+  const small = size === 'small';
+  const reach = Math.max(0, (TapTarget - (small ? ControlHeight.small : BUTTON_HEIGHT)) / 2);
 
   function openMenu() {
     if (phase !== 'closed') return;
@@ -262,19 +267,20 @@ export function DropdownButton<T extends string>({
     <>
       {/* A plain view to measure: `PressableScale` does not forward a ref, and
           Android drops a layout-only view unless it is told not to. */}
-      <View ref={triggerRef} collapsable={false} style={styles.anchor}>
+      <View ref={triggerRef} collapsable={false} style={small ? styles.anchorSmall : styles.anchor}>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={`${label}: ${current.label}`}
           accessibilityHint={`Opens a list of ${options.length} choices`}
           accessibilityState={{ expanded: open }}
-          hitSlop={BUTTON_SLOP}
+          hitSlop={{ top: reach, bottom: reach }}
           onPress={openMenu}
           scaleTo={0.97}
           pressedColor={selectable(false).pressedColor}
           focusRing={accent.ring}
           style={StyleSheet.flatten([
             styles.button,
+            small && styles.buttonSmall,
             { borderColor: open ? accent.edge : theme.outline },
           ])}>
           {current.icon && <Ionicons name={current.icon} size={16} color={theme.text} />}
@@ -404,6 +410,14 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: 1,
     backgroundColor: 'transparent',
+  },
+  /* In a heading's row: on the row's midline, and the chip's height and sides. */
+  anchorSmall: { alignSelf: 'center' },
+  buttonSmall: {
+    height: ControlHeight.small,
+    paddingLeft: Spacing.x12,
+    paddingRight: Spacing.x8,
+    gap: Spacing.x4,
   },
   chevron: { transitionProperty: 'transform', transitionTimingFunction: 'ease-out' },
   /* The metadata chip, at the chip's size: a fact cannot be pressed, so it

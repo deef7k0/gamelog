@@ -28,8 +28,8 @@ import { useAuth } from '@/store/auth';
 import type { QuickLogMode } from '@/app/quick-log';
 
 /**
- * Your own profile: a top bar, then `<ProfileView>` — its row of tabs, and the
- * tab under them.
+ * Your own profile: a top bar, then `<ProfileView>` — the profile, and under
+ * its widgets the row of tabs and the tab they choose.
  *
  * ## The bar
  *
@@ -43,9 +43,10 @@ import type { QuickLogMode } from '@/app/quick-log';
  *
  * The bar is fixed rather than in the scroll: it holds the two things you
  * reach for on this screen, and they should not scroll away from you. The keys
- * are Home's masthead keys — round, the action grey, at the tap floor. The tabs
- * are directly under it, as the reference's are under its title bar, and both
- * keep this screen's margin (`PROFILE_MARGIN`, the mock's 20).
+ * are Home's masthead keys — round, the action grey, at the tap floor. The profile
+ * starts directly under it and keeps this screen's margin (`PROFILE_MARGIN`,
+ * ten). The tabs sat here for a few days, under the bar; the owner
+ * had them put back under the profile's widgets (see `<ProfileView>`).
  */
 export default function MyProfileScreen() {
   const router = useRouter();

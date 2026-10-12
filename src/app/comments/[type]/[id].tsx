@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -106,7 +107,7 @@ export default function CommentsScreen() {
 
   if (comments.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Comments" />}>
         <LoadingState />
       </Screen>
     );
@@ -114,7 +115,7 @@ export default function CommentsScreen() {
 
   if (comments.isLoadingError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Comments" />}>
         <ErrorState error={comments.error} />
       </Screen>
     );
@@ -124,12 +125,12 @@ export default function CommentsScreen() {
     /* A composer is pinned to the bottom of this screen, so the header stays put
        too — chrome that comes and goes around a text field you are typing into
        is chrome that is in the way. */
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Comments" />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}>
-        <FlatList
+        <PageFlatList
           data={threads}
           keyExtractor={(thread) => thread.comment.id}
           contentContainerStyle={threads.length === 0 ? styles.empty : styles.content}

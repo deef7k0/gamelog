@@ -2,9 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
-import { SectionList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageSectionList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
@@ -63,7 +64,7 @@ export default function GamingInventoryScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Inventory" />}>
         <EmptyState title="Not found" />
       </Screen>
     );
@@ -86,8 +87,8 @@ export default function GamingInventoryScreen() {
   }));
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <SectionList
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Inventory" />}>
+      <PageSectionList
         sections={sections}
         keyExtractor={(item) => `${item.appId}:${item.itemId}`}
         renderItem={({ item }) => <ItemRow item={item} />}

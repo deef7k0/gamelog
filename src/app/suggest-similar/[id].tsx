@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { MultiChoiceChips } from '@/components/choice-chips';
 import { GamePicker } from '@/components/game-picker';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -119,7 +120,22 @@ export default function SuggestSimilarScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={
+        <FrostedTopBar
+          dismiss
+          title={
+            pair.data?.vote
+              ? 'Your recommendation'
+              : pair.data
+                ? 'Agree, and say why'
+                : 'Recommend a similar game'
+          }
+        />
+      }>
       {body}
     </Screen>
   );
@@ -159,24 +175,17 @@ function SuggestForm({
     },
   });
 
-  const title = existingVote
-    ? 'Your recommendation'
-    : pairExists
-      ? 'Agree, and say why'
-      : 'Recommend a similar game';
-
   return (
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Text variant="h1">{title}</Text>
-          <Text variant="bodySmall" color="textMuted">
+          <Text variant="h4" accessibilityRole="header">
             For players who liked {game.title}
           </Text>
         </View>
@@ -243,7 +252,7 @@ function SuggestForm({
             Reasons are optional, but they are what makes a recommendation useful.
           </Text>
         )}
-      </ScrollView>
+      </PageScrollView>
     </KeyboardAvoidingView>
   );
 }

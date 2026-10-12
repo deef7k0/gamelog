@@ -22,10 +22,10 @@ export type OriginalGameProps = {
  * answering it with a rail of six Mafia games buries the one game that matters
  * among five that do not.
  *
- * One cover under its heading, as every section with artwork is drawn (see
- * `<InfoCard>`): the art, the title, the studio and year. It sits in a rail of
- * one, which does not scroll — there is exactly one answer, and it is shown the
- * way the franchise's many are.
+ * One cover under its heading, as every row of games is drawn: the box, and
+ * nothing under it — its name is on it. A rail of one, which does not scroll:
+ * there is exactly one answer, and it is shown the way the franchise's many
+ * are.
  *
  * The parent is fetched on demand rather than embedded in the child's payload.
  * IGDB returns `parent_game` as a bare id, and expanding it in `GAME_FIELDS`
@@ -55,7 +55,6 @@ export function OriginalGame({ parentId, edition }: OriginalGameProps) {
     <Section title="Original game">
       <GameCoverRail
         games={[game]}
-        subtitleOf={() => [game.developer, game.releaseYear].filter(Boolean).join(' · ') || null}
         labelOf={() => `${game.title}, the game this ${label.toLowerCase()} is based on`}
       />
     </Section>

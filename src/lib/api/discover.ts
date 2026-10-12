@@ -1,7 +1,7 @@
 import { resolvePreview, resolveStack, SUMMARY_ITEMS, type SummaryRow } from './lists';
 import { rememberLogs } from './seen-logs';
 import type { ListSummary } from './types';
-import type { LogWithRelations, Profile } from '../database.types';
+import type { CachedGame, LogStatus, LogWithRelations, Profile } from '../database.types';
 import { supabase } from '../supabase';
 
 /**
@@ -162,73 +162,266 @@ export async function getRecommendedPeople(viewerId: string, limit = 20): Promis
 }
 
 // ---------------------------------------------------------------------------
-// Home
+// The people you follow
 // ---------------------------------------------------------------------------
 
 /**
- * Reviews for the Home page: from people you follow, plus the newest overall.
+ * Everybody a person counts as theirs: the people they follow, and their
+ * accepted friends.
  *
- * Two queries rather than one `.or()`, because they answer different questions
- * and the app wants both answered. Following-only would leave a new account
- * with an empty screen; newest-only would make Home identical for everybody and
- * following would buy you nothing. Merging them means the page fills from day
- * one and gets more personal as you follow people — which is the shape the
- * eventual recommender should also have.
- *
- * `followed` is returned separately from `newest` so the caller can label them
- * rather than presenting a blended list as if one rule produced it. Anything
- * already in `followed` is removed from `newest`: seeing the same review twice
- * under two headings is worse than a shorter second section.
+ * Two tables because they are two relationships — a follow is one-way and
+ * needs nobody's agreement, a friendship is a request somebody accepted (0005)
+ * — and "from your friends" on a game's page, and "New from friends" on Home,
+ * mean either. Two small requests, in parallel.
  */
-export type HomeReviews = {
-  followed: LogWithRelations[];
-  newest: LogWithRelations[];
+export async function getCircleIds(viewerId: string): Promise<string[]> {
+  const [follows, friends] = await Promise.all([
+    supabase.from('follows').select('following_id').eq('follower_id', viewerId),
+    supabase
+      .from('friendships')
+      .select('user_a, user_b')
+      .eq('status', 'accepted')
+      .or(`user_a.eq.${viewerId},user_b.eq.${viewerId}`),
+  ]);
+
+  if (follows.error) throw new Error(follows.error.message);
+  /* A database without 0005 has no friendships to add; the follows still stand. */
+  const friendRows = friends.error ? [] : (friends.data ?? []);
+
+  const ids = new Set<string>();
+  for (const row of follows.data ?? []) ids.add(row.following_id);
+  for (const row of friendRows) ids.add(row.user_a === viewerId ? row.user_b : row.user_a);
+  ids.delete(viewerId);
+  return [...ids];
+}
+
+// ---------------------------------------------------------------------------
+// Home: new from friends
+// ---------------------------------------------------------------------------
+
+/**
+ * What Home's row of people's activity holds, and whose it is.
+ *
+ * `scope` is the row's heading: `friends` when the people the viewer follows
+ * have logged something, `everyone` when they have not — or there are none —
+ * and the row falls back to the rest of GameLog. Never both, and never
+ * blended: the owner's ruling (2026-10-09) is one row that is honest about
+ * whose it is.
+ */
+export type HomeActivity = {
+  scope: 'friends' | 'everyone';
+  logs: LogWithRelations[];
 };
 
-export async function getHomeReviews(viewerId: string, limit = 10): Promise<HomeReviews> {
-  const follows = await supabase.from('follows').select('following_id').eq('follower_id', viewerId);
-  if (follows.error) throw new Error(follows.error.message);
+/**
+ * The newest games people scored or wrote about — the viewer's circle first.
+ *
+ * It replaced `getHomeReviews`, which returned written reviews only, as two
+ * lists of cards. This is a row of covers with a face under each, so a score
+ * with no words belongs in it too: what a friend thought of a game is news
+ * whether or not they explained it. A log with neither a score nor a review —
+ * a game put on the backlog — is a status change and stays out.
+ *
+ * The viewer's own logs are never in it. Whole rows (`LOG_WITH_RELATIONS`), so
+ * a review opens from the row without being fetched again.
+ */
+export async function getHomeActivity(viewerId: string, limit = 20): Promise<HomeActivity> {
+  const circle = await getCircleIds(viewerId);
 
-  const followedIds = (follows.data ?? []).map((row) => row.following_id);
-
-  /* Only logs that carry writing. A bare score is a log, not a review, and a
-     page of them would be a chart of games wearing their raters' names. */
-  const written = (rows: number) =>
+  const said = () =>
     supabase
       .from('logs')
       .select(LOG_WITH_RELATIONS)
-      .not('review', 'is', null)
-      .neq('review', '')
+      .or('rating.not.is.null,review.not.is.null')
+      .neq('user_id', viewerId)
       .order('created_at', { ascending: false })
-      .limit(rows);
+      .limit(limit);
 
-  const [followedRows, newestRows] = await Promise.all([
-    followedIds.length > 0 ? written(limit).in('user_id', followedIds) : Promise.resolve(null),
-    /*
-     * Over-fetched, and excluding the viewer.
-     *
-     * Two bugs met in this one query. It asked for exactly `limit` rows and
-     * then had the dedupe below remove anything already in `followed` — so a
-     * viewer who follows the three most recent reviewers ended up with an
-     * *empty* "everyone else", punished for following well. And it never
-     * excluded `viewerId`, so you could write a review, open Home, and be
-     * shown your own writing back as though it were a discovery.
-     */
-    written(limit * 4).neq('user_id', viewerId),
-  ]);
+  /* An empty review is not a null one, and a row holding only that says nothing. */
+  const worthShowing = (rows: LogWithRelations[]) =>
+    rows.filter((log) => log.rating !== null || (log.review ?? '').trim().length > 0);
 
-  if (followedRows?.error) throw new Error(followedRows.error.message);
-  if (newestRows.error) throw new Error(newestRows.error.message);
+  if (circle.length > 0) {
+    const friends = await said().in('user_id', circle);
+    if (friends.error) throw new Error(friends.error.message);
 
-  const followed = rememberLogs((followedRows?.data ?? []) as LogWithRelations[]);
-  const seen = new Set(followed.map((log) => log.id));
+    const logs = worthShowing(rememberLogs((friends.data ?? []) as LogWithRelations[]));
+    if (logs.length > 0) return { scope: 'friends', logs };
+  }
+
+  const everyone = await said();
+  if (everyone.error) throw new Error(everyone.error.message);
 
   return {
-    followed,
-    newest: rememberLogs((newestRows.data ?? []) as LogWithRelations[])
-      .filter((log) => !seen.has(log.id))
-      .slice(0, limit),
+    scope: 'everyone',
+    logs: worthShowing(rememberLogs((everyone.data ?? []) as LogWithRelations[])),
   };
+}
+
+// ---------------------------------------------------------------------------
+// A game's page: who played it
+// ---------------------------------------------------------------------------
+
+/** The statuses that mean somebody has played a game. A backlog entry has not. */
+const PLAYED_STATUSES: LogStatus[] = ['playing', 'played', 'paused', 'dropped'];
+
+/** How many faces each of the two squares shows. */
+const PLAYER_FACES = 2;
+
+/** One person who played a game, as much as a face and a score need. */
+export type GamePlayer = {
+  userId: string;
+  username: string | null;
+  name: string;
+  avatarUrl: string | null;
+  /** 0-100, or null when they logged it without scoring it. */
+  rating: number | null;
+  status: LogStatus;
+};
+
+export type GamePlayers = {
+  /** Everybody but the viewer who played it. */
+  total: number;
+  recent: GamePlayer[];
+  /** Of those, the ones in the viewer's circle. */
+  circleTotal: number;
+  circle: GamePlayer[];
+};
+
+type PlayerRow = {
+  user_id: string;
+  rating: number | null;
+  status: LogStatus;
+  profile: Pick<Profile, 'id' | 'username' | 'display_name' | 'avatar_url'> | null;
+};
+
+const PLAYER_COLUMNS =
+  'user_id, rating, status, profile:profiles(id, username, display_name, avatar_url)';
+
+function toPlayer(row: PlayerRow): GamePlayer {
+  return {
+    userId: row.user_id,
+    username: row.profile?.username ?? null,
+    name: row.profile?.display_name?.trim() || row.profile?.username || 'Someone',
+    avatarUrl: row.profile?.avatar_url ?? null,
+    rating: row.rating,
+    status: row.status,
+  };
+}
+
+/**
+ * Who played a game: the two most recent people, and the two most recent of
+ * the viewer's circle — the game page's "Played by" and "From your friends".
+ *
+ * Played means playing, played, paused or dropped; a game on somebody's
+ * backlog has not been played by them. The viewer is in neither list: these
+ * are other people. Each count is exact and rides on the request that fetches
+ * its two faces, so a square can say "214" without a second query.
+ */
+export async function getGamePlayers(
+  gameId: string,
+  viewerId: string | null
+): Promise<GamePlayers> {
+  const played = () => {
+    const query = supabase
+      .from('logs')
+      .select(PLAYER_COLUMNS, { count: 'exact' })
+      .eq('game_id', gameId)
+      .in('status', PLAYED_STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(PLAYER_FACES);
+    return viewerId ? query.neq('user_id', viewerId) : query;
+  };
+
+  const circleIds = viewerId ? await getCircleIds(viewerId) : [];
+
+  const [recent, circle] = await Promise.all([
+    played(),
+    circleIds.length > 0 ? played().in('user_id', circleIds) : Promise.resolve(null),
+  ]);
+
+  if (recent.error) throw new Error(recent.error.message);
+  if (circle?.error) throw new Error(circle.error.message);
+
+  return {
+    total: recent.count ?? 0,
+    recent: ((recent.data ?? []) as unknown as PlayerRow[]).map(toPlayer),
+    circleTotal: circle?.count ?? 0,
+    circle: ((circle?.data ?? []) as unknown as PlayerRow[]).map(toPlayer),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Search: beloved by the community
+// ---------------------------------------------------------------------------
+
+/** The window "Beloved by the community" can be read over. */
+export type BelovedPeriod = 'week' | 'month' | 'year';
+
+const PERIOD_DAYS: Record<BelovedPeriod, number> = { week: 7, month: 30, year: 365 };
+
+/** One game in the row: enough to draw its box, and what the people here gave it. */
+export type BelovedGame = Pick<
+  CachedGame,
+  'id' | 'title' | 'cover_url' | 'hero_url' | 'edition_kind' | 'release_year'
+> & {
+  /** GameLog's own average over the period, 0-100, rounded. */
+  average: number;
+  ratings: number;
+};
+
+/** PostgREST's code for "no function of that name": the database predates 0037. */
+const NO_SUCH_FUNCTION = 'PGRST202';
+
+/**
+ * The games rated highest on GameLog over a period, best first — or `null`
+ * when the database has not run migration 0037.
+ *
+ * Two round trips, as everything here is: `beloved_games` answers which games,
+ * in what order, with what average, and the covers come back through `games`.
+ * The order is re-applied in memory afterwards (see the note at the top).
+ *
+ * `null` is not an error and not an empty period: the row is absent until the
+ * function exists, where an empty array means "nobody scored a game this
+ * week" and is said.
+ */
+export async function getBelovedGames(
+  period: BelovedPeriod,
+  limit = 20
+): Promise<BelovedGame[] | null> {
+  const since = new Date(Date.now() - PERIOD_DAYS[period] * 86_400_000).toISOString();
+
+  const ranking = await supabase.rpc('beloved_games', { p_since: since, p_limit: limit });
+  if (ranking.error) {
+    if (
+      ranking.error.code === NO_SUCH_FUNCTION ||
+      /could not find the function/i.test(ranking.error.message)
+    ) {
+      return null;
+    }
+    throw new Error(ranking.error.message);
+  }
+
+  const ranked = ranking.data ?? [];
+  if (ranked.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('games')
+    .select('id, title, cover_url, hero_url, edition_kind, release_year')
+    .in(
+      'id',
+      ranked.map((row) => row.game_id)
+    );
+  if (error) throw new Error(error.message);
+
+  const byId = new Map((data ?? []).map((game) => [game.id, game]));
+
+  return ranked.flatMap((row) => {
+    const game = byId.get(row.game_id);
+    return game
+      ? [{ ...game, average: Math.round(Number(row.average)), ratings: Number(row.ratings) }]
+      : [];
+  });
 }
 
 /**

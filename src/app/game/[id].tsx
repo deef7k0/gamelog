@@ -3,17 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { memo, useCallback, useState, useSyncExternalStore } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
 import { GameDetailsSheet } from '@/components/game-details-sheet';
-import {
-  CriticReviewsWidget,
-  MemberReviewsWidget,
-  TimeToBeatWidget,
-} from '@/components/game-insights';
+import { PlayedBy, RatingsCard, TimeToBeatWidget, TopReview } from '@/components/game-insights';
 import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
 import { GameListsSheet } from '@/components/game-lists-sheet';
@@ -25,6 +21,7 @@ import { GameStatsStrip } from '@/components/game-stats-strip';
 import { ProgressSheet } from '@/components/progress-sheet';
 import { SoundtrackSummary } from '@/components/soundtrack-section';
 import { StorePrices } from '@/components/store-prices';
+import { useCriticSummary } from '@/components/critic-reviews';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
@@ -37,6 +34,7 @@ import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { InfoCard, InfoCardButton } from '@/components/ui/info-card';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { ArtRail, Section, SectionInsetProvider, useSectionMetrics } from '@/components/ui/section';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
@@ -52,16 +50,20 @@ import { copyStateLine, releaseLine } from '@/constants/physical';
 import { labelFor, scoreColor } from '@/constants/score';
 import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
-import { PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
-import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
+import { FontFamily, PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
+import { AccentProvider, useAccent, useGameAccent } from '@/hooks/use-accent';
 import { useLandingArrival } from '@/hooks/use-arrival';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
 import { recallGame } from '@/lib/games/seen-games';
-import { getCollectionGames, getFranchiseGames, getGameExtras } from '@/lib/games/igdb';
-import { wikidataLookupFor } from '@/lib/wikidata';
+import {
+  getCollectionGames,
+  getFranchiseGames,
+  getGameExtras,
+  type GameCompany,
+} from '@/lib/games/igdb';
 import { useAuth } from '@/store/auth';
 
 type GameTab = 'overview' | 'soundtrack' | 'similar';
@@ -106,8 +108,17 @@ const CASE_MAX_WIDTH = 200;
  */
 const REVIEW_LINK_SLOP = { top: 15, bottom: 15, left: 8, right: 8 };
 
-/** Lifts a one-line studio row to the platform tap floor without padding it out. */
-const STUDIO_SLOP = { top: 10, bottom: 10, left: 8, right: 8 };
+/**
+ * How far a company's name in the header can be touched past its own line.
+ *
+ * The lines are four apart, so two links next to each other take two each and
+ * their targets meet without overlapping. The first reaches up over the date,
+ * which is not pressable, and the last down into the space under the block —
+ * as far toward the tap floor as a stack of 19dp lines allows.
+ */
+const COMPANY_SLOP = { top: 2, bottom: 2, left: 8, right: 8 };
+const COMPANY_SLOP_FIRST = { ...COMPANY_SLOP, top: 12 };
+const COMPANY_SLOP_LAST = { ...COMPANY_SLOP, bottom: 12 };
 
 /**
  * The masthead's cover: the game's box art, landing as the page opens.
@@ -325,7 +336,9 @@ export default function GameDetailScreen() {
   const extras = useQuery({
     queryKey: ['game-extras', id],
     queryFn: ({ signal }) => getGameExtras(igdbSourceId!, signal),
-    enabled: !!igdbSourceId && tab === 'overview',
+    /* On every tab, not the Overview alone: the header's company names are
+       links, and the ids they lead to come from here. */
+    enabled: !!igdbSourceId,
     staleTime: 30 * 60_000,
   });
 
@@ -465,6 +478,13 @@ export default function GameDetailScreen() {
    */
   const showCommunityScore = data.score !== null && !appRatings.isPending && !appRatings.data;
 
+  /* The companies behind it, as the header's links: who made it, then who
+     only published it. `getGameExtras` files a company that did both under
+     developer, so nobody is on both lines. */
+  const companies = extras.data?.companies ?? [];
+  const developers = companies.filter((company) => company.role === 'developer');
+  const publishers = companies.filter((company) => company.role === 'publisher');
+
   /* Whether the billing has anything under the name. A boolean, not the
      `a || b` itself: a year of 0 or an empty name would be drawn as text. */
   const hasBillingLines = Boolean(
@@ -551,7 +571,9 @@ export default function GameDetailScreen() {
           the same ladder, carrying this game's trace instead of Letterboxd's.
 
           The lines are the three this row always had, at the owner's choice: no
-          "developed by" label, no capitals, nothing bold but the name.
+          "developed by" label and no capitals. Nothing was bold but the name
+          until the developers' names took the Developers card's place here —
+          see the lines themselves.
 
           Four lines for the name, not three: a long title — "The Legend of
           Zelda: Breath of the Wild" — runs to three at this measure, and a
@@ -584,19 +606,52 @@ export default function GameDetailScreen() {
                 </Text>
               ) : null}
 
-              {/* Developer and publisher are different facts and are frequently
-                  different companies, so they get a line each rather than being
-                  joined by a dot that implies one relationship. */}
-              {data.developer && (
-                <Text variant="body" style={{ color: accent.quietInk }} numberOfLines={2}>
-                  {data.developer}
-                </Text>
-              )}
-              {data.publisher && data.publisher !== data.developer && (
-                <Text variant="body" style={{ color: accent.quietInk }} numberOfLines={2}>
-                  {data.publisher}
-                </Text>
-              )}
+              {/*
+                Who made it, then who published it: a line each, and each a way
+                to that company's games.
+
+                The owner's direction (2026-10-09): the Overview's "Developers"
+                card is gone and its names are here — "clickable from the
+                header", the developers' "in bold to make them stand out". So
+                a developer is the bold line in the full ink, the one thing in
+                this block besides the name that is; a publisher keeps the
+                quiet ink and is a link all the same.
+
+                The ids a name leads to are IGDB's and arrive with `extras`.
+                Until they do — and for a game that is not IGDB's — the lines
+                are the record's own two names, set the same way and not
+                pressable.
+              */}
+              {developers.length > 0
+                ? developers.map((company, index) => (
+                    <CompanyLink
+                      key={company.id}
+                      company={company}
+                      /* The slop reaches up into the date's line and stops
+                         short of the next link, so two of them never overlap. */
+                      slop={index === 0 ? COMPANY_SLOP_FIRST : COMPANY_SLOP}
+                    />
+                  ))
+                : data.developer && (
+                    <Text variant="body" style={styles.developer} numberOfLines={2}>
+                      {data.developer}
+                    </Text>
+                  )}
+              {publishers.length > 0
+                ? publishers.map((company, index) => (
+                    <CompanyLink
+                      key={company.id}
+                      company={company}
+                      slop={index === publishers.length - 1 ? COMPANY_SLOP_LAST : COMPANY_SLOP}
+                    />
+                  ))
+                : !extras.data &&
+                  data.publisher &&
+                  data.publisher !== data.developer && (
+                    <Text variant="body" style={{ color: accent.quietInk }} numberOfLines={2}>
+                      {data.publisher}
+                    </Text>
+                  )}
             </View>
           )}
 
@@ -908,6 +963,10 @@ export default function GameDetailScreen() {
                 played is asking what it looks like before they ask what anybody
                 thought. At the reference's video size, which is the size of the
                 pictures on its artist page that are not album art.
+
+                The ratings, the players and the review led the tab for one
+                build, as they do on the reference's film page; the owner had
+                the screenshots moved "back to the top of the page".
               */}
               {screenshots.length > 0 && (
                 <Section title="Screenshots">
@@ -930,6 +989,25 @@ export default function GameDetailScreen() {
                   />
                 </Section>
               )}
+
+              {/*
+                Then what the people here made of it — the three things a
+                film's page in Letterboxd carries, at the owner's direction
+                (2026-10-09): how they scored it, who played it, and the
+                review they liked most. Each is absent when it has nothing to
+                show.
+
+                The ratings are the reviews sheet's own summary, and the card
+                is a door to that sheet.
+              */}
+              <RatingsCard gameId={data.id} title={data.title} onOpen={openReviews} />
+
+              {/* Anybody, and the people you follow: two faces each. */}
+              <PlayedBy gameId={data.id} />
+
+              {/* The most liked review, in the card the sheet's rows are
+                  drawn in. The heading's More is the way to all of them. */}
+              <TopReview gameId={data.id} title={data.title} onSeeAll={openReviews} />
 
               {/*
                 Details: the full IGDB record — genres, modes, engines, age
@@ -1008,89 +1086,9 @@ export default function GameDetailScreen() {
                 </InfoCardButton>
               )}
 
-              {/*
-                What people here wrote, as a rail of cards, most liked first.
-                The way to everything anybody wrote is the heading's More.
-
-                Only when somebody has written one. An empty section asking for
-                the first review repeated the masthead's review button, the one
-                primary action on the page, and a section exists here only when
-                it has something in it — as Where to buy and Developers do.
-              */}
-              <MemberReviewsWidget gameId={data.id} title={data.title} onSeeAll={openReviews} />
-
-              {/*
-                What the critics wrote, under what people here wrote: the two
-                kinds of review in the same card, the app's own first. A rail of
-                quotes at the screenshots' size — absent for the many games
-                OpenCritic has nothing for.
-              */}
-              <CriticReviewsWidget
-                gameId={data.id}
-                title={data.title}
-                releaseYear={data.releaseYear}
-              />
-
               {/* "Featured in" — the showcases a game appeared at — followed
                   this, and the owner had it taken off the page. */}
               <TimeToBeatWidget gameId={data.id} />
-
-              {/*
-                The companies, one name per line; tapping one opens their
-                catalogue. Tappable only for IGDB titles — company ids come from
-                IGDB, so a Steam-sourced game shows the names as plain text.
-              */}
-              {(extras.data?.companies.length ?? 0) > 0 && (
-                <InfoCard title="Developers">
-                  <View style={styles.studios}>
-                    {extras.data!.companies.map((company) => (
-                      <PressableScale
-                        key={company.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${company.name}, ${
-                          company.role === 'developer' ? 'developer' : 'publisher'
-                        }. See their games.`}
-                        hitSlop={STUDIO_SLOP}
-                        scaleTo={0.98}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/studio/[id]',
-                            params: { id: String(company.id), name: company.name },
-                          })
-                        }
-                        style={StyleSheet.flatten(styles.studioRow)}>
-                        {/* The name at full width — IGDB's run long ("Kabushiki
-                            Gaisha Nintendo Entaateinmento Puranningu &
-                            Debelopumento") and a row can wrap where a chip could
-                            only truncate. */}
-                        <Text variant="body" style={styles.studioName}>
-                          {company.name}
-                        </Text>
-                      </PressableScale>
-                    ))}
-                  </View>
-                </InfoCard>
-              )}
-
-              {/*
-                Additional information — awards, cast and the people who made the
-                game, from Wikidata — under the companies: the companies, then the
-                people. A door: a screen of its own, fetched only when opened, and
-                offered only when the game carries an id Wikidata can be searched
-                by (`wikidataLookupFor`).
-              */}
-              {wikidataLookupFor(data) && (
-                <InfoCardButton
-                  title="Additional information"
-                  accessibilityLabel="View additional game information: awards, cast and credits"
-                  onPress={() =>
-                    router.push({ pathname: '/game-info/[id]', params: { id: data.id } })
-                  }>
-                  <Text variant="body" color="textSecondary">
-                    Awards, cast and crew, from Wikidata.
-                  </Text>
-                </InfoCardButton>
-              )}
 
               {/*
                 Series and lineage, and which one you get depends on what this
@@ -1194,10 +1192,14 @@ export default function GameDetailScreen() {
             a known quantity.
           */
           background={accent.page}
-          /* The title is the game's, and the bar gets out of the way as you read
-           down the page — the masthead below it already says which game this is
-           in art three hundred points tall. */
-          topBar={<FrostedTopBar back />}>
+          /* Over the hero there is no bar, only the disc, and it leaves with
+             the art — the masthead already says which game this is. The bar
+             comes in, carrying the game's name, once the masthead's row (the
+             name and the cover) has gone under where it sits: the hero, less
+             how far the row rises into it, plus the cover. */
+          topBar={
+            <FrostedTopBar back title={data.title} header={heroHeight - overlap + coverHeight} />
+          }>
           {/*
             A ScrollView, not a one-item FlatList.
 
@@ -1210,7 +1212,9 @@ export default function GameDetailScreen() {
             Nothing inside the tabs is a vertical list; the rails are horizontal,
             which nests inside a ScrollView without complaint.
           */}
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+          <PageScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}>
             {header}
             {/* `center`: three pills do not reach the edges of a phone, and
                 left-aligned under a full-width masthead they read as a row
@@ -1218,7 +1222,7 @@ export default function GameDetailScreen() {
                 became a sheet. See `TabBarProps.align`. */}
             <TabBar tabs={TABS} value={tab} onChange={setTab} align="center" />
             {renderTab()}
-          </ScrollView>
+          </PageScrollView>
         </Screen>
 
         {/* A sibling of `<Screen>`, not a child: the floating back disc is
@@ -1236,15 +1240,69 @@ export default function GameDetailScreen() {
  * Subscribed to the page's sheet store, so that opening one re-renders this and
  * not the page under it. See the note where the page creates the store.
  */
+/**
+ * A company's name in the header, as the way to its games.
+ *
+ * A developer is bold and in the full ink — the owner's direction, so the
+ * people who made the game stand out of the quiet lines round them — and a
+ * publisher keeps the block's quiet ink. Both are links: the Overview's
+ * "Developers" card, which listed these same companies as rows, was removed in
+ * favour of this.
+ */
+function CompanyLink({
+  company,
+  slop,
+}: {
+  company: GameCompany;
+  slop: { top: number; bottom: number; left: number; right: number };
+}) {
+  const router = useRouter();
+  const accent = useAccent();
+  const developer = company.role === 'developer';
+
+  return (
+    <PressableScale
+      accessibilityRole="link"
+      accessibilityLabel={`${company.name}, ${developer ? 'developer' : 'publisher'}. See their games.`}
+      hitSlop={slop}
+      scaleTo={0.98}
+      onPress={() =>
+        router.push({
+          pathname: '/studio/[id]',
+          params: { id: String(company.id), name: company.name },
+        })
+      }
+      style={StyleSheet.flatten(styles.company)}>
+      <Text
+        variant="body"
+        numberOfLines={2}
+        style={developer ? styles.developer : { color: accent.quietInk }}>
+        {company.name}
+      </Text>
+    </PressableScale>
+  );
+}
+
 function GameSheets({ store, game, log }: { store: SheetStore; game: Game; log: GameLog | null }) {
   const router = useRouter();
   const open = useSyncExternalStore(store.subscribe, store.get);
   const close = useCallback(() => store.set(null), [store]);
 
+  /* Asked for as the page opens, not when the sheet does: the critics' section
+     heads the reviews sheet, and an answer that arrived after the sheet was up
+     would push every review under it down the screen. The Overview used to ask
+     for the same thing for its own rail, so this is not a new request. */
+  useCriticSummary({ gameId: game.id, title: game.title, releaseYear: game.releaseYear });
+
   return (
     <>
       <SlideUpSheet visible={open === 'reviews'} onClose={close} title={game.title}>
-        <GameReviewsSheet gameId={game.id} gameTitle={game.title} criticScore={game.score} />
+        <GameReviewsSheet
+          gameId={game.id}
+          gameTitle={game.title}
+          releaseYear={game.releaseYear}
+          criticScore={game.score}
+        />
       </SlideUpSheet>
 
       {/* The community's similar games, from the Similar tab's card — the same
@@ -1286,9 +1344,6 @@ function GameSheets({ store, game, log }: { store: SheetStore; game: Game; log: 
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
   /* A list inside one card, so the interval is a list's rather than a card's. */
-  studios: { gap: Spacing.x4 },
-  studioRow: { paddingVertical: Spacing.x4 },
-  studioName: { flexShrink: 1 },
   /*
    * No one gap: every interval in the masthead is its own, and each is the
    * reference's.
@@ -1316,6 +1371,11 @@ const styles = StyleSheet.create({
   /* Twenty under the name — the reference's 28dp from its baseline to the next
      line's capitals — and the three lines a paragraph's distance apart. */
   billingLines: { marginTop: Spacing.x20, gap: Spacing.x4 },
+  /* A developer's name: the bold family — Android synthesises no weight for a
+     custom font — in the full ink `<Text>` sets by default. */
+  developer: { fontFamily: FontFamily.bold },
+  /* As wide as the name, not the column: the target is the words. */
+  company: { alignSelf: 'flex-start' },
   scoreRow: {
     flexDirection: 'row',
     alignItems: 'baseline',

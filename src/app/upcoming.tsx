@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
@@ -32,8 +33,8 @@ export default function UpcomingScreen() {
   });
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
-      <FlatList
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Upcoming" />}>
+      <PageFlatList
         data={upcoming.data ?? []}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}

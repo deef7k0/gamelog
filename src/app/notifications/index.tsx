@@ -2,11 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { RefreshControl, SectionList, StyleSheet, View } from 'react-native';
+import { RefreshControl, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageSectionList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -100,7 +101,7 @@ export default function NotificationsScreen() {
 
   if (notifications.isLoading) {
     return (
-      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back title="Notifications" />}>
         <LoadingState />
       </Screen>
     );
@@ -108,15 +109,15 @@ export default function NotificationsScreen() {
 
   if (notifications.isLoadingError) {
     return (
-      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={[]} insetHeader topBar={<FrostedTopBar back title="Notifications" />}>
         <ErrorState error={notifications.error} />
       </Screen>
     );
   }
 
   return (
-    <Screen edges={[]} insetHeader topBar={<FrostedTopBar back />}>
-      <SectionList
+    <Screen edges={[]} insetHeader topBar={<FrostedTopBar back title="Notifications" />}>
+      <PageSectionList
         sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={sections.length === 0 ? styles.empty : styles.content}

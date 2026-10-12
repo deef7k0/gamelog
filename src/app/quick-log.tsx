@@ -83,20 +83,17 @@ export default function QuickLogScreen() {
   return (
     /* A modal, like every picker: `dismiss` closes it, and `modal` stops the
        bar insetting itself under an iOS sheet's own top edge. */
-    <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title={reviewing ? 'Review a game' : 'Log a game'} />}>
       <View style={styles.header}>
-        {/* There is no header anywhere in this app, so a screen opening on a
-            list says what it is in its own content. */}
-        <View style={styles.heading}>
-          <Text variant="h1" accessibilityRole="header">
-            {reviewing ? 'Review a game' : 'Log a game'}
-          </Text>
-          <Text variant="body" color="textSecondary">
-            {reviewing
-              ? 'Find it, then write about it and give it a score.'
-              : 'Find it, then say where you are with it.'}
-          </Text>
-        </View>
+        <Text variant="body" color="textSecondary">
+          {reviewing
+            ? 'Find it, then write about it and give it a score.'
+            : 'Find it, then say where you are with it.'}
+        </Text>
 
         <TextField
           value={input}
@@ -150,6 +147,5 @@ export default function QuickLogScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { padding: Spacing.x16, gap: Spacing.x16 },
-  heading: { gap: Spacing.x4 },
+  header: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x16, gap: Spacing.x16 },
 });

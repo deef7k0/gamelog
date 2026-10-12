@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
-import { HeroArt } from '@/components/ui/hero-art';
+import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
@@ -34,7 +35,7 @@ const GAP = Spacing.x12;
  * with the word "week" quietly contradicting them.
  */
 export default function TopGamesScreen() {
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
 
   const chart = useQuery({
     queryKey: ['popular-games', TOP_N],
@@ -78,13 +79,22 @@ export default function TopGamesScreen() {
 
   return (
     /*
-     * No `insetHeader`, and no title: the hero runs under the bar and off the
-     * top of the display, the same way the game page does, and the headline
-     * printed over that art already says "Top 10 Most Popular". Repeating it in
-     * the bar would be the same words twice, 40dp apart.
+     * No `insetHeader`: the hero runs under the disc and off the top of the
+     * display, the same way the game page does, and the headline printed over
+     * that art says "Top 10 Most Popular". The bar says it too — but only once
+     * the hero has gone and taken the headline with it, so it is never the
+     * same words twice.
      */
-    <Screen edges={[]} topBar={<FrostedTopBar back />}>
-      <FlatList
+    <Screen
+      edges={[]}
+      topBar={
+        <FrostedTopBar
+          back
+          title="Top 10 Most Popular"
+          header={heroHeightFor(width, windowHeight)}
+        />
+      }>
+      <PageFlatList
         data={tiles}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}

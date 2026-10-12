@@ -18,11 +18,8 @@ import { Spacing } from '@/constants/theme';
  */
 export default function CollectionsScreen() {
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Collections" />}>
       <View style={styles.head}>
-        <Text variant="h1" accessibilityRole="header">
-          Collections
-        </Text>
         <Text variant="bodySmall" color="textMuted">
           Lists people are building, ranked by likes.
         </Text>

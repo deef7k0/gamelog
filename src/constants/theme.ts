@@ -1341,23 +1341,6 @@ export const SmallControlSlop = {
  */
 export const SmallControlRowGap = TapTarget - ControlHeight.small;
 
-/**
- * What the floating back disc takes off the top of a screen, above the
- * safe-area inset.
- *
- * 60 on both platforms: the disc is 48 and sits 12 under the inset, which is
- * where SimpMusic's album screen puts its glass back button. It was 56 — an
- * 8dp gap over a 48dp disc on Android — until the disc moved to the
- * reference's corner; a screen that reserves this (`<Screen insetHeader>`)
- * starts where the disc ends.
- *
- * Read it through `useHeaderHeight()`, which adds the inset. Lives here rather
- * than in `<FrostedTopBar>` so the hook and the component can both have it
- * without importing each other; `frosted-top-bar.test.ts` holds the two to the
- * same sum.
- */
-export const TopBarHeight = 60;
-
 /** Portrait box art. Every poster in the app uses this ratio. */
 export const PosterAspectRatio = 2 / 3;
 /** Landscape key art (Steam headers, IGDB artworks). */

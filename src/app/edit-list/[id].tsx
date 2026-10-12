@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { RICH_TEXT_HINT } from '@/components/ui/rich-text';
 import { ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -46,7 +47,12 @@ export default function EditListScreen() {
 
   if (list.isLoading) {
     return (
-      <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        modal
+        topBar={<FrostedTopBar dismiss title="Edit collection" />}>
         <LoadingState />
       </Screen>
     );
@@ -54,7 +60,12 @@ export default function EditListScreen() {
 
   if (list.isLoadingError || !list.data) {
     return (
-      <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        modal
+        topBar={<FrostedTopBar dismiss title="Edit collection" />}>
         <ErrorState error={list.error ?? new Error('That collection no longer exists.')} />
       </Screen>
     );
@@ -65,7 +76,12 @@ export default function EditListScreen() {
      `list/[id]` only offers this to an owner — this is the direct-link case. */
   if (list.data.user_id !== userId) {
     return (
-      <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+      <Screen
+        edges={['bottom']}
+        padded
+        insetHeader
+        modal
+        topBar={<FrostedTopBar dismiss title="Edit collection" />}>
         <ErrorState error={new Error('This is not your collection.')} />
       </Screen>
     );
@@ -112,11 +128,16 @@ function EditForm({
   const dirty = title !== initialTitle || description !== initialDescription;
 
   return (
-    <Screen edges={['bottom']} padded insetHeader modal topBar={<FrostedTopBar dismiss />}>
+    <Screen
+      edges={['bottom']}
+      padded
+      insetHeader
+      modal
+      topBar={<FrostedTopBar dismiss title="Edit collection" />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+        <PageScrollView
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
@@ -152,7 +173,7 @@ function EditForm({
             disabled={!title.trim() || !dirty}
             fullWidth
           />
-        </ScrollView>
+        </PageScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );

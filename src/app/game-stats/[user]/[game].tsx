@@ -1,9 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { ScorePill } from '@/components/ui/score';
 import { EmptyState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -74,7 +75,7 @@ export default function GameStatsScreen() {
 
   if (!userId || !gameId) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Game record" />}>
         <EmptyState title="Nothing to show" />
       </Screen>
     );
@@ -84,7 +85,12 @@ export default function GameStatsScreen() {
     viewerId === userId ? 'You' : owner.data ? displayNameFor(owner.data) : 'This player';
 
   return (
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+    <Screen
+      edges={['bottom']}
+      insetHeader
+      topBar={
+        <FrostedTopBar back title={ownerName === 'You' ? 'Your record' : `${ownerName}’s record`} />
+      }>
       <Stats
         log={log.data ?? null}
         owned={owned.data ?? null}
@@ -120,7 +126,7 @@ function Stats({
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <PageScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.stats}>
         {log && (
           <View style={[styles.statCard, { borderTopColor: theme.border }]}>
@@ -182,7 +188,7 @@ function Stats({
           </View>
         )}
       </View>
-    </ScrollView>
+    </PageScrollView>
   );
 }
 

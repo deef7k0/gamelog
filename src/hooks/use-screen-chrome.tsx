@@ -1,17 +1,13 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { View } from 'react-native';
-import {
-  useAnimatedScrollHandler,
-  useSharedValue,
-  type SharedValue,
-} from 'react-native-reanimated';
+import { useSharedValue, type SharedValue } from 'react-native-reanimated';
 
 /**
  * What a floating top bar needs to know about the page underneath it.
  *
- * Both fields are published by `<Screen>` and read by `<FrostedTopBar>`, which
- * is rendered through the `topBar` slot and therefore sits inside this provider
- * even though the *screen* creates the element.
+ * Published by `<Screen>` and read by `<FrostedTopBar>`, which is rendered
+ * through the `topBar` slot and therefore sits inside this provider even though
+ * the *screen* creates the element.
  *
  *  - **`blurTarget`** — the view whose pixels the bar blurs. iOS and the web
  *    sample whatever is behind a translucent layer for free; Android does not,
@@ -21,10 +17,23 @@ import {
  *    hands the ref down here.
  *  - **`modal`** — whether this page is a sheet, which changes where the bar's
  *    content sits. See `useTopBarInset`.
+ *  - **`scrollY`** — how far the page is scrolled, on the UI thread. It is what
+ *    turns the bar to frost, carries the glass discs away with the artwork and
+ *    brings the pinned bar in.
+ *  - **`background`** — the page's fill, which the frost is washed with.
+ *  - **`insetHeader`** — whether the page keeps the bar's row clear. One that
+ *    does not opens on artwork, and gets discs where a bar would be.
  *
- * Scroll is deliberately *not* here: the offset is created by the screen with
- * `useTopBarScroll()` and passed to the bar as a prop, because the screen is
- * above `<Screen>` in the tree and could not read a context published below it.
+ * ## Who writes `scrollY`
+ *
+ * The page's own scroller, through `usePageScroll()` — `<PageScrollView>`,
+ * `<PageFlatList>` and `<PageSectionList>` in `ui/page-scroll`. The value is
+ * made here and not by the screen because the screen is *above* `<Screen>` in
+ * the tree: it creates the scroller's element, but the scroller renders under
+ * this provider, where it can read the context. So a screen says nothing about
+ * scrolling to its bar; it uses a page scroller and the two find each other.
+ * (The value used to be the screen's — `useTopBarScroll()`, passed to the bar
+ * as a prop — and eleven screens ended up carrying a handler nothing read.)
  *
  * ## Why the target is state and not a `useRef`
  *
@@ -40,12 +49,20 @@ export type ScreenChrome = {
   blurTarget: { current: View | null };
   /** This page is presented as a modal. */
   modal: boolean;
+  /** The page's scroll offset in dp, live on the UI thread. */
+  scrollY: SharedValue<number>;
+  /** The page's fill. */
+  background: string;
+  /** The page reserves the bar's row at its top. */
+  insetHeader: boolean;
 };
 
 const ScreenChromeContext = createContext<ScreenChrome | null>(null);
 
 export type ScreenChromeProviderProps = {
   modal?: boolean;
+  background: string;
+  insetHeader?: boolean;
   children: (chrome: ScreenChrome & { blurTargetRef: { current: View | null } }) => ReactNode;
 };
 
@@ -57,8 +74,14 @@ export type ScreenChromeProviderProps = {
  * target and the bar. Nothing else should mount this — it is `<Screen>`'s
  * internals, exposed only so that file stays readable.
  */
-export function ScreenChromeProvider({ modal = false, children }: ScreenChromeProviderProps) {
+export function ScreenChromeProvider({
+  modal = false,
+  background,
+  insetHeader = false,
+  children,
+}: ScreenChromeProviderProps) {
   const [target, setTarget] = useState<View | null>(null);
+  const scrollY = useSharedValue(0);
 
   /*
    * A ref object that is also a subscription.
@@ -90,8 +113,8 @@ export function ScreenChromeProvider({ modal = false, children }: ScreenChromePr
      actually fires. Handing it `blurTargetRef` itself would make that
      comparison a tautology and the blur would never configure. */
   const chrome = useMemo<ScreenChrome>(
-    () => ({ blurTarget: { current: target }, modal }),
-    [target, modal]
+    () => ({ blurTarget: { current: target }, modal, scrollY, background, insetHeader }),
+    [target, modal, scrollY, background, insetHeader]
   );
 
   return (
@@ -105,57 +128,9 @@ export function ScreenChromeProvider({ modal = false, children }: ScreenChromePr
  * The chrome for the enclosing `<Screen>`, or `null` outside one.
  *
  * Null is a supported answer: a bar rendered outside a `<Screen>` still draws,
- * it just falls back to a plain translucent tint on Android.
+ * it just falls back to a plain translucent tint on Android and never learns
+ * that anything scrolled.
  */
 export function useScreenChrome(): ScreenChrome | null {
   return useContext(ScreenChromeContext);
-}
-
-export type TopBarScroll = {
-  /** Live offset in dp. Hand it to `<FrostedTopBar scrollY>`. */
-  scrollY: SharedValue<number>;
-  /** Attach to the page's main scroller. Needs `scrollEventThrottle={16}`. */
-  onScroll: ReturnType<typeof useAnimatedScrollHandler>;
-};
-
-/**
- * A page's live scroll offset, on the UI thread.
- *
- * ```tsx
- * const { scrollY, onScroll } = useTopBarScroll();
- * <Animated.FlatList onScroll={onScroll} scrollEventThrottle={16} … />
- * ```
- *
- * `scrollEventThrottle={16}` is required on iOS and harmless on Android; without
- * it iOS delivers scroll events only when the gesture ends.
- *
- * The handler is a worklet, so the offset never crosses to the JS thread and a
- * scrolling page causes exactly zero re-renders.
- *
- * ## The bar no longer reads this
- *
- * It is named for the job it was written for — hiding `<FrostedTopBar>` on the
- * way down. That bar is gone: it is a 44dp disc now, small enough to stay put,
- * and a back affordance that slides out of reach is a trap rather than a saving.
- *
- * What is left is a general-purpose scroll offset, and Home still uses it for
- * real (its ambient glow fades against it). Several screens call this and then
- * read nothing from it — an inert worklet write per frame, harmless but dead,
- * and the next person touching one of those files should delete the call rather
- * than wire something new to it.
- */
-export function useTopBarScroll(): TopBarScroll {
-  const scrollY = useSharedValue(0);
-
-  const onScroll = useAnimatedScrollHandler(
-    {
-      onScroll: (event) => {
-        'worklet';
-        scrollY.set(event.contentOffset.y);
-      },
-    },
-    [scrollY]
-  );
-
-  return { scrollY, onScroll };
 }

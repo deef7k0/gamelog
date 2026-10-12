@@ -3,15 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Alert, BackHandler, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
 import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
@@ -25,6 +17,7 @@ import {
   type ReviewMetricsDraft,
 } from '@/components/review-metrics';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { ScoreInput } from '@/components/ui/score-input';
 import { SelectField, type SelectOption } from '@/components/ui/select-field';
@@ -586,7 +579,23 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
       padded
       insetHeader
       modal
-      topBar={<FrostedTopBar dismiss onBack={confirmDismiss} />}>
+      topBar={
+        /* Named as the save button is, so the task has one name from the way
+           in to the way out. */
+        <FrostedTopBar
+          dismiss
+          onBack={confirmDismiss}
+          title={
+            writingReview
+              ? existing
+                ? 'Edit review'
+                : 'Write a review'
+              : existing
+                ? 'Edit log'
+                : 'Log game'
+          }
+        />
+      }>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -594,7 +603,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
         {/* `flex: 1` is load-bearing now that the footer is a sibling: without it
             the scroll view sizes to its content and pushes the button off the
             bottom of the screen instead of scrolling underneath it. */}
-        <ScrollView
+        <PageScrollView
           style={styles.flex}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
@@ -929,7 +938,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
               fullWidth
             />
           )}
-        </ScrollView>
+        </PageScrollView>
 
         {/*
           The primary action, pinned.

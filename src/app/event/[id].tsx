@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Linking, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Linking, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { EventRsvp } from '@/components/event-rsvp';
 import { GameGridTile } from '@/components/game-grid-tile';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { InfoCard } from '@/components/ui/info-card';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { CoverGridWindow } from '@/constants/list-window';
@@ -26,6 +27,9 @@ const ABOUT_LINES = 5;
 
 /** IGDB's event art is 16:9, and so is the banner. */
 const BANNER_RATIO = 9 / 16;
+
+/** The event's name under its banner, and the gap over it, near enough. */
+const NAME_BLOCK = 56;
 
 function open(url: string) {
   Linking.openURL(url).catch(() => {
@@ -101,7 +105,7 @@ export default function EventScreen() {
 
   if (event.isLoading) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back variant="art" />}>
         <LoadingState />
       </Screen>
     );
@@ -109,7 +113,7 @@ export default function EventScreen() {
 
   if (event.isLoadingError) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back variant="art" />}>
         <ErrorState error={event.error} onRetry={() => event.refetch()} />
       </Screen>
     );
@@ -117,7 +121,7 @@ export default function EventScreen() {
 
   if (!event.data) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back variant="art" />}>
         <EmptyState title="Event not found" />
       </Screen>
     );
@@ -209,9 +213,19 @@ export default function EventScreen() {
   );
 
   return (
-    /* The banner runs under the bar, so no `insetHeader`. */
-    <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
-      <FlatList
+    /* The banner runs under the disc, so no `insetHeader`. The disc leaves
+       with it; the bar that follows carries the event's name, once the banner
+       and the name under it have gone. */
+    <Screen
+      edges={['bottom']}
+      topBar={
+        <FrostedTopBar
+          back
+          title={data.name}
+          header={Math.round(width * BANNER_RATIO) + NAME_BLOCK}
+        />
+      }>
+      <PageFlatList
         data={shown}
         numColumns={PORTRAIT_COLUMNS}
         keyExtractor={(game) => game.id}

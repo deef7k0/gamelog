@@ -1411,6 +1411,15 @@ export type Database = {
         Returns: { user_id: string; shared_games: number; affinity: number }[];
       };
       /**
+       * The games rated highest on GameLog since `p_since` (0037): a damped
+       * average of `logs.rating`, best first. Absent on a database that has
+       * not run 0037 — `getBelovedGames` turns that into `null`.
+       */
+      beloved_games: {
+        Args: { p_since: string; p_limit?: number };
+        Returns: { game_id: string; average: number; ratings: number }[];
+      };
+      /**
        * Create an awards list and seed its eight default categories.
        *
        * One call rather than an insert plus eight more: a half-seeded ballot is

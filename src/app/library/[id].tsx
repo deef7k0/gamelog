@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useMemo, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CdBinder } from '@/components/cd-binder';
 import {
@@ -13,6 +13,7 @@ import {
 import { LibraryStats } from '@/components/library-stats';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList, PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
@@ -218,7 +219,7 @@ export default function LibraryScreen() {
 
   if (!id) {
     return (
-      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Library" />}>
         <EmptyState title="Library not found" />
       </Screen>
     );
@@ -228,10 +229,9 @@ export default function LibraryScreen() {
   const noSteam = !account.isLoading && !account.data;
 
   return (
-    /* The tab bar under the header switches the whole page, so the bar it
-       belongs to stays put — `scrollY` goes to the grid, which is the thing
-       actually worth reclaiming height from. */
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back />}>
+    /* The tab bar under the header switches the whole page; each tab's own
+       scroller is the page's, so the bar frosts for whichever is showing. */
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Library" />}>
       <TabBar tabs={tabs} value={tab} onChange={setTab} />
 
       {tab === 'physical' ? (
@@ -246,7 +246,7 @@ export default function LibraryScreen() {
           onOpenCopy={(copy) => router.push({ pathname: '/copy/[id]', params: { id: copy.id } })}
         />
       ) : (
-        <FlatList
+        <PageFlatList
           data={entries}
           key={`grid-${COLUMNS}`}
           numColumns={COLUMNS}
@@ -620,7 +620,7 @@ function PhysicalTab({
   if (error) return <ErrorState error={error} onRetry={onRetry} />;
 
   return (
-    <ScrollView contentContainerStyle={styles.physical} showsVerticalScrollIndicator={false}>
+    <PageScrollView contentContainerStyle={styles.physical} showsVerticalScrollIndicator={false}>
       <CdBinder copies={copies} width={width} onOpenCopy={onOpenCopy} />
 
       {copies.length === 0 && (
@@ -654,7 +654,7 @@ function PhysicalTab({
           </PressableScale>
         </Link>
       )}
-    </ScrollView>
+    </PageScrollView>
   );
 }
 

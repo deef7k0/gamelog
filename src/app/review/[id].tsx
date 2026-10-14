@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CommentSection } from '@/components/comment-section';
-import { formatReleaseDate } from '@/components/game-actions';
+import { formatReleaseDate } from '@/lib/games/release';
 import { ReportFlag, useCanReport } from '@/components/report-flag';
 import { reviewCells } from '@/components/review-cells';
 import { ReviewMetricsBreakdown } from '@/components/review-metrics';

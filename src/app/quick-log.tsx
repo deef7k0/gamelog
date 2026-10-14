@@ -14,6 +14,7 @@ import { Spacing } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { getMyLog, getUserLogs } from '@/lib/api';
 import { getGameById, type GameSearchResult } from '@/lib/games';
+import { formatReleaseDate, isUnreleased } from '@/lib/games/release';
 import { useAuth } from '@/store/auth';
 
 /** What the profile's + asked to do with the game picked here. */
@@ -36,6 +37,11 @@ export type QuickLogMode = 'log' | 'review';
  * the game page, so both are fetched under the game page's own keys
  * (`['game', id]`, `['my-log', userId, id]`) — opening the game later is free,
  * and the progress sheet's own invalidation reaches this flow too.
+ *
+ * **A game that is not out cannot be reviewed**, here or anywhere (the owner's
+ * rule, 2026-10-14). Reviewing, its row says "Not out yet", and a tap on it
+ * says when it can be reviewed instead of opening the form — which would only
+ * say the same thing a screen later (`app/log/[id]`).
  */
 export default function QuickLogScreen() {
   const router = useRouter();
@@ -46,6 +52,8 @@ export default function QuickLogScreen() {
   const [input, setInput] = useState('');
   const query = useDebouncedValue(input.trim());
   const [picked, setPicked] = useState<GameSearchResult | null>(null);
+  /* The unreleased game last tapped while reviewing, to say why nothing opened. */
+  const [notOut, setNotOut] = useState<GameSearchResult | null>(null);
 
   /* Already in the cache on any account that has opened Home or its profile. */
   const logs = useQuery({
@@ -69,6 +77,10 @@ export default function QuickLogScreen() {
 
   function choose(result: GameSearchResult) {
     if (reviewing) {
+      if (isUnreleased(result)) {
+        setNotOut(result);
+        return;
+      }
       router.replace({ pathname: '/log/[id]', params: { id: result.id } });
       return;
     }
@@ -97,7 +109,10 @@ export default function QuickLogScreen() {
 
         <TextField
           value={input}
-          onChangeText={setInput}
+          onChangeText={(text) => {
+            setInput(text);
+            setNotOut(null);
+          }}
           icon="search"
           variant="search"
           placeholder="Search games…"
@@ -107,12 +122,24 @@ export default function QuickLogScreen() {
           returnKeyType="search"
           clearButtonMode="while-editing"
         />
+
+        {notOut?.releaseDate && (
+          <Text variant="bodySmall" color="textSecondary" accessibilityLiveRegion="polite">
+            {`${notOut.title} is not out yet. It can be reviewed from ${formatReleaseDate(notOut.releaseDate)}.`}
+          </Text>
+        )}
       </View>
 
       <GameSearchResults
         query={query}
         onSelect={choose}
-        badgeFor={(result) => (logged.has(result.id) ? 'In your log' : null)}
+        badgeFor={(result) =>
+          reviewing && isUnreleased(result)
+            ? 'Not out yet'
+            : logged.has(result.id)
+              ? 'In your log'
+              : null
+        }
         prompt={{
           title: reviewing ? 'Which game?' : 'What are you playing?',
           message: 'Search IGDB, then tap the game.',

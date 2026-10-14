@@ -38,6 +38,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { deleteLog, getMyLog, saveLog } from '@/lib/api';
 import type { CompletionLevel, GameLog } from '@/lib/database.types';
 import { getGameById, type Game } from '@/lib/games';
+import { formatReleaseDate, isUnreleased } from '@/lib/games/release';
 import { clearDraft, loadDraft, saveDraft, type LogDraft } from '@/lib/log-draft';
 import { platformOptionsFor } from '@/lib/platform-options';
 import { PLAY_FILTERS, type ReviewPlayFilter } from '@/lib/review-facets';
@@ -113,6 +114,27 @@ export default function LogGameScreen() {
     return (
       <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
         <EmptyState title="Game not found" />
+      </Screen>
+    );
+  }
+
+  /*
+   * A game that is not out cannot be reviewed — the owner's rule (2026-10-14).
+   *
+   * Every way in already keeps away from one: the game page has no review
+   * button for it, Surprise Me's card says when it can be reviewed, and the
+   * profile's quick log says the same. This is the backstop for whatever does
+   * not — a link, a route somebody kept. A log that already exists still opens:
+   * it was written while the game was out, or before its date moved, and the
+   * words are the writer's to change or remove.
+   */
+  if (isUnreleased(game.data) && !existing.data) {
+    return (
+      <Screen edges={['bottom']} insetHeader modal topBar={<FrostedTopBar dismiss />}>
+        <EmptyState
+          title="Not out yet"
+          message={`${game.data.title} can be reviewed from ${formatReleaseDate(game.data.releaseDate ?? '')}.`}
+        />
       </Screen>
     );
   }

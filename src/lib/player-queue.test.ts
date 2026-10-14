@@ -166,10 +166,13 @@ describe('where the mini player is drawn', () => {
     assert.equal(hidesMiniPlayer(['report', '[kind]', '[id]']), true);
   });
 
+  it('leaves a game’s page to draw it in its own docked bars', () => {
+    assert.equal(hidesMiniPlayer(['game', '[id]']), true);
+  });
+
   it('is drawn on the tabs and on the pages pushed over them', () => {
     assert.equal(hidesMiniPlayer(['(tabs)']), false);
     assert.equal(hidesMiniPlayer(['(tabs)', 'search']), false);
-    assert.equal(hidesMiniPlayer(['game', '[id]']), false);
     assert.equal(hidesMiniPlayer(['copy', '[id]']), false);
     assert.equal(hidesMiniPlayer([]), false);
   });

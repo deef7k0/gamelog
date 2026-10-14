@@ -10,7 +10,10 @@ export type ScopeInfo = {
 };
 
 /**
- * The seven kinds of thing Search finds, in the order the tabs list them.
+ * The six kinds of thing Search finds, in the order the tabs list them.
+ *
+ * Events was a seventh; the owner moved it to the News tab (2026-10-14),
+ * where `<EventResults>` is drawn untyped.
  *
  * One statement of the vocabulary: the tabs under the field, the field's
  * placeholder and the history's "in Studios" all read it, so an eighth kind is
@@ -25,7 +28,6 @@ export const SEARCH_SCOPE_INFO: readonly ScopeInfo[] = [
   { key: 'people', label: 'People', placeholder: 'Search people…' },
   { key: 'collections', label: 'Collections', placeholder: 'Search collections…' },
   { key: 'studios', label: 'Studios', placeholder: 'Search studios…' },
-  { key: 'events', label: 'Events', placeholder: 'Search events…' },
   { key: 'platforms', label: 'Platforms', placeholder: 'Search platforms…' },
 ];
 

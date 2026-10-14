@@ -1,18 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { CoverTile } from '@/components/cover-tile';
 import { gridItemWidth } from '@/components/gaming/game-tile';
 import { GameListItem } from '@/components/game-list-item';
-import { ArticleCard, EventCard, TrailerCard } from '@/components/news-cards';
+import { ArticleCard, TrailerCard } from '@/components/news-cards';
+import { EventResults } from '@/components/search/event-results';
+import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
-  getGameEvents,
   getGamingNews,
   getNewReleases,
   getPopularGames,
@@ -109,14 +111,11 @@ export default function NewsScreen() {
     [charts.data]
   );
 
-  const events = useQuery({
-    queryKey: ['news', 'events'],
-    queryFn: ({ signal }) => getGameEvents(signal),
-    enabled: tab === 'events',
-    staleTime: 60 * 60_000,
-  });
-
-  const active = { news, trailers, releases: newReleases, charts, events }[tab];
+  /* Events load in their own list (`<EventResults>`), which has its own
+     loading and error states. */
+  const active = { news, trailers, releases: newReleases, charts }[
+    tab as Exclude<NewsTab, 'events'>
+  ];
 
   /* Out now, then coming soon, in one list the row can badge per section. */
   const releases = [
@@ -125,6 +124,12 @@ export default function NewsScreen() {
   ];
 
   function renderBody() {
+    /*
+      Search's list of showcases and award shows, moved here by the owner
+      (2026-10-14): coming up, then recent, each opening its event. It replaced
+      the cards this tab drew from a feed of its own.
+    */
+    if (tab === 'events') return <EventResults />;
     if (active.isLoading) return <LoadingState />;
     if (active.isLoadingError) return <ErrorState error={active.error} />;
 
@@ -175,7 +180,7 @@ export default function NewsScreen() {
           /* Its own FlatList rather than the shared `List` shell: this is the
              only tab laid out in two columns, and `numColumns` is not something
              a single-column shell can take on without becoming a grid library. */
-          <FlatList
+          <PageFlatList
             data={chartTiles}
             key={`chart-grid-${CHART_COLUMNS}`}
             numColumns={CHART_COLUMNS}
@@ -202,39 +207,20 @@ export default function NewsScreen() {
             }
           />
         );
-
-      case 'events':
-        return (
-          <List
-            data={events.data ?? []}
-            keyOf={(e) => e.id}
-            render={(e) => <EventCard event={e} />}
-            refreshing={events.isRefetching}
-            onRefresh={events.refetch}
-            // Events come from an IGDB endpoint the Edge Function must allow;
-            // until it is redeployed this list is simply empty rather than broken.
-            empty="No events listed. If this stays empty, redeploy the igdb Edge Function so it permits the events endpoint."
-          />
-        );
     }
   }
 
   return (
     /*
-     * The app's `<TabBar>`, as on Search, a library and a game's page.
+     * The app's top bar, as every list page has (`<FrostedTopBar>`): the page's
+     * name in a 64dp row, clear at the top and the page's colour once the list
+     * moves under it. The owner's direction (2026-10-14) — News had no bar, only
+     * its tabs at the top edge. No back control: it is a root tab.
      *
-     * This was a `<Dock>` of five icons in a segmented capsule — a second tab
-     * control that existed on this one screen, which an icon could not even
-     * label (Releases and Trailers had to be spelled out by the top bar). The
-     * words scroll if a narrow phone cannot fit all five; the row starts at
-     * the page's edge, so the last one is seen to run off it.
-     *
-     * No `topBar` and no `insetHeader`, for Search's reason: the bar it had was
-     * a `<FrostedTopBar />` with nothing to go back to, which draws nothing,
-     * while `insetHeader` reserved the band it would have filled. A root tab
-     * takes the top edge and spends it on content.
+     * Under it the app's `<TabBar>`, as on Search, a library and a game's page.
+     * Each section's list is the page's scroller, so the bar knows it moved.
      */
-    <Screen edges={['top']}>
+    <Screen edges={[]} insetHeader topBar={<FrostedTopBar title="News" />}>
       <View style={styles.tabs}>
         <TabBar tabs={TABS} value={tab} onChange={setTab} label="News sections" />
       </View>
@@ -266,7 +252,7 @@ function List<T>({
   const clearance = useTabBarClearance();
 
   return (
-    <FlatList
+    <PageFlatList
       data={data}
       keyExtractor={keyOf}
       renderItem={({ item }) => render(item)}

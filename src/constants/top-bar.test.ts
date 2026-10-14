@@ -96,14 +96,16 @@ describe('the frost', () => {
     assert.deepEqual(FROST.easing, [0.4, 0, 0.2, 1]);
   });
 
-  it('is washed with the page’s colour at 30%, and 55% where the colour is artwork’s', () => {
+  it('is washed with the page’s colour at 30%, and 85% over artwork', () => {
     assert.equal(FROST.pageTint, 0.3);
-    assert.equal(FROST.artTint, 0.55);
+    /* The owner's: the bar over a game's page read white at the reference's
+       55%, and is to be the page's colour. */
+    assert.equal(FROST.artTint, 0.85);
   });
 
-  it('is a wash a title can be read through, and never a lid', () => {
+  it('is a wash, never an opaque lid: the blur still shows under it', () => {
     for (const tint of [FROST.pageTint, FROST.artTint]) {
-      assert.ok(tint > 0 && tint < 0.6, `${tint}`);
+      assert.ok(tint > 0 && tint < 0.9, `${tint}`);
     }
   });
 

@@ -32,6 +32,7 @@ import { extractSeedColor } from '@/hooks/use-album-art-color';
 import { getTopGameReview, getUserLogs, setLiked, setProgress } from '@/lib/api';
 import { readingKey } from '@/lib/discovery';
 import { getGameById } from '@/lib/games';
+import { isUnreleased } from '@/lib/games/release';
 import {
   canUseForYou,
   getSurpriseBatch,
@@ -964,9 +965,14 @@ export default function SurpriseScreen() {
                       onToggleLike={() => {
                         if (review.data && userId) like.mutate(!review.data.likedByViewer);
                       }}
-                      onWriteReview={() =>
-                        router.push({ pathname: '/log/[id]', params: { id: game.id } })
+                      /* A game that is not out cannot be reviewed: the card
+                         says when it can, and is not a door to the form. */
+                      onWriteReview={
+                        isUnreleased(game)
+                          ? undefined
+                          : () => router.push({ pathname: '/log/[id]', params: { id: game.id } })
                       }
+                      notOutUntil={isUnreleased(game) ? (game.releaseDate ?? undefined) : undefined}
                       onOpenReview={() => {
                         if (review.data) {
                           router.push({

@@ -117,8 +117,18 @@ export const FROST = {
    * this page's dark ground read as a solid lid" (`SettingScreen.kt`).
    */
   pageTint: 0.3,
-  /** The wash on a page that takes its colour from artwork: 55%. */
-  artTint: 0.55,
+  /**
+   * The wash on a page that opens on artwork: 85% of the page's own colour.
+   *
+   * It was 55%, the reference's. Over a game's page that let the masthead
+   * scrolling under the bar — a white title, the last of the key art, the
+   * cover — through as a light haze, and the bar read white against the dark
+   * page. The owner's direction (2026-10-14): "make the header with the blur
+   * the same color as the background… the same blur but with the color of the
+   * home background page". So it is the page's colour, as Home's bar is, with
+   * the blur still under it — what is behind shows as movement, not as light.
+   */
+  artTint: 0.85,
 } as const;
 
 /**

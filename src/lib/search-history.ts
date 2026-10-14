@@ -21,7 +21,8 @@ const MAX_ENTRIES = 8;
 /**
  * What the Search field was looking through when a term was typed.
  *
- * Seven kinds, and each is a tab under the field. `platforms` is
+ * Six kinds, and each is a tab under the field. Events was a seventh until it
+ * moved to the News tab (2026-10-14); a stored entry for it is dropped on read. `platforms` is
  * here because it is a scope of the field, but it is never *recorded*: its
  * search is a filter over a list already in memory, and "play" on the way to
  * "PlayStation 5" is not a search anyone made.
@@ -32,7 +33,6 @@ export const SEARCH_SCOPES = [
   'people',
   'collections',
   'studios',
-  'events',
   'platforms',
 ] as const;
 

@@ -1,13 +1,17 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { memo, useCallback, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
-import { GameActions, formatReleaseDate } from '@/components/game-actions';
+import {
+  GameActions,
+  PlannedRelease,
+  YourLogButton,
+  useActionDockRoom,
+} from '@/components/game-actions';
 import { GameDetailsSheet } from '@/components/game-details-sheet';
 import { PlayedBy, RatingsCard, TimeToBeatWidget, TopReview } from '@/components/game-insights';
 import { GameEditions, OriginalGame } from '@/components/game-lineage';
@@ -30,7 +34,6 @@ import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { ScorePill } from '@/components/ui/score';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { InfoCard, InfoCardButton } from '@/components/ui/info-card';
@@ -57,6 +60,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
+import { formatReleaseDate, isUnreleased } from '@/lib/games/release';
 import { recallGame } from '@/lib/games/seen-games';
 import {
   getCollectionGames,
@@ -98,15 +102,6 @@ const TABS = [
  */
 const CASE_WIDTH_RATIO = 0.33;
 const CASE_MAX_WIDTH = 200;
-
-/**
- * Lifts "See your full review" to the platform floor.
- *
- * A 16px glyph beside one line of `bodySmall` is about 18dp, against 44 (iOS)
- * and 48 (Android). Slop rather than padding, so the sentence above it keeps
- * its spacing and the block does not grow a band of dead space.
- */
-const REVIEW_LINK_SLOP = { top: 15, bottom: 15, left: 8, right: 8 };
 
 /**
  * How far a company's name in the header can be touched past its own line.
@@ -279,6 +274,11 @@ export default function GameDetailScreen() {
     initialDataUpdatedAt: () => recallGame(id)?.at,
   });
 
+  /* The room the page keeps at its foot for the docked actions, so its last
+     line is never under the folded review button. A hook, so it is asked
+     before the loading states return. */
+  const dockRoom = useActionDockRoom();
+
   const myLog = useQuery({
     queryKey: ['my-log', userId, id],
     queryFn: () => getMyLog(userId!, id!),
@@ -411,6 +411,7 @@ export default function GameDetailScreen() {
            itself in a rectangle that includes the status bar and the Dynamic
            Island. Nothing is drawn under the notch that wants to be there. */
         edges={['top', 'bottom']}
+        miniPlayer={false}
         topBar={<FrostedTopBar back />}>
         <LoadingState />
       </Screen>
@@ -426,6 +427,7 @@ export default function GameDetailScreen() {
            itself in a rectangle that includes the status bar and the Dynamic
            Island. Nothing is drawn under the notch that wants to be there. */
         edges={['top', 'bottom']}
+        miniPlayer={false}
         topBar={<FrostedTopBar back />}>
         <ErrorState
           error={game.error}
@@ -444,6 +446,7 @@ export default function GameDetailScreen() {
            itself in a rectangle that includes the status bar and the Dynamic
            Island. Nothing is drawn under the notch that wants to be there. */
         edges={['top', 'bottom']}
+        miniPlayer={false}
         topBar={<FrostedTopBar back />}>
         <EmptyState title="Game not found" />
       </Screen>
@@ -452,6 +455,9 @@ export default function GameDetailScreen() {
 
   const data = game.data;
   const logged = myLog.data;
+  /* Not out yet: no ratings, no review, no way to write one — its date where
+     the ratings would be. See `isUnreleased`. */
+  const unreleased = isUnreleased(data);
 
   const unlockedCount = (achievements.data ?? []).filter((entry) => entry.unlocked_at).length;
   const achievementTotal = achievements.data?.length ?? 0;
@@ -475,8 +481,12 @@ export default function GameDetailScreen() {
    * Nothing is printed while that is still being asked: a number that appears
    * and is then taken away is worse than one that arrives a moment late. A
    * failed request counts as "no ratings" — IGDB's score is better than none.
+   *
+   * Never on a game that is not out: nobody can have scored it, and an
+   * unreleased game's page carries no rating of any kind.
    */
-  const showCommunityScore = data.score !== null && !appRatings.isPending && !appRatings.data;
+  const showCommunityScore =
+    !unreleased && data.score !== null && !appRatings.isPending && !appRatings.data;
 
   /* The companies behind it, as the header's links: who made it, then who
      only published it. `getGameExtras` files a company that did both under
@@ -715,10 +725,11 @@ export default function GameDetailScreen() {
 
         It was the About card at the top of the Overview tab, five lines and a
         More. The owner moved it here and took the card away: "not a card, it is
-        standalone text in the header". Three lines, the last of them fading
-        into the page as the reference's does; tapping the text opens it in
-        place with the card's own motion — the window's height, 250ms — and
-        tapping again closes it (`<ExpandableText fade>`).
+        standalone text in the header". Four lines, the last of them fading
+        into the page as the reference's does — one more than it had, now that
+        the actions have left the masthead for the foot of the screen; tapping
+        the text opens it in place with the card's own motion — the window's
+        height, 250ms — and tapping again closes it (`<ExpandableText fade>`).
 
         A game with no synopsis has no block: there is no card left to say "No
         description" in, and a sentence about an absence does not belong in a
@@ -750,135 +761,49 @@ export default function GameDetailScreen() {
       />
 
       {/*
-        Group 3 — the numbers, between the identity block and the actions.
+        Group 3 — the numbers, then what the people here made of them: the
+        strip, the ratings graph, your own record. The owner's order
+        (2026-10-14).
 
-        Above the actions rather than below the whole masthead, which is where
-        this sat when it replaced the platform buttons. The order is the order
-        the questions get asked: *what is this* (the billing, the cover, the
-        synopsis), *should I bother* (four numbers), *then* the row of things to
-        do about it. With the strip underneath, every reader met the primary
-        button before the one piece of evidence that would tell them whether to
-        press it.
+        **The strip** is Collections · Length · Age rating — and Must Play, a
+        fourth cell, on a game a moderator has labelled. It carries no score:
+        the Ratings card under it is the score.
 
-        It is also what the Play Store does, for the same reason — rating,
-        downloads and content rating sit directly above Install.
+        **The ratings graph** — the Ratings card, which led the Overview tab —
+        is the reviews sheet's own summary and the door to that sheet, absent
+        for a game nobody here has rated, where IGDB's "Community" score under
+        the name is the fallback.
+
+        **An unreleased game has no ratings and none are asked for**: its
+        planned date takes the card's place, and nothing on its page leads to
+        writing a review.
       */}
-      <GameStatsStrip gameId={data.id} onOpenReviews={openReviews} onOpenLists={openLists} />
+      <GameStatsStrip gameId={data.id} onOpenLists={openLists} />
 
-      {/* The actions, at the header's full width rather than squeezed into the
-          billing's column: they act on the game, not on its metadata. */}
-      <View style={styles.actions}>
-        <GameActions game={data} log={logged ?? null} onOpenProgress={openProgress} />
-      </View>
-
-      {/*
-        Group 4 — your own record, last in the masthead.
-
-        It sat directly above the actions, where it was the third thing on the
-        page claiming the same fact: the action row's Played key is lit, the back
-        of the case prints the status and the score, and this said it again in a
-        sentence. Below the actions it reads as what it actually is — the
-        *consequence* of having used them, and the way back into what you wrote.
-
-        Last also means it is the block that disappears cleanly. Nobody who has
-        not logged this game sees anything here, and the tabs simply move up by
-        its height rather than a gap opening mid-masthead.
-      */}
-      {/*
-        Your own log, on a surface carrying this game's hue.
-
-        It sat bare for a while, and the argument was good: a filled
-        `tone="selected"` block made the one thing on this page that is
-        *yours* look like a notice the app was showing you. That argument was
-        made against a flat `#121212` page, and the ambient gradient invalidated
-        it — the block now sits on the brightest part of a lit gradient, where
-        `statusPlayed` measures **2.02:1**, `statusDropped` 2.07:1 and a low
-        `ScoreBadge` 1.95:1.
-
-        These are the one kind of colour that cannot be lifted to suit a
-        backdrop: they are *data*, tuned as a ramp, and forcing `statusPlayed`
-        to AA on the gradient moves it 165 RGB units to a pale #C0DFF8 that no
-        longer belongs to the set. So the surface comes back — but tinted
-        rather than grey. `accent.surface` mixes the game's own hue into
-        `surface` and restores the original luminance, so every one of these
-        tokens measures what it was chosen for (worst case 5.07:1) while the
-        block reads as belonging to this game rather than to the app.
-      */}
-      {/*
-        Rendered only when there is something in it to read.
-
-        It used to be `logged &&` alone, which was safe while the status word
-        was the fallback — every log has a status, so the block always had a
-        line. With the word gone a log that is *only* a status (tap Played, do
-        nothing else — by far the most common log there is) would leave an
-        empty tinted rectangle above the actions.
-      */}
-      {logged && (logged.review?.trim() || logged.rating !== null || logged.platinum) && (
-        <View style={[styles.myLog, { backgroundColor: accent.surface }]}>
-          {logged.review?.trim() ? (
-            /*
-             * You wrote about this — so the block says so in a sentence and
-             * then gets out of the way.
-             *
-             * It used to restate the log as three stacked facts: the status
-             * word, a large score pill, and the review's headline. All three
-             * are already on this page — the status and score are printed on
-             * the back of the case a few hundred pixels above, and the
-             * headline is the first thing on the review itself. Repeating
-             * them here made the block a summary of a summary, and the one
-             * thing it never did was offer a way to *read the thing*.
-             *
-             * The date is the fact that is genuinely only here: nothing else
-             * on this page says when you wrote it.
-             */
-            <>
-              <Text variant="body" color="textSecondary">
-                {`You reviewed this game on ${formatReleaseDate(logged.created_at)}`}
-                {logged.rating !== null ? ' and gave it a ' : '.'}
-                {logged.rating !== null && (
-                  <Text variant="h4" style={{ color: scoreColor(logged.rating, theme) }}>
-                    {`${Math.round(logged.rating)}.`}
-                  </Text>
-                )}
-              </Text>
-
-              <Link href={{ pathname: '/review/[id]', params: { id: logged.id } }} asChild>
-                <PressableScale
-                  accessibilityRole="link"
-                  accessibilityLabel="See your full review"
-                  hitSlop={REVIEW_LINK_SLOP}
-                  style={styles.reviewLink}
-                  scaleTo={0.98}>
-                  <Ionicons name="eye-outline" size={16} color={theme.primaryText} />
-                  <Text variant="bodySmall" style={{ color: theme.primaryText }}>
-                    See your full review
-                  </Text>
-                </PressableScale>
-              </Link>
-            </>
-          ) : (
-            /*
-             * No writing — so there is no review to link to, and the block
-             * falls back to stating the record it does have.
-             *
-             * **Which no longer includes the status word.** "Played" with its
-             * tick used to head this block, and it was the third place on one
-             * screen saying the same thing: the action row's Played key is lit
-             * and solid, and the back of the case prints the status too. A
-             * label restating the state of a control 200dp above it is not a
-             * fact the block contributes — the score and the platinum are.
-             */
-            <>
-              {logged.platinum && (
-                <View style={styles.myLogHead}>
-                  <Ionicons name="trophy" size={16} color={theme.platinum} />
-                </View>
-              )}
-              {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
-            </>
-          )}
-        </View>
+      {unreleased ? (
+        data.releaseDate && (
+          <PlannedRelease releaseDate={data.releaseDate} style={styles.numbersNext} />
+        )
+      ) : (
+        <RatingsCard
+          gameId={data.id}
+          title={data.title}
+          onOpen={openReviews}
+          style={styles.numbersNext}
+        />
       )}
+
+      {/*
+        Group 4 — your own record, last in the masthead: a key that says when
+        you wrote about it, or scored it, and what you gave it, and opens it
+        (`<YourLogButton>`, the docked keys' own style). Nobody who has not
+        reviewed or scored this game sees anything here, and the tabs simply
+        move up.
+
+        The actions are docked at the foot of the screen (`<GameActions>`,
+        beside the scroller below).
+      */}
+      {logged && <YourLogButton log={logged} style={styles.yourLog} />}
     </View>
   );
 
@@ -966,7 +891,9 @@ export default function GameDetailScreen() {
 
                 The ratings, the players and the review led the tab for one
                 build, as they do on the reference's film page; the owner had
-                the screenshots moved "back to the top of the page".
+                the screenshots moved "back to the top of the page". The
+                ratings have since gone up into the masthead, so the tab opens
+                on these.
               */}
               {screenshots.length > 0 && (
                 <Section title="Screenshots">
@@ -991,23 +918,25 @@ export default function GameDetailScreen() {
               )}
 
               {/*
-                Then what the people here made of it — the three things a
-                film's page in Letterboxd carries, at the owner's direction
-                (2026-10-09): how they scored it, who played it, and the
-                review they liked most. Each is absent when it has nothing to
-                show.
+                Then what the people here made of it — two of the three things
+                a film's page in Letterboxd carries, at the owner's direction
+                (2026-10-09): who played it, and the review they liked most.
+                Each is absent when it has nothing to show. The third, how
+                they scored it, is the Ratings card in the masthead now.
 
-                The ratings are the reviews sheet's own summary, and the card
-                is a door to that sheet.
+                Neither is asked for on a game that is not out: nobody has
+                played it, and its page leads to no reviews.
               */}
-              <RatingsCard gameId={data.id} title={data.title} onOpen={openReviews} />
+              {!unreleased && (
+                <>
+                  {/* Anybody, and the people you follow: two faces each. */}
+                  <PlayedBy gameId={data.id} />
 
-              {/* Anybody, and the people you follow: two faces each. */}
-              <PlayedBy gameId={data.id} />
-
-              {/* The most liked review, in the card the sheet's rows are
-                  drawn in. The heading's More is the way to all of them. */}
-              <TopReview gameId={data.id} title={data.title} onSeeAll={openReviews} />
+                  {/* The most liked review, in the card the sheet's rows are
+                      drawn in. The heading's More is the way to all of them. */}
+                  <TopReview gameId={data.id} title={data.title} onSeeAll={openReviews} />
+                </>
+              )}
 
               {/*
                 Details: the full IGDB record — genres, modes, engines, age
@@ -1172,6 +1101,9 @@ export default function GameDetailScreen() {
       <>
         <Screen
           edges={[]}
+          /* The page's docked bars draw the mini player themselves, as one of
+             them (`<GameActions>`), so `<Screen>` keeps no band for it. */
+          miniPlayer={false}
           /*
             A flat fill in the game's own darkest tone, where a scroll-driven
             gradient used to be.
@@ -1211,18 +1143,30 @@ export default function GameDetailScreen() {
             changed, and reported it ("a large list that is slow to update").
             Nothing inside the tabs is a vertical list; the rails are horizontal,
             which nests inside a ScrollView without complaint.
+
+            In a view of its own with the docked actions beside it: `<Screen>`
+            ends its column above the mini player while one is playing, so
+            whatever is laid out in here — the panel included — clears it
+            without knowing it exists.
           */}
-          <PageScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.content}>
-            {header}
-            {/* `center`: three pills do not reach the edges of a phone, and
-                left-aligned under a full-width masthead they read as a row
-                that lost a tab — which is exactly what happened when Reviews
-                became a sheet. See `TabBarProps.align`. */}
-            <TabBar tabs={TABS} value={tab} onChange={setTab} align="center" />
-            {renderTab()}
-          </PageScrollView>
+          <View style={styles.page}>
+            <PageScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: dockRoom }}>
+              {header}
+              {/* `center`: three pills do not reach the edges of a phone, and
+                  left-aligned under a full-width masthead they read as a row
+                  that lost a tab — which is exactly what happened when Reviews
+                  became a sheet. See `TabBarProps.align`. */}
+              <TabBar tabs={TABS} value={tab} onChange={setTab} align="center" />
+              {renderTab()}
+            </PageScrollView>
+
+            {/* The review button and the keys, docked at the foot of the screen
+                over the page, folding to the button alone as the page is read
+                downward. See `<GameActions>`. */}
+            <GameActions game={data} log={logged ?? null} onOpenProgress={openProgress} />
+          </View>
         </Screen>
 
         {/* A sibling of `<Screen>`, not a child: the floating back disc is
@@ -1342,8 +1286,8 @@ function GameSheets({ store, game, log }: { store: SheetStore; game: Game; log: 
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.x48 },
-  /* A list inside one card, so the interval is a list's rather than a card's. */
+  /* The scroller and the docked actions over its foot. */
+  page: { flex: 1 },
   /*
    * No one gap: every interval in the masthead is its own, and each is the
    * reference's.
@@ -1402,28 +1346,11 @@ const styles = StyleSheet.create({
   },
   /* With no synopsis the rule follows the row itself, a step further off. */
   ruleUnderRow: { marginTop: Spacing.x20 },
-  /* The strip pads its own cells by twelve, so this is twenty-four from its
-     labels to the buttons. */
-  actions: { marginTop: Spacing.x12 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
-  myLog: {
-    gap: Spacing.x8,
-    padding: Spacing.x16,
-    marginTop: Spacing.x20,
-    borderRadius: Radius.card,
-  },
-  /* `flex-end`, not `space-between`. The row held the status word on the left
-     and the platinum trophy on the right; with the word gone `space-between`
-     would park a lone trophy at the left margin, which reads as a bullet. */
-  myLogHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
-  /* `flex-start` so the target is the width of its label, not of the block —
-     a full-width row here would read as a button, and this is a link. */
-  reviewLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: Spacing.x8,
-  },
+  /* Under the strip — which pads its own cells by twelve — the Ratings card,
+     or an unreleased game's date: twelve more, as cards stack. */
+  numbersNext: { marginTop: Spacing.x12 },
+  /* Your record, under the card: as cards stack. */
+  yourLog: { marginTop: Spacing.x12 },
   tabBody: { padding: Spacing.x16, gap: Spacing.x16 },
   /* No sideways padding: every section takes the inset it is handed, so a
      rail can run edge to edge. The gap between sections is set inline. */

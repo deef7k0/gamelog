@@ -41,7 +41,7 @@ import {
   type CopyStageMode,
 } from '@/components/copy-showcase';
 import { STAGE_KEY_WIDTH, StageKey } from '@/components/copy-stage-key';
-import { formatReleaseDate } from '@/components/game-actions';
+import { formatReleaseDate } from '@/lib/games/release';
 import { ReviewQuote } from '@/components/review-quote';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';

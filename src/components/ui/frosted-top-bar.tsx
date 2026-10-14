@@ -6,7 +6,6 @@ import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
-  useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
@@ -24,7 +23,6 @@ import {
   BAR_SLIDE,
   BAR_SPRING,
   FROST,
-  HOME_BAR,
   TOP_BAR_DISC,
   TOP_BAR_DISC_ROOM,
   TOP_BAR_EDGE,
@@ -36,9 +34,6 @@ import {
   TOP_BAR_TITLE_GAP,
   TOP_BAR_TITLE_INSET,
   discShift,
-  frostStrength,
-  homeBarMoved,
-  homeBarOpen,
   isScrolled,
   revealOffset,
 } from '@/constants/top-bar';
@@ -78,24 +73,6 @@ const SHEEN = 'linear-gradient(135deg, rgba(255,255,255,0.13) 0%, rgba(255,255,2
 /** How dark the pane is over whatever is behind it. */
 const PANE_SCRIM = 0.27;
 
-/**
- * Whether the frost is a blur on this device.
- *
- * Android blurs from 12 up. Below that the bar is the page's colour, opaque —
- * the reference's own rule (`barBlurStyle`: "Where haze does not blur (Android
- * 11 and below), the bar is that colour, opaque"), and for its reason: the old
- * path blurs in software, a strip the width of the display on every frame of a
- * scroll.
- */
-const FROST_BLURS = Platform.OS !== 'android' || Number(Platform.Version) >= 31;
-
-/**
- * The blur at full strength, as each platform is asked for it, and what
- * Android divides that by to get a radius. `FROST` says why they differ.
- */
-const BLUR_MAX = Platform.OS === 'android' ? FROST.androidIntensity : FROST.intensity;
-const ANDROID_REDUCTION = FROST.androidIntensity / FROST.androidRadius;
-
 /** Compose's `FastOutSlowInEasing`, the default of the reference's `tween(300)`. */
 const FROST_EASING = Easing.bezier(...FROST.easing);
 
@@ -105,8 +82,6 @@ const FROST_EASING = Easing.bezier(...FROST.easing);
  * hero is 38%).
  */
 const DEFAULT_HEADER = 0.38;
-
-const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
 /**
  * How a control is drawn where it is: a disc of glass over artwork, or a bare
@@ -338,12 +313,7 @@ function PlainBar({
        not reach a row the frost is hiding. At the top of the page there is
        nothing under it to reach — the page kept this room clear. */
     <View style={[styles.layer, { height: inset + TOP_BAR_ROW }]}>
-      <Frost
-        progress={frost}
-        pulse={pulse}
-        tint={chrome?.background ?? theme.background}
-        alpha={FROST.pageTint}
-      />
+      <Frost progress={frost} pulse={pulse} tint={chrome?.background ?? theme.background} />
       <BarRow inset={inset} leading={leading} right={right}>
         <BarTitle title={title} leading={!!leading} centre={centerTitle} />
       </BarRow>
@@ -460,12 +430,7 @@ function ArtBar({
         pointerEvents={pinned ? 'auto' : 'none'}
         accessibilityElementsHidden={!pinned}
         importantForAccessibility={pinned ? 'auto' : 'no-hide-descendants'}>
-        <Frost
-          progress={shown}
-          pulse={pulse}
-          tint={chrome?.background ?? theme.background}
-          alpha={FROST.artTint}
-        />
+        <Frost progress={shown} pulse={pulse} tint={chrome?.background ?? theme.background} />
         <Animated.View style={contentStyle}>
           <BarRow inset={inset} leading={leading} right={right}>
             {/* The reference's `basicMarquee`: a game's or a collection's name
@@ -484,17 +449,18 @@ function ArtBar({
 }
 
 /**
- * A top bar for a root tab, which has nothing to go back to — Home's
- * (`HomeScreen.kt`): its row floats over the page, clear at the top and frost
- * under way like any other, **and folds away while the page is read downward
- * and comes back on the way up**. Folded, what is left is the frost over the
- * status bar, so the clock is never set on moving content.
+ * A top bar for a root tab, which has nothing to go back to — Home's: its row
+ * at the top of the page, clear at the top and the page's colour under way
+ * like any other.
+ *
+ * **It stays where it is.** It folded away while the page was read downward
+ * and came back on the way up (`HomeScreen.kt`'s `isScrollingUp`); the owner
+ * had that removed (2026-10-14): "Make the home top bar stay at the top, it
+ * should not move with the scroll." The name is kept so its one caller did not
+ * change.
  *
  * The row is the caller's: a wordmark and a bell, in Home's case. It is 64
  * high and the page keeps `useHeaderHeight()` clear at its top.
- *
- * The fold is movement, so it does not happen under Reduce Motion; the row
- * stays where it is and only frosts.
  */
 export function FoldingTopBar({ children }: { children: ReactNode }) {
   const theme = useTheme();
@@ -502,119 +468,47 @@ export function FoldingTopBar({ children }: { children: ReactNode }) {
   const inset = useTopBarInset();
   const scrollY = usePageOffset();
   const pulse = usePulse();
-  const reduceMotion = useReducedMotion();
-
   const frost = useSharedValue(0);
-  /* 1 open, 0 folded — and the same as a flag, for the reaction to compare. */
-  const open = useSharedValue(1);
-  const isOpen = useSharedValue(true);
-  /* Where the page was when the row last answered it. */
-  const anchor = useSharedValue(0);
-  const [folded, setFolded] = useState(false);
 
+  /* A fade, so it runs unchanged under Reduce Motion: nothing here moves. */
   useAnimatedReaction(
-    () => scrollY.get(),
-    (offset, was) => {
-      if (offset === was) return;
-
-      const scrolled = isScrolled(offset);
-      if (was === null || scrolled !== isScrolled(was)) {
-        frost.set(withTiming(scrolled ? 1 : 0, { duration: FROST.ms, easing: FROST_EASING }));
-      }
-
-      if (reduceMotion) return;
-      const next = homeBarOpen(isOpen.get(), anchor.get(), offset, HOME_BAR.hold, HOME_BAR.slop);
-      if (homeBarMoved(anchor.get(), offset, HOME_BAR.slop)) anchor.set(offset);
-      if (next === isOpen.get()) return;
-      isOpen.set(next);
-      open.set(withSpring(next ? 1 : 0, BAR_SPRING));
-      runOnJS(setFolded)(!next);
-    },
-    [reduceMotion]
+    () => isScrolled(scrollY.get()),
+    (scrolled, was) => {
+      if (scrolled === was) return;
+      frost.set(withTiming(scrolled ? 1 : 0, { duration: FROST.ms, easing: FROST_EASING }));
+    }
   );
-
-  /* `fadeOut() + shrinkVertically()`: the row goes up by its own height as it
-     fades, and the frost's foot goes up with it to the status bar's. */
-  const frostStyle = useAnimatedStyle(() => {
-    pulse.get();
-    return { transform: [{ translateY: -(1 - open.get()) * TOP_BAR_ROW }] };
-  });
-  const rowStyle = useAnimatedStyle(() => {
-    pulse.get();
-    const shut = 1 - open.get();
-    return { opacity: 1 - shut, transform: [{ translateY: -shut * TOP_BAR_ROW }] };
-  });
 
   return (
     <View style={[styles.layer, { height: inset + TOP_BAR_ROW }]} pointerEvents="box-none">
-      <Animated.View style={[styles.fill, frostStyle]} pointerEvents="none">
-        <Frost
-          progress={frost}
-          pulse={pulse}
-          tint={chrome?.background ?? theme.background}
-          /* The reference's Home uses its blur library's stock ultra-thin
-             material, whose numbers are not in its own repository; this is the
-             wash it wrote down for the pages it says follow "Home's rule". */
-          alpha={FROST.pageTint}
-        />
-      </Animated.View>
-
-      <Animated.View
-        style={[styles.foldRow, { marginTop: inset }, rowStyle]}
-        pointerEvents={folded ? 'none' : 'auto'}
-        accessibilityElementsHidden={folded}
-        importantForAccessibility={folded ? 'no-hide-descendants' : 'auto'}>
-        {children}
-      </Animated.View>
+      <Frost progress={frost} pulse={pulse} tint={chrome?.background ?? theme.background} />
+      <View style={[styles.foldRow, { marginTop: inset }]}>{children}</View>
     </View>
   );
 }
 
 /**
- * The frost: the page behind the bar, blurred, and the page's own colour over
- * it at `alpha` — the reference's `barBlurStyle(tint, tintAlpha)`.
+ * What the bar is over the page: the page's own colour, solid, faded in by
+ * `progress` — clear at the top of a page, and a band of the page under it
+ * once there is something under it.
  *
- * It fades by its **strength**, not by anybody's opacity: `progress` drives
- * the blur's intensity and the wash together, which is the way expo-blur is
- * meant to be animated — a blur inside a view that is itself fading is not a
- * blur on iOS until the fade ends.
+ * **No blur.** The bar was frost — the page behind it blurred, with its colour
+ * washed over the blur (the reference's `barBlurStyle`) — and the owner had
+ * the blur removed (2026-10-14). The bar is the colour the reference itself
+ * draws where it cannot blur. `tint` is the page's colour (`<Screen
+ * background>`), so a game's page has a bar in the game's tone.
  *
- * ## Two things Android's blur view does, both of which bit
- *
- *  - **It cannot be set up at a strength of nothing.** It is configured when
- *    it is handed its target, at the strength it has then, and a radius of
- *    exactly zero throws ("nativePtr is null"). So the strength never reaches
- *    zero (`frostStrength`), and what hides a frost that is away is the
- *    `veil` — an opacity that is 0 or 1 and nothing between, so it is never a
- *    fade over a blur.
- *  - **It paints its own grey over the blur, in proportion to the strength.**
- *    So the strength it is given is small and the radius is made up through
- *    `blurReductionFactor`; the wash below is then the only tint, which is
- *    the reference's recipe. `FROST.androidIntensity` has the arithmetic.
+ * Every style here reads `pulse` and carries a transform — see `usePulse`.
  */
 function Frost({
   progress,
   pulse,
   tint,
-  alpha,
 }: {
   progress: SharedValue<number>;
   pulse: SharedValue<number>;
   tint: string;
-  alpha: number;
 }) {
-  const chrome = useScreenChrome();
-
-  const blur = useAnimatedProps(() => {
-    /* A hundredth stronger on every other render, which nobody can see and
-       which is what gets the value sent again; see `usePulse`. */
-    const nudge = (pulse.get() % 2) * 0.01;
-    return { intensity: frostStrength(progress.get(), BLUR_MAX, FROST.floor) + nudge };
-  });
-  const veil = useAnimatedStyle(() => {
-    pulse.get();
-    return { opacity: progress.get() > 0 ? 1 : 0, transform: [{ translateY: 0 }] };
-  });
   const wash = useAnimatedStyle(() => {
     pulse.get();
     return { opacity: progress.get(), transform: [{ translateY: 0 }] };
@@ -622,33 +516,7 @@ function Frost({
 
   return (
     <View style={styles.fill} pointerEvents="none">
-      {/* Not mounted at all where there is no blur to be had. The blur view's
-          "from Android 12" method is only honoured when the method is set; one
-          that is handed its target afterwards — every one, since the target is
-          found after the first render — is set up with the old software blur
-          switched on, and would redraw the page into a bitmap on every frame
-          for a frost the opaque wash below covers. */}
-      {FROST_BLURS && (
-        <Animated.View style={[styles.fill, veil]}>
-          <AnimatedBlurView
-            animatedProps={blur}
-            /* The thinnest dark material there is — the reference's own word
-               for its bars is "ultraThin". */
-            tint="systemUltraThinMaterialDark"
-            style={styles.fill}
-            {...(Platform.OS === 'android'
-              ? {
-                  blurMethod: 'dimezisBlurViewSdk31Plus' as const,
-                  blurTarget: chrome?.blurTarget,
-                  blurReductionFactor: ANDROID_REDUCTION,
-                }
-              : null)}
-          />
-        </Animated.View>
-      )}
-      <Animated.View
-        style={[styles.fill, { backgroundColor: withAlpha(tint, FROST_BLURS ? alpha : 1) }, wash]}
-      />
+      <Animated.View style={[styles.fill, { backgroundColor: tint }, wash]} />
     </View>
   );
 }

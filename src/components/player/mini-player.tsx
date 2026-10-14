@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useSegments } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -65,14 +65,55 @@ const KEY = 40;
  * a track plays — then play, next, and a cross that stops the music and takes
  * the bar away. Pressing the bar itself opens the soundtrack it is playing
  * from, where SoundCloud's logo and the link to each track are.
+ *
+ * ## The game page draws its own
+ *
+ * There the mini player is one of the page's docked bars, as SimpMusic's is
+ * one of its navigation bar's (`<GameActions>`): over the keys while they are
+ * expanded, beside their folded circle while they are not. So the route is in
+ * `hidesMiniPlayer` and the dock draws `<MiniPlayerBar>` — this capsule, in a
+ * frame of the dock's.
  */
 export function MiniPlayer() {
-  const theme = useTheme();
-  const router = useRouter();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const keyboardShown = useKeyboardShown();
+
+  const active = useMiniPlayerActive();
+  const track = useNowPlaying();
+
+  if (!active || !track || keyboardShown || hidesMiniPlayer(segments)) return null;
+
+  const onTabs = isTabRoute(segments);
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={[styles.layer, { paddingBottom: insets.bottom + MINI_PLAYER_GAP }]}>
+      <Animated.View
+        style={[
+          styles.slot,
+          {
+            transform: [{ translateY: onTabs ? -TAB_BAR_FOOTPRINT : 0 }],
+            transitionDuration: reduceMotion ? 0 : MINI_PLAYER_MOVE_MS,
+          },
+        ]}>
+        <MiniPlayerBar />
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * The mini player's capsule, wherever it is drawn: what is playing, play,
+ * next, and the cross. As wide as whatever holds it — the app's layer at the
+ * foot of every screen, or a frame of the game page's dock. Nothing while no
+ * music is being kept playing.
+ */
+export function MiniPlayerBar({ style }: { style?: StyleProp<ViewStyle> }) {
+  const theme = useTheme();
+  const router = useRouter();
 
   const active = useMiniPlayerActive();
   const track = useNowPlaying();
@@ -84,11 +125,10 @@ export function MiniPlayer() {
     (state) => !!state.queue && nextPlayable(state.queue.tracks, state.index) !== -1
   );
 
-  if (!active || !track || keyboardShown || hidesMiniPlayer(segments)) return null;
+  if (!active || !track) return null;
 
   const playing = phase === 'playing';
   const loading = phase === 'loading';
-  const onTabs = isTabRoute(segments);
 
   function open() {
     if (!gameId) return;
@@ -114,74 +154,66 @@ export function MiniPlayer() {
 
   return (
     <View
-      pointerEvents="box-none"
-      style={[styles.layer, { paddingBottom: insets.bottom + MINI_PLAYER_GAP }]}>
-      <Animated.View
-        style={[
-          styles.capsule,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            transform: [{ translateY: onTabs ? -TAB_BAR_FOOTPRINT : 0 }],
-            transitionDuration: reduceMotion ? 0 : MINI_PLAYER_MOVE_MS,
-          },
-        ]}>
-        {gameId ? (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`${track.title} by ${track.uploader.name}. Open the soundtrack.`}
-            onPress={open}
-            scaleTo={0.99}
-            style={styles.body}>
-            {words}
-          </PressableScale>
+      style={[
+        styles.capsule,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+        style,
+      ]}>
+      {gameId ? (
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={`${track.title} by ${track.uploader.name}. Open the soundtrack.`}
+          onPress={open}
+          scaleTo={0.99}
+          style={styles.body}>
+          {words}
+        </PressableScale>
+      ) : (
+        <View style={styles.body}>{words}</View>
+      )}
+
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={playing || loading ? `Pause ${track.title}` : `Play ${track.title}`}
+        onPress={player.toggle}
+        pressedColor={theme.pressed}
+        scaleTo={0.9}
+        style={styles.key}>
+        {loading ? (
+          <ActivityIndicator size="small" color={theme.text} />
         ) : (
-          <View style={styles.body}>{words}</View>
+          <Ionicons
+            name={playing ? 'pause' : 'play'}
+            size={20}
+            color={theme.text}
+            style={playing ? undefined : styles.playNudge}
+          />
         )}
+      </PressableScale>
 
+      {hasNext && (
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel={playing || loading ? `Pause ${track.title}` : `Play ${track.title}`}
-          onPress={player.toggle}
+          accessibilityLabel="Next track"
+          onPress={player.next}
           pressedColor={theme.pressed}
           scaleTo={0.9}
           style={styles.key}>
-          {loading ? (
-            <ActivityIndicator size="small" color={theme.text} />
-          ) : (
-            <Ionicons
-              name={playing ? 'pause' : 'play'}
-              size={20}
-              color={theme.text}
-              style={playing ? undefined : styles.playNudge}
-            />
-          )}
+          <Ionicons name="play-skip-forward" size={18} color={theme.text} />
         </PressableScale>
+      )}
 
-        {hasNext && (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Next track"
-            onPress={player.next}
-            pressedColor={theme.pressed}
-            scaleTo={0.9}
-            style={styles.key}>
-            <Ionicons name="play-skip-forward" size={18} color={theme.text} />
-          </PressableScale>
-        )}
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel="Stop the music and close the player"
+        onPress={player.stop}
+        pressedColor={theme.pressed}
+        scaleTo={0.9}
+        style={styles.key}>
+        <Ionicons name="close" size={20} color={theme.textSecondary} />
+      </PressableScale>
 
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Stop the music and close the player"
-          onPress={player.stop}
-          pressedColor={theme.pressed}
-          scaleTo={0.9}
-          style={styles.key}>
-          <Ionicons name="close" size={20} color={theme.textSecondary} />
-        </PressableScale>
-
-        <Progress />
-      </Animated.View>
+      <Progress />
     </View>
   );
 }
@@ -222,31 +254,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: MINI_PLAYER_SIDE,
   },
+  /* Where the capsule rests, and what moves between over the tabs and on a
+     page. */
+  slot: {
+    width: '100%',
+    maxWidth: MINI_PLAYER_MAX_WIDTH,
+    transitionProperty: 'transform',
+    transitionTimingFunction: 'ease-out',
+  },
   capsule: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    maxWidth: MINI_PLAYER_MAX_WIDTH,
     height: MINI_PLAYER_HEIGHT,
     borderRadius: MINI_PLAYER_HEIGHT / 2,
     borderWidth: StyleSheet.hairlineWidth,
     /* 12, not 8: at 8 the artwork's top corner pokes through the capsule's curve. */
     paddingLeft: Spacing.x12,
     paddingRight: Spacing.x4,
-    transitionProperty: 'transform',
-    transitionTimingFunction: 'ease-out',
+    overflow: 'hidden',
   },
   body: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x8,
-    height: MINI_PLAYER_HEIGHT,
+    height: '100%',
   },
   words: { flex: 1, gap: 1 },
   key: {
     width: KEY,
-    height: MINI_PLAYER_HEIGHT,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: KEY / 2,

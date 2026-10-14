@@ -36,7 +36,6 @@ colors:
   # The edge of box art: one hairline inside a cover's own corner, over its
   # artwork — #DDEEFF at 35%, the poster outline of the owner's Letterboxd
   # reference. An alpha, not a grey: it lightens the art under it. See § 4.
-  coverEdge: "rgba(221,238,255,0.35)"
   # PlayStation blue, the house accent. Fills only: 3.94:1 on the page, right
   # under white (5.01:1), wrong for a word. Blue *type* uses `primaryText`,
   # and so do the house selected and focus states — a 14% wash of the fill
@@ -636,7 +635,7 @@ defined in the frontmatter, which is normative where this prose disagrees:
   without dragging any text below AA. The earlier glow was a `<SoftGlow>` that
   faded out on scroll; it read as a lit corner rather than as light.
 - **The frosted bar.** `<FrostedTopBar>` is clear until the page moves under
-  it; then it is blur plus a wash of the page's own colour — 30%, or 55% where
+  it; then it is blur plus a wash of the page's own colour — 30%, or 85% where
   the colour is artwork's — and no fill of its own. It is a layer, not a
   surface: it has nothing to show and exists to soften what the page put behind
   it. § 7.
@@ -1065,33 +1064,13 @@ Landscape key art uses `HeroAspectRatio` (16:9), and a full-bleed hero fills
 Do **not** force a fixed pixel size on a poster. Set the aspect ratio and let the
 rail or grid determine width.
 
-## 4.0.1 The cover's edge
+## 4.0.1 The cover's edge — removed
 
-**Every portrait cover wears one hairline of cool white, inside its own corner
-and over its art** — `coverEdge`, `#DDEEFF` at 35%. It is the outline of the
-poster in the owner's reference (a film's page in Letterboxd), measured off a
-screenshot as `#4B4E55` where the art under it is black, and asked for on "every
-portrait art in the app". The corner it follows is `Radius.image`, 4 — which
-the reference's, at 3.9, already was.
-
-It is an overlay, never a border. A border on the frame pushes the art in and
-shows the frame's own fill through it: one fixed grey line on every cover. An
-overlay lightens whatever art is under it, so a dark box gets a lit edge that
-stops it dissolving into a near-black page, and a white box gets nothing, which
-is right.
-
-`<Poster>` draws it whenever it is asked for the box-art corner
-(`rounded="image"`, the default). Surprise Me's entry deck draws its covers by
-hand and uses the same token as their hairline. Three things do **not** wear
-it:
-
-| Not edged | Why |
-| --- | --- |
-| The game case, and its framed PC cover (`rounded="caseImage"`) | § 4.1: protected, and the framed cover has a frame of its own |
-| A banner that fills its container (`rounded="none"`) | It has no edge to draw one on |
-| Square art | The owner said portrait |
-
-A wrapper that draws its own hairline round a `<Poster>` is now a doubled line.
+**A portrait cover wears no outline.** For a while every one wore a hairline of
+cool white inside its corner (`coverEdge`, `#DDEEFF` at 35%, from the owner's
+Letterboxd reference); the owner had it removed (2026-10-14), and the token with
+it. The corner is still `Radius.image`, 4. Do not draw an edge over a cover or
+round a `<Poster>` again.
 
 ## 4.0.2 The cover stack
 
@@ -1115,7 +1094,7 @@ off it, where a poster is 72 pixels wide:
 | Width | 232px, 3.22 posters | the row it is given, exactly — the inside of its card |
 | On a 360dp phone | — | covers 93×140 in a collection's card; 94×141 in the profile's box |
 | Shadow of a cover on the one behind | ~6px, soft | a drawn strip, 8% of a cover, to 42% black |
-| Each cover | its own corner and a light outline | `<Poster>`: `Radius.image`, `coverEdge` |
+| Each cover | its own corner, no outline | `<Poster>`: `Radius.image` |
 
 - **The first cover represents the thing** — a collection's chosen cover, a
   library's newest game — and is the one drawn whole. The rest alternate left
@@ -1778,7 +1757,7 @@ chevron:  chevron-back, its glyph 16 from the edge; a cross on a modal
 title:    h3 (18) — one line, starting at 56; at 16 with no control before it
 controls: at the far end, the same bare glyphs
 frost:    the page behind it, blurred
-          the page's own colour over that — 30%, or 55% on a page coloured by artwork
+          the page's own colour over that — 30%, or 85% on a page coloured by artwork
           below Android 12: no blur, that colour, opaque
 ```
 
@@ -2158,7 +2137,7 @@ follow; the **physical case** (§ 4.1) is in the Overview's Platforms section
 | | Reference, measured | Here |
 | --- | --- | --- |
 | Cover | 100×150dp, 27.8% of the display | `mastheadCoverWidth` — 100 on 360 (it was a third) |
-| Cover corner, edge | 3.9dp; one inset hairline, `#DDEEFF` 35% | `Radius.image`; `coverEdge` (§ 4.0.1) |
+| Cover corner | 3.9dp | `Radius.image` (no edge: § 4.0.1) |
 | Halo | black, 20% at the poster's edge, gone 35–40dp out | 30% at the cover's sides, 40dp out (51 above and below) |
 | Name | capitals 15.7dp — 22 bold, white | 22/27 bold, `onPrimary` |
 | Name under the cover's top | capitals 18dp down | the billing 12 down (18 to its capitals) |
@@ -2200,7 +2179,10 @@ none is to be "restored":
   is the sign there is more, and the text is what you press; it opens with the
   description card's motion (§ 14.1). A game with no synopsis has no block.
 - **One score in the masthead, and it is the app's own when there is one.** The
-  stats strip carries the app's average and how many ratings are behind it.
+  Ratings card under the synopsis carries the app's average, how many ratings
+  are behind it and how they divide; the stats strip under it no longer
+  carries a score. The actions are docked at the foot of the screen, not in the
+  masthead (CLAUDE.md § Conventions).
   IGDB's aggregate ("Community") is printed under the billing **only for a game
   nobody here has rated** — otherwise it was a second, different number about
   the same game, a line above the first. Nothing is printed while that is still

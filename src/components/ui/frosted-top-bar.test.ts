@@ -48,13 +48,17 @@ describe('the top bar', () => {
     for (const gradient of gradients) assert.doesNotMatch(gradient, /transparent/);
   });
 
-  it('never hands the blur a strength of nothing', () => {
-    /* The one way to the blur's strength is `frostStrength`, which has a
-       floor; a literal `intensity: 0`, or a strength multiplied straight from
-       the frost's progress, is the "nativePtr is null" this app shipped once. */
-    assert.match(bar, /intensity: frostStrength\(progress\.get\(\), BLUR_MAX, FROST\.floor\)/);
-    assert.doesNotMatch(bar, /intensity:\s*0\b/);
-    assert.doesNotMatch(bar, /intensity=\{0\}/);
+  it('is the page’s colour, not a blur — the glass discs alone blur', () => {
+    /* The owner had the bar's blur removed (2026-10-14). The one `<BlurView>`
+       left is the disc of glass over artwork, which is a button, not the bar. */
+    assert.equal((bar.match(/^\s*<BlurView\b/gm) ?? []).length, 1);
+    assert.doesNotMatch(bar, /AnimatedBlurView/);
+  });
+
+  it('keeps Home’s bar where it is: nothing folds it with the scroll', () => {
+    /* "Make the home top bar stay at the top, it should not move with the
+       scroll" (2026-10-14). */
+    assert.doesNotMatch(bar, /homeBarOpen|homeBarMoved/);
   });
 
   it('gives no worklet a default that names a constant', () => {

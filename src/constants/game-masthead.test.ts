@@ -161,13 +161,13 @@ describe('the closed synopsis', () => {
   const showing = (linesAboveFoot: number) =>
     1 - ABOUT_FADE.depth * Math.max(0, 1 - linesAboveFoot / ABOUT_FADE.lines);
 
-  it('is three lines, with the first and most of the second untouched', () => {
-    assert.equal(ABOUT_LINES, 3);
+  it('is four lines, with all but the last and a quarter untouched', () => {
+    assert.equal(ABOUT_LINES, 4);
     assert.equal(showing(ABOUT_LINES), 1);
     assert.equal(showing(1.25), 1);
   });
 
-  it('leaves the third line readable at its top and nearly gone at its foot', () => {
+  it('leaves the last line readable at its top and nearly gone at its foot', () => {
     assert.ok(Math.abs(showing(0.6) - 0.54) < 0.04, `${showing(0.6)}`);
     assert.ok(Math.abs(showing(0) - 0.12) < 0.01, `${showing(0)}`);
   });

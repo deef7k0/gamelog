@@ -7,6 +7,7 @@ import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import type { TopReview } from '@/lib/api';
+import { formatReleaseDate } from '@/lib/games/release';
 
 /**
  * The skeleton's score placeholder, matching `<ScoreTile>`'s edge.
@@ -40,8 +41,14 @@ export type TopReviewCardProps = {
   liked: boolean;
   onToggleLike: () => void;
   onOpenReview: () => void;
-  /** Opens the log form for this game, where the first review gets written. */
-  onWriteReview: () => void;
+  /**
+   * Opens the log form for this game, where the first review gets written.
+   * Absent for a game that is not out yet, which cannot be reviewed: the empty
+   * state then says so and offers nothing.
+   */
+  onWriteReview?: () => void;
+  /** The planned date of a game that is not out yet — see `onWriteReview`. */
+  notOutUntil?: string;
   /**
    * Drop the surface and the padding — this is already inside a card.
    *
@@ -116,6 +123,7 @@ export function TopReviewCard({
   onToggleLike,
   onOpenReview,
   onWriteReview,
+  notOutUntil,
   bare = false,
   footer,
   compact = false,
@@ -150,6 +158,23 @@ export function TopReviewCard({
    * from someone who has just been handed the game and has an opinion or is
    * about to get one.
    */
+  /*
+   * Not out yet: there is nothing to review and no review to write. A sentence
+   * with its date, and no control — the card is not a door to anything.
+   */
+  if (!review && notOutUntil) {
+    return (
+      <Shell bare={bare}>
+        <View style={styles.body}>
+          <Text variant="h4">Not out yet</Text>
+          <Text variant="bodySmall" color="textMuted" numberOfLines={BODY_LINES}>
+            {`It can be reviewed from ${formatReleaseDate(notOutUntil)}.`}
+          </Text>
+        </View>
+      </Shell>
+    );
+  }
+
   if (!review) {
     return (
       <Shell bare={bare} onPress={compact ? onWriteReview : undefined} label="Write a review">
@@ -172,7 +197,7 @@ export function TopReviewCard({
 
         {/* The card itself is the control in `compact`; a button under a
             sentence that says the same thing is a second one. */}
-        {!compact && (
+        {!compact && onWriteReview && (
           <View style={styles.actions}>
             <Button
               title="Write the first review"

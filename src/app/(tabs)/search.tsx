@@ -8,7 +8,6 @@ import { useTabBarClearance } from '@/components/app-tab-bar';
 import { DiscoverFeed } from '@/components/discover-feed';
 import { GameSearchResults, MIN_QUERY_LENGTH } from '@/components/game-search-results';
 import { CollectionResults } from '@/components/search/collection-results';
-import { EventResults } from '@/components/search/event-results';
 import { PeopleResults } from '@/components/search/people-results';
 import { PlatformDirectory } from '@/components/search/platform-directory';
 import { ReviewResults } from '@/components/search/review-results';
@@ -47,11 +46,11 @@ const HISTORY_RECORD_MS = 1400;
 const SCOPE_TABS = SEARCH_SCOPE_INFO.map((scope) => ({ key: scope.key, label: scope.label }));
 
 /**
- * Search: a field, and the seven things it can look through as tabs under it.
+ * Search: a field, and the six things it can look through as tabs under it.
  *
  * ## The tabs are always there
  *
- * Games, Reviews, People, Collections, Studios, Events, Platforms — a row of
+ * Games, Reviews, People, Collections, Studios, Platforms — a row of
  * pills under the field (`<TabBar>`), on from the moment the tab opens, with
  * Games chosen. Each is its own list (`*Results`), with content before a word
  * is typed or a sentence saying why it has none; Games untyped is Discover — a
@@ -72,7 +71,7 @@ const SCOPE_TABS = SEARCH_SCOPE_INFO.map((scope) => ({ key: scope.key, label: sc
  * "nintendo" typed runs "nintendo" against studios, and the placeholder names
  * whichever scope is reading — so the field never disappears, never clears
  * behind the reader's back, and never strands a term in a scope that cannot
- * use it: all seven can.
+ * use it: all six can.
  *
  * ## Recent searches answer the field being touched
  *
@@ -215,8 +214,6 @@ export default function SearchScreen() {
         return <CollectionResults query={query} />;
       case 'studios':
         return <StudioResults query={query} />;
-      case 'events':
-        return <EventResults query={query} />;
       case 'platforms':
         /* The field as it stands, not the settled query: this one filters a
            list in memory, so it can answer on the keystroke. */

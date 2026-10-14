@@ -85,6 +85,11 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # its size against Material 3's, the frost, how far the
                    # glass discs go with the page, where the bar comes in
                    # after the artwork, and Home's fold (constants/top-bar),
+                   # and the game page's docked actions — SimpMusic's folding
+                   # bar: its sizes against the reference's, its two layouts
+                   # with and without the mini player, the fades of the morph,
+                   # the room the page keeps and Home's rule for when it
+                   # contracts (constants/action-dock),
                    # and which drawing stands for a score, against the five
                    # scores the owner named and the files on disk
                    # (constants/score-figure), and discovery: which language
@@ -260,7 +265,7 @@ src/
                      over them. Opened from Search's Platforms
     event/[id]       one showcase or award show, and the games shown at it.
                      One still to come asks whether you will be watching and
-                     offers a reminder (`<EventRsvp>`). Opened from Search's Events
+                     offers a reminder (`<EventRsvp>`). Opened from News's Events
     calendar         a year of releases, a month at a time: five rows of
                      numbered days, then the month's games as covers — or a
                      chosen day's as a list. Top releases behind today, most
@@ -299,10 +304,19 @@ src/
                      award-show / award-slot  an award ballot, and one row of it
                      game-filter-bar    genre / platform / studio / year pills
                      game-lineage       original game / editions & extras
-                     game-insights      the head of a game's Overview — the
-                                        Ratings card, the two Played by squares,
-                                        the most liked review — then time to
-                                        beat and the critics' rail
+                     game-insights      the Ratings card (the game page's
+                                        masthead), then the head of its
+                                        Overview — the two Played by squares
+                                        and the most liked review — and time
+                                        to beat
+                     game-actions       the game page's actions as SimpMusic's
+                                        folding bar at the foot of the screen:
+                                        the review bar over a capsule of keys,
+                                        contracting to the capsule and a
+                                        review circle; the mini player is one
+                                        of the bars there. Also the masthead's
+                                        "You reviewed…" key and an unreleased
+                                        game's date. See § Conventions
                      score-summary      GameLog's verdict on a game: the word,
                                         the score as its drawing and number,
                                         the three-part bar. The Ratings card's
@@ -498,6 +512,9 @@ src/
                      top-bar.ts (the top bar: its row, its controls, the glass
                      discs, the frost, and the arithmetic of how each moves
                      with the page — pure, tested; see § The top bar),
+                     action-dock.ts (the game page's docked bars: SimpMusic's
+                     folding bar's sizes, its layouts and the morph's fades —
+                     pure, tested),
                      score-figure.ts (which of the five drawings stands for a
                      score — pure, tested; see § Score figures)
   theme/
@@ -566,7 +583,10 @@ src/
                      hero-art.ts for which of a game's images is its hero.
                      Pure, tested.
                      spotlight.ts for which games Search's slider opens on and
-                     what each says about its date. Pure, tested
+                     what each says about its date. Pure, tested.
+                     release.ts for whether a game is out yet and its date as
+                     words — what keeps an unreleased game from every way of
+                     starting a review
     wikidata/        the studio logo, and nothing else any more: commons.ts
                      (the licence check — pure, tested), studio-logo.ts
                      (finding the file), claims.ts and client.ts (reading a
@@ -972,14 +992,21 @@ Commons — only ever a verified public-domain or CC0 file:
 - Everything fails to the name: no item, no free logo, a rate limit, no
   network, an image that will not load.
 
-## Search: seven tabs under one field, and three pages behind it
+## Search: six tabs under one field, and three pages behind it
 
-The Search tab is **a field with seven tabs under it** (`<TabBar>`): Games,
-Reviews, People, Collections, Studios, Events, Platforms — always on screen,
+The Search tab is **a field with six tabs under it** (`<TabBar>`): Games,
+Reviews, People, Collections, Studios, Platforms — always on screen,
 with Games chosen when the tab opens. `SEARCH_SCOPE_INFO`
-(`components/search/search-scopes.ts`) is the single statement of those seven:
+(`components/search/search-scopes.ts`) is the single statement of those six:
 the tabs, the field's placeholder and the history's "in Studios" all read it, so
-an eighth scope is an entry there plus a results component.
+a seventh scope is an entry there plus a results component.
+
+**Events is not a scope any more: it is the News tab's Events section**, at
+the owner's direction (2026-10-14). The same list (`<EventResults>`, untyped:
+coming up, then recent, each opening `event/[id]`) replaced the event cards
+News drew from a feed of its own. A stored search in Events is dropped when the
+history is read. The bullets below that describe the Events scope describe that
+list.
 
 - **There is no menu in front of it, at the owner's direction.** For one pass
   the tab rested on a "hub" — eight large buttons, one per scope and one for the
@@ -1708,9 +1735,10 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   a cover removes the label after asking. Settings links to the list for
   moderators.
 - **Where it shows**: as a badge in the top-right of the game's cover
-  (`<Poster gameId>`), and as the last cell of the game page's stats strip,
-  *in place of the age rating*, where it is a door to `must-play`. A game
-  without the label keeps the age rating.
+  (`<Poster gameId>`), and as a fourth cell of the game page's stats strip,
+  after the age rating, where it is a door to `must-play`. It took the age
+  rating's place while the strip led with the score; the score left the strip
+  (2026-10-14) and there is room for both.
 - **`<Poster>` wears the badge only when it is given `gameId`.** That is how a
   surface opts out, and two do by the owner's rule: **collections** (every
   tile, row and stack) and **reviews** (the card, the review page, a profile's
@@ -1862,10 +1890,12 @@ screen's heading under its bar again.
 - **What it is.** Material 3's small app bar, as every bar in the reference is:
   a row **64 high** under the status bar; a back chevron (a 24dp glyph, 48 to
   touch, its glyph 16 from the edge); the page's name in `h3` — the reference's
-  `titleMedium`, 18 — starting at 56; the page's controls at the far end. **It
-  is never an opaque strip.** It floats over the page with nothing behind it
-  and turns to **frost** when there is something under it: the page blurred,
-  washed with the page's own colour.
+  `titleMedium`, 18 — starting at 56; the page's controls at the far end. It
+  floats over the page with nothing behind it and **turns to the page's own
+  colour, solid,** when there is something under it. **There is no blur**: it
+  was frost — the page blurred, washed with its colour — and the owner had the
+  blur removed (2026-10-14). Where this section still says "frost", read "the
+  page's colour". The glass discs over artwork still blur; they are buttons.
 - **Which of three ways it behaves is the page's, not a prop's:**
   1. **A page that opens on a list or a form** — `<Screen insetHeader>`. The
      bar is there from the start, clear while the page is at its very top and
@@ -1880,11 +1910,12 @@ screen's heading under its bar again.
      soundtrack, a copy. The page tells it how tall its header is
      (`<FrostedTopBar header={…}>`); the bar arrives as the header's foot
      reaches its own, so it never lands on the art.
-  3. **Home** — `<FoldingTopBar>`: the first kind, and its row also folds away
-     while the page is read downward and comes back on any move up, leaving
-     frost over the status bar. It stays open through the first 300dp (the
-     reference keeps it for its first shelf) and needs 6dp of travel to answer,
-     which the reference does not have and a thumb resting on glass needs.
+  3. **Home** — `<FoldingTopBar>`: the first kind, **fixed at the top**. Its
+     row folded away while the page was read downward and came back on the way
+     up; the owner had that removed (2026-10-14): "Make the home top bar stay
+     at the top, it should not move with the scroll." Do not fold it again.
+     (The game page's docked bars still contract and expand — that is a
+     different control, § Conventions.)
 - **A screen's name is its bar's `title`.** Twenty-odd screens printed an `h1`
   at the top of their content because no bar existed to carry it — several
   said so in a comment. Those headings are the bars' titles now and are gone
@@ -1928,8 +1959,10 @@ screen's heading under its bar again.
   So the blur's `intensity` and the wash's opacity are both driven by one
   value, and only a transform is ever shared with a parent. The wash is the
   page's colour — `<Screen background>`, so a game's page frosts in the game's
-  tone — at 30% over a list and 55% over a page coloured by artwork
-  (`barBlurStyle`). **Below Android 12 there is no blur and the bar is that
+  tone — at 30% over a list and **85%** over a page that opens on artwork. It
+  was the reference's 55% (`barBlurStyle`) there, and over a game's page the
+  white title and the art scrolling under the bar made it read white; the
+  owner had it made the page's colour (2026-10-14), the blur kept under it. **Below Android 12 there is no blur and the bar is that
   colour, opaque**: the reference's own rule, and the old path blurs a
   full-width strip in software on every frame of a scroll.
 - **Three things expo-blur's Android view does, read from `ExpoBlurView.kt`
@@ -1975,9 +2008,11 @@ screen's heading under its bar again.
   reference's, exactly; the system's back gesture is still there. If the owner
   asks for the disc to stay until the bar takes over, it is the `discShift` in
   `<ArtBar>` and nothing else.
-- **What was not changed.** Search, News and your own profile tab keep the
-  rows they had — a field and tabs, tabs, and + / handle / Settings — because
-  each was ruled on by the owner and none is a bar. The scanner and the
+- **What was not changed.** Search and your own profile tab keep the rows
+  they had — a field and tabs, and + / handle / Settings — because each was
+  ruled on by the owner and none is a bar. **News has the bar** now, titled
+  "News" with no back control, its tabs under it — the owner's direction
+  (2026-10-14), "the one the app has everywhere else". The scanner and the
   sign-in options have a bar with no title: each state there prints a heading
   that is a sentence, not a name.
 - **Run on a phone once, by the owner, and tuned to nothing yet.** Its first
@@ -2701,7 +2736,9 @@ screen's heading under its bar again.
   `constants/game-masthead.ts`, under `npm test`. Type is matched by capital
   height — the reference is Graphik, this is Inter. Top to bottom: the hero,
   one row set into its fade (billing left, cover right), the synopsis as bare
-  text, one full-width rule, the stats strip, the actions, your log. **Seven
+  text, one full-width rule, the stats strip, the Ratings card, your log (the
+  owner's order, 2026-10-14). The actions are not in it: they are docked at
+  the foot of the screen (the next bullet but one). **Seven
   owner rulings hold it, and the later ones undid earlier ones — do not "restore"
   any of them:**
   1. **The hero is the backdrop hero** — 38% of the display
@@ -2762,7 +2799,8 @@ screen's heading under its bar again.
      name, `accent.quietInk` for the rest, and Letterboxd's own blue-greys
      nowhere. The owner chose this over the literal hexes.
   7. **The synopsis is in the masthead, not in a card.** "Standalone text in
-     the header": under the row, above the strip, three lines, the last line
+     the header": under the row, above the strip, four lines (three until the
+     actions left the masthead, 2026-10-14), the last line
      and a quarter fading into the page (`ABOUT_FADE`), the text itself the
      thing you tap, opening with the card's own motion
      (`<ExpandableText fade>`). No heading, no More. A game with no synopsis
@@ -2783,30 +2821,69 @@ screen's heading under its bar again.
   **Not yet seen on a phone.** Types, lint and the geometry's tests pass; the
   fade's softness, where the row lands in it and the halo's strength are the
   three things to judge on a device.
-- **Every portrait cover wears one edge.** One hairline of cool white inside
-  the cover's own corner, over the art — `coverEdge`, `#DDEEFF` at 35%, the
-  reference poster's outline, at the owner's direction ("add the outline… to
-  every portrait art in the app"). `<Poster>` draws it whenever it is asked for
-  the box-art corner (`rounded="image"`, the default, 4dp — which the reference's
-  measured 3.9 already was), as an overlay and never as a border: a border
-  pushes the art in and shows the frame's fill, a fixed grey on every cover,
-  where this lightens the art under it. Surprise Me's entry deck draws its
-  covers by hand and asks for the token by name; the profile's shelf did too,
-  until it became a `<CoverStack>` of `<Poster>`s. **Three things do not wear
-  it**: the game case and its framed PC cover (`rounded="caseImage"` —
-  protected, and it has a frame of its own), a banner that fills its container
-  (`rounded="none"`), and square art (the owner said portrait). A wrapper that
-  drew its own hairline round a `<Poster>` had it removed (`community-similar`);
-  a new one would be a doubled line.
+- **No portrait cover wears an outline.** Every one wore a hairline of cool
+  white inside its corner for a while (`coverEdge`, the reference poster's);
+  the owner had it removed (2026-10-14) and the token is deleted. Do not draw
+  an edge over a cover or round a `<Poster>` again.
 - **One score in the masthead: IGDB's, and only when the app has none.** The
-  stats strip under the row prints the app's own average and its count
-  (`['rating-breakdown', gameId]`). IGDB's `total_rating` — "Community" —
-  under the billing is drawn only when that query has answered with no ratings
-  (or failed); with one, it was a second, different number about the same game
-  a line above the first. Nothing is drawn while the query is pending: a figure
-  that appears and is then removed is worse than one a moment late. The page
-  reads the strip's query under the strip's key and arguments, so it is one
-  request — diverge and it is two.
+  Ratings card under the synopsis is the app's own average, its count and how
+  the scores divide (`['rating-breakdown', gameId]`), under the stats strip,
+  which no longer carries a score. IGDB's `total_rating` — "Community" — under the billing is
+  drawn only when that query has answered with no ratings (or failed); with
+  one, it was a second, different number about the same game. Nothing is drawn
+  while the query is pending: a figure that appears and is then removed is
+  worse than one a moment late. The page reads the card's query under the
+  card's key and arguments, so it is one request — diverge and it is two.
+- **The game page's actions are SimpMusic's folding navigation bar**
+  (`<GameActions>`, `constants/action-dock.ts`, under `npm test`) — read from
+  its source at the owner's direction (2026-10-14): the flat build of
+  `LiquidGlassAppBottomNavigationBar.android.kt` and `AppBottomNavigationBar.kt`
+  (`FlatTabBar`, `FlatSearchButton`, `unfoldingTabs`, `foldedCircle`).
+  **Separate floating bars, never a card or a panel** — a first build that put
+  them in one panel was undone in the owner's words. **The sizes are the
+  reference's a step smaller** (64/56/48 → 56/48/40, "make the bars smaller"),
+  its proportions kept. **Expanded**, the review button is a 48dp bar on its
+  own — its glyph and words a row centred by layout, never by measuring —
+  over a 56dp capsule of keys running the full width (`surfaceContainer`, the
+  keys the connected Material 3 group they always were, 48dp, 4 in).
+  **Contracted**, the capsule makes room and the review button is a 48dp
+  circle 12 from its end; the two faces cross-fade. Every bar's frame is interpolated
+  between the two layouts over **300ms on FastOutSlowIn**, as the reference's
+  `ConstraintLayout` does (`dockFrames`, `lerpFrame`); the review button's
+  words go in the first half of the way (`labelAlpha`, the reference's
+  `fabAlpha`). **With music playing it is the reference exactly**: the mini
+  player is the bar over the capsule, the review button a circle beside the
+  capsule; contracted, the capsule folds into its 40dp circle at the start
+  (keys out by `keysAlpha`, glyph in by `circleAlpha`) and the player sits
+  inline after it, the review circle at the end. The dock draws the player
+  (`<MiniPlayerBar>`), so `game` is in `MINI_PLAYER_HIDDEN_ROUTES` and the page's
+  `<Screen>` keeps no band. **An unreleased game** has no review button: the
+  capsule alone, folding to its circle; a folded capsule opens the bars when
+  pressed. Contracted by real travel downward, expanded by real travel upward
+  or at the very top (Home's rule, the reference's `isScrollingUp`;
+  `DOCK.hold` is 0, where the reference holds two shelves, so the expanded bars
+  get off the masthead's numbers at once). The page ends with room for the
+  contracted row (`useActionDockRoom`). Under Reduce Motion the layouts switch;
+  with a screen reader on they stay expanded. Under the masthead's strip and
+  Ratings card, **your record is one tonal key copied from the dock's**
+  (`<YourLogButton>`, `tonalKey`): "You reviewed this game on …" opening your
+  review, or "You scored this game on …" opening the log form, the score bold
+  in the key's ink. **Not yet seen on a phone**: the morph's feel, layout props
+  animated on the UI thread on an older phone, and the mini player as a bar
+  among the others are what to judge on a device.
+- **A game that is not out cannot be reviewed, anywhere** — the owner's rule
+  on the same brief. `isUnreleased` (`lib/games/release.ts`) decides, from
+  IGDB's date. Its page has no review button and no progress key (the dock is
+  Favourite, Wishlist and Collect, and goes entirely when the page is read
+  downward), no Ratings card — its planned date stands there
+  (`<PlannedRelease>`) — no IGDB score, and no Played by or top review on the
+  Overview. Surprise Me's review card says when it can be reviewed and is not
+  a door; the profile's quick log badges it "Not out yet" in Review mode and
+  says when instead of opening the form; and **the log form refuses to open a
+  new log for one** (`app/log/[id]`) — the backstop for any way in nobody
+  thought of. An existing log still opens. Quick log's *Log* mode still raises
+  the progress sheet for an unreleased game: it writes a status, not a review,
+  and that was not ruled on.
 - **The game page, Surprise Me and a review have no gradient.** `<ScrollAmbience>`
   is gone from all three; they fill flat with `<Screen background={accent.page}>`.
   (The review page stayed a neutral dark room for a long time; it now runs on the
@@ -2835,9 +2912,11 @@ screen's heading under its bar again.
   - **Screenshots are first**, then what the people here made of it. The
     three things below led the tab for one build, as they do on the
     reference's film page; the owner had the screenshots moved "back to the
-    top of the page". The three — the owner's redesign (2026-10-09), from a
+    top of the page". **The first of them, Ratings, is in the masthead now**
+    (2026-10-14), under the stats strip — the same card; the tab keeps the
+    other two. The three — the owner's redesign (2026-10-09), from a
     film's page in Letterboxd — are each absent when they have nothing to show:
-    1. **Ratings** (`<RatingsCard>`): a card titled inside, the count at the
+    1. **Ratings** (`<RatingsCard>`, in the masthead): a card titled inside, the count at the
        far end of the title, a hairline, then `<ScoreSummary>` — the verdict,
        the score as its drawing and number, and the three-part bar. **The reviews sheet's own
        summary, one component in both places**: the owner was offered a

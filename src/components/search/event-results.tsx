@@ -2,9 +2,10 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { memo, useMemo, useState } from 'react';
-import { SectionList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
+import { PageSectionList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -32,6 +33,11 @@ export function formatEventDay(unixSeconds: number): string {
  * Showcases, conferences and award shows — the ones coming, the ones just
  * gone, and any of them by name.
  *
+ * The News tab's Events section (it was a scope of Search until the owner moved
+ * it, 2026-10-14). There it is drawn untyped; `query` is kept so a field could
+ * narrow it again. It is the page's scroller (`<PageSectionList>`), so the
+ * News bar knows when it moves.
+ *
  * Untyped, the list is split around today: what is still to come, soonest
  * first, then what has happened, latest first. A single newest-first list would
  * open on an event four months away and bury tonight's. Typed, it is one list
@@ -42,7 +48,7 @@ export function formatEventDay(unixSeconds: number): string {
  * a frame of the stream stands in for the rest (`getEvents`); the lettered
  * panel is the last rung, so a row never has a hole where its picture goes.
  */
-export function EventResults({ query }: { query: string }) {
+export function EventResults({ query = '' }: { query?: string }) {
   const clearance = useTabBarClearance();
   const term = query.length >= MIN_QUERY_LENGTH ? query : '';
   /* Read once, when the list mounts: "today" must not move between renders, and
@@ -76,7 +82,7 @@ export function EventResults({ query }: { query: string }) {
     return <ErrorState error={events.error} onRetry={() => events.refetch()} />;
 
   return (
-    <SectionList
+    <PageSectionList
       sections={sections}
       keyExtractor={(event) => String(event.id)}
       {...ArtRowWindow}

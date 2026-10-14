@@ -156,8 +156,12 @@ export const HALO_STOPS: readonly { at: number; alpha: number }[] = [
 // About
 // ---------------------------------------------------------------------------
 
-/** Lines of the synopsis shown before it is opened: the reference's three. */
-export const ABOUT_LINES = 3;
+/**
+ * Lines of the synopsis shown before it is opened: four. The reference's three
+ * until the owner's brief of 2026-10-14 moved the actions out of the masthead
+ * to the foot of the screen, and the synopsis took one line of the room.
+ */
+export const ABOUT_LINES = 4;
 
 /**
  * The fade over the closed synopsis: how many lines of it, from the bottom, and
@@ -166,7 +170,9 @@ export const ABOUT_LINES = 3;
  * Measured line by line. The reference's fade starts in the middle of the
  * second line and runs to the foot of the third, which is left a little more
  * than half showing at its top and about an eighth at its bottom — still words,
- * which is what says there are more of them.
+ * which is what says there are more of them. It is the last line and a quarter
+ * whatever the count, so with four lines the first two and most of the third
+ * are untouched.
  */
 export const ABOUT_FADE = { lines: 1.25, depth: 0.88 } as const;
 

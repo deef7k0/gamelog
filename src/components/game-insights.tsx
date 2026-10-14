@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { MemberReviewCard } from '@/components/member-review-card';
 import { ScoreSummary } from '@/components/score-summary';
@@ -32,8 +32,10 @@ const SECONDS_PER_HOUR = 3600;
 // ---------------------------------------------------------------------------
 
 /**
- * GameLog's own verdict on the game, at the head of its Overview: the word,
- * the average, and how the scores divide.
+ * GameLog's own verdict on the game, in its masthead under the synopsis: the
+ * word, the average, and how the scores divide. It headed the Overview tab
+ * until the owner's brief of 2026-10-14 moved the actions to the foot of the
+ * screen and gave the masthead the room; it is drawn there and nowhere else.
  *
  * ```text
  *   ╭ Ratings ──────────────── 128 ratings ╮
@@ -55,18 +57,22 @@ const SECONDS_PER_HOUR = 3600;
  *
  * Renders nothing when nobody has rated the game — an empty graph under a real
  * heading claims a distribution exists and that it is flat — and nothing while
- * it loads: the page's masthead asks for the same numbers under the same key,
- * so they have nearly always arrived with the page.
+ * it loads: the page asks for the same numbers under the same key, to decide
+ * whether IGDB's score is printed under the name, so the two arrive together.
+ * The page does not draw it for a game that is not out.
  */
 export function RatingsCard({
   gameId,
   title,
   onOpen,
+  style,
 }: {
   gameId: string;
   title: string;
   /** Open every review of the game. */
   onOpen: () => void;
+  /** Where it sits. On the card, so a game with no ratings leaves no gap. */
+  style?: StyleProp<ViewStyle>;
 }) {
   const accent = useAccent();
 
@@ -91,6 +97,7 @@ export function RatingsCard({
         </Text>
       }
       onPress={onOpen}
+      style={style}
       accessibilityLabel={`Ratings of ${title} on GameLog: ${verdict.label}, ${data.average} out of 100 from ${counted}. Opens the reviews.`}>
       {/* The count is in the heading, so the summary does not say it twice. */}
       <ScoreSummary breakdown={data} counted={false} />

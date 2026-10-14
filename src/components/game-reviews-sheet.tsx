@@ -21,10 +21,12 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   getGameReviewList,
   getRatingBreakdown,
+  getReviewLanguages,
   getReviewStats,
   type ReviewListItem,
   type ReviewSort,
 } from '@/lib/api';
+import { languageFacets } from '@/lib/discovery';
 import { displayNameFor } from '@/lib/format';
 import {
   PLAY_FILTERS,
@@ -130,6 +132,8 @@ export function GameReviewsSheet({
   const [family, setFamily] = useState<string | null>(null);
   const [progress, setProgress] = useState<ReviewProgressFilter | null>(null);
   const [play, setPlay] = useState<ReviewPlayFilter | null>(null);
+  /** One `logs.review_lang` code — "es" — or null for every language. */
+  const [language, setLanguage] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   /* Gamelog's own numbers for this game (0026), and the platforms the list can
@@ -151,6 +155,24 @@ export function GameReviewsSheet({
     [stats.data]
   );
 
+  /*
+   * The languages this game's reviews are written in (0038), for the fifth
+   * filter. Offered only when there are two — a filter with one choice filters
+   * nothing — and never applied by itself: this is a game's own page, where
+   * every review is shown until the reader narrows it. (A chart chooses by
+   * language; a game's reviews do not. See `lib/language`.)
+   */
+  const written = useQuery({
+    queryKey: ['review-languages', gameId],
+    queryFn: () => getReviewLanguages(gameId),
+    staleTime: 5 * 60_000,
+  });
+  const languages = useMemo(() => languageFacets(written.data ?? []), [written.data]);
+  const languageOptions = useMemo(
+    () => [ANY, ...languages.map(({ code, label }) => ({ key: code, label }))],
+    [languages]
+  );
+
   const band = SCORES.find((entry) => entry.key === score) ?? SCORES[0];
   const filters: ReviewFilters = useMemo(
     () => ({
@@ -162,12 +184,17 @@ export function GameReviewsSheet({
       maxScore: band.max,
       progress,
       play,
+      language,
     }),
-    [family, facets, band.min, band.max, progress, play]
+    [family, facets, band.min, band.max, progress, play, language]
   );
 
   const activeFilters =
-    (family ? 1 : 0) + (score !== 'any' ? 1 : 0) + (progress ? 1 : 0) + (play ? 1 : 0);
+    (family ? 1 : 0) +
+    (score !== 'any' ? 1 : 0) +
+    (progress ? 1 : 0) +
+    (play ? 1 : 0) +
+    (language ? 1 : 0);
   const filterLook = selectable(activeFilters > 0);
 
   function clearFilters() {
@@ -175,6 +202,7 @@ export function GameReviewsSheet({
     setScore('any');
     setProgress(null);
     setPlay(null);
+    setLanguage(null);
   }
 
   const reviews = useQuery({
@@ -267,11 +295,12 @@ export function GameReviewsSheet({
           </PressableScale>
         </View>
 
-        {/* Four questions, each one choice, and they compose: PC + Finished +
+        {/* Five questions, each one choice, and they compose: PC + Finished +
           Co-op is three clauses on one request (`lib/review-facets.ts`). The
           platforms offered are only the families somebody has reviewed this
-          game on; the other three are fixed vocabularies, and one that finds
-          nothing says so in the list below. */}
+          game on, and the languages only the ones somebody reviewed it in;
+          the other three are fixed vocabularies, and one that finds nothing
+          says so in the list below. */}
         {filtersOpen && (
           <View style={styles.filters}>
             <FilterGroup label="SCORE">
@@ -311,6 +340,17 @@ export function GameReviewsSheet({
                 accessibilityLabel="Filter by solo or co-op"
               />
             </FilterGroup>
+
+            {languages.length > 0 && (
+              <FilterGroup label="LANGUAGE">
+                <SortBar
+                  options={languageOptions}
+                  value={language ?? 'any'}
+                  onChange={(key) => setLanguage(key === 'any' ? null : key)}
+                  accessibilityLabel="Filter by the language the review is written in"
+                />
+              </FilterGroup>
+            )}
 
             {activeFilters > 0 && (
               <View style={styles.clear}>

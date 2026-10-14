@@ -9,7 +9,9 @@ import type {
   ReviewMetrics,
   UserGameStats,
 } from '../database.types';
+import { leadReview } from '../discovery';
 import { fetchSteamUnlocks, getGameAchievements, parseGameId, type Game } from '../games';
+import { reviewLanguage } from '../language';
 import { inList } from '../postgrest';
 import { reviewFilterClauses, type ReviewFilters } from '../review-facets';
 import { supabase } from '../supabase';
@@ -105,39 +107,80 @@ export type SaveLogInput = {
   playerCount?: number | null;
 };
 
+/**
+ * Whether `logs.review_lang` exists here (0038): unknown until a save has tried
+ * it, and `false` from the first one a database without the column refuses.
+ *
+ * PostgREST refuses the *whole row* for one column it does not know — verified
+ * against the live project: `PGRST204`, "Could not find the 'review_lang'
+ * column of 'logs' in the schema cache". Sent unconditionally, the label would
+ * mean no log could be saved until the migration ran, which is what 0023 did
+ * to this form once. So the label is tried, and left off for the rest of the
+ * session when it is not wanted. Restarting the app asks again.
+ */
+let languageColumn: boolean | null = null;
+
+function isMissingColumn(error: { code?: string; message: string }, column: string): boolean {
+  return (error.code === 'PGRST204' || error.code === '42703') && error.message.includes(column);
+}
+
 /** Create or update the signed-in user's log for a game. */
 export async function saveLog(userId: string, input: SaveLogInput): Promise<void> {
   // The log has a FK to games, so the cache row must exist first.
   await cacheGame(input.game);
 
-  const { error } = await supabase.from('logs').upsert(
-    {
-      user_id: userId,
-      game_id: input.game.id,
-      status: input.status,
-      rating: input.rating,
-      // An empty object would claim "advanced metrics, none scored", which is
-      // just an unscored review — store null so the two cannot diverge.
-      review_metrics:
-        input.reviewMetrics && Object.keys(input.reviewMetrics).length > 0
-          ? input.reviewMetrics
-          : null,
-      review_title: input.reviewTitle?.trim() ? input.reviewTitle.trim() : null,
-      review: input.review?.trim() ? input.review.trim() : null,
-      completion_percent: input.completionPercent ?? null,
-      platinum: input.platinum ?? false,
-      /* `?? false` rather than omitted: this is an upsert, so leaving the key
-         out on an edit would keep whatever the row already held — and clearing
-         the flag is exactly as much a decision as setting it. */
-      spoilers: input.spoilers ?? false,
-      hours_played: input.hoursPlayed ?? null,
-      played_on: input.playedOn ?? null,
-      ...(input.completion !== undefined ? { completion: input.completion } : {}),
-      ...(input.coop !== undefined ? { coop: input.coop } : {}),
-      ...(input.playerCount !== undefined ? { player_count: input.playerCount } : {}),
-    },
-    { onConflict: 'user_id,game_id' }
-  );
+  const reviewTitle = input.reviewTitle?.trim() ? input.reviewTitle.trim() : null;
+  const review = input.review?.trim() ? input.review.trim() : null;
+
+  const row = {
+    user_id: userId,
+    game_id: input.game.id,
+    status: input.status,
+    rating: input.rating,
+    // An empty object would claim "advanced metrics, none scored", which is
+    // just an unscored review — store null so the two cannot diverge.
+    review_metrics:
+      input.reviewMetrics && Object.keys(input.reviewMetrics).length > 0
+        ? input.reviewMetrics
+        : null,
+    review_title: reviewTitle,
+    review,
+    completion_percent: input.completionPercent ?? null,
+    platinum: input.platinum ?? false,
+    /* `?? false` rather than omitted: this is an upsert, so leaving the key
+       out on an edit would keep whatever the row already held — and clearing
+       the flag is exactly as much a decision as setting it. */
+    spoilers: input.spoilers ?? false,
+    hours_played: input.hoursPlayed ?? null,
+    played_on: input.playedOn ?? null,
+    ...(input.completion !== undefined ? { completion: input.completion } : {}),
+    ...(input.coop !== undefined ? { coop: input.coop } : {}),
+    ...(input.playerCount !== undefined ? { player_count: input.playerCount } : {}),
+  };
+
+  /*
+   * The language the words are in, worked out here because here is where the
+   * words are: there is no detector in Postgres. Always written with the
+   * review — null when there is none, or none could be told — so editing a
+   * Spanish review into an English one does not leave it filed under Spanish.
+   * The game's own title is read past: "The Last of Us" is four English words
+   * in whatever language the sentence around them is.
+   */
+  const labelled = {
+    ...row,
+    review_lang: reviewLanguage(review, reviewTitle, { ignore: [input.game.title] }),
+  };
+
+  const write = (withLanguage: boolean) =>
+    supabase.from('logs').upsert(withLanguage ? labelled : row, { onConflict: 'user_id,game_id' });
+
+  let { error } = await write(languageColumn !== false);
+  if (error && languageColumn !== false && isMissingColumn(error, 'review_lang')) {
+    languageColumn = false;
+    ({ error } = await write(false));
+  } else if (!error && languageColumn === null) {
+    languageColumn = true;
+  }
   if (error) throw new Error(error.message);
 }
 
@@ -852,10 +895,19 @@ const RANKED_REVIEWS = 10;
  *
  * Returns null when the game has no written review, which is the common case
  * and not an error.
+ *
+ * ## For a reader
+ *
+ * With `reading`, it is the most liked review **this reader can read** — and
+ * the most liked outright when they can read none of them (`leadReview`): one
+ * slot, one review, and the best one in Japanese is not the best one to show
+ * somebody who reads English and Spanish. An unlabelled review counts as
+ * readable. Nothing is hidden by this; the reviews sheet lists them all.
  */
 export async function getTopGameReview(
   gameId: string,
-  viewerId: string | null
+  viewerId: string | null,
+  reading: readonly string[] | null = null
 ): Promise<TopReview | null> {
   const { data, error } = await supabase
     .from('logs')
@@ -879,13 +931,12 @@ export async function getTopGameReview(
     viewerId
   );
 
-  const best = written.reduce((winner, log) => {
-    const a = engagement[log.id]?.likes ?? 0;
-    const b = engagement[winner.id]?.likes ?? 0;
-    if (a !== b) return a > b ? log : winner;
-    // Already newest-first, so the incumbent is the more recent of a tie.
-    return winner;
-  }, written[0]);
+  /* Most liked first. The rows arrive newest-first and the sort is stable, so
+     the more recent of a tie stays ahead. */
+  const ranked = [...written].sort(
+    (a, b) => (engagement[b.id]?.likes ?? 0) - (engagement[a.id]?.likes ?? 0)
+  );
+  const best = leadReview(ranked, (log) => log.review_lang, reading) ?? ranked[0];
 
   return {
     log: best,
@@ -997,6 +1048,9 @@ export async function getGameReviewList(
             ? query.gte('rating', clause.value)
             : query.lte('rating', clause.value);
         break;
+      case 'language':
+        query = query.eq('review_lang', clause.value);
+        break;
     }
   }
 
@@ -1027,6 +1081,60 @@ export async function getGameReviewList(
      tiebreak — the same rule `popular_reviews` uses in 0013. */
   if (sort === 'newest') return items;
   return items.sort((a, b) => b.likes - a.likes);
+}
+
+/** PostgREST's and Postgres's codes for a column the database does not have. */
+function isUnknownColumn(error: { code?: string }): boolean {
+  return error.code === '42703' || error.code === 'PGRST204';
+}
+
+/**
+ * The language of every labelled review of a game (0038) — one code a review,
+ * so the reviews sheet can offer the languages there are and say how many.
+ *
+ * A column of two-letter codes and nothing else; a game with a thousand
+ * reviews is a few kilobytes. Empty on a database that has not run 0038, where
+ * no review has a label to filter by.
+ */
+export async function getReviewLanguages(gameId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select('review_lang')
+    .eq('game_id', gameId)
+    .not('review', 'is', null)
+    .not('review_lang', 'is', null)
+    .limit(1000);
+
+  if (error) {
+    if (isUnknownColumn(error)) return [];
+    throw new Error(error.message);
+  }
+  return (data ?? []).flatMap((row) => (row.review_lang ? [row.review_lang] : []));
+}
+
+/**
+ * The languages one person has written reviews in (0038), each once — what
+ * they evidently read, whatever their phone is set to.
+ *
+ * Their newest two hundred labelled reviews: a language somebody last wrote in
+ * two hundred reviews ago is one they can add by hand. Empty before 0038.
+ */
+export async function getWrittenLanguages(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select('review_lang')
+    .eq('user_id', userId)
+    /* A label counts while the review it labels is there. */
+    .not('review', 'is', null)
+    .not('review_lang', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    if (isUnknownColumn(error)) return [];
+    throw new Error(error.message);
+  }
+  return [...new Set((data ?? []).flatMap((row) => (row.review_lang ? [row.review_lang] : [])))];
 }
 
 /**

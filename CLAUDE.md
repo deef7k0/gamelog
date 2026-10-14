@@ -84,7 +84,21 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # about its date (lib/games/spotlight), and the top bar:
                    # its size against Material 3's, the frost, how far the
                    # glass discs go with the page, where the bar comes in
-                   # after the artwork, and Home's fold (constants/top-bar)
+                   # after the artwork, and Home's fold (constants/top-bar),
+                   # and which drawing stands for a score, against the five
+                   # scores the owner named and the files on disk
+                   # (constants/score-figure), and discovery: which language
+                   # a review is written in, against sentences in every
+                   # language it names and several it does not, and which
+                   # languages a reader reads (lib/language); a chart's
+                   # periods, why somebody is in one, which review a game
+                   # leads with — and that 0038 creates the functions the
+                   # app calls, by the names it calls them (lib/discovery)
+
+node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
+                   # (PGlite, in-process) over every migration, with seven
+                   # people who do known things. Needs PGlite, which is not
+                   # a dependency: npm install --no-save @electric-sql/pglite
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -134,6 +148,12 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    nothing errors. The app is on SoundCloud's shape already, so until 0036 runs
    a star cannot
    be saved (the old table still requires a title and an artist).
+   `0038` is discovery — a column (`logs.review_lang`), three functions and
+   three indexes; it drops nothing and is safe to re-run. **Nothing breaks
+   without it**, by design: Search's Reviews and People tabs are what they
+   were (every like there has ever been, no period control, no friends
+   section), reviews are saved without a language, and no chart is narrowed by
+   one. See § Discovery.
    `0006`, `0015`, `0019` and `0022` each add an enum value and must run
    **alone** — see the notes in those files.
    Moderators are rows in `public.moderators`, which no client can write; make
@@ -284,9 +304,15 @@ src/
                                         the most liked review — then time to
                                         beat and the critics' rail
                      score-summary      GameLog's verdict on a game: the word,
-                                        the score tile, the three-part bar. The
-                                        Ratings card's and the reviews sheet's,
-                                        one component
+                                        the score as its drawing and number,
+                                        the three-part bar. The Ratings card's
+                                        and the reviews sheet's, one component
+                     ui/score-figure    a score as a drawing: a little man and
+                                        his gaming chair, in five states. Drawn
+                                        in the ratings graph (with the number,
+                                        `<FiguredScore>`) and on a review's own
+                                        page, and nowhere else. See § Score
+                                        figures
                      member-review-card a member's review on a game's own
                                         screens: face, name, score and replies,
                                         the words, the likes. The Overview's
@@ -431,6 +457,16 @@ src/
                                         § Soundtracks
                      soundtrack-section the game page's Soundtrack tab: a
                                         summary and the Listen button
+                     review-chart-head  the heading over the Reviews chart:
+                                        its name, the period at the far end,
+                                        the languages it is in
+                     reading-note       one quiet line under a chart's heading
+                                        saying which languages it is in; opens
+                                        Settings
+                     reading-languages  Settings' "Review languages": a
+                                        disclosure — automatic, every
+                                        language, or the ones ticked. See
+                                        § Discovery
   constants/         theme tokens, log-status vocabulary, the identity ramp
                      (identity.ts: genre → hue), rarity bands,
                      game-editions.ts (remake/remaster/DLC labels),
@@ -461,7 +497,9 @@ src/
                      clearance and `<Screen>`),
                      top-bar.ts (the top bar: its row, its controls, the glass
                      discs, the frost, and the arithmetic of how each moves
-                     with the page — pure, tested; see § The top bar)
+                     with the page — pure, tested; see § The top bar),
+                     score-figure.ts (which of the five drawings stands for a
+                     score — pure, tested; see § Score figures)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -500,6 +538,12 @@ src/
     use-game-soundtrack a game's soundtrack on SoundCloud: the one query the
                         Soundtrack tab, the soundtrack screen and Surprise Me
                         share. Never persisted
+    use-reading-languages  which languages the signed-in person reads reviews
+                        in: the app's, the phone's, the ones they write in —
+                        or what they chose. Returns `ready`; a chart waits
+                        for it
+    use-review-chart    the Reviews chart for a period, in those languages:
+                        the one query Search's Reviews tab and `/reviews` share
   lib/
     color.ts         contrast, mixing, luminance-preserving tint, readable ink
     artwork-color.ts dominant hue of a cover, decoded from the real pixels
@@ -568,6 +612,15 @@ src/
     player-queue.ts  the player's arithmetic: next and previous, what the
                      transport shows, what a failed play says, and the routes
                      the mini player stays off. Pure, tested
+    language.ts      which language a review is written in (a detector: the
+                     script, then the words), and which languages a reader
+                     reads. Pure, tested. See § Discovery
+    discovery.ts     a chart's periods, the line that says why somebody is in
+                     one, which review a game leads with, the reviews sheet's
+                     language choices. Pure, tested — and its test reads 0038
+    device-locale.ts the languages the phone is set to, from React Native's
+                     own modules (no `expo-localization`)
+    reading-languages.ts  the reader's choice of languages, kept on the device
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements,
                      the reviews sheet
@@ -616,7 +669,10 @@ supabase/
                      game (ids only) — and it EMPTIES starred_songs and DROPS
                      game_soundtracks,
                      0037 beloved_games(): GameLog's own top-rated games over a
-                     period, a damped average
+                     period, a damped average,
+                     0038 discovery: logs.review_lang, circle_of(),
+                     review_popularity() and member_popularity() — activity
+                     in a period, among everybody or the reader's circle
                      (0006, 0015, 0019 and 0022 each add an enum value and must
                       run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
@@ -1006,8 +1062,9 @@ an eighth scope is an entry there plus a results component.
   as **three requests merged**, never one `.or()`: user text inside PostgREST's
   filter grammar is a 400 waiting for a comma (the same reason `searchProfiles`
   is two). The game-title filter only narrows the logs because the embed is
-  `games!inner` — verified live. Untyped, it is the most-liked reviews, the
-  query Discover's band already holds.
+  `games!inner` — verified live. Untyped, it is the chart: the reviews people
+  responded to in a period (§ Discovery). **Typed, nothing is narrowed by
+  language** — a search is somebody asking for a thing by name.
 - **Every scope is its own component and takes the settled query** — except
   Platforms, which takes the field's text as it stands, because it filters ~220
   names already in memory.
@@ -1088,6 +1145,240 @@ an eighth scope is an entry there plus a results component.
   list, and year-only ones are in "No date yet". All calendar dates are read in
   **UTC** — IGDB stores midnight UTC, and local time moves every game west of
   Greenwich back a day.
+
+## Discovery: Letterboxd's counting, and the language a review is in
+
+The owner's brief (2026-10-13): "Understand how letterboxd uses algorithms and
+code to recommend users, new people to discover, new things to watch, what
+reviews get displayed in the user's feed, the language in which they appear,
+how it knows the user's language… Show me the evidence, and build a similar
+feature for my project."
+
+**What the evidence says is that there is very little algorithm.** It was read
+from Letterboxd's own words, not from its screens — its help centre (all 126
+articles, through the public Zendesk API), its API's documentation as an
+open-source client transcribes it (`erunion/letterboxd-client`, regenerated
+June 2024; the docs site itself refuses automated readers), its App Store
+release notes and its policies:
+
+- **It says so itself.** "While we view the whole of Letterboxd as one big,
+  organic recommendation engine, we don't have a section specifically labeled
+  as such." The one personal ordering it has is "based on your watched and
+  liked films… this method doesn't consider your ratings", and its similar
+  films are a partner's (Nanocrowd, from the text of reviews).
+- **The feed is the people you follow, in order.** "Letterboxd works like
+  X/Twitter: when you follow other people, you'll see the films they add or
+  review, the stuff they like…" One throttle: a diary entry dated more than
+  two weeks back reaches followers at "a maximum of one item per hour".
+- **Popularity is counting, in a window.** The API's sort orders are
+  `ReviewPopularity`, `…ThisWeek`, `…ThisMonth`, `…ThisYear` — "reviews with
+  more activity (likes/comments) first" — the same four for films, lists and
+  members, and a `…WithFriends` twin of each that "consider[s] popularity
+  amongst the signed-in member's friends". `filter=NoDuplicateMembers` returns
+  "only the first log entry for each member".
+- **The rating is damped and secret.** "A film with only a handful of
+  five-star ratings has its average weighted down"; "we do not disclose the
+  specifics". (`beloved_games`, 0037, is already that idea here.)
+- **Language: nothing.** The interface is English only (App Store listing). A
+  review has no language in the API — `language` there is a *film's* spoken
+  language. Film data is imported "from the English translations". The one
+  feature is translation, on the phone, for Patrons (4.6.0, July 2025: "on-device
+  review translation… requires a one-time download for each translated
+  language"). People build browser extensions to hide reviews they cannot read.
+
+So the feature is those rules, and one Letterboxd does not have:
+
+1. **A chart has a period, and counts activity inside it** (migration 0038,
+   `review_popularity` / `member_popularity`; `lib/discovery.ts`). Likes plus
+   the *people* who commented — not comments, so two people arguing for thirty
+   replies weigh what two people weigh — and, for a person, new followers. All
+   from somebody else: liking your own review ranks nothing. The control is
+   "Beloved by the community"'s `<DropdownButton>`, with All time added, and
+   **a chart opens on This month**, not Letterboxd's week: a week of an app
+   this size is a handful of likes.
+2. **One review a member, first.** Every author's best comes before anybody's
+   second (`turn`, a `row_number()` per author). Among enough authors the
+   first screen is one each — `NoDuplicateMembers` — and among two it is still
+   a full list, where a hard one-a-member rule would have turned the live
+   project's 47 reviews by two people into a chart of two rows.
+3. **The same count, among your circle** — "Popular with friends" on the
+   People tab: who the people you follow follow, like and reply to, that you
+   do not follow yet. `circle_of()` is follows and accepted friends, the set
+   `getCircleIds` builds on the phone.
+4. **A review carries the language it is written in** (`logs.review_lang`),
+   worked out by the app as the review is saved — there is no detector in
+   Postgres — and a list that *chooses* for the reader is asked for the
+   languages they read.
+5. **The reader's languages are the app's, the phone's, and the ones they
+   write in** (`useReadingLanguages`), unless they chose for themselves in
+   Settings → Review languages.
+
+What follows from them, and is easy to get wrong:
+
+- **Unknown is readable, everywhere, and that is a rule in two languages.**
+  `canRead(null)` is true, and both SQL functions keep `review_lang is null`.
+  "10/10" has no language, and every review written before 0038 is unlabelled
+  until it is next saved. `discovery.test.ts` reads the migration for the
+  clause, because a chart that hid unlabelled reviews would be empty on the
+  day the migration ran.
+- **A chart chooses by language; a game's own reviews and a search do not.**
+  Search's Reviews and People charts and the one review a game's page leads
+  with (`getTopGameReview` → `leadReview`: the most liked one the reader can
+  read, else the most liked outright) are narrowed. The reviews sheet shows
+  everything and gains a fifth filter, Language, offered only when a game's
+  reviews are in two or more (`languageFacets`). A typed search is never
+  narrowed. Do not "finish the job" by filtering Home's "New from friends" or
+  a profile — those are people somebody chose to follow.
+- **A filter has to say so where it filters.** `<ReadingNote>` is one quiet
+  line under a chart's heading — "In English and Spanish ›" — and pressing it
+  opens Settings. Without it a narrowed chart looks like a chart of
+  everything.
+- **English is always in `auto`, and that is an argument, not an assumption.**
+  The interface is English only, so whoever is using it reads it
+  (`APP_LANGUAGE`). Without it a phone set to Spanish would have hidden most
+  of what is written here — and **Android reports one language, not the
+  list**: `I18nManager.localeIdentifier` is the app's locale and there is no
+  ordered list short of a native module. iOS's list comes from
+  `Settings.get('AppleLanguages')`. `expo-localization` was not added, for
+  § APK size's reasons; which is why the Settings control exists.
+- **`review_lang` is optional in the type, not just nullable**
+  (`review_lang?: string | null`): a database without 0038 has no such column,
+  so the field is *absent* from its rows. And **`saveLog` tries the label and
+  drops it**: PostgREST refuses the whole row for one unknown column
+  (`PGRST204`, verified against the live project), so sent unconditionally no
+  log could be saved until the migration ran — what 0023 did to this form
+  once. The first refusal is remembered for the session (`languageColumn`).
+- **Old reviews are not labelled in the background, deliberately.** A repair
+  pass would be an UPDATE per review, and 0001's trigger sets `updated_at` on
+  every update — which is what `beloved_games` reads as "scored in this
+  period". Labelling a person's old reviews would have filed all their old
+  scores under this week. They are labelled when next saved; until then they
+  are unknown, and shown to everybody.
+- **The function's order is kept, never re-derived.** `review_popularity`
+  answers ids in order, and that order is *not* the order of its `activity`
+  column — an author's second review comes after everybody's first, whatever
+  it scored. `getReviewChart` places rows by their index in the answer;
+  sorting by the number would undo rule 2.
+- **A chart waits for `ready`.** The reader's stored choice is one
+  AsyncStorage read; asked before it, a chart fetches for the wrong
+  languages, draws, and swaps its rows. So those queries are `enabled: ready`
+  and their screens guard on `isPending`, not `isLoading` — a query that is
+  waiting is not fetching, and is still not empty.
+- **Languages are a device preference** (`lib/reading-languages`, keyed by
+  user, in `NEVER_PERSIST`): `profiles` is readable by everyone, and which
+  languages a person reads is theirs to say.
+- **0013's functions stay, and the app falls back to them.** On a database
+  without 0038 `getReviewChart` answers `windowed: false` from
+  `popular_reviews` and the People tab shows "Most liked" from
+  `popular_users`: no period control it could not honour, no friends section,
+  no language note. A renamed RPC parameter is a `PGRST202` the app reads as
+  "not migrated" and quietly falls back on — `discovery.test.ts` checks every
+  `.rpc()` argument against 0038's signatures for that reason.
+
+**The detector** (`lib/language.ts`) is the script first — Hangul is Korean
+whatever the words are — and then, for Latin and Cyrillic, the words every
+sentence is held together with, plus the few a review of a game cannot avoid
+("juego", "jeu", "Spiel"). Thirty-nine languages; about 5,400 words in thirty
+lists, 58 KB of source. What makes it work:
+
+- **A word counts for less the more languages have it** ("de" is in twelve
+  lists; "juego" in one), and **two near languages are compared on the words
+  they do not share**, counted in words: Norwegian's "av" against Danish's
+  "af" is one word, whatever Swedish also thinks of it. Counted the first
+  way — every hit equal, the lead a share of the total — Danish and Norwegian
+  tied on nine sentences in ten.
+- **A word spelled with a letter one language owns is that language's word**
+  whether or not the list has it (`OWN_LETTERS`): "префектуры" is Russian for
+  its ы. That is what finds the inflected languages. Letters something
+  *unnamed* shares are not in that table — Polish's ą and ę are Lithuanian's.
+- **The cure for a neighbour mistaken for a language is to name the
+  neighbour.** Estonian came back Finnish, Afrikaans Dutch, Slovenian
+  Croatian, Galician Portuguese, Azerbaijani Turkish; each is in the detector
+  now, and each addition moved its own errors to "unknown". Malay is the
+  exception and is labelled Indonesian on purpose: reading one is reading the
+  other (`READS`).
+- **It answers `null` far more readily than it guesses**, because a wrong
+  label hides a review from the people who could read it and a missing one
+  hides nothing. Two words of evidence (a one- or two-letter Latin word is
+  half of one), 15% of the text recognised, a lead of one word over every
+  rival.
+- **Japanese is hiragana, not kana.** A sentence that is nine tenths kanji
+  still has its は; Chinese that quotes a Japanese title has katakana and
+  characters only Chinese writes (`CHINESE_ONLY`). Two kanji alone (最高) are
+  not labelled at all.
+- **The game's own title is read past** (`ignore`): "The Last of Us" is four
+  English words in a Spanish sentence. Whole phrases only — a review of
+  *Rain* still says "training".
+- **No `\p{…}`.** A Unicode property escape the engine does not know is a
+  syntax error while the module loads, on a phone. Scripts are code point
+  ranges. `ə` is filed under phonetics (U+0259) and is in the Latin ranges by
+  name: without it Azerbaijani's commonest vowel split every word it was in.
+
+**Measured, on prose nobody here wrote**: sentences from Wikipedia, in every
+language it names and six it does not. Three sets, because a detector tuned on
+a set is flattered by it:
+
+| Set | Sentences | Right | "Unknown" | Wrong |
+| --- | --- | --- | --- | --- |
+| A — articles on video games; the lists were tuned on it | 1,415 | 90.7% | 8.8% | 0.4% |
+| B — Nintendo, football, cats, music; seen once | 1,615 | 87.3% | 12.3% | 0.4% |
+| C — chess, dogs, water, Japan; never looked at first | 1,545 | 86.8% | 12.9% | 0.3% |
+
+B read 83.2% / 16.0% / 0.7% when first measured; two rules changed because of
+it (kanji-heavy Japanese was coming back Chinese, and Russian's one-letter
+words were being counted as half), so its second reading is no longer blind.
+**C is the honest one**: thirty-four of the thirty-nine languages (Persian,
+Azerbaijani, Afrikaans, Estonian and Norwegian were still downloading at
+Wikipedia's rate limit when it was run). Its four errors are two quotations —
+Chinese spelling out a Japanese reading in hiragana, Arabic naming something
+in Persian letters — and two between neighbours: a Slovak and a Slovenian
+sentence read as Croatian.
+
+- **Short text is mostly "unknown", not wrong.** The first eight words of a
+  sentence: 73% right, 0.3% wrong. The first four: 49% right, 51% unknown,
+  0.3% wrong (set C). A two-word review usually goes unlabelled, and is shown
+  to everybody.
+- **A language it does not name is left alone 97% of the time** (set B):
+  Lithuanian, Latvian and Icelandic 0 wrong of 124; Swahili and Tagalog 5 of
+  77. Malay is labelled Indonesian on purpose.
+- **Recall is uneven and that is where the lists are thin**: on set C Slovak
+  51%, Turkish 59%, Danish 61%; on set B Azerbaijani 44%, Estonian 36%.
+  Agglutinating languages, whose words a list of function words mostly cannot
+  hold, and near neighbours (Slovak and Czech, Danish and Norwegian), which
+  tie. They fail to "unknown".
+- An encyclopedia is not a review. Reviews are shorter and chattier, which
+  cuts both ways; nothing here has been measured on real reviews, because the
+  live project has forty-seven and most are test strings.
+
+**What was not built, and why:**
+
+- **No new row on Home or on Search's Discover.** Letterboxd's
+  `FilmPopularityWithFriends` — games popular among your circle — is the one
+  mechanism of its that is missing here, and it has no surface: Home's four
+  bands and Discover's four rows are the owner's rulings, and "Popular with
+  friends" beside "New from friends" is a second helping of the same band. If
+  it is wanted, it is one function and one row.
+- **No translation.** Letterboxd's is the operating system's, on the phone;
+  here that is a native module, for a feature that the language filter makes
+  mostly unnecessary.
+- **No blocking, and no feed throttle.** Both are real parts of how
+  Letterboxd's feed behaves; neither was asked for and each is a feature of
+  its own.
+- **"Games for you" and "Similar to" were left alone.** They are already
+  Letterboxd's two personal mechanisms — your own highly rated games,
+  extended by similarity, with what you have logged left out.
+
+**Run `node scripts/discovery-sql.mjs` after touching 0038.** It loads every
+migration into an in-process Postgres and checks the functions against seven
+people whose likes, replies and follows were worked out by hand. `npm test`
+has no database and cannot.
+
+**Not seen on a phone, and 0038 has not been run on the live project.** Types,
+lint, `npm test` and a Metro bundle are clean; the SQL was run on Postgres 18
+(PGlite) over the real migrations. What is unverified is everything a device
+decides: what `deviceLocales()` actually returns on the owner's phone, how
+the period control and the language note sit in the People tab's headings,
+and the Settings panel with thirty-nine chips in it.
 
 ## Loading: SimpMusic's rules, on TanStack Query
 
@@ -1273,8 +1564,10 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
 - **The layout** — top row: picture, `@username`, the badge slot, the time
   ("now", "12h ago", then a date after a week: `timeAgoPosted`). Body: 83×124
   box art; beside it the title (bold, two lines at most), developer · year, and
-  `<ScoreTile size="small">` at the far end of that row; under them up to three
-  lines of the review, straight on the card. **The art is exactly as tall as
+  `<ScoreTile size="small">` at the far end of that row — the square with the
+  number in it, which the score's drawing replaced for one build and the owner
+  put back (§ Score figures); under them up to three lines of the review,
+  straight on the card. **The art is exactly as tall as
   the fullest column** (`ART_HEIGHT`), so a full review ends on the art's bottom
   edge and every card is 194dp at the default font size (`LOG_CARD_HEIGHT`,
   which Home's skeleton uses).
@@ -1437,6 +1730,115 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
 - **Which games carry it is a module store** (`use-game-labels`), not a query:
   one short list of ids shared by every cover on screen. A failed fetch or a
   database before 0034 is an empty list — no badges, no error.
+
+## Score figures: the little man
+
+A 0–100 score is also a **drawing**: one little man and his gaming chair, in
+five states. The owner's brief (2026-10-12), with two reference sheets — the
+little man a newspaper rates films with, and a magazine's version of him for
+games: "design different symbols/drawings for the ratings in the app. For 0,
+50, 70, 80, and 100."
+
+```text
+    0   gone       the chair, empty — he has left
+   50   asleep     slumped in it, asleep, the controller still in his hand
+   70   seated     sitting up, playing
+   80   forward    on the edge of the seat, leaning in, smiling
+  100   standing   on his feet
+```
+
+- **It is drawn in three places, and the owner named them.** The first build
+  put it everywhere a score was a square or was given room — every review
+  card, the critics' number, your own log, the log form. The owner, on seeing
+  it: "For review cards, leave it as the square number. Only display the
+  drawing for the game page graph, review sheet graph, and full-screen
+  review." So:
+  - **the ratings graph**, which is one component in both of its places —
+    `<ScoreSummary>`, the Ratings card on a game's Overview and the head of
+    the reviews sheet: the drawing and then the number (`<FiguredScore>`);
+  - **a review's own page** (`<ScoreMeter>`): the drawing over the readout —
+    beside it "87 AMAZING out of 100" no longer fits one line.
+
+  **Do not put it on a card, in a form, or beside any other score.**
+  `<ScoreTile>`, the square with the number in it, is what a review card and
+  the critics' average draw. `score-figure.test.ts` walks `src/` and fails by
+  name if a third file draws one.
+- **Three rulings came with the brief.** The man on his feet is **the man
+  alone — no chair**. **Nothing he could be looking at is ever drawn**: no
+  screen, no television. And **the chair is a gaming chair**.
+- **More came on seeing the drawings, over two rounds, and each undid
+  something — two of them undid the round before:**
+  1. **The chair is a silhouette, and one shape.** It was drawn with its head
+     and lumbar cushions, the piping down its spine, a recline hinge with a
+     hole in it, an armrest and a tilt plate: "make the drawing of the gaming
+     chair simpler, with less shapes, all I want is the sillouhete… not every
+     component visible". The racing back's wing, the cushion, the stem and the
+     star base on casters are what make the outline a gaming chair; nothing is
+     cut into it. Do not add a part back.
+  2. **He has fingers.** His hand was a ball. It is the back of a hand, a
+     thumb, and three fingers with a line of nothing between each.
+  3. **The man at 80 leans; he is not hunched.** The owner asked for "a
+     visible and exxagerated hunchback" there, got one — an arch of a back
+     with a hump standing above his own head — and on seeing it: "too much. Go
+     back to the old one, that was fine." A straight back at a lean, clear of
+     the chair's. Do not hunch him again, by any amount.
+  4. **The man on his feet has one arm.** The other was in the air, behind his
+     head, and read as "a weird white block or what looks like a little pillow
+     on the back of his head". Standing, holding the controller, is the pose.
+  5. **The controller is seen from its side, in his hand — and it is a short
+     bare slab.** "Have it face the little man, so for the user the controller
+     is viewed from the side, and we would only be able to see the little
+     man's hand and fingers wrapping around the side of the controller… It's
+     all about perspective." It was a gamepad drawn face-on, floating at the
+     end of his arm. The first side-on drawing kept too much of it — a trigger
+     hooked under its far end with his first finger stretched along to it, and
+     the tip of its grip showing under his fist — and the owner called it
+     scuffed: "The index finger is super long and the controller is also super
+     long… removing the part of the controller that pokes out of the hand
+     below, on the pinky finger. And removing the trigger." So: his thumb over
+     the top, three fingers the same length wrapped round, and over them the
+     edge of the controller's body, clearing his fingertips by a few units.
+     **One part.** No trigger, no shoulder button, no grip, and no stick — a
+     stick standing on its top, tried before any of that, made it a bottle
+     with a stopper. `score-figure.test.ts` counts the parts and the fingers.
+- **They are this app's own drawings of that idea, not copies of the
+  references.** The man has the quiff the Must Play face has. Do not redraw
+  him toward either reference.
+- **A score shows the drawing whose anchor it is nearest to** (`figureFor`,
+  `constants/score-figure.ts`): the owner named five scores, not five ranges,
+  so the boundaries are the midpoints — 25, 60, 75, 90 (the owner calls the
+  last two "the 80+ one" and "90+"). All four are also boundaries the verdict
+  words already have ("Bad", "Fair", "Good", "Excellent"), so the drawing
+  never changes between two scores that share a word; the test holds that.
+- **Two colours, and the score's is on the chair.** The chair, what shows of
+  the controller and the marks round him (the z's, the sparks) are
+  `scoreColor()` — the one ramp. The man is the page's ink. What a drawing
+  cannot say is the exact figure, which is why the number is beside it or
+  under it in every place it is drawn, and is always what a screen reader is
+  told.
+- **`scripts/score-figures.mjs` is the source, and the figures are built, not
+  traced.** Every pose is the same parts — a head, a torso, limbs of fixed
+  widths, one hand on one controller — set at different joints, which is what
+  keeps him the same man in all five. It writes, into `assets/images/scores/`,
+  two PNG layers a figure (`<key>-tone.png`, `<key>-ink.png`; the empty chair
+  has no ink), each one colour on a transparent ground and tinted at draw
+  time, as the Must Play badge's are — plus `score-figures.svg` and
+  `score-figures.png`, the five on the app's card colour at the two sizes the
+  app draws them, to look at. It needs `rsvg-convert`. Change a joint, run it,
+  look at the sheet; `CLOSE=<key>` writes one figure large, and `CROP` a part
+  of it.
+- **Nothing overlaps, which is why two flat layers are the whole picture.**
+  Each part is cut away under everything in front of it and under a halo round
+  that, so the arm crossing the body has a line of nothing round it — whatever
+  surface the figure is on. The face is the same cut, and so are his fingers:
+  the gaps between them are the halo of the hand over the controller behind
+  it. A new part goes in its place in the pose's list, back to front, and the
+  script does the rest.
+- **Each round has been judged by the owner from the sheet and the app; the
+  last one has not been yet.** What is drawn now answers their second round of
+  rulings and has been looked at here only on the contact sheet and in
+  close-ups. To judge on a device: whether the hand and the short controller
+  read at 56dp in the graph.
 
 ## The top bar: SimpMusic's
 
@@ -1619,6 +2021,15 @@ screen's heading under its bar again.
   `['soundtrack', gameId]` (the tab, the screen and Surprise Me share it) and
   `['soundcloud-track', urn]` — both in `NEVER_PERSIST` — and
   `['starred-song', userId]`, which a star or an unstar invalidates.
+  Discovery: `['review-chart', period, languages]` (Search's Reviews and
+  `/reviews`), `['discover-people', section, …]`, `['review-languages',
+  gameId]` (the sheet's language choices) and `['written-languages', userId]`
+  — a saved log invalidates the first, third and fourth.
+  `['reading-languages', userId]` reads a device store and is in
+  `NEVER_PERSIST`; its one writer sets it. Languages go into a key through
+  `readingKey()`, never as the array: the same languages in another order are
+  the same question. `['top-reviews', gameId, viewerId, languages]` grew a
+  fourth part and is still invalidated by its first two.
 - **Colours**: always `useTheme()`. Never hardcode a hex in a component; add the
   token to `Colors.dark` in `constants/theme.ts` — that object is the entire
   palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`
@@ -2428,7 +2839,7 @@ screen's heading under its bar again.
     film's page in Letterboxd — are each absent when they have nothing to show:
     1. **Ratings** (`<RatingsCard>`): a card titled inside, the count at the
        far end of the title, a hairline, then `<ScoreSummary>` — the verdict,
-       the score tile and the three-part bar. **The reviews sheet's own
+       the score as its drawing and number, and the three-part bar. **The reviews sheet's own
        summary, one component in both places**: the owner was offered a
        ten-bar histogram like the reference's and chose "the sheet's
        three-part bar, as it is". The card is a door to the sheet. Do not put

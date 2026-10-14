@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { ScoreFigure } from '@/components/ui/score-figure';
 import { Text } from '@/components/ui/text';
 import { MAX_SCORE, MIN_SCORE, clampScore, labelFor, scoreColor } from '@/constants/score';
 import { FontFamily, Radius, Spacing } from '@/constants/theme';
@@ -183,15 +184,27 @@ export function ScoreBar({ score, dim = false }: { score: number | null; dim?: b
   );
 }
 
+/** The score's drawing over the meter: large enough to be looked at. */
+const METER_FIGURE = 76;
+
 /**
- * A score to read rather than set: the readout, centred, over its bar.
+ * A score to read rather than set: its drawing, then the readout, centred,
+ * over its bar.
  *
- * The review page's; the log form composes the same two pieces around its own
- * touch handling in `<ScoreInput>`.
+ * The drawing is the owner's (`<ScoreFigure>`): on a review's own page a
+ * rating is "the symbol + the number". It stands over the readout rather than
+ * beside it — beside it, "87 AMAZING out of 100" no longer fits the column on
+ * one line, and the readout's one line is the point of it.
+ *
+ * The review page's. The log form composes the readout and the bar around its
+ * own touch handling in `<ScoreInput>`, and has no drawing: the owner named
+ * the places it goes, and a form is not one.
  */
 export function ScoreMeter({ score }: { score: number }) {
   return (
     <View style={styles.meter}>
+      {/* The readout under it says the score to a screen reader. */}
+      <ScoreFigure score={score} size={METER_FIGURE} labelled={false} style={styles.figure} />
       <ScoreReadout score={score} align="center" />
       {/* Hidden from assistive tech: the readout already said the number, and
           a bar reads out as nothing more than a second copy of it. */}
@@ -241,4 +254,5 @@ const styles = StyleSheet.create({
   },
   fill: { height: '100%', borderRadius: Radius.pill },
   meter: { gap: Spacing.x12 },
+  figure: { alignSelf: 'center' },
 });

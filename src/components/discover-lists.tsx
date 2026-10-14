@@ -1,12 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
+import { ReviewChartHead } from '@/components/review-chart-head';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Spacing } from '@/constants/theme';
-import { getPopularCollections, getPopularReviews } from '@/lib/api';
+import { useReviewChart } from '@/hooks/use-review-chart';
+import { getPopularCollections } from '@/lib/api';
+import type { LogWithRelations } from '@/lib/database.types';
+import { DEFAULT_CHART_PERIOD, PERIOD_WORDS, type ChartPeriod } from '@/lib/discovery';
 
 /**
  * The most-liked writing and the most-liked collections.
@@ -22,16 +27,6 @@ import { getPopularCollections, getPopularReviews } from '@/lib/api';
  * shows before a word is typed.
  */
 
-function usePopularReviewsData() {
-  const reviews = useQuery({
-    queryKey: ['discover', 'reviews'],
-    queryFn: () => getPopularReviews(),
-    staleTime: 5 * 60_000,
-  });
-
-  return { reviews };
-}
-
 /* No likes or comments are fetched beside these any more: the card carries the
    game count and nothing else about the response to it (see `<ListTile>`), so
    the second request a screenful of collections used to cost is gone. */
@@ -46,7 +41,11 @@ function usePopularCollectionsData() {
 }
 
 /**
- * The most-liked writing on the app, in full.
+ * The popular writing on the app, in full.
+ *
+ * The same chart Search's Reviews tab shows before a word is typed, under the
+ * same key (`useReviewChart`): the reviews people responded to in a period,
+ * every author's best first, in the languages the reader reads.
  *
  * Only logs that carry actual writing are ranked — a bare score with no words
  * is a log, not a review, and a popular-reviews list full of them would be a
@@ -56,17 +55,28 @@ function usePopularCollectionsData() {
  * `<LogCard>`); liking happens on the review's own page.
  */
 export function DiscoverReviews() {
-  const { reviews } = usePopularReviewsData();
+  const [period, setPeriod] = useState<ChartPeriod>(DEFAULT_CHART_PERIOD);
+  const { chart: reviews, reading } = useReviewChart(period);
+  const windowed = reviews.data?.windowed ?? true;
 
-  if (reviews.isLoading) return <LoadingState />;
+  /* `isPending`: the chart waits for the reader's languages before it asks. */
+  if (reviews.isPending) return <LoadingState />;
   if (reviews.isLoadingError)
     return <ErrorState error={reviews.error} onRetry={() => reviews.refetch()} />;
 
   return (
     <PageFlatList
-      data={reviews.data ?? []}
+      data={reviews.data?.reviews ?? []}
       keyExtractor={(log) => log.id}
       contentContainerStyle={styles.content}
+      ListHeaderComponent={
+        <ReviewChartHead
+          period={period}
+          onPeriod={setPeriod}
+          windowed={windowed}
+          reading={reading}
+        />
+      }
       /*
         The gap between cards, and it was missing entirely.
 
@@ -84,9 +94,12 @@ export function DiscoverReviews() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      refreshing={reviews.isRefetching}
+      /* Not while a period is being changed: that is the heading's business,
+         and the cards say so by dimming. */
+      refreshing={reviews.isRefetching && !reviews.isPlaceholderData}
       onRefresh={() => reviews.refetch()}
-      renderItem={({ item }) => <LogCard log={item} />}
+      /* The last period's cards stand, dimmed, while the chosen one arrives. */
+      renderItem={reviews.isPlaceholderData ? renderSettlingReview : renderReview}
       /*
         Virtualisation, for a list with no upper bound on its length.
 
@@ -103,14 +116,30 @@ export function DiscoverReviews() {
       windowSize={7}
       updateCellsBatchingPeriod={50}
       ListEmptyComponent={
-        <EmptyState
-          title="No reviews yet"
-          message="Write one with a score and some words and it will show up here."
-        />
+        period === 'all' || !windowed ? (
+          <EmptyState
+            title="No reviews yet"
+            message="Write one with a score and some words and it will show up here."
+          />
+        ) : (
+          <EmptyState
+            title={`Nothing ${PERIOD_WORDS[period]}`}
+            message="Nobody wrote a review or responded to one. Try a longer period."
+          />
+        )
       }
     />
   );
 }
+
+/* Module scope: an inline `renderItem` is a new function per render, and the
+   list re-draws every row it holds for it. */
+const renderReview = ({ item }: { item: LogWithRelations }) => <LogCard log={item} />;
+const renderSettlingReview = ({ item }: { item: LogWithRelations }) => (
+  <View style={styles.settling}>
+    <LogCard log={item} />
+  </View>
+);
 
 /** The interval between two review cards. Module scope, so FlatList's separator
     prop is a stable reference rather than a new component type per render. */
@@ -191,4 +220,5 @@ const styles = StyleSheet.create({
      Search, a profile. */
   cardGap: { height: Spacing.x12 },
   tileGap: { height: Spacing.x12 },
+  settling: { opacity: 0.5 },
 });

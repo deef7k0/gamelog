@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { ScoreTile } from '@/components/ui/score-tile';
+import { FiguredScore } from '@/components/ui/score-figure';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { ratingVerdict } from '@/constants/score';
@@ -27,15 +27,21 @@ export type ScoreSummaryProps = {
 };
 
 /**
- * GameLog's own verdict on a game: the word, the average in its tile, and how
- * the scores divide — positive, mixed, negative — as one bar.
+ * GameLog's own verdict on a game: the word, the average as its drawing and
+ * its number, and how the scores divide — positive, mixed, negative — as one
+ * bar.
  *
  * ```text
- *   Great                      ┌──┐
- *   Based on 128 reviews       │84│
- *                              └──┘
+ *   Great                     (o_o)
+ *   Based on 128 reviews       /|\  84
+ *
  *   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▒▒▒▒  ░░
  * ```
+ *
+ * The average was a number in a coloured square. It is the score's drawing
+ * with the number beside it now (`<FiguredScore>`): "the symbol + the number
+ * rating", the owner's. This graph — here and in the reviews sheet — and a
+ * review's own page are the only places the drawing is; see `<ScoreFigure>`.
  *
  * Three segments, sized by how many scores fall in each band — so a game with
  * eighty positives and two negatives shows a sliver of red, which is the
@@ -59,7 +65,8 @@ export function ScoreSummary({ breakdown, loading = false, counted = true }: Sco
           <Skeleton width="55%" height={13} radius={Radius.sm} />
           <Skeleton width="40%" height={11} radius={Radius.sm} />
         </View>
-        <Skeleton width={62} height={62} radius={Radius.image} />
+        {/* The drawing and the number beside it. */}
+        <Skeleton width={104} height={56} radius={Radius.image} />
       </View>
     );
   }
@@ -83,7 +90,7 @@ export function ScoreSummary({ breakdown, loading = false, counted = true }: Sco
             </Text>
           )}
         </View>
-        <ScoreTile score={breakdown.average} size="medium" />
+        <FiguredScore score={breakdown.average} />
       </View>
 
       {/* Each segment is a flex weight, so the three always fill the bar exactly

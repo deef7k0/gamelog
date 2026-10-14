@@ -153,6 +153,16 @@ export type GameLog = {
   coop: boolean | null;
   /** How many played together. Only with `coop`; the database enforces it. */
   player_count: number | null;
+  /**
+   * The language the review is written in (0038): an ISO 639-1 code the app
+   * works out as the review is saved — `lib/language.ts` — or null when nobody
+   * could tell. **Null is unknown, never "none"**, and an unknown review is
+   * shown to everybody (`canRead`).
+   *
+   * Optional, not just nullable: a database that has not run 0038 has no such
+   * column, so the field is *absent* from its rows. Read it as `?? null`.
+   */
+  review_lang?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -1418,6 +1428,44 @@ export type Database = {
       beloved_games: {
         Args: { p_since: string; p_limit?: number };
         Returns: { game_id: string; average: number; ratings: number }[];
+      };
+      /**
+       * 0038 — popularity as Letterboxd counts it. Reviews by the likes and
+       * commenters they drew since `p_since` (null: ever), every author's best
+       * first; optionally only those in `p_langs`. In the function's order —
+       * which is not the order of `activity`, so do not re-sort by it.
+       * Absent before 0038: `getReviewChart` falls back to `popular_reviews`.
+       */
+      review_popularity: {
+        Args: { p_since?: string | null; p_langs?: string[] | null; p_limit?: number };
+        Returns: { log_id: string; activity: number; likes: number; comments: number }[];
+      };
+      /**
+       * 0038 — people by the likes, commenters and followers they drew since
+       * `p_since`. With `p_circle`, counted among `p_viewer`'s circle only and
+       * leaving the circle out: who the people you follow follow and like.
+       * Absent before 0038: `getPopularMembers` answers `null`.
+       */
+      member_popularity: {
+        Args: {
+          p_since?: string | null;
+          p_viewer?: string | null;
+          p_circle?: boolean;
+          p_langs?: string[] | null;
+          p_limit?: number;
+        };
+        Returns: {
+          user_id: string;
+          activity: number;
+          likes: number;
+          comments: number;
+          followers: number;
+        }[];
+      };
+      /** 0038 — the people somebody follows, and their accepted friends. */
+      circle_of: {
+        Args: { p_viewer: string };
+        Returns: { user_id: string }[];
       };
       /**
        * Create an awards list and seed its eight default categories.

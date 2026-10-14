@@ -15,8 +15,10 @@ import { ratingVerdict, scoreColor } from '@/constants/score';
 import { STATUS_LABEL } from '@/constants/status';
 import { FontFamily, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { useReadingLanguages } from '@/hooks/use-reading-languages';
 import { useTheme } from '@/hooks/use-theme';
 import { getGamePlayers, getRatingBreakdown, getTopGameReview, type GamePlayer } from '@/lib/api';
+import { readingKey } from '@/lib/discovery';
 import { displayNameFor } from '@/lib/format';
 import { getTimeToBeat } from '@/lib/games/igdb';
 import { parseGameId } from '@/lib/games';
@@ -317,9 +319,12 @@ const TOP_REVIEW_LINES = 5;
  * the heading's More is a tap from all of them, and a sample that scrolls
  * sideways is a second list competing with the first.
  *
- * Which review it is is `getTopGameReview`: most liked, the newest of a tie.
- * The card opens that review; the heading's More opens every review, in the
- * sheet.
+ * Which review it is is `getTopGameReview`: most liked, the newest of a tie —
+ * **of the ones this reader can read**, when there is one (0038). The slot
+ * holds one review, and the most liked one in a language somebody does not
+ * read tells them nothing; with none they can read, it is the most liked
+ * outright. The card opens that review; the heading's More opens every
+ * review, in the sheet, where nothing is left out.
  *
  * Absent when nobody has written one — a section exists here only when it has
  * something in it — and no skeleton, for the reason the critics' rail has
@@ -339,14 +344,17 @@ export function TopReview({
   const router = useRouter();
   const inset = useSectionInset();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
+  const { reading, ready } = useReadingLanguages();
 
   const top = useQuery({
     /* Under the key the log form and a moderator's removal invalidate
        (`['top-reviews', gameId]`), with the viewer after it: whether the
        heart is lit depends on who is looking. */
-    queryKey: ['top-reviews', gameId, viewerId],
-    queryFn: () => getTopGameReview(gameId, viewerId),
-    enabled: !!gameId,
+    queryKey: ['top-reviews', gameId, viewerId, readingKey(reading)],
+    queryFn: () => getTopGameReview(gameId, viewerId, reading),
+    /* After the reader's languages are known, so the card is not drawn with
+       one review and then redrawn with another. */
+    enabled: !!gameId && ready,
     staleTime: 60_000,
   });
 

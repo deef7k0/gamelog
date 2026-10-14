@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 
 /**
- * The most-liked writing on GameLog, in full.
+ * The writing people responded to most on GameLog, in full.
  *
  * Exists because Reviews stopped being a tab in Search. It was one of four
  * there, and it was the odd one out twice over: the search field could not
@@ -16,14 +16,16 @@ import { Spacing } from '@/constants/theme';
  * be linked to and arrived at rather than a mode you have to know to switch on.
  *
  * Its name is its bar's title; the line under the bar says what the list is
- * ranked by.
+ * ranked by. The list's own heading holds the period and the languages
+ * (`<ReviewChartHead>`), as it does on Search's Reviews tab — it is the same
+ * chart under the same key.
  */
 export default function ReviewsScreen() {
   return (
     <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Reviews" />}>
       <View style={styles.head}>
         <Text variant="bodySmall" color="textMuted">
-          The most-liked writing on GameLog. Only logs with words in them are ranked.
+          The reviews people liked and replied to. Only logs with words in them are ranked.
         </Text>
       </View>
 

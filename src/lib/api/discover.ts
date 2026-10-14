@@ -1,3 +1,4 @@
+import { periodStart, type ChartPeriod, type MemberActivity } from '../discovery';
 import { resolvePreview, resolveStack, SUMMARY_ITEMS, type SummaryRow } from './lists';
 import { rememberLogs } from './seen-logs';
 import type { ListSummary } from './types';
@@ -6,6 +7,14 @@ import { supabase } from '../supabase';
 
 /**
  * The Reviews / Collections / People tabs.
+ *
+ * **Two generations of ranking live here.** 0013's functions (`popular_reviews`,
+ * `popular_users`…) count every like there has ever been. 0038's
+ * (`review_popularity`, `member_popularity`) count activity inside a period,
+ * optionally among the viewer's circle and in the languages they read — how
+ * Letterboxd's API documents its own (CLAUDE.md § Discovery). The newer ones
+ * are what the screens ask for; the older ones are what they fall back to on a
+ * database that has not run 0038, so they stay.
  *
  * Every function here is two round trips on purpose. The 0013 functions answer
  * only "which ids, in what order, with what number" — PostgREST cannot order a
@@ -63,6 +72,76 @@ export async function getPopularReviews(limit = 20): Promise<PopularReview[]> {
   return rememberLogs(unwrap(data as LogWithRelations[] | null, error))
     .map((log) => ({ ...log, likeCount: likesById.get(log.id) ?? 0 }))
     .sort((a, b) => b.likeCount - a.likeCount);
+}
+
+/** PostgREST's code for "no function of that name": the database predates it. */
+const NO_SUCH_FUNCTION = 'PGRST202';
+
+function isMissingFunction(error: { code?: string; message: string }): boolean {
+  return error.code === NO_SUCH_FUNCTION || /could not find the function/i.test(error.message);
+}
+
+/**
+ * The Reviews chart: what it holds, and whether it could be asked for a period.
+ *
+ * `windowed` is false on a database that has not run 0038. The reviews are
+ * then 0013's — every like there has ever been, in any language, and as many
+ * from one author as they have written — and the screen says so by not
+ * offering a period it could not honour.
+ */
+export type ReviewChart = {
+  reviews: LogWithRelations[];
+  windowed: boolean;
+};
+
+/**
+ * The reviews people responded to most in a period, for somebody who reads
+ * `reading` (null: every language).
+ *
+ * `review_popularity` (0038) does the counting — likes and the people who
+ * commented, since the period began, every author's best before anybody's
+ * second — and answers ids in order. **That order is kept, not re-derived**:
+ * it is not the order of the activity number (an author's second review comes
+ * after everybody's first, whatever it scored), so sorting by the number here
+ * would undo the one rule that stops one person from being the chart.
+ */
+export async function getReviewChart(
+  period: ChartPeriod,
+  reading: readonly string[] | null,
+  limit = 20
+): Promise<ReviewChart> {
+  const ranking = await supabase.rpc('review_popularity', {
+    p_since: periodStart(period),
+    p_langs: reading ? [...reading] : null,
+    p_limit: limit,
+  });
+
+  if (ranking.error) {
+    if (isMissingFunction(ranking.error)) {
+      return { reviews: await getPopularReviews(limit), windowed: false };
+    }
+    throw new Error(ranking.error.message);
+  }
+
+  const ranked = ranking.data ?? [];
+  if (ranked.length === 0) return { reviews: [], windowed: true };
+
+  const place = new Map(ranked.map((row, index) => [row.log_id, index]));
+
+  const { data, error } = await supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .in(
+      'id',
+      ranked.map((row) => row.log_id)
+    );
+
+  return {
+    reviews: rememberLogs(unwrap(data as LogWithRelations[] | null, error)).sort(
+      (a, b) => (place.get(a.id) ?? 0) - (place.get(b.id) ?? 0)
+    ),
+    windowed: true,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +238,82 @@ export async function getRecommendedPeople(viewerId: string, limit = 20): Promis
       affinity: Number(row.affinity),
     }))
   );
+}
+
+/** Somebody in a popularity chart, with what put them there. */
+export type PopularMember = Profile & MemberActivity & { activity: number };
+
+/**
+ * The people whose reviews and collections drew the most in a period — or
+ * `null` on a database that has not run 0038.
+ *
+ * `member_popularity` counts likes, the people who commented, and new
+ * followers, all from somebody else, and never returns `viewerId` to
+ * themselves.
+ *
+ * **With `circle`**, the same count is taken among the viewer's circle only,
+ * and the circle is left out of the answer: not "who is popular" but "who do
+ * the people I follow follow, like and talk to, that I do not follow yet".
+ * Letterboxd's `MemberPopularityWithFriends`. It needs a viewer.
+ *
+ * `reading` leaves out somebody only when every review of theirs that has a
+ * language is in another one.
+ */
+export async function getPopularMembers({
+  period,
+  viewerId,
+  circle = false,
+  reading,
+  limit = 20,
+}: {
+  period: ChartPeriod;
+  viewerId: string | null;
+  circle?: boolean;
+  reading: readonly string[] | null;
+  limit?: number;
+}): Promise<PopularMember[] | null> {
+  if (circle && !viewerId) return [];
+
+  const ranking = await supabase.rpc('member_popularity', {
+    p_since: periodStart(period),
+    p_viewer: viewerId,
+    p_circle: circle,
+    p_langs: reading ? [...reading] : null,
+    p_limit: limit,
+  });
+
+  if (ranking.error) {
+    if (isMissingFunction(ranking.error)) return null;
+    throw new Error(ranking.error.message);
+  }
+
+  const ranked = ranking.data ?? [];
+  if (ranked.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .in(
+      'id',
+      ranked.map((row) => row.user_id)
+    );
+  const byId = new Map(unwrap(data as Profile[] | null, error).map((row) => [row.id, row]));
+
+  /* In the function's order: activity, then followers, then a stable id. */
+  return ranked.flatMap((row) => {
+    const profile = byId.get(row.user_id);
+    return profile
+      ? [
+          {
+            ...profile,
+            activity: Number(row.activity),
+            likes: Number(row.likes),
+            comments: Number(row.comments),
+            followers: Number(row.followers),
+          },
+        ]
+      : [];
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -370,9 +525,6 @@ export type BelovedGame = Pick<
   ratings: number;
 };
 
-/** PostgREST's code for "no function of that name": the database predates 0037. */
-const NO_SUCH_FUNCTION = 'PGRST202';
-
 /**
  * The games rated highest on GameLog over a period, best first — or `null`
  * when the database has not run migration 0037.
@@ -393,12 +545,7 @@ export async function getBelovedGames(
 
   const ranking = await supabase.rpc('beloved_games', { p_since: since, p_limit: limit });
   if (ranking.error) {
-    if (
-      ranking.error.code === NO_SUCH_FUNCTION ||
-      /could not find the function/i.test(ranking.error.message)
-    ) {
-      return null;
-    }
+    if (isMissingFunction(ranking.error)) return null;
     throw new Error(ranking.error.message);
   }
 

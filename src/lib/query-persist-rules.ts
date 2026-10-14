@@ -88,6 +88,7 @@ const NEVER_PERSIST: ReadonlySet<string> = new Set([
 
   'search-history',
   'log-draft',
+  'reading-languages',
   'album-art-color',
   'artwork-color',
   'artwork-dominant',

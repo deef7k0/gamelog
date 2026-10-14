@@ -373,6 +373,11 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     queryClient.invalidateQueries({ queryKey: ['review-stats', game.id] });
     // The library's head: logged, reviewed, averages, best and worst.
     queryClient.invalidateQueries({ queryKey: ['user-game-stats', userId] });
+    /* 0038: the review may be in a language this game had none in, or one this
+       person had not written in before — and it is a new entry for the chart. */
+    queryClient.invalidateQueries({ queryKey: ['review-languages', game.id] });
+    queryClient.invalidateQueries({ queryKey: ['written-languages', userId] });
+    queryClient.invalidateQueries({ queryKey: ['review-chart'] });
   }
 
   const save = useMutation({

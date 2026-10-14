@@ -4,6 +4,7 @@ import { Link } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
+import { ReadingLanguages } from '@/components/reading-languages';
 import { SurpriseHiddenList } from '@/components/surprise-hidden-list';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageScrollView } from '@/components/ui/page-scroll';
@@ -16,7 +17,7 @@ import { isModerator } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 
 /**
- * Settings — one section, and it is a real one.
+ * Settings — a few sections, and each is a real one.
  *
  * This screen was deliberately empty for a long time, and the reason it gave is
  * still the rule: a settings screen listing Notifications, Privacy, Appearance
@@ -35,6 +36,16 @@ import { useAuth } from '@/store/auth';
  * The next real candidates are still the ones the product owes: account deletion
  * and a privacy policy, both of which PRODUCT.md records as store-release
  * requirements that do not exist yet. Neither is a row here until it works.
+ *
+ * **Review languages** passes it too, and is here for the same reason the
+ * hidden list is: it is the control for something the app otherwise does by
+ * itself. The popular reviews, the people suggested and the review a game's
+ * page leads with are picked in the languages the reader reads (0038,
+ * `lib/language`) — worked out from the phone and from what they write, which
+ * is right nearly always and silently wrong for somebody who also reads
+ * French. A filter nobody can see or change is the inert control's mirror
+ * image: the system doing a thing with no control for it. Every chart links
+ * here from the line that says which languages it is in.
  *
  * **Moderation** passes the same test from the other side: it is a row only for
  * the people it works for. Everyone else never sees it — a link to a queue the
@@ -96,6 +107,13 @@ export default function SettingsScreen() {
   return (
     <Screen edges={['bottom']} insetHeader padded topBar={<FrostedTopBar back title="Settings" />}>
       <PageScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <View style={styles.group}>
+          <Text variant="label" color="textMuted">
+            REVIEWS
+          </Text>
+          <ReadingLanguages userId={userId} />
+        </View>
+
         <View style={styles.group}>
           <Text variant="label" color="textMuted">
             SURPRISE ME

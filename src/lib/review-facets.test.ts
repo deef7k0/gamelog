@@ -67,6 +67,17 @@ describe('reviewFilterClauses', () => {
     ]);
   });
 
+  it('narrows to a language only when one is chosen', () => {
+    /* No language is every language, unlabelled reviews included: a game's
+       own reviews are never narrowed unless the reader asks (0038). */
+    assert.deepEqual(reviewFilterClauses({ language: null }), []);
+    assert.deepEqual(reviewFilterClauses({ language: 'es' }), [{ kind: 'language', value: 'es' }]);
+    assert.deepEqual(reviewFilterClauses({ minScore: 80, language: 'ja' }), [
+      { kind: 'score', bound: 'min', value: 80 },
+      { kind: 'language', value: 'ja' },
+    ]);
+  });
+
   it('composes every filter into one list', () => {
     assert.deepEqual(
       reviewFilterClauses({

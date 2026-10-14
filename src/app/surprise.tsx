@@ -25,10 +25,12 @@ import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { Motion, Palette, Spacing } from '@/constants/theme';
 import { useDiscRoom, useTopBarInset } from '@/hooks/use-header-height';
+import { useReadingLanguages } from '@/hooks/use-reading-languages';
 import { useTheme } from '@/hooks/use-theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { extractSeedColor } from '@/hooks/use-album-art-color';
 import { getTopGameReview, getUserLogs, setLiked, setProgress } from '@/lib/api';
+import { readingKey } from '@/lib/discovery';
 import { getGameById } from '@/lib/games';
 import {
   canUseForYou,
@@ -437,10 +439,15 @@ export default function SurpriseScreen() {
    * than IGDB, and it only runs once a card is actually on screen — the batch of
    * fifty does not pre-fetch fifty reviews.
    */
+  const { reading, ready: readingReady } = useReadingLanguages();
+  /* One a reader can read, when there is one — see `getTopGameReview`. The
+     languages are in the key because the answer depends on them; the like
+     below writes to this same key. */
+  const reviewKey = ['surprise-review', game?.id, userId, readingKey(reading)];
   const review = useQuery({
-    queryKey: ['surprise-review', game?.id, userId],
-    queryFn: () => getTopGameReview(game!.id, userId ?? null),
-    enabled: !!game && !!userId,
+    queryKey: reviewKey,
+    queryFn: () => getTopGameReview(game!.id, userId ?? null, reading),
+    enabled: !!game && !!userId && readingReady,
     staleTime: Infinity,
     retry: false,
   });
@@ -453,7 +460,7 @@ export default function SurpriseScreen() {
   const like = useMutation({
     mutationFn: (next: boolean) => setLiked(userId!, 'log', review.data!.log.id, next),
     onMutate: async (next) => {
-      const key = ['surprise-review', game?.id, userId];
+      const key = reviewKey;
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData(key);
       queryClient.setQueryData(key, (old: typeof review.data) =>

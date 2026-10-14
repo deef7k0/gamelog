@@ -2336,6 +2336,42 @@ in the same colour.
 Ratings are an integer 0-100 on `logs.rating`, and that is the only score
 anything reads.
 
+## 15.1 The score as a drawing
+
+In three places a score is also **a little man and his gaming chair**, in five
+states — the owner's own idea for the app's ratings.
+
+```text
+    0   the chair, empty — he has left
+   50   asleep in it, the controller still in his hand
+   70   sitting up, playing
+   80   on the edge of the seat, leaning in
+  100   on his feet — and no chair
+```
+
+- **Where**: the ratings graph on a game's page, the same graph at the head of
+  the reviews sheet, and a review's own page. In each it is the drawing *and*
+  the number. Nowhere else: a review card keeps its square with the number in
+  it, and a score in a line of text stays the bare numeral above.
+- **Nearest wins**: a score shows the drawing whose score it is closest to, so
+  the changes fall at 25, 60, 75 and 90.
+- **Two colours.** The chair, what shows of the controller, and the small
+  marks round him are the score's colour, from the one ramp. The man is the
+  page's ink. No surface is drawn behind him.
+- **The chair is a silhouette**: one shape — a racing seat's winged back, the
+  cushion, the stem, a star base on casters — with nothing drawn inside it.
+- **He holds the controller, and it is seen from its side.** He is in profile,
+  so it is edge on, its face toward his: what shows is his hand — a thumb over
+  the top and three fingers wrapped round — and, over his fingers, a short
+  slab that is the edge of its body. Nothing else of it: no trigger, no
+  stick, nothing under his fist. Never a gamepad drawn face-on.
+- **The man at 80 leans in** on a straight back, clear of the chair's.
+- **Never drawn**: a screen, or anything else he could be looking at; a chair
+  behind the man on his feet; an arm in the air; a hunch.
+
+The drawings are generated (`scripts/score-figures.mjs`): the same head, torso,
+limbs and hand set at different joints, so he is the same man in all five.
+
 ---
 
 # 16. Review Card

@@ -54,6 +54,13 @@ export type ReviewFilters = {
   maxScore?: number | null;
   progress?: ReviewProgressFilter | null;
   play?: ReviewPlayFilter | null;
+  /**
+   * The language the review is written in — one `logs.review_lang` code
+   * (0038). Null is every language, **including the reviews nobody could put
+   * one to**; choosing a language leaves those out, because "in Spanish" is a
+   * claim an unlabelled review cannot make.
+   */
+  language?: string | null;
 };
 
 /**
@@ -87,7 +94,8 @@ export type ReviewClause =
   /** `completion` is one of `levels` — **or** the reviewer claimed a platinum. */
   | { kind: 'completion'; levels: readonly CompletionLevel[] }
   | { kind: 'flag'; column: 'coop' | 'platinum'; value: boolean }
-  | { kind: 'score'; bound: 'min' | 'max'; value: number };
+  | { kind: 'score'; bound: 'min' | 'max'; value: number }
+  | { kind: 'language'; value: string };
 
 /**
  * The clauses a set of filters sends.
@@ -129,6 +137,7 @@ export function reviewFilterClauses(filters: ReviewFilters): ReviewClause[] {
   }
 
   if (filters.play) clauses.push({ kind: 'flag', column: 'coop', value: filters.play === 'coop' });
+  if (filters.language) clauses.push({ kind: 'language', value: filters.language });
 
   return clauses;
 }

@@ -166,13 +166,10 @@ describe('where the mini player is drawn', () => {
     assert.equal(hidesMiniPlayer(['report', '[kind]', '[id]']), true);
   });
 
-  it('leaves a game’s page to draw it in its own docked bars', () => {
-    assert.equal(hidesMiniPlayer(['game', '[id]']), true);
-  });
-
   it('is drawn on the tabs and on the pages pushed over them', () => {
     assert.equal(hidesMiniPlayer(['(tabs)']), false);
     assert.equal(hidesMiniPlayer(['(tabs)', 'search']), false);
+    assert.equal(hidesMiniPlayer(['game', '[id]']), false);
     assert.equal(hidesMiniPlayer(['copy', '[id]']), false);
     assert.equal(hidesMiniPlayer([]), false);
   });
@@ -187,13 +184,14 @@ describe('where the mini player is drawn', () => {
    * A modal is a sheet the system draws over the app on iOS and a form on
    * Android; the bar belongs on neither. This list and the root layout are two
    * files, so the layout is read: a route given `presentation: 'modal'` (or
-   * `fullScreenModal`) that is not in the list fails here, by name.
+   * `fullScreenModal`) — written out, or through the layout's `SHEET` /
+   * `FULL_SHEET` options — that is not in the list fails here, by name.
    */
   it('lists every route the root layout presents as a modal', () => {
     const layout = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
     const modals = [
       ...layout.matchAll(
-        /<Stack\.Screen\s+name="([^"]+)"\s+options=\{\{\s*presentation:\s*'(?:modal|fullScreenModal)'/g
+        /<Stack\.Screen\s+name="([^"]+)"\s+options=\{(?:\{\s*presentation:\s*'(?:modal|fullScreenModal)'|(?:SHEET|FULL_SHEET)\})/g
       ),
     ].map((match) => match[1].split('/')[0]);
 
@@ -223,12 +221,15 @@ describe('where the mini player is drawn', () => {
     }
   });
 
-  it('lists every signed-out route', () => {
+  it('lists every signed-out route, and onboarding', () => {
     const layout = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
-    const signedOut = layout.slice(layout.indexOf('guard={!session}'));
-    const names = [...signedOut.matchAll(/<Stack\.Screen\s+name="([^"]+)"/g)].map((m) => m[1]);
+    /* Everything from the onboarding group on: onboarding, then the signed-out
+       routes — nothing can be playing on any of them, and a bar there would sit
+       over the one button the page has. */
+    const outside = layout.slice(layout.indexOf("onboarding !== 'done'"));
+    const names = [...outside.matchAll(/<Stack\.Screen\s+name="([^"]+)"/g)].map((m) => m[1]);
 
-    assert.ok(names.length >= 3);
+    assert.ok(names.includes('onboarding') && names.includes('welcome'), names.join(', '));
     for (const name of names) assert.ok(MINI_PLAYER_HIDDEN_ROUTES.has(name), name);
   });
 });

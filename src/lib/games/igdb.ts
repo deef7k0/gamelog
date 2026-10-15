@@ -469,6 +469,64 @@ export async function getSimilarGames(
 }
 
 // ---------------------------------------------------------------------------
+// Onboarding: whole games, for a flow that saves what it shows
+// ---------------------------------------------------------------------------
+
+/**
+ * A title search that answers whole games, not rows.
+ *
+ * Onboarding's favourites step writes what is picked straight into a list,
+ * and `addToList` caches the game first — which needs a `Game`. The ordinary
+ * search cuts each one down to a row; this keeps them whole (and remembers
+ * them for the game page, as every full-field list does). Covers only: a
+ * favourite is shown as its box.
+ */
+export async function searchWholeGames(term: string, signal?: AbortSignal): Promise<Game[]> {
+  const trimmed = term.trim();
+  if (!trimmed) return [];
+
+  const raw = await igdbQuery<IgdbGame[]>(
+    'games',
+    `search "${quote(trimmed)}"; ${GAME_FIELDS} where version_parent = null & cover != null; limit 24;`,
+    signal
+  );
+  return (raw ?? []).map(toFullGame);
+}
+
+/**
+ * Whole games matching a `where` clause, the most-rated first.
+ *
+ * The clause is built by `lib/onboarding.ts` (`picksClause`, `pickingGridClause`),
+ * which is pure and tested; this only sends it.
+ */
+export async function getGamesWhere(
+  where: string,
+  limit: number,
+  signal?: AbortSignal
+): Promise<Game[]> {
+  const raw = await igdbQuery<IgdbGame[]>(
+    'games',
+    `${GAME_FIELDS} where ${where}; sort total_rating_count desc; limit ${limit};`,
+    signal
+  );
+  return (raw ?? []).map(toFullGame);
+}
+
+/**
+ * The IGDB ids of the games IGDB calls similar to each of these, in one
+ * request — one list per game, in IGDB's order, so a caller can interleave.
+ */
+export async function getSimilarIds(ids: readonly number[], signal?: AbortSignal) {
+  if (ids.length === 0) return [];
+  const raw = await igdbQuery<{ id: number; similar_games?: number[] }[]>(
+    'games',
+    `fields similar_games; where id = (${ids.join(',')}); limit ${ids.length};`,
+    signal
+  );
+  return ids.map((id) => raw?.find((row) => row.id === id)?.similar_games ?? []);
+}
+
+// ---------------------------------------------------------------------------
 // Franchise, studio and cast
 // ---------------------------------------------------------------------------
 

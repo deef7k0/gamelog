@@ -7,9 +7,12 @@
  * eighteen — megabytes of fonts in every APK that were never drawn. The
  * subpaths require one file each.
  *
- * Inter only. Source Serif 4 set reviews until the owner had it removed; see
- * `FontFamily` in `constants/theme.ts`.
+ * Inter, and two weights that onboarding alone sets: Inter ExtraBold for its
+ * headlines and Geist Mono for the small instruction over them (the owner's
+ * reference, 2026-10-15). Source Serif 4 set reviews until the owner had it
+ * removed; see `FontFamily` in `constants/theme.ts`.
  */
+import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono/400Regular';
 import { Inter_300Light } from '@expo-google-fonts/inter/300Light';
 import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_400Regular_Italic } from '@expo-google-fonts/inter/400Regular_Italic';
@@ -17,11 +20,12 @@ import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_600SemiBold_Italic } from '@expo-google-fonts/inter/600SemiBold_Italic';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -34,6 +38,7 @@ import { primeSteamArtwork } from '@/hooks/use-steam-artwork';
 import { queryClient } from '@/lib/query-client';
 import { forgetAppleMusicCache } from '@/lib/soundcloud/legacy';
 import { useAuth } from '@/store/auth';
+import { takeAfterOnboarding, useOnboarding } from '@/store/onboarding';
 
 /*
  * What is drawn when a screen throws while rendering, in place of the app
@@ -44,9 +49,16 @@ export { AppErrorBoundary as ErrorBoundary } from '@/components/app-error-bounda
 
 SplashScreen.preventAutoHideAsync();
 
+/** A form that opens over the page: a sheet on iOS, sliding up on Android. */
+const SHEET = { presentation: 'modal', animation: 'slide_from_bottom' } as const;
+/** The scanner: the whole screen, sliding up. */
+const FULL_SHEET = { presentation: 'fullScreenModal', animation: 'slide_from_bottom' } as const;
+
 export default function RootLayout() {
   const session = useAuth((state) => state.session);
   const isRestoring = useAuth((state) => state.isRestoring);
+  const onboarding = useOnboarding((state) => state.status);
+  const onboardingKnown = useOnboarding((state) => state.launchResolved);
 
   /*
    * Preload the icon font.
@@ -82,11 +94,25 @@ export default function RootLayout() {
      * next to a bold title has to recede without shrinking.
      */
     Inter_300Light,
+    /*
+     * Onboarding's two (`FontFamily.extraBold`, `FontFamily.mono`). Loaded with
+     * the rest rather than on the onboarding screens, because the signed-out
+     * pitch is the first thing a new install draws.
+     */
+    Inter_800ExtraBold,
+    GeistMono_400Regular,
   });
 
   // Boot anyway if the font cannot be fetched — tofu glyphs beat a dead splash
   // screen, and in dev this usually just means the bundler is restarting.
-  const ready = !isRestoring && (fontsLoaded || !!fontError);
+  /*
+   * `onboardingKnown` holds the splash at launch until a signed-in account is
+   * known to be onboarded or not (`store/onboarding`), so an existing account
+   * never sees the onboarding page flash past. It only ever turns true, so a
+   * sign-in later on does not take the whole tree down while it is worked out:
+   * the onboarding route draws a holding page for that moment instead.
+   */
+  const ready = !isRestoring && onboardingKnown && (fontsLoaded || !!fontError);
 
   // Hold the splash screen until we know whether there is a session, otherwise
   // the sign-in screen flashes before the feed for an already-signed-in user.
@@ -179,8 +205,18 @@ export default function RootLayout() {
             and a real gain in honesty: a dynamic title used to be declared in
             two places and only one of them was right.
           */}
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Protected guard={!!session}>
+            {/*
+              Every screen slides in from the right and back out — the owner's
+              direction (2026-10-15): "a smooth slide animation. Not too fast
+              and not too slow". On Android `slide_from_right` runs on the
+              system's medium animation time (400ms, eased at both ends);
+              `ios_from_right` is the short one (200ms), which read as a jump,
+              and the platform default is a fade and zoom, not a slide. iOS
+              pushes with its own slide. Forms that open as sheets slide up
+              instead (`SHEET` below), as a sheet does.
+            */}
+            <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+              <Stack.Protected guard={!!session && onboarding === 'done'}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="game/[id]" />
                 <Stack.Screen name="profile/[id]" />
@@ -220,43 +256,44 @@ export default function RootLayout() {
                 <Stack.Screen name="notifications/index" />
                 <Stack.Screen name="settings" />
                 <Stack.Screen name="comments/[type]/[id]" />
-                <Stack.Screen name="log/[id]" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="playthrough/[id]" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="add-copy" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="log/[id]" options={SHEET} />
+                <Stack.Screen name="playthrough/[id]" options={SHEET} />
+                <Stack.Screen name="add-copy" options={SHEET} />
                 <Stack.Screen name="copy/[id]" />
-                <Stack.Screen name="scan" options={{ presentation: 'fullScreenModal' }} />
-                <Stack.Screen name="add-release" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="suggest-similar/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="scan" options={FULL_SHEET} />
+                <Stack.Screen name="add-release" options={SHEET} />
+                <Stack.Screen name="suggest-similar/[id]" options={SHEET} />
                 <Stack.Screen name="similar/[id]" />
                 {/* Every flag in the app — a pick, a suggestion, a review —
                   opens this one form, over whatever it was on. */}
-                <Stack.Screen name="report/[kind]/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="report/[kind]/[id]" options={SHEET} />
                 {/* Both are edits to one award category, so both are sheets: you
                   are changing a thing and coming back, not going somewhere. */}
-                <Stack.Screen name="award-game/[id]" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="award-edit/[id]" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="new-list" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="edit-list/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="award-game/[id]" options={SHEET} />
+                <Stack.Screen name="award-edit/[id]" options={SHEET} />
+                <Stack.Screen name="new-list" options={SHEET} />
+                <Stack.Screen name="edit-list/[id]" options={SHEET} />
                 {/* A picker, so it presents as a modal: you are choosing one thing
                   and returning, not navigating somewhere. */}
-                <Stack.Screen name="add-to-list/[id]" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="add-to-list/[id]" options={SHEET} />
                 {/* The moderators' picker behind the Must Play list's "+". */}
-                <Stack.Screen name="label-games" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="quick-log" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
+                <Stack.Screen name="label-games" options={SHEET} />
+                <Stack.Screen name="quick-log" options={SHEET} />
+                <Stack.Screen name="edit-profile" options={SHEET} />
+              </Stack.Protected>
+
+              {/* Signed in, and not onboarded yet — or not known to be, for the
+                  moment after a sign-in while `store/onboarding` asks. One route,
+                  and nothing else is reachable until it finishes. */}
+              <Stack.Protected guard={!!session && onboarding !== 'done'}>
+                <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
               </Stack.Protected>
 
               <Stack.Protected guard={!session}>
-                {/* First in the group, so it is where an unsigned-in cold start
-                    lands. The app used to open on the password form, which asked
-                    for a credential before saying what it was for; `welcome`
-                    says what GameLog does and keeps one action at the bottom.
-                    `sign-in-options` is the fork it leads to, and the two
-                    existing forms sit behind that. */}
+                {/* The pitch, the email and the password, as one route — the
+                    owner's onboarding reference. It replaced `welcome`'s
+                    carousel and the three sign-in screens behind it. */}
                 <Stack.Screen name="welcome" />
-                <Stack.Screen name="sign-in-options" />
-                <Stack.Screen name="sign-in" />
-                <Stack.Screen name="sign-up" />
               </Stack.Protected>
             </Stack>
 
@@ -274,9 +311,35 @@ export default function RootLayout() {
             */}
             <PlayerHost />
             <MiniPlayer />
+            <AfterOnboarding />
           </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+/**
+ * Where onboarding's last page sent somebody — a review of their first
+ * favourite, or Search — once the app has taken its place.
+ *
+ * The flow cannot navigate there itself: finishing is what swaps the
+ * onboarding route for the app, and a push issued in the same breath lands in
+ * the stack that is being torn down. So the destination is left in the store
+ * and taken here, a frame after the app's own routes exist.
+ */
+function AfterOnboarding() {
+  const status = useOnboarding((state) => state.status);
+  const after = useOnboarding((state) => state.after);
+
+  useEffect(() => {
+    if (status !== 'done' || !after) return;
+    const timer = setTimeout(() => {
+      const destination = takeAfterOnboarding();
+      if (destination) router.push(destination);
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [status, after]);
+
+  return null;
 }

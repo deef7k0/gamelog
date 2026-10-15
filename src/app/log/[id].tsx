@@ -4,12 +4,14 @@ import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, BackHandler, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { ChoiceChips } from '@/components/choice-chips';
+import { ProgressPills } from '@/components/progress-pills';
 import { Button } from '@/components/ui/button';
 import { GameCaseDisplay } from '@/components/game-case-display';
+import { PaintFill, PaintGlyph, inkTransition } from '@/components/ui/paint-fill';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { useSelectable } from '@/components/ui/selectable';
 import {
   ReviewMetricsEditor,
   draftFromMetrics,
@@ -24,15 +26,22 @@ import { SelectField, type SelectOption } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import {
-  COMPLETION_LABEL,
   PROGRESS_CHOICES,
   PROGRESS_META,
   progressChoiceFor,
   type ProgressChoice,
 } from '@/constants/progress';
-import { statusColor } from '@/constants/status';
 import { averageMetrics, countMetrics, parseReviewMetrics } from '@/constants/review-metrics';
-import { Radius, Spacing, TapTarget, Type, readableInk, withAlpha } from '@/constants/theme';
+import {
+  ControlHeight,
+  Radius,
+  Spacing,
+  TapTarget,
+  Type,
+  ensureContrast,
+  readableInk,
+  withAlpha,
+} from '@/constants/theme';
 import { AccentProvider } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { deleteLog, getMyLog, saveLog } from '@/lib/api';
@@ -168,7 +177,8 @@ type LogFormProps = {
 
 /** Everything the dirty check and the draft both care about, as one comparable value. */
 type FormValues = {
-  progress: ProgressChoice;
+  /** Null until a choice is made: a new log starts with none of the seven. */
+  progress: ProgressChoice | null;
   /** For `completed` only: how far past the credits. */
   level: 'story' | 'main';
   rating: number | null;
@@ -226,7 +236,7 @@ function signature(values: FormValues): string {
     .join(',');
 
   return [
-    values.progress,
+    values.progress ?? '',
     values.level,
     values.rating ?? '',
     values.advanced,
@@ -250,7 +260,6 @@ function tap(run: () => Promise<void>) {
 
 function LogForm({ game, existing, draft, userId }: LogFormProps) {
   const theme = useTheme();
-  const selectable = useSelectable();
   const router = useRouter();
   const navigation = useNavigation();
   const queryClient = useQueryClient();
@@ -259,8 +268,12 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
 
   /* The draft wins on mount when there is one — it is by definition newer than
      the saved log, and it is the work the user has not been given back yet. */
-  const [progress, setProgress] = useState<ProgressChoice>(
-    () => (draft && progressFromDraft(draft)) ?? progressChoiceFor(existing) ?? 'played'
+  /* No default. It used to start on "Played", which saved a claim nobody made
+     whenever someone scored a game without touching the row — and the owner's
+     pills are all bright until one is chosen, so "nothing chosen" is a state
+     the form has to be able to be in. Saving waits for a choice. */
+  const [progress, setProgress] = useState<ProgressChoice | null>(
+    () => (draft && progressFromDraft(draft)) ?? progressChoiceFor(existing) ?? null
   );
   const [level, setLevel] = useState<'story' | 'main'>(() =>
     (draft?.level ?? existing?.completion) === 'main' ? 'main' : 'story'
@@ -331,7 +344,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
      discard prompt and the draft writer both ask is "is there work here that
      Postgres does not have", and a restored draft is exactly that. */
   const baseline: FormValues = {
-    progress: progressChoiceFor(existing) ?? 'played',
+    progress: progressChoiceFor(existing) ?? null,
     level: existing?.completion === 'main' ? 'main' : 'story',
     rating: existing?.rating ?? null,
     advanced: savedMetrics !== null,
@@ -374,6 +387,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
   const clearsRating = advanced && metricCount === 0 && existing?.rating != null;
 
   const blocked =
+    (progress === null ? 'Pick where you are with it.' : null) ??
     hoursError ??
     (writingReview && !reviewTitle.trim() ? 'Your review needs a headline.' : null) ??
     (writingReview && !review.trim() ? 'Your review needs a body.' : null) ??
@@ -408,6 +422,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
 
       /* The derived checks above already gate the button. These stay as the
          backstop for a save that arrives some other way. */
+      if (progress === null) throw new Error('Pick where you are with it.');
       if (hoursError) throw new Error(hoursError);
       if (reviewTitle.trim() && !review.trim()) {
         throw new Error('Your review has a headline but no body.');
@@ -503,7 +518,11 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     if (!userId || !dirty || save.isPending || remove.isPending) return;
 
     const timer = setTimeout(() => {
-      void saveDraft(userId, game.id, { ...values, savedAt: Date.now() });
+      void saveDraft(userId, game.id, {
+        ...values,
+        progress: values.progress ?? undefined,
+        savedAt: Date.now(),
+      });
     }, DRAFT_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
@@ -686,76 +705,14 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
             <Text variant="label" color="textMuted" accessibilityRole="header">
               Progress
             </Text>
-            <View style={styles.statuses}>
-              {PROGRESS_CHOICES.map((option) => {
-                const selected = progress === option.key;
-                const tint = statusColor(option.status, theme);
-                return (
-                  /* The status's own colour, not the accent: which of the seven
-                     you are is data (CLAUDE.md, "Meaning"), so the chosen pill
-                     fills with it. Only the shape and the edge are the shared
-                     control language. */
-                  <PressableScale
-                    key={option.key}
-                    onPress={() => setProgress(option.key)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityHint={option.hint}
-                    scaleTo={0.96}
-                    pressedColor={selected ? tint : theme.pressed}
-                    focusRing={withAlpha(tint, 0.3)}
-                    style={StyleSheet.flatten([
-                      styles.status,
-                      {
-                        /* Outlined at rest, like every choice in the app. */
-                        backgroundColor: selected ? tint : 'transparent',
-                        borderColor: selected ? tint : theme.outline,
-                      },
-                    ])}>
-                    {/* Glyph as well as fill: the three "played" choices share
-                        a hue, and states told apart by colour alone are exactly
-                        where a red/green confusion costs someone the answer. */}
-                    <Ionicons
-                      name={option.icon}
-                      size={13}
-                      color={selected ? readableInk(tint) : tint}
-                    />
-                    <Text
-                      variant="bodySmall"
-                      style={{ color: selected ? readableInk(tint) : theme.textSecondary }}>
-                      {option.label}
-                    </Text>
-                  </PressableScale>
-                );
-              })}
-            </View>
-
-            {/* "Finished it" has a second question under it, asked only once
-                it applies: how far past the credits. 100% is its own choice
-                above, so this is only ever the story or the story and the rest. */}
-            {progress === 'completed' && (
-              <View style={styles.levels} accessibilityRole="radiogroup">
-                {(['story', 'main'] as const).map((option) => {
-                  const selected = level === option;
-                  const look = selectable(selected);
-                  return (
-                    <PressableScale
-                      key={option}
-                      onPress={() => setLevel(option)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected }}
-                      scaleTo={0.97}
-                      pressedColor={look.pressedColor}
-                      focusRing={look.focusRing}
-                      style={StyleSheet.flatten([styles.level, look.style])}>
-                      <Text variant="bodySmall" color={look.label}>
-                        {COMPLETION_LABEL[option]}
-                      </Text>
-                    </PressableScale>
-                  );
-                })}
-              </View>
-            )}
+            {/* The poster palette's solid pills — the owner's reference
+                (2026-10-15). See `<ProgressPills>` for how choosing reads. */}
+            <ProgressPills
+              value={progress}
+              onChange={setProgress}
+              level={level}
+              onLevelChange={setLevel}
+            />
           </View>
 
           <View style={styles.section}>
@@ -1046,10 +1003,11 @@ function LogFormSkeleton() {
 
       <View style={styles.section}>
         {block(52, 10)}
-        <View style={styles.statuses}>
-          {block(88, TapTarget, Radius.control)}
-          {block(88, TapTarget, Radius.control)}
-          {block(88, TapTarget, Radius.control)}
+        {/* The pills' grid: one across, then pairs. */}
+        {block('100%', ControlHeight.medium, Radius.pill)}
+        <View style={styles.skeletonRow}>
+          <View style={styles.flex}>{block('100%', ControlHeight.medium, Radius.pill)}</View>
+          <View style={styles.flex}>{block('100%', ControlHeight.medium, Radius.pill)}</View>
         </View>
       </View>
 
@@ -1083,32 +1041,30 @@ function Toggle({
   disabled?: boolean;
 }) {
   const theme = useTheme();
+  const reduceMotion = useReducedMotion();
+  const ink = value ? readableInk(tint) : ensureContrast(tint, theme.background, 4.5);
 
   return (
-    /* On in the toggle's own meaning colour — platinum, or the spoiler
-       warning's red — rather than the accent: the colour says *what* is on. The
-       shape, the edge and the press are the shared control language. */
+    /* In the toggle's own meaning colour — platinum, or the spoiler warning's
+       red — rather than the accent: the colour says *what* is on. Outlined in
+       it at rest, poured solid when on: the owner's rule for every outlined
+       control (2026-10-15), the same as the progress pills above. */
     <PressableScale
       accessibilityRole="switch"
       accessibilityState={{ checked: value, disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
       scaleTo={0.97}
-      pressedColor={value ? withAlpha(tint, 0.22) : theme.pressed}
       focusRing={withAlpha(tint, 0.3)}
       style={StyleSheet.flatten([
         styles.toggle,
-        {
-          /* Outlined at rest, like every choice in the app. */
-          backgroundColor: value ? withAlpha(tint, 0.13) : 'transparent',
-          borderColor: value ? tint : theme.outline,
-          opacity: disabled ? 0.6 : 1,
-        },
+        { borderColor: tint, opacity: disabled ? 0.6 : 1 },
       ])}>
-      <Ionicons name={icon} size={18} color={value ? tint : theme.textMuted} />
-      <Text variant="bodySmall" style={{ color: value ? tint : theme.textSecondary }}>
+      <PaintFill on={value} color={tint} cornerRadius={Radius.control} />
+      <PaintGlyph name={icon} size={18} color={ink} />
+      <Animated.Text style={[Type.bodySmall, { color: ink }, inkTransition(reduceMotion)]}>
         {label}
-      </Text>
+      </Animated.Text>
     </PressableScale>
   );
 }
@@ -1137,29 +1093,7 @@ const styles = StyleSheet.create({
   // A little air between the bar and the tick box so they read as two choices
   // rather than one control with a stray checkbox attached.
   metrics: { marginTop: Spacing.x8 },
-  statuses: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8 },
-  levels: { flexDirection: 'row', gap: Spacing.x8 },
-  level: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: TapTarget,
-    borderRadius: Radius.control,
-    borderWidth: 1,
-  },
-  status: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.x4 + 2,
-    paddingVertical: Spacing.x8,
-    paddingHorizontal: Spacing.x16,
-    /* The pill stayed visually compact and grew to the floor — four 28dp
-       targets 6dp apart was a row a thumb could not resolve. */
-    minHeight: TapTarget,
-    borderRadius: Radius.control,
-    borderWidth: 1,
-  },
+  skeletonRow: { flexDirection: 'row', gap: Spacing.x8 },
   reviewTitle: { ...Type.h3 },
   // Tall by default: a short box invites a short review.
   reviewBody: { minHeight: 260 },
@@ -1173,7 +1107,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.x16,
     minHeight: TapTarget,
     borderRadius: Radius.control,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    /* The paint is clipped to the control. */
+    overflow: 'hidden',
   },
   row: { flexDirection: 'row', gap: Spacing.x12 },
   rowItem: { flex: 1 },

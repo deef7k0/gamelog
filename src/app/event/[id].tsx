@@ -1,35 +1,61 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Linking, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState, type ReactNode } from 'react';
+import { Linking, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
-import { EventRsvp } from '@/components/event-rsvp';
 import { GameGridTile } from '@/components/game-grid-tile';
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ExpandableText } from '@/components/ui/expandable-text';
-import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
+import { IconButton } from '@/components/ui/icon-button';
 import { InfoCard } from '@/components/ui/info-card';
 import { PageFlatList } from '@/components/ui/page-scroll';
+import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
+import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
+import { StatsStrip, type StatsCell } from '@/components/ui/stats-strip';
 import { Text } from '@/components/ui/text';
 import { CoverGridWindow } from '@/constants/list-window';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing, TapTarget, withAlpha } from '@/constants/theme';
+import { useEventAttendance } from '@/hooks/use-event-attendance';
 import { useTheme } from '@/hooks/use-theme';
+import { getEventWatchers, type EventWatcher } from '@/lib/api';
+import {
+  countdown,
+  eventPhase,
+  runningTime,
+  showsGames,
+  startCells,
+  type EventPhase,
+} from '@/lib/event-phase';
 import { getEvent, getEventGames, type EventDetail } from '@/lib/games/browse';
+import type { GameEvent } from '@/lib/news';
+import { remindersAvailable } from '@/lib/reminders';
+import { useAuth } from '@/store/auth';
 
 /** Between covers, across and down — the collection grid's. */
 const GRID_GAP = Spacing.x12;
 
 /** Lines of the event's description before More. */
-const ABOUT_LINES = 5;
+const ABOUT_LINES = 3;
 
 /** IGDB's event art is 16:9, and so is the banner. */
 const BANNER_RATIO = 9 / 16;
 
 /** The event's name under its banner, and the gap over it, near enough. */
-const NAME_BLOCK = 56;
+const NAME_BLOCK = 64;
+
+/** Faces in the row before "+N". */
+const FACES = 7;
+const FACE_SIZE = 40;
+
+/** Room under the last row for the foot bar: its button, its padding, its fade. */
+const FOOT_ROOM = 112;
 
 function open(url: string) {
   Linking.openURL(url).catch(() => {
@@ -37,46 +63,33 @@ function open(url: string) {
   });
 }
 
-/** "Thu 11 December 2025, 20:30", in the reader's own zone. */
-function formatStart(unixSeconds: number): string {
-  const date = new Date(unixSeconds * 1000);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 /**
- * One event — a showcase, a conference, an award show — and the games shown at
- * it.
+ * One event — a showcase, a conference, an award show — laid out as the owner's
+ * reference lays out a race (2026-10-15: "Landscape art at the top, name of the
+ * event in big bold, small info below, in bigger the date, time it starts,
+ * people participating/watching, and then the games that are shown whenever
+ * the event is over").
  *
- * Opened from a row in Search's Events. The game page once had the other
- * direction — a "Featured in" rail naming the events a game appeared at — until
- * the owner took it off; this is an event and everything that appeared at it,
- * which is the only side IGDB exposes the join from (`events.games`).
+ * Top to bottom: the key art, melting into the page; the name; one small line
+ * of where it streams and a tag for where it is in its life (upcoming, live,
+ * ended — the reference's "RUNNING"); then the three things in bigger type —
+ * the date, the start time, how many are watching; the faces of the people
+ * watching, friends first; what it is; and, **only once it is over**, the
+ * games shown at it (`showsGames`). Before then nothing is printed there:
+ * IGDB's list for an event still to come is an announcement, not a record.
  *
- * The banner leads and runs under the floating back disc, the way a game or a
- * collection opens — the event's key art is the one picture it has. Under it:
- * when, what it was, where to watch it, and then the games as a grid of titled
- * covers three across, each a door to its page.
+ * The one action is pinned to the foot, as the reference's "View Results" is,
+ * and it is the action for the moment: say you will be watching (with a
+ * reminder beside it) before; watch while it is live; watch the replay after,
+ * when there is a stream to go back to. Watching in person is a quiet line
+ * under the faces, not a second big button.
  *
- * An event still to come also asks whether you will be watching, and offers a
- * reminder before it starts (`<EventRsvp>`, the control News' event cards
- * carry — one record of attendance, whichever screen it was made on). One that
- * has started or has no announced time does not: there is nothing left to say
- * you will attend, and no moment to be reminded of.
- *
- * Two requests: the event, then the games it lists by id. The second starts
- * when the first lands, so the heading and the banner are on screen while the
- * covers load.
+ * Opened from News's Events. Two IGDB requests (the event, then its games by
+ * id — only when they will be shown) and two of ours (attendance, faces).
  */
 export default function EventScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Number(id);
   const valid = Number.isFinite(eventId);
@@ -95,11 +108,15 @@ export default function EventScreen() {
     staleTime: 30 * 60_000,
   });
 
-  const gameIds = event.data?.gameIds ?? [];
+  const data = event.data ?? null;
+  const phase: EventPhase = data ? eventPhase(data.startTime, data.endTime, now) : 'undated';
+  const gameIds = data?.gameIds ?? [];
+  const wantGames = showsGames(phase) && gameIds.length > 0;
+
   const games = useQuery({
     queryKey: ['event-games', eventId],
     queryFn: ({ signal }) => getEventGames(gameIds, signal),
-    enabled: gameIds.length > 0,
+    enabled: wantGames,
     staleTime: 30 * 60_000,
   });
 
@@ -119,7 +136,7 @@ export default function EventScreen() {
     );
   }
 
-  if (!event.data) {
+  if (!data) {
     return (
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back variant="art" />}>
         <EmptyState title="Event not found" />
@@ -127,62 +144,54 @@ export default function EventScreen() {
     );
   }
 
-  const data = event.data;
-  const shown = games.data ?? [];
-  const upcoming = data.startTime !== null && data.startTime * 1000 > now;
+  const gameEvent: GameEvent = {
+    id: String(data.id),
+    name: data.name,
+    description: data.description,
+    startsAt: data.startTime !== null ? new Date(data.startTime * 1000).toISOString() : null,
+    liveStreamUrl: data.liveStreamUrl,
+    isUpcoming: phase === 'upcoming',
+  };
+  const shown = wantGames ? (games.data ?? []) : [];
+
+  function share() {
+    const url = data!.liveStreamUrl ?? data!.links[0]?.url;
+    void Share.share({ message: url ? `${data!.name} — ${url}` : data!.name }).catch(() => {
+      // Dismissed, or the platform has no share sheet; nothing to say.
+    });
+  }
 
   const head = (
     <View style={styles.head}>
       {/* Cancels the list's side padding so the art reaches both edges. */}
       <View style={styles.bleed}>
-        <EventBanner event={data} width={width} fill={theme.surfaceElevated} />
+        <EventBanner event={data} width={width} />
       </View>
 
       <View style={styles.title}>
         <Text variant="display" accessibilityRole="header">
           {data.name}
         </Text>
-        {data.startTime !== null && (
-          <Text variant="body" color="textSecondary">
-            {formatStart(data.startTime)}
-          </Text>
-        )}
+        <SmallInfo event={data} phase={phase} />
       </View>
 
-      {upcoming && (
-        <View style={styles.rsvp}>
-          <Text variant="itemTitle">Will you be watching?</Text>
-          <EventRsvp
-            event={{
-              id: String(data.id),
-              name: data.name,
-              description: data.description,
-              startsAt: new Date(data.startTime! * 1000).toISOString(),
-              liveStreamUrl: data.liveStreamUrl,
-              isUpcoming: true,
-            }}
-          />
-        </View>
-      )}
+      <Figures event={data} phase={phase} now={now} gameEvent={gameEvent} />
 
-      {data.liveStreamUrl && (
-        <Button
-          title="Watch"
-          icon="play"
-          variant="primary"
-          fullWidth
-          accessibilityLabel={`Watch ${data.name}`}
-          onPress={() => open(data.liveStreamUrl!)}
-        />
-      )}
+      <Watching
+        event={gameEvent}
+        phase={phase}
+        onOpenProfile={(profileId) =>
+          router.push({ pathname: '/profile/[id]', params: { id: profileId } })
+        }
+      />
 
-      {data.description && (
+      {data.description ? (
         <InfoCard title="About">
           <ExpandableText lines={ABOUT_LINES} subject="the description">
             {data.description}
           </ExpandableText>
         </InfoCard>
-      )}
+      ) : null}
 
       {data.links.length > 0 && (
         <View style={styles.links}>
@@ -199,7 +208,7 @@ export default function EventScreen() {
         </View>
       )}
 
-      {gameIds.length > 0 && (
+      {wantGames && (
         <View style={styles.gamesHead}>
           <Text variant="h4" accessibilityRole="header">
             Games shown
@@ -212,6 +221,10 @@ export default function EventScreen() {
     </View>
   );
 
+  /* Whether the foot bar has an action — the same rule `<FootBar>` draws by. */
+  const hasFoot =
+    phase === 'upcoming' || ((phase === 'live' || phase === 'over') && !!data.liveStreamUrl);
+
   return (
     /* The banner runs under the disc, so no `insetHeader`. The disc leaves
        with it; the bar that follows carries the event's name, once the banner
@@ -223,6 +236,7 @@ export default function EventScreen() {
           back
           title={data.name}
           header={Math.round(width * BANNER_RATIO) + NAME_BLOCK}
+          right={<TopBarDisc icon="share-outline" label={`Share ${data.name}`} onPress={share} />}
         />
       }>
       <PageFlatList
@@ -231,7 +245,10 @@ export default function EventScreen() {
         keyExtractor={(game) => game.id}
         {...CoverGridWindow}
         columnWrapperStyle={styles.column}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: hasFoot ? FOOT_ROOM : Spacing.x48 },
+        ]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={head}
         renderItem={({ item }) => (
@@ -247,31 +264,30 @@ export default function EventScreen() {
           />
         )}
         ListEmptyComponent={
-          gameIds.length === 0 ? (
-            <Text variant="body" color="textSecondary">
-              IGDB lists no games for this event yet.
-            </Text>
-          ) : games.isLoadingError ? (
+          !wantGames ? null : games.isLoadingError ? (
             <ErrorState error={games.error} onRetry={() => games.refetch()} />
           ) : (
             <LoadingState />
           )
         }
       />
+      {hasFoot ? <FootBar event={gameEvent} phase={phase} background={theme.background} /> : null}
     </Screen>
   );
 }
 
 /**
- * The event's key art, edge to edge — or, for the few with none, a panel in
- * the app's own surface with its initial, so the page still opens on a shape.
+ * The event's key art, edge to edge, its foot dissolving into the page so
+ * the name under it stands on the page and not on a hard edge — or, for the
+ * few with none, a panel with its initial.
  */
-function EventBanner({ event, width, fill }: { event: EventDetail; width: number; fill: string }) {
+function EventBanner({ event, width }: { event: EventDetail; width: number }) {
+  const theme = useTheme();
   const height = Math.round(width * BANNER_RATIO);
 
   if (!event.bannerUrl) {
     return (
-      <View style={[styles.bannerEmpty, { width, height, backgroundColor: fill }]}>
+      <View style={[styles.bannerEmpty, { width, height, backgroundColor: theme.surfaceElevated }]}>
         <Text variant="display" color="textMuted">
           {event.name.trim().charAt(0).toUpperCase()}
         </Text>
@@ -280,31 +296,392 @@ function EventBanner({ event, width, fill }: { event: EventDetail; width: number
   }
 
   return (
-    <Image
-      source={{ uri: event.bannerUrl }}
-      style={{ width, height, backgroundColor: fill }}
-      cachePolicy="memory-disk"
-      contentFit="cover"
-      transition={220}
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel={`Key art for ${event.name}`}
-      accessibilityIgnoresInvertColors
-    />
+    <View style={{ width, height }}>
+      <Image
+        source={{ uri: event.bannerUrl }}
+        style={{ width, height, backgroundColor: theme.surfaceElevated }}
+        cachePolicy="memory-disk"
+        contentFit="cover"
+        transition={220}
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={`Key art for ${event.name}`}
+        accessibilityIgnoresInvertColors
+      />
+      <LinearGradient
+        pointerEvents="none"
+        colors={[withAlpha(theme.background, 0), theme.background]}
+        style={[styles.bannerFade, { height: height * 0.4 }]}
+      />
+    </View>
+  );
+}
+
+/** Where it streams, and a tag for where it is in its life. */
+function SmallInfo({ event, phase }: { event: EventDetail; phase: EventPhase }) {
+  const theme = useTheme();
+  const networks = event.links.map((link) => link.label).filter((label) => label !== 'Link');
+  const where =
+    networks.length > 0
+      ? `Streaming on ${networks.slice(0, 3).join(' · ')}`
+      : event.liveStreamUrl
+        ? 'Streaming online'
+        : null;
+
+  const tag =
+    phase === 'live'
+      ? { icon: 'radio' as const, label: 'Live now', color: theme.danger }
+      : phase === 'upcoming'
+        ? { icon: 'time-outline' as const, label: 'Upcoming', color: theme.textSecondary }
+        : phase === 'over'
+          ? { icon: 'checkmark-done' as const, label: 'Ended', color: theme.textMuted }
+          : null;
+
+  return (
+    <View style={styles.smallInfo}>
+      {where ? (
+        <Text variant="body" color="textSecondary">
+          {where}
+        </Text>
+      ) : null}
+      {tag ? (
+        <View style={styles.tag}>
+          <Ionicons name={tag.icon} size={13} color={tag.color} />
+          <Text variant="label" style={{ color: tag.color }}>
+            {tag.label}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The three in bigger type: the date, the start, and how many are watching. */
+function Figures({
+  event,
+  phase,
+  now,
+  gameEvent,
+}: {
+  event: EventDetail;
+  phase: EventPhase;
+  now: number;
+  gameEvent: GameEvent;
+}) {
+  const { total } = useEventAttendance(gameEvent);
+
+  if (event.startTime === null) {
+    return (
+      <Text variant="body" color="textSecondary">
+        No date announced yet.
+      </Text>
+    );
+  }
+
+  const cells = startCells(event.startTime);
+  const ran = runningTime(event.startTime, event.endTime);
+  const timeLabel =
+    phase === 'upcoming'
+      ? countdown(event.startTime, now)
+      : phase === 'over' && ran
+        ? `ran ${ran}`
+        : 'started';
+  const watchingLabel = phase === 'over' ? 'watched' : 'watching';
+  const figures: StatsCell[] = [
+    {
+      key: 'date',
+      value: cells.date,
+      label: cells.weekday,
+      a11y: `${cells.weekday} ${cells.date}`,
+    },
+    {
+      key: 'time',
+      value: cells.time,
+      label: timeLabel,
+      a11y: `${phase === 'upcoming' ? 'Starts' : 'Started'} at ${cells.time}, ${timeLabel}, your time`,
+    },
+    {
+      key: 'watching',
+      value: total.toLocaleString(),
+      label: watchingLabel,
+      a11y: `${total.toLocaleString()} ${watchingLabel}`,
+    },
+  ];
+
+  return <StatsStrip cells={figures} />;
+}
+
+/**
+ * The faces of the people watching, friends first, and the line that says who
+ * — "You and 12 others". The row opens the whole list.
+ */
+function Watching({
+  event,
+  phase,
+  onOpenProfile,
+}: {
+  event: GameEvent;
+  phase: EventPhase;
+  onOpenProfile: (profileId: string) => void;
+}) {
+  const theme = useTheme();
+  const userId = useAuth((state) => state.session?.user.id ?? null);
+  const { eventId, mine, total, inPerson, rsvp } = useEventAttendance(event);
+  const [listOpen, setListOpen] = useState(false);
+
+  const watchers = useQuery({
+    queryKey: ['event-attendees', eventId, userId],
+    queryFn: () => getEventWatchers(eventId, userId),
+    staleTime: 60_000,
+  });
+  const people = watchers.data ?? [];
+  const over = phase === 'over';
+  const others = total - (mine ? 1 : 0);
+
+  const line =
+    total === 0
+      ? over
+        ? 'Nobody marked this one.'
+        : "Nobody's said they're watching yet."
+      : mine
+        ? others === 0
+          ? `Just you${over ? '' : ', so far'}.`
+          : `You and ${others.toLocaleString()} ${others === 1 ? 'other' : 'others'}`
+        : `${total.toLocaleString()} ${total === 1 ? 'person' : 'people'}`;
+  const there = inPerson > 0 ? ` · ${inPerson.toLocaleString()} there in person` : '';
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
+        <Text variant="h4" accessibilityRole="header">
+          {over ? 'Watched' : 'Watching'}
+        </Text>
+        <Text variant="bodySmall" color="textMuted">
+          {line + there}
+        </Text>
+      </View>
+
+      {people.length > 0 ? (
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={`See everyone ${over ? 'who watched' : 'watching'}`}
+          onPress={() => setListOpen(true)}
+          scaleTo={0.99}
+          style={styles.faces}>
+          {people.slice(0, FACES).map((entry) => (
+            <Avatar
+              key={entry.profile.id}
+              uri={entry.profile.avatar_url}
+              name={entry.profile.display_name ?? entry.profile.username}
+              size={FACE_SIZE}
+            />
+          ))}
+          {people.length > FACES ? (
+            <View style={[styles.more, { backgroundColor: theme.surfaceElevated }]}>
+              <Text variant="itemTitle" color="textSecondary">
+                {`+${people.length - FACES}`}
+              </Text>
+            </View>
+          ) : null}
+        </PressableScale>
+      ) : null}
+
+      {/* Watching in person is the quieter of the two ways to attend, and a
+          showcase is nearly always watched on a screen: a line, not a button. */}
+      {mine && phase === 'upcoming' ? (
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityState={{ selected: mine.mode === 'in_person' }}
+          onPress={() => rsvp.mutate(mine.mode === 'in_person' ? 'livestream' : 'in_person')}
+          scaleTo={0.98}
+          style={styles.inPerson}>
+          <Ionicons
+            name={mine.mode === 'in_person' ? 'location' : 'location-outline'}
+            size={14}
+            color={theme.primaryText}
+          />
+          <Text variant="bodySmall" color="primaryText">
+            {mine.mode === 'in_person' ? "You're going in person" : 'Going in person?'}
+          </Text>
+        </PressableScale>
+      ) : null}
+
+      <SlideUpSheet
+        visible={listOpen}
+        onClose={() => setListOpen(false)}
+        title={over ? 'Watched' : 'Watching'}>
+        <View style={styles.sheetList}>
+          {people.map((entry) => (
+            <WatcherRow
+              key={entry.profile.id}
+              entry={entry}
+              onPress={() => {
+                setListOpen(false);
+                onOpenProfile(entry.profile.id);
+              }}
+            />
+          ))}
+        </View>
+      </SlideUpSheet>
+    </View>
+  );
+}
+
+function WatcherRow({ entry, onPress }: { entry: EventWatcher; onPress: () => void }) {
+  const name = entry.profile.display_name ?? entry.profile.username;
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={`${name}${entry.friend ? ', you follow them' : ''}`}
+      onPress={onPress}
+      scaleTo={0.98}
+      style={styles.watcher}>
+      <Avatar uri={entry.profile.avatar_url} name={name} size={FACE_SIZE} />
+      <View style={styles.watcherText}>
+        <Text variant="itemTitle" numberOfLines={1}>
+          {name}
+        </Text>
+        <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
+          {`@${entry.profile.username}${entry.mode === 'in_person' ? ' · in person' : ''}`}
+        </Text>
+      </View>
+      {entry.friend ? (
+        <Text variant="caption" color="textSecondary">
+          Following
+        </Text>
+      ) : null}
+    </PressableScale>
+  );
+}
+
+/**
+ * The one action, pinned to the foot with the page fading under it — the
+ * reference's "View Results". Null when the moment has none: an event that is
+ * over with no stream to replay, or one with no date.
+ */
+function FootBar({
+  event,
+  phase,
+  background,
+}: {
+  event: GameEvent;
+  phase: EventPhase;
+  background: string;
+}) {
+  const { mine, hasReminder, rsvp, reminder, notice } = useEventAttendance(event);
+  const stream = event.liveStreamUrl;
+
+  let action: ReactNode = null;
+  if (phase === 'upcoming') {
+    action = (
+      <View style={styles.footRow}>
+        <View style={styles.flex}>
+          <Button
+            title={mine ? "You're watching" : "I'll be watching"}
+            icon={mine ? 'checkmark' : 'eye-outline'}
+            variant={mine ? 'secondary' : 'primary'}
+            fullWidth
+            loading={rsvp.isPending}
+            accessibilityHint={mine ? 'Says you are no longer watching' : undefined}
+            onPress={() => rsvp.mutate(mine ? null : 'livestream')}
+          />
+        </View>
+        {mine && remindersAvailable ? (
+          <IconButton
+            icon={hasReminder ? 'notifications' : 'notifications-outline'}
+            accessibilityLabel={
+              hasReminder ? 'Turn the reminder off' : 'Remind me before it starts'
+            }
+            active={hasReminder}
+            onPress={() => reminder.mutate()}
+          />
+        ) : null}
+      </View>
+    );
+  } else if (phase === 'live' && stream) {
+    action = (
+      <Button
+        title="Watch live"
+        icon="play"
+        variant="primary"
+        fullWidth
+        onPress={() => open(stream)}
+      />
+    );
+  } else if (phase === 'over' && stream) {
+    action = (
+      <Button
+        title="Watch the replay"
+        icon="play"
+        variant="secondary"
+        fullWidth
+        onPress={() => open(stream)}
+      />
+    );
+  }
+
+  if (!action) return null;
+
+  return (
+    <View style={styles.foot} pointerEvents="box-none">
+      <LinearGradient
+        pointerEvents="none"
+        colors={[withAlpha(background, 0), background]}
+        style={styles.footFade}
+      />
+      <View style={[styles.footBody, { backgroundColor: background }]}>
+        {action}
+        {notice ? (
+          <Text variant="caption" color="textMuted" style={styles.notice}>
+            {notice}
+          </Text>
+        ) : null}
+        {rsvp.error || reminder.error ? (
+          <Text variant="caption" color="danger" style={styles.notice}>
+            {(rsvp.error ?? reminder.error) instanceof Error
+              ? (rsvp.error ?? reminder.error)!.message
+              : 'Could not update.'}
+          </Text>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: Spacing.x16,
-    paddingBottom: Spacing.x48,
-    gap: Spacing.x16,
-  },
+  flex: { flex: 1 },
+  content: { paddingHorizontal: Spacing.x16, gap: Spacing.x16 },
   column: { gap: GRID_GAP },
-  head: { gap: Spacing.x16 },
-  bleed: { marginHorizontal: -Spacing.x16 },
-  title: { gap: Spacing.x4 },
-  rsvp: { gap: Spacing.x4 },
+  head: { gap: Spacing.x24 },
+  bleed: { marginHorizontal: -Spacing.x16, marginBottom: -Spacing.x12 },
+  title: { gap: Spacing.x8 },
+  smallInfo: { gap: Spacing.x4 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
+  section: { gap: Spacing.x12 },
+  sectionHead: { gap: 2 },
+  faces: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8, alignSelf: 'flex-start' },
+  more: {
+    width: FACE_SIZE,
+    height: FACE_SIZE,
+    borderRadius: FACE_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inPerson: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x4 + 2,
+    minHeight: TapTarget,
+    alignSelf: 'flex-start',
+  },
+  sheetList: { gap: Spacing.x4, paddingBottom: Spacing.x24 },
+  watcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    minHeight: TapTarget + 8,
+  },
+  watcherText: { flex: 1, gap: 2 },
   /* Wrapped: an event has four or five places it lives, and their names are
      different lengths. `rowGap` clears the small buttons' touch slop. */
   links: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.x8, rowGap: Spacing.x16 },
@@ -315,4 +692,10 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.x8,
   },
   bannerEmpty: { alignItems: 'center', justifyContent: 'center' },
+  bannerFade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  foot: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  footFade: { height: Spacing.x24 },
+  footBody: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x12, gap: Spacing.x8 },
+  footRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
+  notice: { textAlign: 'center' },
 });

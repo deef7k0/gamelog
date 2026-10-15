@@ -85,11 +85,6 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # its size against Material 3's, the frost, how far the
                    # glass discs go with the page, where the bar comes in
                    # after the artwork, and Home's fold (constants/top-bar),
-                   # and the game page's docked actions — SimpMusic's folding
-                   # bar: its sizes against the reference's, its two layouts
-                   # with and without the mini player, the fades of the morph,
-                   # the room the page keeps and Home's rule for when it
-                   # contracts (constants/action-dock),
                    # and which drawing stands for a score, against the five
                    # scores the owner named and the files on disk
                    # (constants/score-figure), and discovery: which language
@@ -98,7 +93,14 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # languages a reader reads (lib/language); a chart's
                    # periods, why somebody is in one, which review a game
                    # leads with — and that 0038 creates the functions the
-                   # app calls, by the names it calls them (lib/discovery)
+                   # app calls, by the names it calls them (lib/discovery),
+                   # and the poster screens: onboarding's rules — who still
+                   # has to be onboarded (read against 0001's trigger), what
+                   # a handle may be, the typing's rhythm, which steps show,
+                   # what IGDB is asked for the last page (lib/onboarding);
+                   # every poster ink at AA and the seven progress pills'
+                   # colours and grid (constants/poster, constants/progress);
+                   # and where an event is in its life (lib/event-phase)
 
 node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
                    # (PGlite, in-process) over every migration, with seven
@@ -263,9 +265,12 @@ src/
     surprise         Surprise Me: one dealt game, one song from it
     platform/[id]    every game on one platform, ten to a page, with the pager
                      over them. Opened from Search's Platforms
-    event/[id]       one showcase or award show, and the games shown at it.
-                     One still to come asks whether you will be watching and
-                     offers a reminder (`<EventRsvp>`). Opened from News's Events
+    event/[id]       one showcase or award show, laid out as the owner's race
+                     reference: the art, the name, where it streams and a
+                     phase tag, then the date, the start and how many are
+                     watching in bigger type, the faces, and the games shown
+                     — only once it is over. Its one action is pinned to the
+                     foot. Opened from News's Events. See § The poster screens
     calendar         a year of releases, a month at a time: five rows of
                      numbered days, then the month's games as covers — or a
                      chosen day's as a list. Top releases behind today, most
@@ -280,7 +285,14 @@ src/
                      player docked at its foot. Opened by "Listen" on the game
                      page's Soundtrack tab, a song in Surprise Me, and the mini
                      player. See § Soundtracks
-    sign-in, sign-up
+    welcome          signed out: the typed pitch, the email, the password (log
+                     in, or make an account), "check your inbox" — one route,
+                     the owner's onboarding reference. Replaced the old
+                     welcome carousel, sign-in-options, sign-in and sign-up
+    onboarding       signed in and not onboarded: twelve steps at most, from a
+                     name to six games to start with. The root layout routes
+                     here and nowhere else until it is done. See § The poster
+                     screens
   components/        shared UI; components/ui/ is the primitive layer
                      ui/frosted-top-bar the top bar — SimpMusic's: a 64dp row
                                         (chevron, the page's name, its controls)
@@ -304,19 +316,10 @@ src/
                      award-show / award-slot  an award ballot, and one row of it
                      game-filter-bar    genre / platform / studio / year pills
                      game-lineage       original game / editions & extras
-                     game-insights      the Ratings card (the game page's
-                                        masthead), then the head of its
-                                        Overview — the two Played by squares
-                                        and the most liked review — and time
-                                        to beat
-                     game-actions       the game page's actions as SimpMusic's
-                                        folding bar at the foot of the screen:
-                                        the review bar over a capsule of keys,
-                                        contracting to the capsule and a
-                                        review circle; the mini player is one
-                                        of the bars there. Also the masthead's
-                                        "You reviewed…" key and an unreleased
-                                        game's date. See § Conventions
+                     game-insights      the head of a game's Overview — the
+                                        Ratings card, the two Played by squares,
+                                        the most liked review. (Time to beat was
+                                        a card here; the owner had it removed)
                      score-summary      GameLog's verdict on a game: the word,
                                         the score as its drawing and number,
                                         the three-part bar. The Ratings card's
@@ -512,11 +515,11 @@ src/
                      top-bar.ts (the top bar: its row, its controls, the glass
                      discs, the frost, and the arithmetic of how each moves
                      with the page — pure, tested; see § The top bar),
-                     action-dock.ts (the game page's docked bars: SimpMusic's
-                     folding bar's sizes, its layouts and the morph's fades —
-                     pure, tested),
                      score-figure.ts (which of the five drawings stands for a
-                     score — pure, tested; see § Score figures)
+                     score — pure, tested; see § Score figures),
+                     poster.ts (onboarding's page colours: which token is the
+                     page, the ink, the pill — pure, tested; see § The poster
+                     screens)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -561,6 +564,9 @@ src/
                         for it
     use-review-chart    the Reviews chart for a period, in those languages:
                         the one query Search's Reviews tab and `/reviews` share
+    use-event-attendance  somebody's attendance at one event and the reminder:
+                        the one record `<EventRsvp>` and the event page's foot
+                        bar both write through
   lib/
     color.ts         contrast, mixing, luminance-preserving tint, readable ink
     artwork-color.ts dominant hue of a cover, decoded from the real pixels
@@ -641,6 +647,11 @@ src/
     device-locale.ts the languages the phone is set to, from React Native's
                      own modules (no `expo-localization`)
     reading-languages.ts  the reader's choice of languages, kept on the device
+    onboarding.ts    onboarding's rules as data: the fallback username, handles,
+                     the typing, the steps, the answers and the picks clause.
+                     Pure, tested. games/onboarding-picks.ts sends it to IGDB
+    event-phase.ts   upcoming / live / over, whether the games are shown, the
+                     countdown. Pure, tested
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements,
                      the reviews sheet
@@ -659,6 +670,8 @@ src/
       storage.ts     image upload
     supabase.ts      client + session persistence
   store/auth.ts      zustand auth state
+  store/onboarding.ts  whether the signed-in account is onboarded, where a
+                     halfway flow resumes, and where its last page sends them
   store/player.ts    the app's one music player: the queue, what it is doing,
                      and the commands (`player.play`, `toggle`, `next`,
                      `release`…). Holds SoundCloud's words in memory only
@@ -1074,6 +1087,15 @@ list.
   period's mean), so one 100 does not top thirty 94s and a week with four
   ratings still has a row. `null` from the query means the database has not
   run 0037 and the row is absent; an empty period says so and keeps the control.
+- **The field folds away as the page is read; the tabs never move**
+  (`<CollapsingField>`) — the owner's direction (2026-10-15), after SimpMusic's
+  Home, whose top bar is an `AnimatedVisibility(visible = isScrollingUp)` over
+  a chip row that stays. Reading down 24dp folds the field's height to nothing
+  and the tabs rise into its place; scrolling up 24dp, or reaching the top,
+  unfolds it; a focused field stays out. It reads `scrollY` on the UI thread,
+  so **every list Search shows is the page's scroller** (`ui/page-scroll`) —
+  Discover, the history and all seven scopes' results. A new body that is a
+  plain `ScrollView` or `FlatList` leaves the field stuck where it was.
 - **Recent searches take the body while the field is focused** and nothing is
   typed — never over Platforms, which records nothing. A tap on the Search tab
   while it is open returns it to Games with the field empty.
@@ -1735,14 +1757,15 @@ A label is a mark a moderator puts on a game by hand. `must_play` is the first;
   a cover removes the label after asking. Settings links to the list for
   moderators.
 - **Where it shows**: as a badge in the top-right of the game's cover
-  (`<Poster gameId>`), and as a fourth cell of the game page's stats strip,
-  after the age rating, where it is a door to `must-play`. It took the age
-  rating's place while the strip led with the score; the score left the strip
-  (2026-10-14) and there is room for both.
+  (`<Poster gameId>`), and as the last cell of the game page's stats strip,
+  *in place of the age rating*, where it is a door to `must-play`. A game
+  without the label keeps the age rating.
 - **`<Poster>` wears the badge only when it is given `gameId`.** That is how a
   surface opts out, and two do by the owner's rule: **collections** (every
   tile, row and stack) and **reviews** (the card, the review page, a profile's
-  Reviews tab, the wall, Home's "New from friends"). Do not pass `gameId` there. It is also withheld on
+  Reviews tab, the wall, Home's "New from friends"). Do not pass `gameId` there. **The profile's
+  Favourites and Games rows** opt out too, at the owner's direction
+  (2026-10-15). It is also withheld on
   Surprise Me's dealt card and on the Must Play list, where it would be on
   every cover.
 - **The badge is the one coloured thing on box art.** A green disc (`mustPlay`,
@@ -1914,8 +1937,6 @@ screen's heading under its bar again.
      row folded away while the page was read downward and came back on the way
      up; the owner had that removed (2026-10-14): "Make the home top bar stay
      at the top, it should not move with the scroll." Do not fold it again.
-     (The game page's docked bars still contract and expand — that is a
-     different control, § Conventions.)
 - **A screen's name is its bar's `title`.** Twenty-odd screens printed an `h1`
   at the top of their content because no bar existed to carry it — several
   said so in a comment. Those headings are the bars' titles now and are gone
@@ -2027,6 +2048,107 @@ screen's heading under its bar again.
   estimates and say so); Home's fold; and whether the animated blur holds its
   frame rate on an older phone.
 
+## The poster screens: onboarding, the event page, the progress pills
+
+The owner's reference (2026-10-15): screenshots of another app's onboarding,
+its race page and its "host a race" blocks. "Change the onboarding of the app
+with the exact style of the images"; the event screen as the race page; the log
+form's status/completion buttons as the blocks — "a pill… filled with that
+solid color, it has the icon and the title… no description". DESIGN.md § 27–28
+is the visual statement; these are the rules in the code.
+
+**Onboarding is two routes.** `welcome` is signed out: four typed lines
+(`INTRO_LINES`, the flirty register the owner chose) that **wait for a tap** —
+the owner had the auto-advance taken out — then the email, then a password. **The owner kept passwords** over an emailed code, so the email
+cannot tell a sign-in from a sign-up: the password page logs in, and "New here?
+Make an account" turns it into a sign-up. Signing up asks for nothing else —
+`signUp(email, password)`, no handle. With email confirmation on it ends on
+"check your inbox." `onboarding` is signed in: name, welcome, what you are here
+for, platforms, genres, solo or not, favourites, notifications, Steam, photo,
+handle, and six games to start with (`onboardingSteps`). IGDB only answers a
+signed-in caller, which is why half of it comes after the account exists.
+
+- **Only a sign-up is asked the questions; a log-in never is** — the owner's
+  rule (2026-10-15). A password sign-up is known as one at the moment it
+  happens: `signUp()` brackets its call with `beginSignUp` / `endSignUp`, and
+  the session that arrives inside it is `needed` on the spot, with no request.
+  Otherwise the database decides: `handle_new_user()` (0001) names an account
+  that signed up without a handle `user_` + twelve hex digits, so an account
+  still wearing that name has not finished signing up (`hasFallbackUsername`,
+  tested against the migration's text) — a Google or Facebook sign-up, or the
+  first log-in after confirming an email. Any account with a handle logging in
+  is `done`. The device keeps `started` / `done` per account so a flow closed
+  halfway resumes — and so claiming the handle one step before the end does
+  not end it. Anything that fails after the retries below (no profile, a
+  timeout of 9 s, storage) answers `done`: onboarding never holds anybody out
+  of the app.
+- **The account's own profile is read with retries** (`lib/own-profile.ts`,
+  `fetchOwnProfile`: four tries over about seven seconds), by the auth store
+  and by onboarding. Right after a sign-in the database's API can refuse the
+  brand-new token as "JWT issued at future" — the auth server that minted it
+  and PostgREST that checks it are different machines with clocks a moment
+  apart. Read once, that left the profile `null` for the session: no "Welcome
+  back" on Home (it draws from `useAuth.profile`), and a new sign-up's
+  onboarding check answering `done`. Seen on the owner's phone after clearing
+  the app's data.
+- **The root layout routes by it** (`store/onboarding`): the app's group is
+  `session && done`, `onboarding` is `session && !done`, `welcome` is
+  `!session`. The splash is held at *launch* until the answer is known
+  (`launchResolved`, which only ever turns true), so an existing account never
+  sees onboarding flash past; a sign-in later is a holding page on the
+  onboarding route instead, because dropping `ready` would unmount the tree.
+- **The last page cannot navigate.** Finishing swaps the route group, so a push
+  in the same breath lands in a stack being torn down. The destination (a review
+  of the first favourite for "writing reviews", Search for "finding my next
+  game") is left in the store and pushed by `<AfterOnboarding>` in the root
+  layout a frame later.
+- **Every step but the handle can be skipped**, and two are not shown where
+  they could only fail: notifications where reminders cannot be scheduled
+  (Expo Go on Android), and Steam until the project has a Steam Web API key
+  (`STEAM_IMPORT_READY` in `app/onboarding.tsx` — flip it when the key exists).
+- **What is kept**: name, handle, photo, favourites (the profile's four) and
+  the games tapped on the last page, as Want to play logs. Platforms, genres and
+  solo/co-op only choose those six games, and are deleted with the resume record
+  when the flow ends. The queries start with `onboarding` and are never written
+  to the device cache.
+- **The last page is never empty** (`getOnboardingPicks`): IGDB's similar games
+  for the favourites narrowed by the answers, then without the answers, then the
+  answers alone, then the catalogue — and never a favourite back. Platform ids
+  and game modes were checked against the live catalogue.
+- **The typing is a letter every 20 ms, timed by the clock** (`lettersShown`,
+  `<TypedText>`): each frame shows as many letters as the time since the line
+  began allows, so a late frame catches up instead of stuttering. No pauses,
+  no jitter and **no vibration** — the first build ticked per word, paused at
+  punctuation and stepped on a chain of timers, and the owner read it as word
+  by word and had the haptics removed. Reduce Motion: the line is just there.
+- **The typing never reflows**: the whole line is laid out and the untyped rest
+  is drawn in the ink at alpha 0 — **never `transparent`**; see § Gotchas.
+- **The kit is its own** (`components/onboarding/poster-kit`): the off-white
+  pill, the outlined chips that invert, the hairline field, the brackets. Do not
+  use them elsewhere, and do not "fix" them toward `<Button>`.
+- **One page, a step inside it** (`<PosterPage bare>`), so the colour washes
+  between steps as a CSS transition on a React prop — which cannot lose its end
+  value (§ Gotchas).
+
+**The event page** reads its phase from IGDB's times (`eventPhase`: live from
+the start to the end, or three hours after a start with no end) and prints the
+games **only once it is over** (`showsGames`) — the owner's words. Its foot bar
+is the action for the moment; going in person is a quiet line, not a button.
+
+**The progress pills** (`<ProgressPills>`) are the poster palette
+(`PROGRESS_POSTER`) in `PROGRESS_ROWS`' grid. **Each rests as an outline in
+its own colour, and the chosen one pours solid** (`<PaintFill>`) — the owner's
+second rule; the first had all seven solid until one was chosen, the rest
+sinking and the chosen one growing, and is gone. **A new log
+starts with nothing chosen**, and saving waits for a choice: it used to default
+to "Played", which recorded a claim nobody made.
+
+**None of it has been seen running.** Types, lint, `npm test` and an Android
+bundle (`expo export`) were checked here; the web dev server never finished its
+first bundle on this machine, so not even a browser has drawn it. The typing's
+feel, the haptics, the wash, the pills' growth, the keyboard over the fields
+and the event page's foot bar are all for a device.
+
 ## Conventions
 
 - **State**: server data → TanStack Query; auth session → the zustand store.
@@ -2052,7 +2174,10 @@ screen's heading under its bar again.
   write invalidates both and updates the badge store (`setGameLabelLocally`).
   Browse: `['platform-directory']`, `['platform-games', id, sort, page]`,
   `['platform-game-count', clause]`, `['events', term]`, `['event', id]`,
-  `['release-calendar', year]`, `['critic-reviews', gameId]`. Music:
+  `['release-calendar', year]`, `['critic-reviews', gameId]`. Events:
+  `['event-attendance', eventId, viewerId]` (one record, `useEventAttendance`)
+  and `['event-attendees', eventId, viewerId]` (the faces) — an RSVP
+  invalidates both by their first two parts. Music:
   `['soundtrack', gameId]` (the tab, the screen and Surprise Me share it) and
   `['soundcloud-track', urn]` — both in `NEVER_PERSIST` — and
   `['starred-song', userId]`, which a star or an unstar invalidates.
@@ -2139,10 +2264,23 @@ screen's heading under its bar again.
   replaced collapsed into `statusPlayed` under simulated protanopia. A
   *selected control* carries two non-hue signals too — its wash is lighter than
   the resting fill and its edge far brighter than the resting edge.
-- **In-page tabs are pills, and there is one implementation.** `<TabBar>` is a
-  scrollable row of uppercase pills at the reference's chip size (32 drawn, the
-  row 15 in) — the selected one takes the accent's wash with its label in the
-  accent, everything else is bare `textMuted` type on the page. News uses it
+- **In-page tabs are SimpMusic's top-bar chips, and there is one
+  implementation.** At the owner's direction (2026-10-15: "make the tabs in the
+  app like simpmusic"), read from `ChipGroup.kt` and the chip rows under
+  `HomeScreen.kt` / `LibraryScreen.kt` / `SearchScreen.kt`: `<TabBar>` is a
+  scrollable row of full pills, 32 high, 16 at each side, 4 apart, 15 in.
+  **Unselected: no fill, a 1dp `outlineVariant` edge, the label in
+  `onSurfaceVariant`. Selected: solid `primary` with `onPrimary`, no
+  check — poured in, as every outline that turns solid is (next bullet).**
+  Labels are `Type.tab` — Material's `labelLarge`, 14 medium, sentence case.
+  **On the game page the row is `align="spread"`**: three equal-width tabs,
+  40 high with a 15 label, 4 apart from the left margin to the right, never
+  scrolling — the owner's direction, over two passes: centred chips read as
+  "a little weird", then spread chips at their own widths as "too small and
+  far apart… big enough so they barely touch and it doesnt scroll". The roles are `accent.m3`'s, so a game's page draws them in the game's
+  palette. It replaced a wash with an accent label beside bare uppercase muted
+  type; on a game's page the selected tab is now a second `primary` beside the
+  review button, which SimpMusic's rule implies and nobody has judged yet. News uses it
   too: it had a segmented icon dock of its own (`ui/dock.tsx`, now unused) until
   the owner asked for it to match the rest. No underline and no
   container hairline: a rule needs an edge to sit on, which read as a divider
@@ -2154,6 +2292,24 @@ screen's heading under its bar again.
   onto a margin that is not the app's 15; the profile is its one caller, and
   its row is the one `iconOnly` strip — four glyphs spread across the column
   under the widgets.
+- **An outline that turns solid pours** (`ui/paint-fill`) — the owner's rule
+  (2026-10-15): "Colored outline > fill in animation > still solid color pill",
+  the colour "born and expanding from the middle to the edges… like a bucket of
+  paint pouring". `<PaintFill on color>` is the pill's first child (the pill
+  clips): a circle grown from its centre over 560 ms on Material's standard
+  ease, **sized to stop the moment it has reached every point inside the
+  shape** (`paintReach`, `lib/paint.ts`, tested — for a pill, the tips of its
+  round ends; pass `cornerRadius` for anything that is not a pill), and drained
+  back when the choice goes. It was 380 ms, sized to the bounding diagonal, on
+  a curve that started at full speed: the circle was gone before it could be
+  seen and the owner read it as "a slide that goes left and right". Its words and glyph change ink
+  on a 160 ms ease (`inkTransition`, `<PaintGlyph>` — an Ionicons glyph drawn as
+  text so its colour can transition). Both are **CSS transitions on React
+  props**, so a pill always rests on what was last rendered and never mounts
+  mid-pour. Five controls do it: the progress pills and their Story / Main
+  follow-up, the log form's Platinum and Spoilers toggles, `<TabBar>`, and
+  onboarding's chips. A new control that goes from an outline to a solid fill
+  uses it; one that only washes when chosen (`useSelectable`, below) does not.
 - **Choices are outlined; actions are filled. Selection comes from
   `useSelectable()`.** Any control with an on/off state rests with no fill and a
   1px `outline` (16% white) and a `textSecondary` label, and when selected takes
@@ -2167,7 +2323,9 @@ screen's heading under its bar again.
   *leading* edge that fills with the accent at 18% and holds a check when
   chosen, then the name (`optionTitle`) and its hint. Inside a selected control `textMuted`
   steps up to `textSecondary` (4.32:1 on the wash). The exceptions are
-  deliberate: a **log status** fills with the status's own colour and the
+  deliberate: the log form's **progress pills** are solid poster colours that
+  sink when another is chosen (§ The poster screens), the progress sheet's are
+  selection cards, and the
   **platinum / spoiler toggles** light in theirs, because the colour is the
   datum; an **open disclosure** (a collapsible row) is an action, so it is
   grey-filled and brightens a step when open; and the game page's action row
@@ -2277,7 +2435,10 @@ screen's heading under its bar again.
   "editorial" surfaces; the package is uninstalled and three font files (~1 MB)
   left the build. Every weight is its own family name — Android synthesises
   neither bold nor oblique from a custom font, so `fontWeight: '700'` on Inter
-  silently renders regular.
+  silently renders regular. **Onboarding has two more, and only onboarding**:
+  Inter ExtraBold for its headlines and Geist Mono for the small instruction
+  over them (`FontFamily.extraBold`, `.mono`), the owner's reference. One weight
+  each, by path. Nothing else in the app sets them.
 - **The fixed-colour surface ladder is on the page's faint cool trace.** The page is
   `#0B0A0D` — darker than the cool `#14171b` it replaced and not black — and
   `surface` (`#141317`), `surfaceElevated` (`#1B1A20`, the resting fill of every
@@ -2395,6 +2556,21 @@ screen's heading under its bar again.
   - **`<Panel>` (`ui/panel`) is not for this.** It is the small card that
     titles itself — Ratings and the two Played by squares on a game's
     Overview — and nothing else.
+- **Home ends on "Latest events"** — the last three showcases that have
+  *finished*, as news stories (`<PastEventCard>`, `<ArticleCard>`'s shape: the
+  key art, a byline of where it streamed and the date, the name as the
+  headline, three lines of what it was, "See the 64 games shown"), each opening
+  `event/[id]`. The owner's direction (2026-10-15): "only display the last 3
+  events. Not upcoming, already finished." `getLatestEvents` asks IGDB for the
+  ones that started more than a long showcase ago and keeps those
+  `eventPhase` calls over. Keyed `['home-latest-events']`; absent when IGDB has
+  none.
+- **Every screen slides** — `animation: 'slide_from_right'` on the root stack,
+  the owner's direction (2026-10-15: "a smooth slide animation. Not too fast and
+  not too slow"). On Android it runs on the system's medium animation time,
+  400 ms, eased; `ios_from_right` is the short one (200 ms) and read as a jump,
+  and the platform default is a fade and zoom. Forms slide up (`SHEET` /
+  `FULL_SHEET` in the root layout) — the mini player's test reads those names.
 - **Home's "New from friends" is where the review cards were** (`<ActivityRail>`,
   `getHomeActivity`). Covers, and under each a face, a name and the score they
   gave — a mark beside it when there are words behind the number. A log with a
@@ -2736,9 +2912,7 @@ screen's heading under its bar again.
   `constants/game-masthead.ts`, under `npm test`. Type is matched by capital
   height — the reference is Graphik, this is Inter. Top to bottom: the hero,
   one row set into its fade (billing left, cover right), the synopsis as bare
-  text, one full-width rule, the stats strip, the Ratings card, your log (the
-  owner's order, 2026-10-14). The actions are not in it: they are docked at
-  the foot of the screen (the next bullet but one). **Seven
+  text, one full-width rule, the stats strip, the actions, your log. **Seven
   owner rulings hold it, and the later ones undid earlier ones — do not "restore"
   any of them:**
   1. **The hero is the backdrop hero** — 38% of the display
@@ -2782,9 +2956,10 @@ screen's heading under its bar again.
      chose "keep today's three lines". Then (2026-10-09) they had the
      Overview's "Developers" card removed in favour of these lines: "have them
      be clickable from the header. The developer's names should be in bold to
-     make them stand out." So **a developer's name is bold and in the full
-     ink** — the one thing here besides the game's name that is — and a
-     publisher's keeps the quiet ink; each is a link to that company's games
+     make them stand out." Then (2026-10-15): "all the studios… should be in
+     bold" — a publisher was regular in the quiet ink, so a game with both had
+     one bold name. **Every company line is bold in the full ink**, and each
+     is a link to that company's games
      (`<CompanyLink>`), one line a company, every developer and then every
      publisher that is not also one. The ids come from `getGameExtras`, which
      the page asks for on every tab now; until it answers, and for a game
@@ -2799,8 +2974,7 @@ screen's heading under its bar again.
      name, `accent.quietInk` for the rest, and Letterboxd's own blue-greys
      nowhere. The owner chose this over the literal hexes.
   7. **The synopsis is in the masthead, not in a card.** "Standalone text in
-     the header": under the row, above the strip, four lines (three until the
-     actions left the masthead, 2026-10-14), the last line
+     the header": under the row, above the strip, three lines, the last line
      and a quarter fading into the page (`ABOUT_FADE`), the text itself the
      thing you tap, opening with the card's own motion
      (`<ExpandableText fade>`). No heading, no More. A game with no synopsis
@@ -2826,64 +3000,24 @@ screen's heading under its bar again.
   the owner had it removed (2026-10-14) and the token is deleted. Do not draw
   an edge over a cover or round a `<Poster>` again.
 - **One score in the masthead: IGDB's, and only when the app has none.** The
-  Ratings card under the synopsis is the app's own average, its count and how
-  the scores divide (`['rating-breakdown', gameId]`), under the stats strip,
-  which no longer carries a score. IGDB's `total_rating` — "Community" — under the billing is
-  drawn only when that query has answered with no ratings (or failed); with
-  one, it was a second, different number about the same game. Nothing is drawn
-  while the query is pending: a figure that appears and is then removed is
-  worse than one a moment late. The page reads the card's query under the
-  card's key and arguments, so it is one request — diverge and it is two.
-- **The game page's actions are SimpMusic's folding navigation bar**
-  (`<GameActions>`, `constants/action-dock.ts`, under `npm test`) — read from
-  its source at the owner's direction (2026-10-14): the flat build of
-  `LiquidGlassAppBottomNavigationBar.android.kt` and `AppBottomNavigationBar.kt`
-  (`FlatTabBar`, `FlatSearchButton`, `unfoldingTabs`, `foldedCircle`).
-  **Separate floating bars, never a card or a panel** — a first build that put
-  them in one panel was undone in the owner's words. **The sizes are the
-  reference's a step smaller** (64/56/48 → 56/48/40, "make the bars smaller"),
-  its proportions kept. **Expanded**, the review button is a 48dp bar on its
-  own — its glyph and words a row centred by layout, never by measuring —
-  over a 56dp capsule of keys running the full width (`surfaceContainer`, the
-  keys the connected Material 3 group they always were, 48dp, 4 in).
-  **Contracted**, the capsule makes room and the review button is a 48dp
-  circle 12 from its end; the two faces cross-fade. Every bar's frame is interpolated
-  between the two layouts over **300ms on FastOutSlowIn**, as the reference's
-  `ConstraintLayout` does (`dockFrames`, `lerpFrame`); the review button's
-  words go in the first half of the way (`labelAlpha`, the reference's
-  `fabAlpha`). **With music playing it is the reference exactly**: the mini
-  player is the bar over the capsule, the review button a circle beside the
-  capsule; contracted, the capsule folds into its 40dp circle at the start
-  (keys out by `keysAlpha`, glyph in by `circleAlpha`) and the player sits
-  inline after it, the review circle at the end. The dock draws the player
-  (`<MiniPlayerBar>`), so `game` is in `MINI_PLAYER_HIDDEN_ROUTES` and the page's
-  `<Screen>` keeps no band. **An unreleased game** has no review button: the
-  capsule alone, folding to its circle; a folded capsule opens the bars when
-  pressed. Contracted by real travel downward, expanded by real travel upward
-  or at the very top (Home's rule, the reference's `isScrollingUp`;
-  `DOCK.hold` is 0, where the reference holds two shelves, so the expanded bars
-  get off the masthead's numbers at once). The page ends with room for the
-  contracted row (`useActionDockRoom`). Under Reduce Motion the layouts switch;
-  with a screen reader on they stay expanded. Under the masthead's strip and
-  Ratings card, **your record is one tonal key copied from the dock's**
-  (`<YourLogButton>`, `tonalKey`): "You reviewed this game on …" opening your
-  review, or "You scored this game on …" opening the log form, the score bold
-  in the key's ink. **Not yet seen on a phone**: the morph's feel, layout props
-  animated on the UI thread on an older phone, and the mini player as a bar
-  among the others are what to judge on a device.
+  stats strip under the row prints the app's own average and its count
+  (`['rating-breakdown', gameId]`). IGDB's `total_rating` — "Community" —
+  under the billing is drawn only when that query has answered with no ratings
+  (or failed); with one, it was a second, different number about the same game
+  a line above the first. Nothing is drawn while the query is pending: a figure
+  that appears and is then removed is worse than one a moment late. The page
+  reads the strip's query under the strip's key and arguments, so it is one
+  request — diverge and it is two.
 - **A game that is not out cannot be reviewed, anywhere** — the owner's rule
-  on the same brief. `isUnreleased` (`lib/games/release.ts`) decides, from
-  IGDB's date. Its page has no review button and no progress key (the dock is
-  Favourite, Wishlist and Collect, and goes entirely when the page is read
-  downward), no Ratings card — its planned date stands there
-  (`<PlannedRelease>`) — no IGDB score, and no Played by or top review on the
-  Overview. Surprise Me's review card says when it can be reviewed and is not
-  a door; the profile's quick log badges it "Not out yet" in Review mode and
-  says when instead of opening the form; and **the log form refuses to open a
-  new log for one** (`app/log/[id]`) — the backstop for any way in nobody
-  thought of. An existing log still opens. Quick log's *Log* mode still raises
-  the progress sheet for an unreleased game: it writes a status, not a review,
-  and that was not ruled on.
+  (2026-10-14). `isUnreleased` (`lib/games/release.ts`) decides, from IGDB's
+  date. Its page has no review button and no progress key (`<GameActions>`
+  says when it is planned instead). Surprise Me's review card says when it can
+  be reviewed and is not a door; the profile's quick log badges it "Not out
+  yet" in Review mode and says when instead of opening the form; and **the log
+  form refuses to open a new log for one** (`app/log/[id]`) — the backstop for
+  any way in nobody thought of. An existing log still opens. Quick log's *Log*
+  mode still raises the progress sheet for an unreleased game: it writes a
+  status, not a review, and that was not ruled on.
 - **The game page, Surprise Me and a review have no gradient.** `<ScrollAmbience>`
   is gone from all three; they fill flat with `<Screen background={accent.page}>`.
   (The review page stayed a neutral dark room for a long time; it now runs on the
@@ -2912,11 +3046,9 @@ screen's heading under its bar again.
   - **Screenshots are first**, then what the people here made of it. The
     three things below led the tab for one build, as they do on the
     reference's film page; the owner had the screenshots moved "back to the
-    top of the page". **The first of them, Ratings, is in the masthead now**
-    (2026-10-14), under the stats strip — the same card; the tab keeps the
-    other two. The three — the owner's redesign (2026-10-09), from a
+    top of the page". The three — the owner's redesign (2026-10-09), from a
     film's page in Letterboxd — are each absent when they have nothing to show:
-    1. **Ratings** (`<RatingsCard>`, in the masthead): a card titled inside, the count at the
+    1. **Ratings** (`<RatingsCard>`): a card titled inside, the count at the
        far end of the title, a hairline, then `<ScoreSummary>` — the verdict,
        the score as its drawing and number, and the three-part bar. **The reviews sheet's own
        summary, one component in both places**: the owner was offered a
@@ -2961,9 +3093,11 @@ screen's heading under its bar again.
     the plain cover, still (a `<Poster>`), and has no gesture and no price.
     The section opens on the platform you logged, else the first with a case,
     else the first; its art slot reserves the tallest shape the game can show
-    so switching PS5 → PC does not move the page.
-  - **Words and figures → a card.** Details, Where to buy, Your copy, Time to
-    beat and Achievements are
+    so switching PS5 → PC does not move the page, and **the box hangs from the
+    slot's top, level with the title** — the owner's direction (2026-10-15); it
+    stood at the foot, which sank a short box under empty space.
+  - **Words and figures → a card.** Details, Where to buy, Your copy and
+    Achievements are
     `<InfoCard>` (read) or `<InfoCardButton>` (a door, whose heading carries the
     reference's More and whose card is the same door). The card is the
     reference's description card: 8 in the corner, 16 in, filled with
@@ -3467,6 +3601,14 @@ was not this app's code. The rules that keep it that way:
   `absoluteFill` child begins below the status bar and ends up drawing a hard
   line across it. The `backdrop` slot renders outside the inset.
 
+- **`color: 'transparent'` on a nested `<Text>` is ignored on Android.** The
+  renderer stores "no colour set" as `0` (`HostPlatformColor::UndefinedColor`
+  in `react/renderer/graphics/platform/android`), and `transparent` *is* `0`,
+  so the span inherits its parent's colour. Onboarding's typing drew its
+  untyped remainder that way and every line showed whole on a phone while
+  working on iOS. Use `withAlpha(ink, 0)` — `rgba(r, g, b, 0)`, the same
+  invisible colour with non-zero bits — and never from black, whose RGB is `0`
+  too.
 - **Never `import` `expo-notifications` at module scope.** Its entry point pulls
   in `DevicePushTokenAutoRegistration.fx`, a side-effect module that registers a
   push-token listener *while evaluating*, and that call throws on Android under
@@ -3479,8 +3621,9 @@ was not this app's code. The rules that keep it that way:
   (`event-reminder:igdb:1147`), never the random one the scheduler returns. That
   one lived in the RSVP control's state, so it was gone when the screen was
   left, and a reminder switched off on a later visit could not be found to
-  cancel — it went off anyway. `<EventRsvp>` is on News' event cards and on
-  `event/[id]`, and either can undo what the other set. Reminders are local
+  cancel — it went off anyway. `<EventRsvp>` (News' event cards) and the
+  event page's foot bar both go through `useEventAttendance`, and either can
+  undo what the other set. Reminders are local
   notifications: Expo Go on Android cannot schedule them at all, and the
   control says so rather than hiding the fact.
 - **Preload icon fonts; do not let `@expo/vector-icons` fetch them lazily.**

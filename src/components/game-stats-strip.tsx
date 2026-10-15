@@ -10,8 +10,10 @@ import {
   type StatsCell,
 } from '@/components/ui/stats-strip';
 import { GAME_LABEL_TEXT } from '@/constants/game-labels';
+import { scoreColor } from '@/constants/score';
 import { useGameLabel } from '@/hooks/use-game-labels';
-import { getGameListCount } from '@/lib/api';
+import { useTheme } from '@/hooks/use-theme';
+import { getGameListCount, getRatingBreakdown } from '@/lib/api';
 import { parseGameId } from '@/lib/games';
 import { getGameDetails, getTimeToBeat } from '@/lib/games/igdb';
 
@@ -25,7 +27,7 @@ import { getGameDetails, getTimeToBeat } from '@/lib/games/igdb';
  */
 const EMPTY = 'N/A';
 
-/** IGDB returns lengths in seconds. Same constant as `<TimeToBeatWidget>`. */
+/** IGDB returns lengths in seconds. */
 const SECONDS_PER_HOUR = 3600;
 
 /**
@@ -45,21 +47,14 @@ const BOARD_ORDER = ['ESRB', 'PEGI', 'USK', 'CERO', 'ACB', 'CLASS_IND', 'GRAC'];
 
 export type GameStatsStripProps = {
   gameId: string;
+  /** Raise the reviews sheet the page already owns. */
+  onOpenReviews: () => void;
   /** Raise the collections sheet. */
   onOpenLists: () => void;
 };
 
 /**
- * Three facts about a game, as a row of numbers in its masthead — four on a
- * game labelled Must Play.
- *
- * ## The score left it
- *
- * The strip led with this app's own average for most of its life. The owner's
- * brief of 2026-10-14 moved the Ratings card into the masthead, directly over
- * this strip, and the card *is* the score — the verdict, the number, how many
- * ratings and how they divide — so a cell restating its number a line under it
- * was the same fact twice. The cells left are the ones the card does not say.
+ * Four facts about a game, as a row of numbers under the masthead.
  *
  * ## What it replaced, and why it belongs here
  *
@@ -75,10 +70,13 @@ export type GameStatsStripProps = {
  * length in another, the age rating three taps deep in a sheet — and *none* of
  * them was in the one place a reader looks before committing.
  *
- * ## Why these
+ * ## Why these four
  *
- * They are the questions asked before "what is it about" that the Ratings card
- * over them does not answer:
+ * They are the four questions asked before "what is it about":
+ *
+ *   **Is it good** — this app's own ratings, not IGDB's. The masthead already
+ *   carries IGDB's aggregate as `COMMUNITY`; this is the number the app exists to
+ *   produce, and it taps through to the reviews behind it.
  *
  *   **Do people keep it** — how many authored collections hold it. A score says
  *   what a stranger thought once; a shelf is somebody still choosing it months
@@ -88,18 +86,16 @@ export type GameStatsStripProps = {
  *   **How long is it** — the single most common reason a game is bounced off.
  *
  *   **Who is it for** — a board's verdict is frequently the only content warning
- *   a game page has.
+ *   a game page has. On a game a moderator has labelled Must Play this cell is
+ *   the label instead — see the note above `cells`.
  *
- * And, on a game a moderator has labelled it, **Must Play** — a fourth cell,
- * and a door to every other game that carries it.
+ * ## Four cells, always
  *
- * ## Every cell, always
- *
- * Coverage is uneven and always will be: an indie release has no age rating and
- * a game added this morning is in no collections. Each says its own absence in
- * its own words rather than vanishing — see the comment above `cells`. The strip
- * is therefore a fixed width, which is most of what makes two games comparable
- * at a glance.
+ * Coverage is uneven and always will be: an indie release has no age rating, a
+ * game nobody here has logged has no score, and a game added this morning is in
+ * no collections. Each of those says its own absence in its own words rather than
+ * vanishing — see the comment above `cells`. The strip is therefore a fixed
+ * width, which is most of what makes two games comparable at a glance.
  *
  * ## The cost, stated plainly
  *
@@ -111,23 +107,32 @@ export type GameStatsStripProps = {
  * for now opens instantly with the answer already in cache; the trip was moved
  * rather than added.
  */
-/* Memoised: the game page hands it a game id and a stable opener, so a page
-   update elsewhere no longer re-renders the cells and their queries. */
+/* Memoised: the game page hands it a game id and two stable openers, so a page
+   update elsewhere no longer re-renders the four cells and their queries. */
 export const GameStatsStrip = memo(function GameStatsStrip({
   gameId,
+  onOpenReviews,
   onOpenLists,
 }: GameStatsStripProps) {
+  const theme = useTheme();
   const router = useRouter();
   const mustPlay = useGameLabel(gameId, 'must_play');
 
   const parsed = parseGameId(gameId);
   const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
 
-  /* Every key here is shared with the component that already owned the data —
-     `['time-to-beat']` with `<TimeToBeatWidget>`, `['game-details']` with
+  /* The keys here are shared with the components that already owned the data —
+     `['rating-breakdown']` with the reviews sheet, `['game-details']` with
      `<GameDetailsSheet>`. Same key, same arguments, so TanStack serves both from
      one request rather than the strip doubling the page's traffic. Diverge on
-     either and it will. */
+     either and it will. (`['time-to-beat']` was shared with the Time to beat
+     card until the owner had it removed; the strip is its only reader now.) */
+  const breakdown = useQuery({
+    queryKey: ['rating-breakdown', gameId],
+    queryFn: () => getRatingBreakdown(gameId),
+    enabled: !!gameId,
+  });
+
   const lists = useQuery({
     queryKey: ['game-list-count', gameId],
     queryFn: () => getGameListCount(gameId),
@@ -160,30 +165,54 @@ export const GameStatsStrip = memo(function GameStatsStrip({
    * forever. `isLoading` is `isPending && isFetching`: a first fetch genuinely in
    * flight, and false for a query that was never going to run.
    */
-  const loading = lists.isLoading || times.isLoading || details.isLoading;
+  const loading = breakdown.isLoading || lists.isLoading || times.isLoading || details.isLoading;
 
   /*
-   * Every cell, always, whether or not the answer is known.
+   * Four cells, always, whether or not the answer is known.
    *
    * This used to drop a cell with nothing behind it, on the argument that "—"
    * claims the app looked and found nothing worth printing. The argument was
    * wrong about which statement is more honest. A strip that is four cells on one
    * game and two on the next teaches nobody anything about either game; it
    * teaches them that this row is unreliable, and it hides the useful fact —
-   * *nobody has timed this yet* — behind an absence indistinguishable from
+   * *nobody here has rated this yet* — behind an absence indistinguishable from
    * a feature that has not loaded.
    *
    * So every cell states its own emptiness in its own words, and the label is
-   * where it says so: "N/A" over "No times found" is a fact about the game,
-   * where a missing column was a fact about the query. The strip's width is
-   * also a constant — three cells, or four with Must Play — which is what makes
-   * the numbers comparable across two games at a glance.
+   * where it says so: "N/A" over "No ratings found" is a fact about the game,
+   * where a missing column was a fact about the query. The strip's width is also now a
+   * constant, which is what makes four numbers comparable across two games at a
+   * glance — the thing a row of statistics is for.
    */
+  const ratings = breakdown.data;
   const listCount = lists.data ?? 0;
   const length = lengthOf(times.data);
   const board = boardOf(details.data?.ageRatings);
 
   const cells: StatsCell[] = [
+    ratings
+      ? {
+          key: 'score',
+          value: String(ratings.average),
+          label: ratings.total === 1 ? '1 rating' : `${ratings.total} ratings`,
+          tint: scoreColor(ratings.average, theme),
+          onPress: onOpenReviews,
+          a11y: `Rated ${ratings.average} out of 100 from ${ratings.total} ${
+            ratings.total === 1 ? 'rating' : 'ratings'
+          }. Opens the reviews.`,
+        }
+      : {
+          key: 'score',
+          /* Still a door. There are no ratings to read, and the sheet it opens is
+             where a reader writes the first one — which is the single most useful
+             thing this cell can offer on a game nobody has scored. */
+          value: EMPTY,
+          label: 'No ratings found',
+          empty: true,
+          onPress: onOpenReviews,
+          a11y: 'Not yet rated by anybody here. Opens the reviews.',
+        },
+
     listCount > 0
       ? {
           key: 'lists',
@@ -195,7 +224,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
       : {
           key: 'lists',
           /* A real zero, not `EMPTY`. The count is a number the app definitely
-             knows and the answer is genuinely none — unlike the two cells
+             knows and the answer is genuinely none — unlike the three cells
              beside it, where an absence may be IGDB's silence rather than a fact.
              Inert, because the sheet behind it would open on an empty list. */
           value: '0',
@@ -232,52 +261,50 @@ export const GameStatsStrip = memo(function GameStatsStrip({
             a11y: 'Nobody has submitted a completion time for this game.',
           }),
 
-    board
-      ? {
-          key: 'board',
-          value: board.rating,
-          label: board.organization.toUpperCase(),
-          a11y: `Rated ${board.rating} by ${board.organization}`,
-        }
-      : details.isLoadingError
-        ? {
-            /* Same distinction as the cell above: a failed request is not a game
-               no board has looked at. */
-            key: 'board',
-            value: EMPTY,
-            label: 'Age rating unavailable',
-            empty: true,
-            a11y: 'Age ratings could not be loaded.',
-          }
-        : {
-            key: 'board',
-            value: EMPTY,
-            label: 'No age rating',
-            empty: true,
-            a11y: 'No rating board has classified this game.',
-          },
-
     /*
-     * Must Play (0034), on a game a moderator has labelled — a fourth cell, and
-     * the age rating keeps its own.
+     * The fourth cell is the age rating — unless a moderator has labelled the
+     * game Must Play (0034), which takes the cell over.
      *
-     * It took the age rating's place while the strip was four across and full;
-     * with the score gone there is room for both. The label is a door, and it
-     * says so the way every door in this strip does, with its words in the
-     * accent: it opens the list of everything else that carries it.
+     * In place of the rating rather than as a fifth cell: the strip is four
+     * across so that two games compare at a glance, and of the four this is the
+     * one fact that is also printed in full somewhere else — every board a game
+     * carries is under About's Details. The label is a door, and it says so the
+     * way every door in this strip does, with its words in the accent: it opens
+     * the list of everything else that carries it.
      */
-    ...(mustPlay
-      ? ([
-          {
-            key: 'label',
-            value: GAME_LABEL_TEXT.must_play.title,
-            label: GAME_LABEL_TEXT.must_play.title,
-            mark: <MustPlayBadge size={MARK_SIZE} labelled={false} />,
-            onPress: () => router.push('/must-play'),
-            a11y: `${GAME_LABEL_TEXT.must_play.spoken}. Opens every Must Play game.`,
-          },
-        ] satisfies StatsCell[])
-      : []),
+    mustPlay
+      ? {
+          key: 'label',
+          value: GAME_LABEL_TEXT.must_play.title,
+          label: GAME_LABEL_TEXT.must_play.title,
+          mark: <MustPlayBadge size={MARK_SIZE} labelled={false} />,
+          onPress: () => router.push('/must-play'),
+          a11y: `${GAME_LABEL_TEXT.must_play.spoken}. Opens every Must Play game.`,
+        }
+      : board
+        ? {
+            key: 'board',
+            value: board.rating,
+            label: board.organization.toUpperCase(),
+            a11y: `Rated ${board.rating} by ${board.organization}`,
+          }
+        : details.isLoadingError
+          ? {
+              /* Same distinction as the cell above: a failed request is not a game
+               no board has looked at. */
+              key: 'board',
+              value: EMPTY,
+              label: 'Age rating unavailable',
+              empty: true,
+              a11y: 'Age ratings could not be loaded.',
+            }
+          : {
+              key: 'board',
+              value: EMPTY,
+              label: 'No age rating',
+              empty: true,
+              a11y: 'No rating board has classified this game.',
+            },
   ];
 
   /*
@@ -288,7 +315,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
    * one. The skeleton holds the space from first paint; see
    * `<StatsStripSkeleton>`.
    */
-  if (loading) return <StatsStripSkeleton count={cells.length} />;
+  if (loading) return <StatsStripSkeleton count={4} />;
 
   return <StatsStrip cells={cells} />;
 });
@@ -328,8 +355,8 @@ function lengthOf(
 /**
  * Seconds → a readable length.
  *
- * Deliberately the same rounding as `<TimeToBeatWidget>`: whole hours above two,
- * one decimal below, because the difference between 1 h and 1.5 h is most of a
+ * Whole hours above two, one decimal below, because the difference between
+ * 1 h and 1.5 h is most of a
  * short game and the difference between 41 h and 41.3 h is an average of seven
  * submissions pretending to be precise. The two are duplicated rather than
  * shared — four lines with no state, and importing across two feature components

@@ -1,6 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { memo } from 'react';
-import { FlatList, StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
+
+import { PageFlatList } from '@/components/ui/page-scroll';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { gridItemWidth } from '@/components/gaming/game-tile';
@@ -63,7 +65,7 @@ export function StudioResults({ query }: { query: string }) {
   }
 
   return (
-    <FlatList
+    <PageFlatList
       data={studios.data ?? []}
       numColumns={COLUMNS}
       keyExtractor={(studio) => String(studio.id)}

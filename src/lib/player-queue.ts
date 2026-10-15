@@ -150,9 +150,6 @@ export function noticeText(notice: PlayerNotice, now: number = Date.now()): stri
  *  - `surprise`: one song per card is that screen's own thing, and its foot is
  *    where the card is thrown.
  *  - `scan`: a camera, full screen.
- *  - `game`: the music is still shown there — the page's docked bars draw the
- *    player themselves (`<GameActions>`), over the keys or beside their folded
- *    circle, as SimpMusic's navigation bar draws its own.
  *  - Every modal. On iOS a modal is a sheet the system draws over the whole
  *    app, the bar included, so it could not be reached there anyway; on Android
  *    it would sit on a form's last field and its save button.
@@ -165,7 +162,6 @@ export const MINI_PLAYER_HIDDEN_ROUTES: ReadonlySet<string> = new Set([
   'soundtrack',
   'surprise',
   'scan',
-  'game',
   'log',
   'playthrough',
   'add-copy',
@@ -181,9 +177,7 @@ export const MINI_PLAYER_HIDDEN_ROUTES: ReadonlySet<string> = new Set([
   'quick-log',
   'edit-profile',
   'welcome',
-  'sign-in-options',
-  'sign-in',
-  'sign-up',
+  'onboarding',
 ]);
 
 /** Whether the mini player stays off the route these segments name. */

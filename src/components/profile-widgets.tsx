@@ -131,7 +131,8 @@ export const FavoritesWidget = memo(function FavoritesWidget({
                 coverUrl={item.game?.cover_url}
                 heroUrl={item.game?.hero_url}
                 title={item.game?.title}
-                gameId={item.game_id}
+                /* No `gameId`, so no Must Play badge: the owner took it off
+                   the profile's two rows of covers (2026-10-15). */
                 width={posterWidth}
                 rounded="image"
               />

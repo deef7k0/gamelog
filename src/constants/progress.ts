@@ -2,6 +2,8 @@ import type Ionicons from '@expo/vector-icons/Ionicons';
 
 import type { CompletionLevel, GameLog, LogStatus } from '@/lib/database.types';
 
+import type { ThemeColor } from './theme';
+
 /**
  * How far someone got, in the words a player uses (0023).
  *
@@ -123,6 +125,43 @@ export const PROGRESS_CHOICES: readonly ProgressChoiceMeta[] = [
 export const PROGRESS_META: Record<ProgressChoice, ProgressChoiceMeta> = Object.fromEntries(
   PROGRESS_CHOICES.map((choice) => [choice.key, choice])
 ) as Record<ProgressChoice, ProgressChoiceMeta>;
+
+/**
+ * The colour each choice fills with in the log form — the poster palette
+ * (`theme.ts`), at the owner's direction (2026-10-15): "the status/completion
+ * buttons… filled with that solid color, it has the icon and the title".
+ *
+ * Mapped to keep the meaning each already carries elsewhere — playing is
+ * green, paused yellow, a finished game blue, want-to-play violet, dropped
+ * red — and the two that share `statusPlayed` with Completed take the
+ * reference's remaining hues, so all seven differ. The label on each is
+ * `readableInk()` of the fill; `poster.test.ts` holds it at AA.
+ */
+export const PROGRESS_POSTER: Record<ProgressChoice, ThemeColor> = {
+  backlog: 'posterViolet',
+  playing: 'posterTeal',
+  paused: 'posterYellow',
+  completed: 'posterCobalt',
+  full: 'posterOrange',
+  played: 'posterPink',
+  dropped: 'posterCrimson',
+};
+
+/**
+ * How the seven sit in the log form: one across, then three pairs.
+ *
+ * Not started; in it; finished; stopped. An odd count in two columns has to
+ * leave one alone somewhere, and the one with no partner by meaning is the
+ * game you have not begun — so it heads the grid at full width, and the pairs
+ * under it are each a real pair. A full-width Dropped at the foot would read
+ * as the form's red button.
+ */
+export const PROGRESS_ROWS: readonly (readonly ProgressChoice[])[] = [
+  ['backlog'],
+  ['playing', 'paused'],
+  ['completed', 'full'],
+  ['played', 'dropped'],
+];
 
 /** Which of the seven a log currently is. Null when there is no log. */
 export function progressChoiceFor(

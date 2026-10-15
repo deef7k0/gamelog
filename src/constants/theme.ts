@@ -98,7 +98,7 @@ export const Colors = {
      * The trace (hue 260°, 13% saturation at 4.5% lightness) is too faint to
      * read as a colour; it only keeps the room cool rather than warm-neutral.
      */
-    background: '#14171c',
+    background: '#050609',
     /**
      * Home's page fill, and only Home's — an experiment with the room's floor,
      * kept to one screen so the rest of the app is unaffected. Change it here.
@@ -107,7 +107,7 @@ export const Colors = {
      * the thing being tried. The surface ladder was tuned against `background`,
      * so cards on Home separate a little more strongly than elsewhere.
      */
-    homeBackground: '#14171c',
+    homeBackground: '#050609',
     /**
      * Cards and the tab bar. One perceptible step off the page: 1.076:1 on
      * `background` (#14171c). The owner's colour.
@@ -417,7 +417,7 @@ export const Colors = {
      * moves with it, the same three levels under — `review-card.test.ts` fails
      * if the card drifts from either page or meets it.
      */
-    reviewCard: '#111419',
+    reviewCard: '#020306',
 
     /**
      * The light ground under somebody else's logo — a platform's, a studio's —
@@ -462,6 +462,54 @@ export const Colors = {
     tierC: '#B6E07A',
     tierD: '#7ACBE0',
     tierF: '#B0A6E0',
+
+    /*
+     * The poster palette — the owner's reference (2026-10-15), sampled off its
+     * screenshots: a run of solid, saturated fills, each a whole surface.
+     *
+     * **An exception to "colour comes from the art", and a bounded one.** It is
+     * drawn in two places and nowhere else: onboarding (its pages that ask for
+     * access are one of these colours, edge to edge — `constants/poster.ts`) and
+     * the log form's seven progress choices, which fill with them
+     * (`PROGRESS_POSTER` in `constants/progress.ts`). Status colour is already
+     * meaning; these are its loud cousins, for the two places a choice is
+     * the whole screen.
+     *
+     * Fills only. Type on them is `readableInk()` or one of the measured inks
+     * below; `poster.test.ts` holds every pair at AA.
+     */
+    posterRed: '#F11B25',
+    /** Type on `posterRed`. The reference's navy, darkened until it clears
+     *  4.5:1 for small text (4.58); its own #0E1B2E was 4.05. */
+    posterRedInk: '#080C16',
+    posterCobalt: '#2B29D5',
+    /** Type, and the button, on `posterCobalt` (5.43:1). */
+    posterButter: '#F6C36A',
+    posterPink: '#FF74D5',
+    /** Type on `posterPink`. The reference set red on pink at 1.99:1; this is
+     *  the same red taken down until it reads (4.64). */
+    posterPinkInk: '#7A0913',
+    /** Type on `posterButter` and on the off-white pill. */
+    posterNavy: '#0E1B2E',
+    posterViolet: '#7B4CFD',
+    posterTeal: '#1FB48C',
+    posterYellow: '#EBD95B',
+    posterOrange: '#F4771A',
+    /** The tile red, a step deeper than the page red so white clears it (4.79). */
+    posterCrimson: '#E01D2B',
+    /** The reference's primary pill — off-white, not white. 17:1 under its ink. */
+    posterPaper: '#F2F1ED',
+    /** The same pill, disabled: a mid grey with a dim label, as drawn. */
+    posterDisabled: '#7D7B7C',
+    posterDisabledInk: '#3E3D40',
+    /*
+     * Onboarding's own room, which is darker than the app's: the reference is
+     * black. Not #000 — that smears on OLED when anything moves, and here the
+     * words move. Fields are the reference's dark well with a hairline.
+     */
+    onboardingPage: '#050506',
+    onboardingField: '#161419',
+    onboardingEdge: '#2C2A30',
 
     /** Legacy aliases kept so older call sites keep compiling. */
     backgroundElement: '#202020',
@@ -837,6 +885,16 @@ export const FontFamily = {
   bold: 'Inter_700Bold',
   italic: 'Inter_400Regular_Italic',
   boldItalic: 'Inter_600SemiBold_Italic',
+  /**
+   * Onboarding's two, and nothing else's (the owner's reference, 2026-10-15).
+   * ExtraBold sets its headlines — lowercase, very large, tracked tight; the
+   * mono sets the small instruction over them ("choose one"). Each is one
+   * weight, imported by its own path in the root layout. "Inter for
+   * everything" was a ruling against the review serif, and the rest of the app
+   * still holds it.
+   */
+  extraBold: 'Inter_800ExtraBold',
+  mono: 'GeistMono_400Regular',
 } as const;
 
 export const Fonts = Platform.select({
@@ -1053,6 +1111,11 @@ export const Type = {
    */
   button: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
   /**
+   * A tab's label — Material's `labelLarge`, which SimpMusic's filter chips
+   * (every tab row under its top bars) are set in: 14, medium, sentence case.
+   */
+  tab: { fontSize: 14, lineHeight: 20, fontFamily: FontFamily.medium, letterSpacing: 0.1 },
+  /**
    * A form field's label, set *above* the field: small and medium weight, the
    * reference's 11sp Poppins Medium translated to Inter at the 12 it needs to
    * read the same. The field under it is the object; the label names it.
@@ -1155,6 +1218,29 @@ export const Type = {
    */
   caseTitle: { fontSize: 24, lineHeight: 30, fontFamily: FontFamily.bold },
   caseEdition: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.medium },
+
+  /*
+   * Onboarding — the owner's reference, matched by eye against its screenshots
+   * on a 390pt display. Used there and nowhere else.
+   *
+   * The headline is the screen: lowercase, ExtraBold, tracked to -3% (the
+   * craft floor's limit is -4%), a 1.05 line so two lines read as one block.
+   */
+  posterHeadline: {
+    fontSize: 40,
+    lineHeight: 42,
+    fontFamily: FontFamily.extraBold,
+    letterSpacing: -1.2,
+  },
+  /** The small instruction over a headline — "choose one" — and the
+   *  "import + auto-sync" line in a row. */
+  posterLabel: { fontSize: 12, lineHeight: 16, fontFamily: FontFamily.mono },
+  /** The one sentence inside the brackets. */
+  posterNote: { fontSize: 13, lineHeight: 18, fontFamily: FontFamily.semibold },
+  /** The pill's label, a step over `button`: the reference's pills are 56 high. */
+  posterButton: { fontSize: 15, lineHeight: 20, fontFamily: FontFamily.semibold },
+  /** What is typed into an onboarding field. */
+  posterField: { fontSize: 16, lineHeight: 21, fontFamily: FontFamily.regular },
 } as const;
 
 /**

@@ -557,6 +557,35 @@ export async function updateProfile(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Whether nobody has this handle yet — onboarding's "claim your handle.".
+ *
+ * Case-insensitive, as the unique index on `lower(username)` (0001) is, and
+ * through `likeLiteral` so an underscore is an underscore and not a wildcard
+ * that matches every name of that length.
+ */
+export async function isUsernameFree(username: string, signal?: AbortSignal): Promise<boolean> {
+  let request = supabase
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .ilike('username', likeLiteral(username));
+  if (signal) request = request.abortSignal(signal);
+  const { count, error } = await request;
+  if (error) throw new Error(error.message);
+  return (count ?? 0) === 0;
+}
+
+/**
+ * Take a handle. `'taken'` when somebody got there first — the check above is
+ * a courtesy; the unique index is the rule.
+ */
+export async function claimUsername(userId: string, username: string): Promise<'ok' | 'taken'> {
+  const { error } = await supabase.from('profiles').update({ username }).eq('id', userId);
+  if (!error) return 'ok';
+  if (error.code === '23505') return 'taken';
+  throw new Error(error.message);
+}
+
 /** Longest query worth sending. A name is not a paragraph. */
 const PROFILE_QUERY_MAX = 60;
 

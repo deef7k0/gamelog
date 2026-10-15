@@ -1,5 +1,6 @@
 import { makeGameId, type GameSearchResult } from './types';
 import { igdbQuery, youtubeThumbnail } from './igdb';
+import { ASSUMED_LENGTH_S, eventPhase } from '../event-phase';
 import { precisionOf, monthStart, type CalendarGame } from './calendar';
 import { COUNT_BATCH, PAGE_SIZE, countByProbing } from './paging';
 import { LITE_FIELDS, toSearchResult, type IgdbGameLite } from '../news/discovery';
@@ -472,6 +473,89 @@ export type EventDetail = EventSummary & {
   /** IGDB ids of the games shown, in IGDB's order. */
   gameIds: number[];
 };
+
+/** A finished event, as Home's "Latest events" card draws it. */
+export type LatestEvent = {
+  id: number;
+  name: string;
+  description: string | null;
+  startTime: number;
+  /** The key art at the size a full-width card draws. */
+  bannerUrl: string | null;
+  /** Where it streamed — "YouTube", "Twitch" — without the website. */
+  networks: string[];
+  /** How many games were shown at it. */
+  gameCount: number;
+};
+
+/**
+ * The last few events that have **finished** — Home's "Latest events", at the
+ * owner's direction (2026-10-15): "only display the last 3 events. Not
+ * upcoming, already finished."
+ *
+ * Asks for the events that started more than a long showcase ago, newest
+ * first, then keeps those `eventPhase` calls over — so a multi-day show that
+ * began this morning and runs till Sunday is not "latest" yet. A few spare are
+ * asked for so the filter still leaves `limit`. Verified live on 2026-10-15:
+ * Galaxies Autumn '26, Cozy After Dark, Convergence.
+ */
+export async function getLatestEvents(
+  nowMs: number,
+  limit: number,
+  signal?: AbortSignal
+): Promise<LatestEvent[]> {
+  const startedBefore = Math.floor(nowMs / 1000) - ASSUMED_LENGTH_S;
+  const raw = await igdbQuery<IgdbEventRow[]>(
+    'events',
+    `fields name, description, start_time, end_time, event_logo.image_id, live_stream_url,
+            event_networks.url, event_networks.network_type.name, games;
+     where start_time < ${startedBefore};
+     sort start_time desc;
+     limit ${limit + 5};`,
+    signal
+  );
+
+  return (raw ?? [])
+    .filter(
+      (row) =>
+        !!row.name &&
+        row.start_time !== undefined &&
+        eventPhase(row.start_time, row.end_time ?? null, nowMs) === 'over'
+    )
+    .slice(0, limit)
+    .map((row) => ({
+      id: row.id,
+      name: row.name!,
+      description: row.description?.trim() || null,
+      startTime: row.start_time!,
+      bannerUrl: eventThumbnail(row, '720p'),
+      networks: [
+        ...new Set(
+          (row.event_networks ?? [])
+            .map((entry) => entry.network_type?.name?.trim())
+            .filter((name): name is string => !!name && !/website/i.test(name))
+        ),
+      ],
+      gameCount: row.games?.length ?? 0,
+    }));
+}
+
+/**
+ * The next showcase IGDB has a start time for — the name onboarding's sample
+ * notification uses, so the example is a real event. Null when there is none.
+ */
+export async function getNextEvent(
+  now: number,
+  signal?: AbortSignal
+): Promise<{ id: number; name: string } | null> {
+  const raw = await igdbQuery<{ id: number; name?: string }[]>(
+    'events',
+    `fields name; where start_time > ${Math.floor(now / 1000)}; sort start_time asc; limit 1;`,
+    signal
+  );
+  const row = raw?.[0];
+  return row?.name ? { id: row.id, name: row.name.trim() } : null;
+}
 
 /** One event, in full. Null when IGDB has no such id. */
 export async function getEvent(eventId: number, signal?: AbortSignal): Promise<EventDetail | null> {

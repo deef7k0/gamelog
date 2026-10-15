@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type { CompletionLevel, LogStatus } from '../lib/database.types.ts';
-import { PROGRESS_CHOICES, progressChoiceFor, progressPatch } from './progress.ts';
+import { PROGRESS_CHOICES, PROGRESS_ROWS, progressChoiceFor, progressPatch } from './progress.ts';
 
 type Log = { status: LogStatus; completion: CompletionLevel | null };
 
@@ -64,5 +64,18 @@ describe('progressPatch', () => {
     for (const { key } of PROGRESS_CHOICES) {
       assert.equal(progressChoiceFor(apply(start, progressPatch(key, start))), key, key);
     }
+  });
+});
+
+describe("the log form's grid of choices", () => {
+  it('holds every choice exactly once', () => {
+    const placed = PROGRESS_ROWS.flat();
+    assert.equal(placed.length, PROGRESS_CHOICES.length);
+    assert.deepEqual(new Set(placed), new Set(PROGRESS_CHOICES.map((choice) => choice.key)));
+  });
+
+  it('is one across and then pairs, so every column lines up', () => {
+    assert.equal(PROGRESS_ROWS[0].length, 1);
+    for (const row of PROGRESS_ROWS.slice(1)) assert.equal(row.length, 2);
   });
 });

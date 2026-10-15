@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View, type GestureResponderEvent } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { SCORE_TRACK_HEIGHT, ScoreBar, ScoreReadout } from '@/components/ui/score-meter';
+import { ScoreBar, ScoreReadout } from '@/components/ui/score-meter';
 import { Text } from '@/components/ui/text';
 import { MAX_SCORE, MIN_SCORE, clampScore } from '@/constants/score';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
@@ -11,8 +11,16 @@ import { useTheme } from '@/hooks/use-theme';
 
 const DEFAULT_SCORE = 75;
 
+/**
+ * The track's thickness: 24, at the owner's direction (2026-10-15: "I also
+ * want the review score bar to be thicker"). It was the review page's 14, the
+ * same bar; a bar that is dragged wants more of itself under the thumb than
+ * one that is only read, so the review page keeps 14.
+ */
+const TRACK_HEIGHT = 24;
+
 /*
- * The track stays 14dp tall and becomes 44/48 to a thumb.
+ * The track becomes 44/48 to a thumb.
  *
  * The responder props and the accessibility role live on this padded wrapper,
  * not on the bar, so `locationX` is still measured against the bar's own width
@@ -20,7 +28,7 @@ const DEFAULT_SCORE = 75;
  * says a control that looks smaller is one whose padding is doing the work;
  * before this the props sat on the 14dp view itself and nothing was.
  */
-const TRACK_INSET = (TapTarget - SCORE_TRACK_HEIGHT) / 2;
+const TRACK_INSET = Math.max(0, (TapTarget - TRACK_HEIGHT) / 2);
 
 export type ScoreInputProps = {
   /** 0-100, or null when unrated. */
@@ -132,7 +140,7 @@ export function ScoreInput({ value, onChange, disabled = false, hint }: ScoreInp
                 if (event.nativeEvent.actionName === 'decrement') nudge(-1);
               },
             })}>
-        <ScoreBar score={value} dim={disabled} />
+        <ScoreBar score={value} dim={disabled} height={TRACK_HEIGHT} />
       </View>
 
       {!disabled && (

@@ -47,18 +47,6 @@ const VIVID_FLOOR = 0.72;
 /** How far a vivid fill deepens toward its ink while held — `PRESSED_DEPTH`'s twin. */
 const VIVID_PRESSED_DEPTH = 0.14;
 
-/**
- * The vivid fill for an accent, the ink on it and its held shade: what
- * `tone="vivid"` paints. Exported for the one control that is that button
- * drawn another way — the game page's docked review button, which morphs
- * between a bar and a circle and so cannot be a `<Button>`.
- */
-export function vividLook(color: string): { fill: string; ink: string; pressed: string } {
-  const fill = saturate(color, VIVID_FLOOR);
-  const ink = readableInk(fill);
-  return { fill, ink, pressed: mix(fill, ink, VIVID_PRESSED_DEPTH) };
-}
-
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   title: string;
   variant?: Variant;
@@ -164,7 +152,8 @@ export function Button({
      a vivid lift moves the fill and `accent.ink` was chosen for the unlifted
      one. See `VIVID_FLOOR`. */
   const vivid = tone === 'vivid';
-  const { fill: primaryFill, ink: primaryInk, pressed: primaryPressed } = vividLook(accent.color);
+  const primaryFill = saturate(accent.color, VIVID_FLOOR);
+  const primaryInk = readableInk(primaryFill);
 
   /*
    * One look for every action, the owner's reference measured: SimpMusic's
@@ -191,7 +180,7 @@ export function Button({
              staying behind as a lighter 1px ring. */
           edge: 'transparent',
           foreground: primaryInk,
-          pressed: primaryPressed,
+          pressed: mix(primaryFill, primaryInk, VIVID_PRESSED_DEPTH),
         }
       : {
           primary: {

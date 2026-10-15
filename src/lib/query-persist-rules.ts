@@ -110,6 +110,8 @@ export function shouldPersistKey(queryKey: readonly unknown[]): boolean {
   const root = queryKey[0];
   if (typeof root !== 'string' || root.length === 0) return false;
   if (root.startsWith('surprise')) return false;
+  /* Onboarding happens once; nothing it asked for is worth a row on disk. */
+  if (root.startsWith('onboarding')) return false;
   return !NEVER_PERSIST.has(root);
 }
 

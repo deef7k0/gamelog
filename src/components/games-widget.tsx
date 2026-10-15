@@ -141,7 +141,8 @@ export const GamesWidget = memo(function GamesWidget({
                   coverUrl={game.coverUrl}
                   heroUrl={game.heroUrl}
                   title={game.title}
-                  gameId={game.gameId}
+                  /* No `gameId`, so no Must Play badge — the owner's rule for
+                     the profile's rows (2026-10-15). */
                   width={posterWidth}
                   rounded="image"
                 />

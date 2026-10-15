@@ -168,7 +168,16 @@ export function ScoreReadout({ score, hint, align = 'start', size = 'large' }: S
  * colour comes from. The *track* is the accent's: `accent.elevated`, the same
  * M3 container every control on a game's screens sits in.
  */
-export function ScoreBar({ score, dim = false }: { score: number | null; dim?: boolean }) {
+export function ScoreBar({
+  score,
+  dim = false,
+  height = SCORE_TRACK_HEIGHT,
+}: {
+  score: number | null;
+  dim?: boolean;
+  /** The log form's is thicker than the review page's: it is held, not read. */
+  height?: number;
+}) {
   const theme = useTheme();
   const accent = useAccent();
 
@@ -177,7 +186,7 @@ export function ScoreBar({ score, dim = false }: { score: number | null; dim?: b
 
   return (
     <View
-      style={[styles.track, { backgroundColor: accent.elevated, opacity: dim ? 0.55 : 1 }]}
+      style={[styles.track, { height, backgroundColor: accent.elevated, opacity: dim ? 0.55 : 1 }]}
       pointerEvents="none">
       <View style={[styles.fill, { width: `${fraction * 100}%`, backgroundColor: tint }]} />
     </View>

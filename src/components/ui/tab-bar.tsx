@@ -1,6 +1,8 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import type Ionicons from '@expo/vector-icons/Ionicons';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { useReducedMotion } from 'react-native-reanimated';
 
+import { PaintFill, PaintGlyph, inkTransition } from '@/components/ui/paint-fill';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import {
@@ -9,6 +11,7 @@ import {
   SmallControlSlop,
   Spacing,
   TapTarget,
+  Type,
   withAlpha,
 } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
@@ -75,13 +78,21 @@ export type TabBarProps<T extends string> = {
    * would start mid-label.
    *
    * `center` is for a bar that is *the* control on its own line and has too few
-   * tabs to reach the edges. The game page is the worked example: it lost its
-   * Reviews tab to a sheet and three pills left-aligned under a full-width
-   * masthead read as a row that had lost something rather than as a complete
-   * set. Centring costs nothing when the content overflows — `flexGrow` only has
-   * slack to distribute when there is slack.
+   * tabs to reach the edges. Centring costs nothing when the content overflows —
+   * `flexGrow` only has slack to distribute when there is slack. (The game page
+   * used it, after left-aligned it read as a row that had lost something; it
+   * uses `spread` now.)
+   *
+   * `spread` shares the row out: every tab the same width, the first on the
+   * left margin, the last on the right, 4 apart — taller than a chip, with a
+   * larger label. The game page's three, at the owner's direction (2026-10-15):
+   * first "overview touches the left margin and similar touches the right
+   * margin", then, seeing chips at their own widths with wide gaps between,
+   * "too small and far apart… big enough so they barely touch and it doesnt
+   * scroll and its alligned perfectly". It does not scroll, so it is for a few
+   * short labels that always fit.
    */
-  align?: 'start' | 'center';
+  align?: 'start' | 'center' | 'spread';
   /**
    * How far in from the screen's edge the row starts and ends, when the screen
    * it is on does not keep the app's 15.
@@ -94,40 +105,36 @@ export type TabBarProps<T extends string> = {
 };
 
 /**
- * Horizontal pill tabs, shared by every screen that switches between views.
+ * Horizontal tabs, shared by every screen that switches between views — drawn
+ * as SimpMusic draws its top bar's tabs, at the owner's direction (2026-10-15:
+ * "make the tabs in the app like simpmusic… the style of the tabs that
+ * simpmusic uses on the top bar").
  *
- * The selected tab is a soft pill of the accent's wash with its label in the
- * accent; everything else is bare muted type on the page. Labels are uppercase
- * and tracked out, which is what makes a row of them read as a *control strip*
- * rather than as a sentence — at sentence case and no tracking the row looked
- * like a line of links.
+ * Read from its source, not its screenshots: `ui/component/ChipGroup.kt`
+ * (`Chip`, an `ElevatedFilterChip`) and the rows under the top bars of
+ * `HomeScreen.kt`, `LibraryScreen.kt` and `SearchScreen.kt`. So:
  *
- * **The accent, because a tab says where you are.** The bottom navigation
- * marks the current destination in the house blue, and so does this — the
- * game's own colour on its page. The fill is a light wash, not a solid —
- * quieter than a cover, unmistakably "this one".
+ * - **A full pill, 32 high, 16 at each side** — Material's filter chip.
+ * - **Unselected: no fill at all, a 1dp `outlineVariant` edge, the label in
+ *   `onSurfaceVariant`.** No fill because the row mostly sits over a page or
+ *   artwork, where a solid pill reads as a slab punched over it; the edge is
+ *   what carries the shape.
+ * - **Selected: a solid `primary` fill and its `onPrimary` label, no check.**
+ *   The solid against the see-through is the selection, filled versus empty,
+ *   so it survives without colour vision; a check would widen the chosen chip
+ *   and shove the row sideways under the finger. **The fill pours** in from
+ *   the chip's middle (`<PaintFill>`) — the owner's rule for every control that
+ *   goes from an outline to solid (2026-10-15) — and drains from the one left.
+ * - **The label is Material's `labelLarge`**: 14, medium, sentence case.
+ * - **4 apart, 15 in from the edge**, scrolling when it overflows.
  *
- * ## Why the pill replaced the underline
+ * The roles are the accent's own M3 set (`accent.m3`): the house blue's off a
+ * game's screens, the game's palette on them — as SimpMusic's are its seed's.
  *
- * The old bar marked selection with a 2px rule under the active label. Two
- * problems, both structural. An underline needs a container edge to sit on, so
- * the bar carried a hairline across the full width and read as a divider
- * wherever it sat over artwork. And the fill it needed to survive that artwork
- * did not exist — an underline is one or two pixels, so a busy screenshot
- * behind it swallowed the only thing saying where you were.
- *
- * The pill is a shape, not a line. It holds at any size, over any background.
- *
- * ## Why the pill is a wash rather than a solid
- *
- * A solid pill is the brightest object on any screen it appears on, competing
- * with the box art the whole app is built around. A 14% wash reads
- * unmistakably as "this one" while staying quieter than a cover. It also keeps
- * a carrier that is not hue: the selected tab is the only one with a fill at
- * all, and its label is markedly brighter than the muted ones beside it.
- *
- * Scrollable rather than evenly divided: label widths vary a lot ("OVERVIEW"
- * vs "SOUNDTRACK") and five in a fixed grid truncate on a narrow phone.
+ * **This replaced a wash and caps.** The selected tab was a 14% wash of the
+ * accent with its label in the accent, every other tab bare muted type, and
+ * every label uppercase and tracked out. The underline before that is gone for
+ * the reason it always was: a rule needs an edge to sit on.
  */
 export function TabBar<T extends string>({
   tabs,
@@ -141,10 +148,13 @@ export function TabBar<T extends string>({
   const theme = useTheme();
   const accent = useAccent();
 
+  const { m3 } = accent;
+  const reduceMotion = useReducedMotion();
+  const fill = align === 'spread' && !iconOnly;
   const items = tabs.map((tab, index) => {
     const active = tab.key === value;
     const showCount = tab.count != null && tab.count > 0;
-    const ink = active ? accent.onSurface : theme.textMuted;
+    const ink = active ? m3.onPrimary : m3.onSurfaceVariant;
 
     return (
       <PressableScale
@@ -157,25 +167,37 @@ export function TabBar<T extends string>({
         accessibilityHint={`${index + 1} of ${tabs.length}`}
         onPress={() => onChange(tab.key)}
         /* Drawn at the reference's chip height, touched at the floor. */
-        hitSlop={iconOnly ? undefined : SmallControlSlop}
+        hitSlop={iconOnly ? undefined : fill ? FILL_SLOP : SmallControlSlop}
         scaleTo={0.95}
-        pressedColor={active ? accent.ring : theme.pressed}
+        pressedColor={active ? accent.pressed : theme.pressed}
         focusRing={accent.ring}
         style={StyleSheet.flatten([
           styles.tab,
           iconOnly && styles.tabIcon,
-          /* The pill is drawn only when selected. An inactive tab has no
-             fill and no outline at all — a row of empty outlines would read
-             as five buttons, and only one of these is a destination. The
-             explicit `transparent` is what the press fill eases in from. */
-          { backgroundColor: active ? accent.wash : 'transparent' },
+          fill && styles.tabFill,
+          /* The fill is poured, not set (`<PaintFill>`): the chip itself stays
+             clear, and its edge takes the fill's colour once chosen so the two
+             meet without a seam. The explicit `transparent` is what the press
+             fill eases in from. */
+          {
+            backgroundColor: 'transparent',
+            borderColor: active ? m3.primary : m3.outlineVariant,
+          },
         ])}>
-        {tab.icon && <Ionicons name={tab.icon} size={iconOnly ? 22 : 15} color={ink} />}
+        <PaintFill on={active} color={m3.primary} />
+        {tab.icon && <PaintGlyph name={tab.icon} size={iconOnly ? 22 : 15} color={ink} />}
 
         {!iconOnly && (
-          <Text variant="h5" style={[styles.label, { color: ink }]}>
+          <Animated.Text
+            style={[
+              Type.tab,
+              fill && styles.labelFill,
+              { color: ink },
+              inkTransition(reduceMotion),
+            ]}
+            numberOfLines={1}>
             {tab.label}
-          </Text>
+          </Animated.Text>
         )}
 
         {!iconOnly &&
@@ -191,9 +213,7 @@ export function TabBar<T extends string>({
           ) : (
             /* One step quieter than its own label in both states, so the
                number never competes with the word it belongs to. */
-            <Text
-              variant="caption"
-              style={[styles.count, { color: active ? withAlpha(ink, 0.7) : theme.textMuted }]}>
+            <Text variant="caption" style={[styles.count, { color: withAlpha(ink, 0.72) }]}>
               {tab.count}
             </Text>
           ))}
@@ -202,6 +222,18 @@ export function TabBar<T extends string>({
   });
 
   const edge = inset === undefined ? undefined : { paddingHorizontal: inset };
+
+  /* A plain row, not a scroller: a fixed set spread edge to edge. */
+  if (align === 'spread' && !iconOnly) {
+    return (
+      <View
+        style={[styles.content, styles.contentBetween, edge]}
+        accessibilityRole="tablist"
+        accessibilityLabel={label}>
+        {items}
+      </View>
+    );
+  }
 
   /* A plain row, not a scroller. See the note on `iconOnly`. */
   if (iconOnly) {
@@ -248,6 +280,12 @@ export function TabBar<T extends string>({
   );
 }
 
+/** `align="spread"`'s tab height: a step over the 32 chip. */
+const FILL_HEIGHT = 40;
+
+/** Up to Android's 48 from 40, above and below. */
+const FILL_SLOP = { top: 4, bottom: 4, left: 0, right: 0 };
+
 const styles = StyleSheet.create({
   /* As tall as its pills, and no taller — see the note on the scroller. */
   scroller: { flexGrow: 0 },
@@ -273,6 +311,18 @@ const styles = StyleSheet.create({
      than the screen there is no slack and the row scrolls from its start exactly
      as it did before. */
   contentCenter: { flexGrow: 1, justifyContent: 'center' },
+  /* `align="spread"`: no slack anywhere — the tabs take the row between them. */
+  contentBetween: { alignSelf: 'stretch' },
+  /* One equal share of the row each, 40 high: a tab that is the page's main
+     control, not a chip in a scrolling strip. */
+  tabFill: {
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: FILL_HEIGHT,
+    paddingHorizontal: Spacing.x8,
+  },
+  /* A step over the chip's 14, with its own line so Android does not clip it. */
+  labelFill: { fontSize: 15, lineHeight: 20 },
   /* The reference's chip: 32 drawn and 16 at the sides (Material's filter
      chip, which SimpMusic draws every row of choices with). It reaches the tap
      floor through `SmallControlSlop`, vertically — the row's own 8 above and
@@ -282,8 +332,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.x8,
     paddingVertical: Spacing.x4,
-    paddingHorizontal: Spacing.x16,
+    /* 16 at each side, less the edge, as Material measures it from outside. */
+    paddingHorizontal: Spacing.x16 - 1,
     minHeight: ControlHeight.small,
+    borderWidth: 1,
+    /* The poured fill is clipped to the pill. */
+    overflow: 'hidden',
     /* `pill`, not `control`. A tab is not a button — it is a position in a set,
        and the fully-round end is what distinguishes "where you are" from "what
        you can press". Same reasoning that keeps `<Chip>` a pill. */
@@ -298,9 +352,6 @@ const styles = StyleSheet.create({
     /* A glyph strip has no word to size it, so it stays at the floor. */
     minHeight: TapTarget,
   },
-  /* Uppercase and tracked: the row has to read as chrome at a glance, and caps
-     at this size are what separate a control strip from a line of prose. */
-  label: { textTransform: 'uppercase', letterSpacing: 0.6 },
   count: { letterSpacing: 0.3 },
   badge: {
     minWidth: 18,

@@ -2,8 +2,10 @@ import type { Session } from '@supabase/supabase-js';
 import { create } from 'zustand';
 
 import type { Profile } from '@/lib/database.types';
+import { fetchOwnProfile } from '@/lib/own-profile';
 import { restoreQueryCache, switchQueryCacheUser } from '@/lib/query-persist';
 import { supabase } from '@/lib/supabase';
+import { beginSignUp, endSignUp, resolveOnboarding } from '@/store/onboarding';
 
 type AuthState = {
   session: Session | null;
@@ -17,27 +19,27 @@ type AuthState = {
   isRestoring: boolean;
 
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (
-    email: string,
-    password: string,
-    username: string
-  ) => Promise<{ needsEmailConfirm: boolean }>;
+  /**
+   * No handle: it is claimed near the end of onboarding, and until then the
+   * account wears the name `handle_new_user()` gives it — which is how
+   * `store/onboarding` knows the account has not finished.
+   */
+  signUp: (email: string, password: string) => Promise<{ needsEmailConfirm: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
 
+/** The account's profile, or null — retried, see `fetchOwnProfile`. */
 async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error) {
-    console.warn('[auth] failed to load profile:', error.message);
+  try {
+    return await fetchOwnProfile(userId);
+  } catch (caught) {
+    console.warn(
+      '[auth] failed to load profile:',
+      caught instanceof Error ? caught.message : caught
+    );
     return null;
   }
-  return data;
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -54,13 +56,13 @@ export const useAuth = create<AuthState>((set, get) => ({
     // onAuthStateChange populates session and profile.
   },
 
-  signUp: async (email, password, username) => {
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      // Read by the handle_new_user() trigger to seed public.profiles.
-      options: { data: { username: username.trim() } },
-    });
+  signUp: async (email, password) => {
+    /* Tells onboarding that a session arriving now is a new account's — the
+       listener below fires inside this call, before it returns. */
+    beginSignUp();
+    const { data, error } = await supabase.auth
+      .signUp({ email: email.trim(), password })
+      .finally(endSignUp);
     if (error) throw new Error(error.message);
 
     // With email confirmation enabled (the Supabase default) signUp returns a
@@ -116,9 +118,13 @@ supabase.auth.onAuthStateChange((_event, session) => {
     launchHandled = true;
     useAuth.setState({ session });
     void restoreQueryCache(userId).then(() => useAuth.setState({ isRestoring: false }));
+    resolveOnboarding(userId);
   } else {
     useAuth.setState({ session });
-    if (userId !== (previousUserId ?? null)) void switchQueryCacheUser(userId);
+    if (userId !== (previousUserId ?? null)) {
+      void switchQueryCacheUser(userId);
+      resolveOnboarding(userId);
+    }
   }
 
   if (!session) {

@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { Linking, StyleSheet, View } from 'react-native';
 
 import { EventRsvp } from '@/components/event-rsvp';
@@ -9,6 +10,7 @@ import { Text } from '@/components/ui/text';
 import { HeroAspectRatio, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { timeAgo } from '@/lib/format';
+import type { LatestEvent } from '@/lib/games/browse';
 import type { Article, GameEvent, Trailer } from '@/lib/news';
 
 /** Diameter of the play glyph centred on a trailer thumbnail. */
@@ -145,6 +147,81 @@ export function TrailerCard({ trailer }: { trailer: Trailer }) {
           </Text>
           <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
             {trailer.name}
+          </Text>
+        </View>
+      </Card>
+    </PressableScale>
+  );
+}
+
+/**
+ * A showcase that has finished, laid out as a news story — Home's "Latest
+ * events", at the owner's direction (2026-10-15): "in the same style as the
+ * news card… it should redirect to the specific event screen".
+ *
+ * `<ArticleCard>`'s shape, part for part: the event's key art full-bleed, a
+ * byline row — a round badge, where it streamed in caps where the outlet's
+ * name goes, the date where the time goes — the name as the headline, a few
+ * lines of what it was, and an action on its own line at the foot. The whole
+ * card opens `event/[id]`, whose games are shown now that it is over.
+ */
+export function PastEventCard({ event }: { event: LatestEvent }) {
+  const theme = useTheme();
+  const router = useRouter();
+  const date = new Date(event.startTime * 1000).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+  });
+  const byline = event.networks.length > 0 ? event.networks.slice(0, 2).join(' · ') : 'Showcase';
+  const action =
+    event.gameCount > 0
+      ? `See the ${event.gameCount} ${event.gameCount === 1 ? 'game' : 'games'} shown`
+      : 'See the event';
+
+  return (
+    <PressableScale
+      accessibilityRole="link"
+      accessibilityLabel={`${event.name}, ${date}. ${action}.`}
+      onPress={() => router.push({ pathname: '/event/[id]', params: { id: String(event.id) } })}
+      scaleTo={0.98}>
+      <Card padded={false}>
+        {event.bannerUrl && (
+          <Image
+            source={{ uri: event.bannerUrl }}
+            recyclingKey={String(event.id)}
+            cachePolicy="memory-disk"
+            style={[styles.storyImage, { backgroundColor: theme.surfaceElevated }]}
+            contentFit="cover"
+            transition={200}
+            accessibilityIgnoresInvertColors
+          />
+        )}
+
+        <View style={styles.storyBody}>
+          <View style={styles.bylineRow}>
+            <View style={[styles.outletBadge, { backgroundColor: theme.surfaceElevated }]}>
+              <Ionicons name="calendar-clear" size={12} color={theme.primary} />
+            </View>
+            <Text variant="label" color="textSecondary" numberOfLines={1} style={styles.outlet}>
+              {byline}
+            </Text>
+            <Text variant="caption" color="textMuted">
+              {date}
+            </Text>
+          </View>
+
+          <Text variant="h2" numberOfLines={3}>
+            {event.name}
+          </Text>
+
+          {event.description && (
+            <Text variant="body" color="textSecondary" numberOfLines={3}>
+              {event.description}
+            </Text>
+          )}
+
+          <Text variant="label" style={[styles.readStory, { color: theme.text }]}>
+            {action}
           </Text>
         </View>
       </Card>

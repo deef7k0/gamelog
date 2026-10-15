@@ -1,6 +1,7 @@
 import type { AttendanceMode, EventAttendanceRow, Profile } from '../database.types';
 import type { GameEvent } from '../news/types';
 import { supabase } from '../supabase';
+import { getCircleIds } from './discover';
 
 /**
  * Event attendance.
@@ -122,4 +123,29 @@ export async function getEventAttendees(eventId: string): Promise<EventAttendee[
   return ((data ?? []) as unknown as Row[])
     .filter((row): row is { mode: AttendanceMode; profile: Profile } => row.profile !== null)
     .map((row) => ({ profile: row.profile, mode: row.mode }));
+}
+
+export type EventWatcher = EventAttendee & { friend: boolean };
+
+/**
+ * Who said they are watching — or were there — with the people the viewer
+ * follows (and their accepted friends, `getCircleIds`) first, in the order they
+ * said so. The event page's row of faces and the list behind it.
+ */
+export async function getEventWatchers(
+  eventId: string,
+  viewerId: string | null
+): Promise<EventWatcher[]> {
+  const [attendees, circle] = await Promise.all([
+    getEventAttendees(eventId),
+    viewerId ? getCircleIds(viewerId) : Promise.resolve([] as string[]),
+  ]);
+  const friends = new Set(circle);
+  const watchers = attendees
+    .filter((attendee) => attendee.profile.id !== viewerId)
+    .map((attendee) => ({ ...attendee, friend: friends.has(attendee.profile.id) }));
+  return [
+    ...watchers.filter((entry) => entry.friend),
+    ...watchers.filter((entry) => !entry.friend),
+  ];
 }

@@ -117,6 +117,30 @@ colors:
   tierC: "#B6E07A"
   tierD: "#7ACBE0"
   tierF: "#B0A6E0"
+  # The poster palette — the owner's reference (2026-10-15), sampled off its
+  # screenshots. Solid, saturated fills, each a whole surface. Two places only:
+  # onboarding's pages that ask for access (§ 27.1) and the log form's seven
+  # progress pills (§ 27.2). The inks were taken down from the reference's
+  # until they clear AA; `poster.test.ts` holds every pair.
+  posterRed: "#F11B25"
+  posterRedInk: "#080C16" # 4.58:1; the reference's navy was 4.05
+  posterCobalt: "#2B29D5"
+  posterButter: "#F6C36A" # on cobalt, 5.43:1
+  posterPink: "#FF74D5"
+  posterPinkInk: "#7A0913" # 4.64:1; the reference's red on pink was 1.99
+  posterNavy: "#0E1B2E"
+  posterViolet: "#7B4CFD"
+  posterTeal: "#1FB48C"
+  posterYellow: "#EBD95B"
+  posterOrange: "#F4771A"
+  posterCrimson: "#E01D2B" # the tile red; white clears it (4.79)
+  posterPaper: "#F2F1ED" # onboarding's off-white pill
+  posterDisabled: "#7D7B7C"
+  posterDisabledInk: "#3E3D40"
+  # Onboarding's room: darker than the app's, as the reference is black.
+  onboardingPage: "#050506"
+  onboardingField: "#161419"
+  onboardingEdge: "#2C2A30"
   # Legacy aliases, kept so older call sites keep compiling. Do not use in new code.
   backgroundElement: "#202020"
   backgroundSelected: "#2A2A2A"
@@ -249,6 +273,41 @@ typography:
     fontSize: "12px"
     fontWeight: 500
     lineHeight: "16px"
+  # A tab's label: Material's labelLarge, which SimpMusic's chips are set in.
+  tab:
+    fontFamily: "Inter_500Medium"
+    fontSize: "14px"
+    fontWeight: 500
+    lineHeight: "20px"
+    letterSpacing: "0.1px"
+  # Onboarding, and nothing else (§ 27.1). ExtraBold and Geist Mono are one
+  # weight each, loaded by path; "Inter for everything" still holds elsewhere.
+  posterHeadline:
+    fontFamily: "Inter_800ExtraBold"
+    fontSize: "40px"
+    fontWeight: 800
+    lineHeight: "42px"
+    letterSpacing: "-1.2px"
+  posterLabel:
+    fontFamily: "GeistMono_400Regular"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: "16px"
+  posterNote:
+    fontFamily: "Inter_600SemiBold"
+    fontSize: "13px"
+    fontWeight: 600
+    lineHeight: "18px"
+  posterButton:
+    fontFamily: "Inter_600SemiBold"
+    fontSize: "15px"
+    fontWeight: 600
+    lineHeight: "20px"
+  posterField:
+    fontFamily: "Inter_400Regular"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: "21px"
   # ---------------------------------------------------------------------------
   # Reviews, and nothing else in the app.
   #
@@ -2001,10 +2060,18 @@ the resting one, so a choice survives colour blindness and greyscale.
   meet across the gap, so touch boxes tile and never overlap.
 - **Checkboxes** — `<Checkbox>`, 20dp: an empty rounded square in `borderStrong`,
   or the accent's fill with its ink's check. The row around it is the control.
-- **Tabs** — pills at the reference's chip size (32 drawn, 16 at the sides, 4
-  apart, the row 15 in); the selected one takes the accent's wash and its label
-  goes to the accent. `<TabBar>` is every in-page tab row, News's included — it
-  had a segmented icon dock of its own until it was brought into line.
+- **Tabs** — SimpMusic's top-bar chips, read from its `ChipGroup.kt`: full
+  pills, 32 high, 16 at the sides, 4 apart, the row 15 in. Unselected: no fill,
+  a 1dp `outlineVariant` edge, `onSurfaceVariant` label. Selected: solid
+  `primary`, poured in (§ 27.3), `onPrimary` label, no check. Label `tab` (14
+  medium, sentence case). Roles from `accent.m3`. `<TabBar>` is every in-page
+  tab row, News's included; the game page's three share the row — equal widths,
+  40 high, a 15 label, 4 apart from margin to margin, never scrolling.
+- **Two exceptions, both the owner's (2026-10-15).** The log form's progress
+  choices are solid poster-coloured pills that sink when another is chosen
+  (§ 27.2) — the game page's progress *sheet* keeps its selection cards. And
+  onboarding's choices are the reference's outlined pills that turn off-white
+  (§ 27.1). Neither is a pattern to reuse.
 
 ## 9.5 Sheets, dialogs and menus
 
@@ -2179,10 +2246,7 @@ none is to be "restored":
   is the sign there is more, and the text is what you press; it opens with the
   description card's motion (§ 14.1). A game with no synopsis has no block.
 - **One score in the masthead, and it is the app's own when there is one.** The
-  Ratings card under the synopsis carries the app's average, how many ratings
-  are behind it and how they divide; the stats strip under it no longer
-  carries a score. The actions are docked at the foot of the screen, not in the
-  masthead (CLAUDE.md § Conventions).
+  stats strip carries the app's average and how many ratings are behind it.
   IGDB's aggregate ("Community") is printed under the billing **only for a game
   nobody here has rated** — otherwise it was a second, different number about
   the same game, a line above the first. Nothing is printed while that is still
@@ -2317,6 +2381,12 @@ in the same colour.
 
 Ratings are an integer 0-100 on `logs.rating`, and that is the only score
 anything reads.
+
+**The bar is two thicknesses.** `<ScoreBar>` is 14 where a score is read (a
+review's page) and **24 where it is set** — the log form's `<ScoreInput>`, at
+the owner's direction (2026-10-15: "I also want the review score bar to be
+thicker"). A bar that is dragged wants more of itself under the thumb; it is
+still 44/48 to touch either way.
 
 ## 15.1 The score as a drawing
 
@@ -2737,6 +2807,94 @@ Platform case colours are part of the depicted object, not the interface palette
 - **Don't** reach for web idioms — no `className`, no Tailwind, no CSS files.
 
 ---
+
+# 27. The poster screens — the owner's reference of 2026-10-15
+
+A set of screenshots of another app's onboarding and two of its screens, with
+the direction: "change the onboarding of the app with the exact style of the
+images", the event screen laid out as its race page, and the review form's
+progress buttons as its coloured blocks. Everything here is scoped; none of
+it changes the room the rest of the app is in.
+
+## 27.1 Onboarding
+
+**Its own room, entered once.** The page is black (`onboardingPage`, darker
+than the app's), or a poster colour edge to edge. The rule for which: **black
+when the app asks about you, a colour when it asks for access** — notifications
+on cobalt with butter type, Steam on pink with crimson, and the last page (the
+games to start with) on red with near-black navy. The colour washes in as a CSS
+transition on the one page the flow keeps mounted.
+
+| Part | How it is drawn |
+| --- | --- |
+| Headline | `posterHeadline` — lowercase, 40/42, ExtraBold, tracked −3%; types itself out, a letter at a time |
+| Instruction over it | `posterLabel`, Geist Mono, quiet — "choose one", "up to four", "welcome, ana" |
+| Why it asks | one sentence (`posterNote`) between two tall Inter Light brackets |
+| Progress | a dash per step across the top beside the back chevron, lit to the current one |
+| Field | `onboardingField` well, a hairline (`onboardingEdge`), radius 14, 56 high |
+| Choice | an outlined pill, 42 high, that turns `posterPaper` with navy type when chosen |
+| Action | one full-width pill, 56 high: `posterPaper` on black, the page's second colour on a poster page; disabled is the reference's grey |
+| Way out | "Not now" as plain text under it |
+
+**The typing never reflows**: the whole line is laid out from the first frame
+and the untyped part is drawn in the ink at alpha 0. A letter every 20 ms,
+evenly, timed by the frame clock; no vibration; a tap finishes it. The intro's
+lines wait for a tap — nothing moves on by itself — with "tap to continue"
+under a line once it has typed. Under Reduce Motion the line is just there. A page's controls fade in once its
+headline has typed (capped at 0.9 s).
+
+**The voice is the reference's — flirty** ("hello gorgeous.", "nice thumbs.
+been gaming?"), chosen by the owner over a cheeky and a deadpan one. It never
+promises a feature.
+
+**None of these controls are the app's**, deliberately: the grey action pill
+and the accent-wash choice (§ 9) do not apply here, and these do not apply
+anywhere else.
+
+## 27.2 The log form's progress pills
+
+Seven pills, icon and title, no description: Want to play violet,
+Playing teal, Paused yellow, Completed cobalt, 100% complete orange, Played
+pink, Dropped crimson — the reference's blocks, mapped to keep the meaning each
+status already has. The label is whichever of white or near-black clears the
+fill (the reference's white-on-yellow is under 2:1).
+
+- **Grid**: Want to play across the top, then three equal pairs — Playing ·
+  Paused, Completed · 100%, Played · Dropped. One column past a 1.3 font scale.
+  40 high (touched at 48), `Radius.pill`, 13 semibold labels and 15 glyphs that
+  shrink a little before they wrap — the owner had them made smaller than the
+  52 of a button.
+- **Choosing — the owner's second rule**: every pill rests as a 1.5dp outline
+  in its own colour, its words in that colour lifted to AA on the page; the
+  chosen one pours solid (§ 27.3), its words in whichever ink reads on it.
+  Tapping it again drains it, and the form will not save without a choice — a
+  new log starts with none, not "Played". (The first rule — all solid until one
+  was chosen, the rest sinking, the chosen growing 6% — is gone.)
+
+## 27.3 The paint pour
+
+**An outline that turns solid pours**, the owner's rule for every such control:
+the colour is born at the pill's middle and spreads to its ends. A circle grows
+from its centre over 560 ms on Material's standard ease (it starts gently, so
+it is seen as a circle), clipped by the pill, and **stops the moment it has
+reached every point inside it** — for a pill, the tips of its round ends
+(`paintReach`). It meets the top and bottom first and the far ends last. The words and glyph change ink on a 160 ms ease.
+Unchoosing drains it back to the middle. Reduce Motion: instant. Used by the
+progress pills and their follow-up, the log form's toggles, every tab row, and
+onboarding's chips — never by a choice that only washes (§ 9.4).
+
+# 28. The event page
+
+The reference's race page, as the owner described it: the landscape art at
+the top, melting into the page; the name in `display`; a small line of where it
+streams and a small-caps tag — Upcoming / Live now (in `danger`) / Ended; then
+**bigger**, a stats strip of the date (weekday under it), the start time (the
+countdown, or how long it ran, under it) and how many are watching; the faces
+of the people watching, friends first, opening the whole list; About; and the
+**games shown, only once it is over**. The one action is pinned to the foot
+with the page fading under it — "I'll be watching" (and a reminder bell) before,
+"Watch live" during, "Watch the replay" after when there is a stream. Going in
+person is a quiet line under the faces.
 
 # 26. Platform Reality & Known Deltas
 

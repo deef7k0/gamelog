@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { memo, useMemo } from 'react';
-import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+
+import { PageFlatList } from '@/components/ui/page-scroll';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { gridItemWidth } from '@/components/gaming/game-tile';
@@ -91,7 +93,7 @@ export function PlatformDirectory({ filter }: { filter: string }) {
   }
 
   return (
-    <FlatList
+    <PageFlatList
       data={matches}
       numColumns={COLUMNS}
       keyExtractor={(platform) => String(platform.id)}

@@ -81,10 +81,13 @@ export type GamePlatformsProps = {
  * shows your record on its back. A plain cover has no back, so it does not turn.
  *
  * **The slot is the height of the tallest shape this game can show**, with the
- * object standing at its foot, as boxes of different heights stand on one
- * shelf. A PS5 case is 1.25× its width, a plain cover 1.5×, a Switch 2 case
- * 1.62× and a SNES box 0.62×, so without the reservation switching platform
- * would move everything under the section.
+ * object at its top, level with the game's name beside it — the owner's
+ * direction (2026-10-15): "every case must be aligned to the top of the
+ * section, aligned with the game title". It stood at the slot's foot, as boxes
+ * stand on a shelf, which left a short box (a SNES one, 0.62× its width) sunk
+ * at the bottom with empty space over it. A PS5 case is 1.25× its width, a
+ * plain cover 1.5×, a Switch 2 case 1.62×, so without the reservation switching
+ * platform would move everything under the section.
  */
 export function GamePlatforms({
   game,
@@ -171,7 +174,7 @@ const styles = StyleSheet.create({
   /* Top-aligned, as the masthead's identity row is: the box is the fixed shape,
      and the words start level with the top of the tallest box it can be. */
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x16 },
-  slot: { justifyContent: 'flex-end' },
+  slot: { justifyContent: 'flex-start' },
   column: { flex: 1, gap: Spacing.x16 },
   /* The name and the sentence it runs into are one statement, so they sit
      closer to each other than to the control under them. */

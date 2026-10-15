@@ -2,7 +2,6 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
   RefreshControl,
-  ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -16,6 +15,7 @@ import { GenreGrid } from '@/components/genre-grid';
 import { HomeSection } from '@/components/home-section';
 import { SpotlightSlider } from '@/components/search/spotlight-slider';
 import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { Text } from '@/components/ui/text';
 import { footHeight } from '@/constants/cover-rail';
 import type { EditionKind } from '@/constants/game-editions';
@@ -214,12 +214,13 @@ export function DiscoverFeed() {
   }
 
   return (
-    <ScrollView
+    /* The page's scroller, so Search's field folds away as it is read
+       (`<CollapsingField>`); one event a frame for the same reason. */
+    <PageScrollView
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       onScroll={onScroll}
-      scrollEventThrottle={64}
       contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
       refreshControl={
         <RefreshControl
@@ -337,7 +338,7 @@ export function DiscoverFeed() {
       <HomeSection title="Browse by genre" subtitle="Ten ways into the catalogue.">
         <GenreGrid />
       </HomeSection>
-    </ScrollView>
+    </PageScrollView>
   );
 }
 

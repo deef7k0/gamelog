@@ -2,11 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Keyboard, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Platform, StyleSheet, View } from 'react-native';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { DiscoverFeed } from '@/components/discover-feed';
 import { GameSearchResults, MIN_QUERY_LENGTH } from '@/components/game-search-results';
+import { CollapsingField } from '@/components/search/collapsing-field';
 import { CollectionResults } from '@/components/search/collection-results';
 import { PeopleResults } from '@/components/search/people-results';
 import { PlatformDirectory } from '@/components/search/platform-directory';
@@ -17,6 +18,7 @@ import { SearchHistory } from '@/components/search-history';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Screen } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
+import { PageScrollView } from '@/components/ui/page-scroll';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -175,7 +177,7 @@ export default function SearchScreen() {
   function renderBody() {
     if (showHistory) {
       return (
-        <ScrollView
+        <PageScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: Spacing.x48 + clearance }}>
@@ -201,7 +203,7 @@ export default function SearchScreen() {
               void clearSearchHistory(userId).then(refreshHistory);
             }}
           />
-        </ScrollView>
+        </PageScrollView>
       );
     }
 
@@ -233,66 +235,70 @@ export default function SearchScreen() {
      * the way Home does and spends the band on content.
      */
     <Screen edges={['top']}>
-      <View style={styles.header}>
-        <TextField
-          value={input}
-          onChangeText={setInput}
-          icon="search"
-          /* The pill: here the field *is* the screen's primary control. */
-          variant="search"
-          placeholder={info.placeholder}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-          clearButtonMode="while-editing"
-          /* Results are already live as you type, so committing *is* getting
+      {/* Folds away as the page is read and comes back on the way up; the
+          tabs under it stay — SimpMusic's Home (`<CollapsingField>`). */}
+      <CollapsingField pinned={focused}>
+        <View style={styles.header}>
+          <TextField
+            value={input}
+            onChangeText={setInput}
+            icon="search"
+            /* The pill: here the field *is* the screen's primary control. */
+            variant="search"
+            placeholder={info.placeholder}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            /* Results are already live as you type, so committing *is* getting
              the keyboard out of the way; saying so explicitly makes the key's
              behaviour a decision. */
-          onSubmitEditing={() => {
-            /* Submitting is a definite search, so it is remembered immediately
+            onSubmitEditing={() => {
+              /* Submitting is a definite search, so it is remembered immediately
                rather than waiting out `HISTORY_RECORD_MS`. */
-            if (userId && remote && isQueryable) {
-              void addSearchHistory(userId, query, scope).then(refreshHistory);
-            }
-            Keyboard.dismiss();
-            setFocused(false);
-          }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          accessibilityLabel={`Search ${info.label.toLowerCase()}`}
-          /* Three jobs, one slot, and they cannot apply at once: progress
+              if (userId && remote && isQueryable) {
+                void addSearchHistory(userId, query, scope).then(refreshHistory);
+              }
+              Keyboard.dismiss();
+              setFocused(false);
+            }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            accessibilityLabel={`Search ${info.label.toLowerCase()}`}
+            /* Three jobs, one slot, and they cannot apply at once: progress
              while a search is settling, otherwise a way to empty the field,
              otherwise — in Games, with nothing typed — the barcode scanner.
              `clearButtonMode` is **iOS-only** — on Android the only way out of
              a thirty-character query was holding backspace. */
-          trailing={
-            searching ? (
-              <ActivityIndicator size="small" color={theme.textMuted} />
-            ) : Platform.OS !== 'ios' && input.length > 0 ? (
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel="Clear the search"
-                onPress={() => setInput('')}
-                scaleTo={0.85}>
-                <Ionicons name="close-circle" size={20} color={theme.textMuted} />
-              </PressableScale>
-            ) : scope === 'games' && input.length === 0 ? (
-              /* Search by the box in your hand. A barcode resolves to a
+            trailing={
+              searching ? (
+                <ActivityIndicator size="small" color={theme.textMuted} />
+              ) : Platform.OS !== 'ios' && input.length > 0 ? (
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear the search"
+                  onPress={() => setInput('')}
+                  scaleTo={0.85}>
+                  <Ionicons name="close-circle" size={20} color={theme.textMuted} />
+                </PressableScale>
+              ) : scope === 'games' && input.length === 0 ? (
+                /* Search by the box in your hand. A barcode resolves to a
                  specific release rather than a title, so it is its own screen
                  (`/scan`) rather than a mode of this one — and a field with a
                  query in it has no use for the button. */
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel="Scan a game's barcode"
-                onPress={() => router.push('/scan')}
-                hitSlop={Spacing.x8}
-                scaleTo={0.85}>
-                <Ionicons name="barcode-outline" size={22} color={theme.textSecondary} />
-              </PressableScale>
-            ) : undefined
-          }
-        />
-      </View>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="Scan a game's barcode"
+                  onPress={() => router.push('/scan')}
+                  hitSlop={Spacing.x8}
+                  scaleTo={0.85}>
+                  <Ionicons name="barcode-outline" size={22} color={theme.textSecondary} />
+                </PressableScale>
+              ) : undefined
+            }
+          />
+        </View>
+      </CollapsingField>
 
       {/* Under the field, iOS scope-bar style: the placeholder already names
           the scope, so the two agree wherever the eye lands first. Outside the

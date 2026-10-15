@@ -50,6 +50,11 @@ describe('shouldPersistKey', () => {
     assert.equal(shouldPersistKey(['surprise-review', 'igdb:1', 'abc']), false);
   });
 
+  it('never keeps anything of onboarding, which happens once', () => {
+    assert.equal(shouldPersistKey(['onboarding-grid']), false);
+    assert.equal(shouldPersistKey(['onboarding-picks', 'abc']), false);
+  });
+
   it('refuses a key with no name to judge it by', () => {
     assert.equal(shouldPersistKey([]), false);
     assert.equal(shouldPersistKey([42]), false);

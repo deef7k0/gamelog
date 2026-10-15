@@ -1,5 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { FlatList, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+
+import { PageFlatList } from '@/components/ui/page-scroll';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { DiscoverPeople } from '@/components/discover-people';
@@ -38,7 +40,7 @@ export function PeopleResults({ query }: { query: string }) {
     return <ErrorState error={people.error} onRetry={() => people.refetch()} />;
 
   return (
-    <FlatList
+    <PageFlatList
       data={people.data ?? []}
       keyExtractor={(profile) => profile.id}
       keyboardShouldPersistTaps="handled"

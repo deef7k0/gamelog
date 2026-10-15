@@ -1,231 +1,505 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 
-import { Button } from '@/components/ui/button';
+import {
+  BracketNote,
+  PosterBody,
+  PosterButton,
+  PosterField,
+  PosterLink,
+  PosterPage,
+  PosterStatus,
+  Reveal,
+} from '@/components/onboarding/poster-kit';
+import { TypedText } from '@/components/onboarding/typed-text';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { Motion, Radius, Spacing, TapTarget } from '@/constants/theme';
+import { FontFamily, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { INTRO_LINES, MIN_PASSWORD_LENGTH, typingDuration } from '@/lib/onboarding';
+import { signInWithProvider, type OAuthProvider } from '@/lib/oauth';
+import { useAuth } from '@/store/auth';
 
-/** How long each pitch holds before the next one takes over. */
-const SLIDE_MS = 5000;
+/** Longest a page waits for its headline before showing what is under it. */
+const REVEAL_CAP_MS = 900;
 
-/**
- * The three things GameLog is for.
- *
- * **Three, and the number is the design.** A carousel of six is a thing people
- * wait out; three is a thing they read. Each names one of the app's three
- * pillars from PRODUCT.md — the catalogue, the backlog, the industry — in the
- * order somebody meets them, and none of them promises anything the app does not
- * already do.
- */
-const SLIDES = [
-  {
-    icon: 'search' as const,
-    title: 'Search your favourite games and review them',
-    body: 'Every game, one catalogue. Score it out of 100 and write what you actually thought.',
-  },
-  {
-    icon: 'bookmark' as const,
-    title: 'Keep track of games you want to play next',
-    body: 'Build a backlog worth coming back to, and log what you finish as you go.',
-  },
-  {
-    icon: 'newspaper' as const,
-    title: 'Stay up to date with all the news in the industry',
-    body: 'Releases, trailers and stories from the outlets worth reading, in one place.',
-  },
-];
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type Phase =
+  | { kind: 'intro'; line: number }
+  | { kind: 'email' }
+  | { kind: 'password'; mode: 'log-in' | 'create' }
+  | { kind: 'inbox' };
 
 /**
- * What an unsigned-in reader opens the app to.
+ * What a signed-out reader opens the app to — the owner's reference
+ * (2026-10-15), in the voice they chose for it (flirty, as the reference is).
  *
- * ## Why a pitch and not the sign-in form
+ * ## Four lines, then the email, then a password
  *
- * The form was the first screen for the whole life of the app, which asked for a
- * password before saying what the password was for. This says what the app does
- * three times, in the reader's own terms, and keeps the one action at the bottom
- * where a thumb already is.
+ * The pitch is four lines typed out on black, one at a time (`INTRO_LINES`).
+ * **Nothing moves on by itself** — the owner's direction: "dont advance
+ * automatically, wait for the user to tap the screen". A tap anywhere finishes
+ * the line being typed; the next moves on, and "tap to continue" appears under
+ * a line once it has typed. (It also keeps clear of WCAG 2.2.2: nothing here
+ * replaces itself on a timer.)
  *
- * ## The rotation pauses rather than being removed under Reduce Motion
+ * Then the reference's sign-in: one field for an email, and the other ways in
+ * as two round marks under "or". **The owner kept passwords** (it was offered
+ * a code sent by email instead), and a password cannot tell a sign-in from a
+ * sign-up by the address alone — so the email leads to a password page that
+ * logs in, with one line under it that turns it into "pick a password." for
+ * somebody new. A failed log-in points at that line.
  *
- * WCAG 2.2.2 is about *auto-updating* content, not about animation: text that
- * replaces itself every five seconds is a problem for a slow reader whether or
- * not it fades. So Reduce Motion does two things here — it drops the crossfade
- * **and** stops the timer, leaving the first pitch on screen with the dots still
- * tappable. Nothing becomes unreachable; it stops moving on its own.
+ * Signing up asks for nothing else. The handle, the name, the photo and the
+ * rest are onboarding's (`app/onboarding.tsx`), once there is a session —
+ * IGDB, which half those steps need, only answers a signed-in caller.
  *
- * The dots are real buttons for the same reason. An auto-advancing carousel with
- * no way to go back is a screen that can show a reader something and then take
- * it away before they have finished with it.
+ * ## Email confirmation
+ *
+ * With confirmation on (Supabase's default), signing up returns no session:
+ * the flow ends on "check your inbox." and the first sign-in after the link is
+ * where onboarding begins.
+ *
+ * This one route replaces `welcome`, `sign-in-options`, `sign-in` and
+ * `sign-up`, which were four screens in the app's own controls.
  */
 export default function WelcomeScreen() {
-  const theme = useTheme();
-  const router = useRouter();
-  const reduceMotion = useReducedMotion();
+  const [phase, setPhase] = useState<Phase>({ kind: 'intro', line: 0 });
+  const [email, setEmail] = useState('');
 
-  const [index, setIndex] = useState(0);
+  const back = useCallback((): boolean => {
+    if (phase.kind === 'password' || phase.kind === 'inbox') {
+      setPhase({ kind: 'email' });
+      return true;
+    }
+    if (phase.kind === 'email') {
+      setPhase({ kind: 'intro', line: INTRO_LINES.length - 1 });
+      return true;
+    }
+    if (phase.kind === 'intro' && phase.line > 0) {
+      setPhase({ kind: 'intro', line: phase.line - 1 });
+      return true;
+    }
+    return false;
+  }, [phase]);
 
-  /*
-   * Each slide schedules the one after it.
-   *
-   * A `setTimeout` keyed on `index` rather than a single `setInterval`, and the
-   * difference is what a dot press does: changing `index` tears this down and
-   * starts a fresh full-length timer, so a slide you chose gets its whole
-   * `SLIDE_MS` instead of whatever was left of the previous one's. An interval
-   * would have carried on to its own beat and could flip the slide half a second
-   * after somebody selected it.
-   *
-   * The first attempt kept a restart counter in a ref and put it in this
-   * dependency list. That is invalid twice over — reading `.current` during
-   * render is a lint error, and mutating a ref does not re-render, so the effect
-   * would never have re-run. Depending on `index` is the honest version of the
-   * same idea.
-   */
-  useEffect(() => {
-    if (reduceMotion) return;
+  /* Android's back walks the flow backwards before it leaves the app. */
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', back);
+      return () => subscription.remove();
+    }, [back])
+  );
 
-    const timer = setTimeout(() => setIndex((current) => (current + 1) % SLIDES.length), SLIDE_MS);
-    return () => clearTimeout(timer);
-  }, [reduceMotion, index]);
+  if (phase.kind === 'intro') {
+    return (
+      <Intro
+        key={phase.line}
+        line={phase.line}
+        onNext={() =>
+          setPhase(
+            phase.line + 1 < INTRO_LINES.length
+              ? { kind: 'intro', line: phase.line + 1 }
+              : { kind: 'email' }
+          )
+        }
+        onSkip={() => setPhase({ kind: 'email' })}
+      />
+    );
+  }
 
-  const slide = SLIDES[index];
+  if (phase.kind === 'email') {
+    return (
+      <EmailStep
+        email={email}
+        onChangeEmail={setEmail}
+        onBack={() => back()}
+        onContinue={() => setPhase({ kind: 'password', mode: 'log-in' })}
+      />
+    );
+  }
 
-  function show(next: number) {
-    setIndex(next);
-    AccessibilityInfo.announceForAccessibility(SLIDES[next].title);
+  if (phase.kind === 'password') {
+    return (
+      <PasswordStep
+        key={phase.mode}
+        email={email}
+        mode={phase.mode}
+        onBack={() => back()}
+        onSwitch={() =>
+          setPhase({ kind: 'password', mode: phase.mode === 'log-in' ? 'create' : 'log-in' })
+        }
+        onNeedsConfirm={() => setPhase({ kind: 'inbox' })}
+      />
+    );
   }
 
   return (
-    <Screen edges={['top', 'bottom']} padded>
-      <View style={styles.root}>
-        <View style={styles.brand}>
-          <Text variant="h1" accessibilityRole="header">
-            GameLog
+    <PosterPage
+      onBack={() => back()}
+      align="middle"
+      footer={
+        <PosterButton
+          title="Log in"
+          onPress={() => setPhase({ kind: 'password', mode: 'log-in' })}
+        />
+      }>
+      <TypedText text="check your inbox." />
+      <Reveal after={REVEAL_CAP_MS}>
+        <BracketNote>{`we sent a link to ${email.trim()}. open it, then come back and log in`}</BracketNote>
+      </Reveal>
+    </PosterPage>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * The pitch
+ * ---------------------------------------------------------------------- */
+
+function Intro({ line, onNext, onSkip }: { line: number; onNext: () => void; onSkip: () => void }) {
+  const [typed, setTyped] = useState(false);
+  const [hurried, setHurried] = useState(false);
+  const text = INTRO_LINES[line];
+  const onDone = useCallback(() => setTyped(true), []);
+
+  /* Nothing moves on by itself — the owner's direction: "wait for the user to
+     tap the screen". The first tap finishes a line still typing; the next one
+     moves on. */
+  function tap() {
+    if (!typed) setHurried(true);
+    else onNext();
+  }
+
+  return (
+    <PosterPage
+      bare
+      headerRight={
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="Skip to log in"
+          onPress={onSkip}
+          scaleTo={0.95}
+          style={styles.skip}>
+          <Text variant="posterLabel" color="textMuted">
+            skip
           </Text>
+        </PressableScale>
+      }>
+      {/* The whole page is the button, not the line: a tap anywhere is the
+          gesture, as it is in the reference. */}
+      <Pressable
+        onPress={tap}
+        style={styles.flex}
+        accessibilityRole="button"
+        accessibilityLabel={text}
+        accessibilityHint={typed ? 'Next' : 'Shows the whole line'}>
+        <PosterBody align="middle">
+          <TypedText text={text} complete={hurried} onDone={onDone} />
+        </PosterBody>
+        <View style={styles.hint}>
+          {typed ? (
+            <Reveal>
+              <Text variant="posterLabel" color="textMuted">
+                tap to continue
+              </Text>
+            </Reveal>
+          ) : null}
         </View>
+      </Pressable>
+    </PosterPage>
+  );
+}
 
-        {/*
-          The pitch. Keyed on the index so each one mounts fresh and the
-          crossfade has two elements to cross between rather than one element
-          whose text changed under it.
+/* -------------------------------------------------------------------------
+ * The email
+ * ---------------------------------------------------------------------- */
 
-          `accessibilityLiveRegion` is Android-only, so the explicit announce in
-          `show()` covers the dot presses on both platforms; the automatic
-          advance is left unannounced by design — interrupting a screen reader
-          every five seconds would be worse than the rotation itself.
-        */}
-        <View style={styles.stage} accessibilityLiveRegion="polite">
-          <Animated.View
-            key={index}
-            entering={reduceMotion ? undefined : FadeIn.duration(Motion.slow)}
-            exiting={reduceMotion ? undefined : FadeOut.duration(Motion.fast)}
-            style={styles.slide}>
-            <View style={[styles.well, { backgroundColor: theme.surfaceElevated }]}>
-              <Ionicons name={slide.icon} size={32} color={theme.primaryText} />
-            </View>
-            <Text variant="h2" style={styles.centred} accessibilityRole="header">
-              {slide.title}
-            </Text>
-            <Text variant="body" color="textSecondary" style={styles.centred}>
-              {slide.body}
-            </Text>
-          </Animated.View>
-        </View>
+function EmailStep({
+  email,
+  onChangeEmail,
+  onBack,
+  onContinue,
+}: {
+  email: string;
+  onChangeEmail: (value: string) => void;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  const theme = useTheme();
+  const [busy, setBusy] = useState<OAuthProvider | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const valid = EMAIL.test(email.trim());
+  const headline = "what's your email?";
 
-        {/* Three dots, and each one is a control. See the docblock. */}
-        <View style={styles.dots} accessibilityRole="tablist">
-          {SLIDES.map((entry, position) => (
-            <Dot
-              key={entry.icon}
-              active={position === index}
-              label={entry.title}
-              onPress={() => show(position)}
-            />
-          ))}
-        </View>
+  async function provider(which: OAuthProvider) {
+    setError(null);
+    setBusy(which);
+    try {
+      /* The root layout's guard takes over once the session lands. */
+      await signInWithProvider(which);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'That did not work. Try again?');
+    } finally {
+      setBusy(null);
+    }
+  }
 
-        <View style={styles.actions}>
-          <Button
-            title="Log in"
-            size="large"
-            fullWidth
-            onPress={() => router.push('/sign-in-options')}
+  return (
+    <PosterPage
+      onBack={onBack}
+      headerRight={
+        <Text variant="posterLabel" style={styles.wordmark} accessibilityRole="header">
+          GAMELOG
+        </Text>
+      }>
+      <TypedText text={headline} />
+      <Reveal after={Math.min(typingDuration(headline), REVEAL_CAP_MS)}>
+        <View style={styles.form}>
+          <PosterField
+            value={email}
+            onChangeText={onChangeEmail}
+            placeholder="Email address"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
+            onSubmitEditing={() => valid && onContinue()}
+            accessibilityLabel="Email address"
           />
+          <PosterButton title="Continue" disabled={!valid} onPress={onContinue} />
+
+          <View
+            style={styles.or}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants">
+            <View style={[styles.rule, { backgroundColor: theme.onboardingEdge }]} />
+            <Text variant="posterLabel" color="textMuted">
+              or
+            </Text>
+            <View style={[styles.rule, { backgroundColor: theme.onboardingEdge }]} />
+          </View>
+
+          <View style={styles.providers}>
+            <ProviderMark
+              icon="logo-google"
+              label="Continue with Google"
+              busy={busy === 'google'}
+              disabled={busy !== null}
+              onPress={() => provider('google')}
+            />
+            <ProviderMark
+              icon="logo-facebook"
+              label="Continue with Facebook"
+              /* Facebook's own blue: its brand guidance asks for the mark in it. */
+              tint="#1877F2"
+              busy={busy === 'facebook'}
+              disabled={busy !== null}
+              onPress={() => provider('facebook')}
+            />
+          </View>
+
+          {error ? <PosterStatus tone="bad">{error}</PosterStatus> : null}
         </View>
-      </View>
-    </Screen>
+      </Reveal>
+    </PosterPage>
   );
 }
 
 /**
- * One page indicator.
- *
- * The visible mark is 8dp and the target is `TapTarget`: padding does the work,
- * so the row of dots stays a row of dots rather than becoming a row of buttons.
- * `tab` is the closest role React Native has to a page indicator, and it is what
- * gives the selected one a spoken state.
+ * Another company's way in, as a round mark — the reference's. The glyph is
+ * the brand's; the disc is the room's, so the two read as doors out rather
+ * than as GameLog features.
  */
-function Dot({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+function ProviderMark({
+  icon,
+  label,
+  tint,
+  busy,
+  disabled,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  tint?: string;
+  busy: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
   const theme = useTheme();
-
   return (
-    /* `<PressableScale>`, like every other control in the app — not a bare
-       `onTouchEnd` on a `<View>`. A raw touch handler fires on lift even if the
-       finger has wandered off the target, gives no press feedback, and is not a
-       press as far as an accessibility service is concerned. */
     <PressableScale
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
+      accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled, busy }}
+      disabled={disabled}
       onPress={onPress}
-      scaleTo={0.9}
-      style={styles.dotTarget}>
-      <View
-        style={[
-          styles.dot,
-          { backgroundColor: active ? theme.primaryText : theme.borderStrong },
-          active && styles.dotActive,
-        ]}
-      />
+      scaleTo={0.92}
+      style={StyleSheet.flatten([
+        styles.mark,
+        { backgroundColor: theme.onboardingField, borderColor: theme.onboardingEdge },
+        disabled && !busy && styles.dimmed,
+      ])}>
+      {busy ? (
+        <ActivityIndicator color={theme.text} />
+      ) : (
+        <Ionicons name={icon} size={22} color={tint ?? theme.text} />
+      )}
     </PressableScale>
   );
 }
 
+/* -------------------------------------------------------------------------
+ * The password
+ * ---------------------------------------------------------------------- */
+
+function PasswordStep({
+  email,
+  mode,
+  onBack,
+  onSwitch,
+  onNeedsConfirm,
+}: {
+  email: string;
+  mode: 'log-in' | 'create';
+  onBack: () => void;
+  onSwitch: () => void;
+  onNeedsConfirm: () => void;
+}) {
+  const theme = useTheme();
+  const signIn = useAuth((state) => state.signIn);
+  const signUp = useAuth((state) => state.signUp);
+  const [password, setPassword] = useState('');
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const creating = mode === 'create';
+  const headline = creating ? 'pick a password.' : 'your password.';
+  const longEnough = password.length >= (creating ? MIN_PASSWORD_LENGTH : 1);
+
+  async function submit() {
+    if (!longEnough || busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      if (creating) {
+        const { needsEmailConfirm } = await signUp(email, password);
+        if (needsEmailConfirm) onNeedsConfirm();
+      } else {
+        await signIn(email, password);
+      }
+      /* With a session, the root layout's guard takes over. */
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : '';
+      if (!creating && /invalid login credentials/i.test(message)) {
+        setError("that doesn't match. new here? make an account below.");
+      } else if (creating && /already registered/i.test(message)) {
+        setError('that email already has an account. log in instead?');
+      } else {
+        setError(message.toLowerCase() || 'that did not work. try again?');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <PosterPage
+      onBack={onBack}
+      footer={
+        <>
+          <PosterButton
+            title={creating ? 'Make my account' : 'Log in'}
+            disabled={!longEnough}
+            busy={busy}
+            onPress={submit}
+          />
+          <PosterLink
+            title={creating ? 'Have an account? Log in' : 'New here? Make an account'}
+            onPress={onSwitch}
+            disabled={busy}
+          />
+        </>
+      }>
+      <TypedText text={headline} />
+      <Reveal after={Math.min(typingDuration(headline), REVEAL_CAP_MS)}>
+        <View style={styles.form}>
+          <Text variant="posterLabel" color="textMuted" numberOfLines={1}>
+            {email.trim()}
+          </Text>
+          <PosterField
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Password"
+            secureTextEntry={!visible}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete={creating ? 'new-password' : 'current-password'}
+            textContentType={creating ? 'newPassword' : 'password'}
+            returnKeyType="go"
+            onSubmitEditing={submit}
+            autoFocus
+            invalid={error !== null}
+            accessibilityLabel="Password"
+            trailing={
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={visible ? 'Hide password' : 'Show password'}
+                onPress={() => setVisible((current) => !current)}
+                scaleTo={0.9}
+                style={styles.eye}>
+                <Ionicons
+                  name={visible ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={theme.textMuted}
+                />
+              </PressableScale>
+            }
+          />
+          {error ? (
+            <PosterStatus tone="bad">{error}</PosterStatus>
+          ) : (
+            <BracketNote>
+              {creating
+                ? `at least ${MIN_PASSWORD_LENGTH} characters. make it a good one`
+                : 'the one you made when you joined'}
+            </BracketNote>
+          )}
+        </View>
+      </Reveal>
+    </PosterPage>
+  );
+}
+
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  brand: { alignItems: 'center', paddingTop: Spacing.x24 },
-  /* Takes the slack between the wordmark and the dots, so the pitch sits in the
-     optical centre of the screen and does not move as the copy's length
-     changes — the three bodies wrap to different line counts. */
-  stage: { flex: 1, justifyContent: 'center' },
-  slide: { alignItems: 'center', gap: Spacing.x16 },
-  well: {
-    width: 72,
-    height: 72,
-    borderRadius: Radius.cardLarge,
-    alignItems: 'center',
+  flex: { flex: 1 },
+  /* Where "tap to continue" appears, reserved from the start so the line above
+     does not move when it does. */
+  hint: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  skip: {
+    minHeight: TapTarget,
+    minWidth: TapTarget,
+    alignItems: 'flex-end',
     justifyContent: 'center',
-    marginBottom: Spacing.x8,
   },
-  centred: { textAlign: 'center' },
-  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  /* The target, not the mark. `TapTarget` square with the 8dp dot centred in it,
-     which is how a 8dp affordance clears a 44/48dp floor without looking like a
-     button. */
-  dotTarget: {
-    width: TapTarget,
-    height: TapTarget,
+  wordmark: { letterSpacing: 2, fontFamily: FontFamily.extraBold, fontSize: 14 },
+  form: { marginTop: 24, gap: 14 },
+  or: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 6 },
+  rule: { flex: 1, height: StyleSheet.hairlineWidth },
+  providers: { flexDirection: 'row', justifyContent: 'center', gap: 32 },
+  mark: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dot: { width: 8, height: 8, borderRadius: Radius.pill },
-  /* The selected dot is wider rather than a different colour alone — shape is
-     the second carrier, per the house rule that colour never works by itself. */
-  dotActive: { width: 20 },
-  actions: { paddingTop: Spacing.x8, paddingBottom: Spacing.x16 },
+  dimmed: { opacity: 0.45 },
+  eye: { width: TapTarget, height: TapTarget, alignItems: 'flex-end', justifyContent: 'center' },
 });

@@ -13,7 +13,7 @@ import {
 import { ActivityRail } from '@/components/activity-rail';
 import { CoverRailSkeleton, GameCoverRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
-import { ArticleCard } from '@/components/news-cards';
+import { ArticleCard, PastEventCard } from '@/components/news-cards';
 import { SurpriseEntry } from '@/components/surprise-entry';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -33,8 +33,12 @@ import { useTheme } from '@/hooks/use-theme';
 import { getHomeActivity, getUnreadCount, getUserLogs } from '@/lib/api';
 import { displayNameFor, greetingFor } from '@/lib/format';
 import { recommendFromLogs } from '@/lib/games/recommend';
+import { getLatestEvents } from '@/lib/games/browse';
 import { getGamingNews, getNewReleases, getUpcomingReleases } from '@/lib/news';
 import { useAuth } from '@/store/auth';
+
+/** How many finished events Home shows: the owner's three. */
+const LATEST_EVENTS = 3;
 
 /** How many news items Home shows before "See all". Enough to be worth a look. */
 const NEWS_PREVIEW = 3;
@@ -83,6 +87,7 @@ function newsCardHeight(width: number): number {
  *   New from friends  — what your circle scored and wrote about   (Postgres)
  *   Releases          — just out, and what is next                (IGDB)
  *   Latest news       — what happened                             (RSS)
+ *   Latest events     — the last three showcases that finished    (IGDB)
  *
  * **The first three are rows of games**: a one-line heading on the page over
  * small covers — the shape of the sections on Letterboxd's home, the owner's
@@ -218,6 +223,15 @@ export default function HomeScreen() {
     staleTime: 60 * 60_000,
   });
 
+  /* The last three showcases that have finished — the owner's direction
+     (2026-10-15): "only display the last 3 events. Not upcoming". The clock is
+     read when the query runs, never during a render. */
+  const latestEvents = useQuery({
+    queryKey: ['home-latest-events'],
+    queryFn: ({ signal }) => getLatestEvents(Date.now(), LATEST_EVENTS, signal),
+    staleTime: 30 * 60_000,
+  });
+
   const unread = useQuery({
     queryKey: ['notifications', 'unread', userId],
     queryFn: () => getUnreadCount(userId!),
@@ -234,7 +248,8 @@ export default function HomeScreen() {
     activity.isRefetching ||
     news.isRefetching ||
     releases.isRefetching ||
-    upcoming.isRefetching;
+    upcoming.isRefetching ||
+    latestEvents.isRefetching;
 
   function refreshAll() {
     logs.refetch();
@@ -243,6 +258,7 @@ export default function HomeScreen() {
     news.refetch();
     releases.refetch();
     upcoming.refetch();
+    latestEvents.refetch();
   }
 
   const name = displayNameFor(profile);
@@ -561,6 +577,24 @@ export default function HomeScreen() {
             )}
           </View>
         </HomeSection>
+
+        {/* Band 5 — the showcases that just happened, as stories. Absent when
+            IGDB has none to give; a failure says so, as every band does. */}
+        {latestEvents.isLoadingError ? (
+          <HomeSection title="Latest events">
+            <BandError label="Events could not load." onRetry={() => latestEvents.refetch()} />
+          </HomeSection>
+        ) : latestEvents.isPending || (latestEvents.data ?? []).length > 0 ? (
+          <HomeSection title="Latest events">
+            <View style={styles.stack}>
+              {latestEvents.isPending
+                ? Array.from({ length: LATEST_EVENTS }).map((_, index) => (
+                    <Skeleton key={index} width="100%" height={newsCardHeight(width)} />
+                  ))
+                : latestEvents.data!.map((event) => <PastEventCard key={event.id} event={event} />)}
+            </View>
+          </HomeSection>
+        ) : null}
 
         <Link href="/(tabs)/search" asChild>
           <PressableScale

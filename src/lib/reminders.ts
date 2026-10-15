@@ -74,6 +74,25 @@ async function ensurePermission(Notifications: NotificationsApi): Promise<boolea
   return requested.granted;
 }
 
+/**
+ * Ask for permission to notify, and nothing else — onboarding's cobalt page.
+ *
+ * Reminders are the only notifications this app sends from the device, so the
+ * permission is asked for once up front, where the page says what it is for,
+ * rather than in the middle of somebody's first RSVP. `unavailable` is a
+ * platform that cannot schedule at all (Expo Go on Android); the page is not
+ * shown there.
+ */
+export async function requestReminderPermission(): Promise<'granted' | 'denied' | 'unavailable'> {
+  const Notifications = await loadNotifications();
+  if (!Notifications) return 'unavailable';
+  try {
+    return (await ensurePermission(Notifications)) ? 'granted' : 'denied';
+  } catch {
+    return 'unavailable';
+  }
+}
+
 export type ScheduleResult =
   { ok: true; firesAt: Date } | { ok: false; reason: 'denied' | 'past' | 'unavailable' };
 

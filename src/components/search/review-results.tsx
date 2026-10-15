@@ -1,6 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
+import { PageFlatList } from '@/components/ui/page-scroll';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { LogCard } from '@/components/log-card';
@@ -68,7 +70,7 @@ export function ReviewResults({ query }: { query: string }) {
     return <ErrorState error={active.error} onRetry={() => active.refetch()} />;
 
   return (
-    <FlatList
+    <PageFlatList
       data={reviews}
       keyExtractor={(log) => log.id}
       keyboardShouldPersistTaps="handled"

@@ -1,6 +1,4 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -14,34 +12,16 @@ import {
   Spacing,
 } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { useEventAttendance } from '@/hooks/use-event-attendance';
 import { useTheme } from '@/hooks/use-theme';
-import { cancelAttendance, getEventAttendance, setAttendance, setReminder } from '@/lib/api';
-import type { AttendanceMode } from '@/lib/database.types';
 import type { GameEvent } from '@/lib/news';
-import {
-  REMINDER_LEAD_MINUTES,
-  cancelEventReminder,
-  remindersAvailable,
-  scheduleEventReminder,
-} from '@/lib/reminders';
-import { useAuth } from '@/store/auth';
-
-/** Why a reminder could not be set, in words the reader can act on. */
-const REMINDER_FAILURE: Record<'denied' | 'past' | 'unavailable', string> = {
-  denied: 'Allow notifications in your system settings to set reminders.',
-  past: `This event starts too soon for a ${REMINDER_LEAD_MINUTES}-minute reminder.`,
-  unavailable: 'Reminders need a development build — RSVP still works here.',
-};
+import { remindersAvailable } from '@/lib/reminders';
 
 /**
  * RSVP controls for an event: how you are attending, plus a device reminder.
  *
- * On a News event card, and on the event's own page (`event/[id]`).
- *
- * The reminder is a local notification scheduled under an id made from the
- * event's (`lib/reminders`), so it can be cancelled from any screen on any
- * later visit; `event_attendance.reminder_at` is what persists the *fact* of a
- * reminder across launches so the toggle renders correctly.
+ * On a News event card. The event's own page carries the same record in its
+ * foot bar; both go through `useEventAttendance`, so either can undo the other.
  *
  * RSVP and reminders are deliberately independent. Expo Go on Android cannot
  * schedule local notifications at all, so the reminder button is hidden there
@@ -50,71 +30,7 @@ const REMINDER_FAILURE: Record<'denied' | 'past' | 'unavailable', string> = {
  */
 export function EventRsvp({ event }: { event: GameEvent }) {
   const theme = useTheme();
-  const queryClient = useQueryClient();
-  const userId = useAuth((state) => state.session?.user.id);
-  const eventId = `igdb:${event.id}`;
-
-  const [notice, setNotice] = useState<string | null>(null);
-
-  const attendance = useQuery({
-    queryKey: ['event-attendance', eventId, userId],
-    queryFn: () => getEventAttendance(eventId, userId ?? null),
-    enabled: !!eventId,
-  });
-
-  function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ['event-attendance', eventId] });
-    // The wall shows attendance as activity.
-    queryClient.invalidateQueries({ queryKey: ['wall', userId] });
-  }
-
-  const rsvp = useMutation({
-    mutationFn: async (mode: AttendanceMode | null) => {
-      if (!userId) throw new Error('You must be signed in.');
-
-      if (mode === null) {
-        // Cancelling attendance should not leave an orphaned reminder firing.
-        await cancelEventReminder(eventId);
-        await cancelAttendance(userId, eventId);
-        return;
-      }
-
-      await setAttendance(userId, event, mode, attendance.data?.mine?.reminder_at ?? null);
-    },
-    onSuccess: invalidate,
-  });
-
-  const reminder = useMutation({
-    mutationFn: async () => {
-      if (!userId) throw new Error('You must be signed in.');
-      setNotice(null);
-
-      // Toggling off.
-      if (attendance.data?.mine?.reminder_at) {
-        await cancelEventReminder(eventId);
-        await setReminder(userId, eventId, null);
-        return;
-      }
-
-      if (!event.startsAt) {
-        setNotice('This event has no announced start time yet.');
-        return;
-      }
-
-      const result = await scheduleEventReminder(eventId, event.name, event.startsAt);
-      if (!result.ok) {
-        setNotice(REMINDER_FAILURE[result.reason]);
-        return;
-      }
-
-      await setReminder(userId, eventId, result.firesAt.toISOString());
-    },
-    onSuccess: invalidate,
-  });
-
-  const mine = attendance.data?.mine ?? null;
-  const total = attendance.data?.total ?? 0;
-  const hasReminder = !!mine?.reminder_at;
+  const { mine, total, hasReminder, rsvp, reminder, notice } = useEventAttendance(event);
 
   /** "You and 12 others will be watching" — reads naturally at every count. */
   function attendanceLine(): string | null {

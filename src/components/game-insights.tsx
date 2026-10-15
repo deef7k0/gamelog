@@ -1,15 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { MemberReviewCard } from '@/components/member-review-card';
 import { ScoreSummary } from '@/components/score-summary';
 import { Avatar } from '@/components/ui/avatar';
-import { InfoCard } from '@/components/ui/info-card';
 import { PANEL_GAP, Panel } from '@/components/ui/panel';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Section, useSectionInset } from '@/components/ui/section';
-import { StatsStrip } from '@/components/ui/stats-strip';
 import { Text } from '@/components/ui/text';
 import { ratingVerdict, scoreColor } from '@/constants/score';
 import { STATUS_LABEL } from '@/constants/status';
@@ -20,22 +18,15 @@ import { useTheme } from '@/hooks/use-theme';
 import { getGamePlayers, getRatingBreakdown, getTopGameReview, type GamePlayer } from '@/lib/api';
 import { readingKey } from '@/lib/discovery';
 import { displayNameFor } from '@/lib/format';
-import { getTimeToBeat } from '@/lib/games/igdb';
-import { parseGameId } from '@/lib/games';
 import { useAuth } from '@/store/auth';
-
-/** IGDB returns times in seconds. */
-const SECONDS_PER_HOUR = 3600;
 
 // ---------------------------------------------------------------------------
 // Ratings — what the people here scored it
 // ---------------------------------------------------------------------------
 
 /**
- * GameLog's own verdict on the game, in its masthead under the synopsis: the
- * word, the average, and how the scores divide. It headed the Overview tab
- * until the owner's brief of 2026-10-14 moved the actions to the foot of the
- * screen and gave the masthead the room; it is drawn there and nowhere else.
+ * GameLog's own verdict on the game, at the head of its Overview: the word,
+ * the average, and how the scores divide.
  *
  * ```text
  *   ╭ Ratings ──────────────── 128 ratings ╮
@@ -57,22 +48,18 @@ const SECONDS_PER_HOUR = 3600;
  *
  * Renders nothing when nobody has rated the game — an empty graph under a real
  * heading claims a distribution exists and that it is flat — and nothing while
- * it loads: the page asks for the same numbers under the same key, to decide
- * whether IGDB's score is printed under the name, so the two arrive together.
- * The page does not draw it for a game that is not out.
+ * it loads: the page's masthead asks for the same numbers under the same key,
+ * so they have nearly always arrived with the page.
  */
 export function RatingsCard({
   gameId,
   title,
   onOpen,
-  style,
 }: {
   gameId: string;
   title: string;
   /** Open every review of the game. */
   onOpen: () => void;
-  /** Where it sits. On the card, so a game with no ratings leaves no gap. */
-  style?: StyleProp<ViewStyle>;
 }) {
   const accent = useAccent();
 
@@ -97,7 +84,6 @@ export function RatingsCard({
         </Text>
       }
       onPress={onOpen}
-      style={style}
       accessibilityLabel={`Ratings of ${title} on GameLog: ${verdict.label}, ${data.average} out of 100 from ${counted}. Opens the reviews.`}>
       {/* The count is in the heading, so the summary does not say it twice. */}
       <ScoreSummary breakdown={data} counted={false} />
@@ -232,78 +218,8 @@ function Faces({ players, gameId }: { players: readonly GamePlayer[]; gameId: st
 /** A face is 44 across; this takes its target to the tap floor on Android. */
 const FACE_SLOP = { left: 2, right: 2, top: 0, bottom: 0 };
 
-// ---------------------------------------------------------------------------
-// Time to beat
-// ---------------------------------------------------------------------------
-
-/**
- * How long the game takes, from IGDB's submitted times.
- *
- * Three lengths — rushed, ordinary, everything — and the number of people behind
- * them. The submission count is not a footnote: "55 hours to complete" from four
- * players and from four hundred are different claims, and IGDB publishes the
- * count precisely so a client can say which it is.
- *
- * Hours only. IGDB stores seconds and the raw value is meaningless to a reader;
- * minutes would be worse, since a 60-hour RPG becomes 3,600 of them.
- */
-export function TimeToBeatWidget({ gameId }: { gameId: string }) {
-  const parsed = parseGameId(gameId);
-  const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
-
-  const times = useQuery({
-    queryKey: ['time-to-beat', igdbId],
-    queryFn: ({ signal }) => getTimeToBeat(igdbId!, signal),
-    enabled: !!igdbId,
-    staleTime: 24 * 60 * 60_000,
-    retry: false,
-  });
-
-  const data = times.data;
-  if (!data) return null;
-
-  const lengths = [
-    { label: 'Hastily', seconds: data.hastily },
-    { label: 'Normally', seconds: data.normally },
-    { label: 'Completely', seconds: data.completely },
-  ].filter((entry) => entry.seconds !== null);
-
-  if (lengths.length === 0) return null;
-
-  /* The three lengths as the app's row of figures — a bold figure over a quiet
-     word, rules between. They were three filled tiles, which inside the card
-     were cards inside a card. */
-  return (
-    <InfoCard title="Time to beat">
-      <StatsStrip
-        cells={lengths.map((entry) => ({
-          key: entry.label,
-          value: hoursFor(entry.seconds!),
-          label: entry.label,
-          a11y: `${entry.label}: ${hoursFor(entry.seconds!).replace(' h', ' hours')}`,
-        }))}
-      />
-
-      <Text variant="caption" color="textMuted">
-        Based on {data.count} {data.count === 1 ? 'submission' : 'submissions'}
-      </Text>
-    </InfoCard>
-  );
-}
-
-/**
- * Seconds → a readable length.
- *
- * Rounded to the nearest hour above two, because "41 h" and "41.3 h" carry the
- * same information and the second one implies a precision an average of seven
- * submissions does not have. Under two hours it keeps a decimal, where the
- * difference between 1 h and 1.5 h is most of the game.
- */
-function hoursFor(seconds: number): string {
-  const hours = seconds / SECONDS_PER_HOUR;
-  if (hours < 2) return `${Math.round(hours * 10) / 10} h`;
-  return `${Math.round(hours)} h`;
-}
+// Time to beat was a card here, until the owner had it removed (2026-10-15).
+// The stats strip under the masthead still says how long a game is.
 
 // ---------------------------------------------------------------------------
 // Reviews — the most liked of the app's own

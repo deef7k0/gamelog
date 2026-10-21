@@ -1,0 +1,54 @@
+{
+  "_note": "Real response from store.steampowered.com/events/ajaxgetpartnereventspageable/?appid=730&count=8&l=english, fetched 2026-10-16. Trimmed: first 3 events, the fields the parser reads, jsondata to its four localized fields, bodies to 600 characters.",
+  "success": 1,
+  "events": [
+    {
+      "gid": "687519694976975304",
+      "clan_steamid": "103582791432902485",
+      "event_name": "Counter-Strike 2 Update",
+      "event_type": 12,
+      "appid": 730,
+      "rtime32_start_time": 1792018920,
+      "rtime32_end_time": 1792024201,
+      "jsondata": "{\"localized_capsule_image\":[null],\"localized_title_image\":[null]}",
+      "announcement_body": {
+        "gid": "687519694976975305",
+        "headline": "Counter-Strike 2 Update",
+        "posttime": 1792018968,
+        "body": "[p]\\[ UI ][/p][p]Demo/Replay viewer improvements:[/p][list][*][p]Added a progress bar for demo/replay downloads[/p][/*][*][p]Camera controls now use click-and-drag scheme[/p][/*][*][p]Free and chase camera are usable during a paused demo[/p][/*][*][p]Fixed some minor issues when seeking to a different position in the demo file[/p][/*][/list][p][/p][p]\\[ MISC ][/p][list][*][p]Round backup files now require the game server startup flag \"-allow_round_backup_files\"[/p][/*][*][p]Updated AUG reload animations for standing and crouch reloads to better match new reload duration[/p][/*][*][p]Allowed ra"
+      }
+    },
+    {
+      "gid": "675134162359814146",
+      "clan_steamid": "103582791432902485",
+      "event_name": "Counter-Strike 2 Update",
+      "event_type": 12,
+      "appid": 730,
+      "rtime32_start_time": 1791498960,
+      "rtime32_end_time": 1791504001,
+      "jsondata": "{\"localized_capsule_image\":[null],\"localized_title_image\":[null]}",
+      "announcement_body": {
+        "gid": "675134162359814147",
+        "headline": "Counter-Strike 2 Update",
+        "posttime": 1791499009,
+        "body": "[p]\\[ MISC ][/p][list][*][p]Added a ping icon for dropped defuse kits[/p][/*][*][p]Reduced the time for AUG reload by half second[/p][/*][*][p]Fixed the sound event during silent reload for Desert Eagle[/p][/*][*][p]Fixed a case of buzzing soundscape sounds during demo playback[/p][/*][*][p]Clipping fixes for Rush maps[/p][/*][*][p]Localization updates[/p][/*][*][p]Stability updates[/p][/*][/list]"
+      }
+    },
+    {
+      "gid": "675133527946168308",
+      "clan_steamid": "103582791432902485",
+      "event_name": "Counter-Strike 2 Update",
+      "event_type": 12,
+      "appid": 730,
+      "rtime32_start_time": 1791243540,
+      "rtime32_end_time": 1791248401,
+      "jsondata": "{\"localized_capsule_image\":[null],\"localized_title_image\":[null]}",
+      "announcement_body": {
+        "gid": "675133527946168309",
+        "headline": "Counter-Strike 2 Update",
+        "posttime": 1791243583,
+        "body": "[p]\\[ MISC ][/p][list][*][p]Pet photobook pages now have localized text art.[/p][/*][*][p]Added play menu buttons to manage downloaded Workshop maps.[/p][/*][*][p]Adjusted VK shader cache extension flags.[/p][/*][/list]"
+      }
+    }
+  ]
+}

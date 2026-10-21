@@ -356,6 +356,34 @@ export function immersiveBackground(
   return page;
 }
 
+/**
+ * The near-black page: Oklab lightness 0.13 — a touch under the app's own
+ * page (#0B0A0D, 0.147) — at the dominant colour's hue.
+ *
+ * The studio page's, at the owner's direction (2026-10-17): "always black,
+ * but with a slight colour tone… dark enough so that, when a trailer is shown
+ * in black bars, it will blend with the background." Every cover lands within
+ * 1.05:1 of pure black, and a video's black renders between #000 and #101010,
+ * so a letterboxed trailer's bars meet the page without an edge.
+ */
+export const NEAR_BLACK_LIGHTNESS = 0.13;
+
+/**
+ * How much of the colour survives: a quarter of its chroma, never more than
+ * 0.03 — red lands on #110303, blue on #010813 — so a vivid cover tints the
+ * black and a grey one leaves it grey.
+ */
+const NEAR_BLACK_SHARE = 0.25;
+export const NEAR_BLACK_CHROMA = 0.03;
+
+export function nearBlackBackground(dominant: string): string {
+  const lab = toOklab(dominant);
+  if (!lab) return dominant;
+  const chroma = Math.hypot(lab[1], lab[2]);
+  const keep = chroma > 0 ? Math.min(NEAR_BLACK_CHROMA, chroma * NEAR_BLACK_SHARE) / chroma : 0;
+  return fromOklab([NEAR_BLACK_LIGHTNESS, lab[1] * keep, lab[2] * keep]);
+}
+
 // ---------------------------------------------------------------------------
 // 3. The scrim — `artworkScrimBrush`
 // ---------------------------------------------------------------------------

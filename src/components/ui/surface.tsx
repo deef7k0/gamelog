@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
+import { CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
-import { Elevation, Radius, Spacing, type ThemeColor } from '@/constants/theme';
+import { Radius, Spacing, type ThemeColor } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -14,95 +15,62 @@ import { useTheme } from '@/hooks/use-theme';
 export type CardProps = {
   children: ReactNode;
   /**
-   * `elevated` puts the card on `surfaceElevated` instead of `surface` — for a
-   * card that sits *on* another card, where the same fill would disappear.
+   * `elevated` puts the card on `surfaceElevated` instead of its usual fill —
+   * for a card that sits *on* another card, where the same fill would disappear.
    */
   elevated?: boolean;
   padded?: boolean;
   /**
-   * Take the screen's accent into the card's own fill.
-   *
-   * For a card on a page that belongs to one game — its About block, its
-   * achievement summary. The tint carries the hue at the *same lightness* as
-   * the grey it replaces (see `accentRoles`), so this changes what the card
-   * looks like and nothing about what it can hold.
-   *
-   * Off by default and off everywhere outside a game's own screens: a feed of
-   * ten tinted cards is a colour chart, not a feed.
-   */
-  tinted?: boolean;
-  /**
-   * The game-page panel shape: `Radius.cardLarge` instead of `Radius.card`.
-   *
-   * Pairs with `tinted` on the screens built out of one hue, so a `<Card>` there
-   * matches the `<InfoCard>`s around it rather than being the one 6dp corner in
-   * a column of 18s. Ignore it everywhere else — a feed row is a list item and
-   * keeps the list shape.
-   */
-  panel?: boolean;
-  /**
-   * Lands on the **outer** view — the fill and the shadow — whose only child is
-   * the inner view that clips and holds `children`. Padding and margins work
-   * here; layout does not. `flexDirection`, `gap` and `alignItems` arrange that
-   * one inner view and nothing you passed, so a row set here renders as a
-   * column. Put a `<View>` carrying the layout inside the card instead.
+   * Lands on the **outer** view — the fill, the edge and the shadow — whose
+   * only child is the inner view that clips and holds `children`. Padding and
+   * margins work here; layout does not. `flexDirection`, `gap` and
+   * `alignItems` arrange that one inner view and nothing you passed, so a row
+   * set here renders as a column. Put a `<View>` carrying the layout inside
+   * the card instead.
    */
   style?: ViewStyle | ViewStyle[];
 };
 
 /**
- * A modular block of content: filled, rounded, no border.
+ * A modular block of content, made of the review card's material
+ * (`useCardMaterial`): one flat fill a step above the page, `Radius.review`'s
+ * corner, a 1dp hairline in `border`, the card shadow, fifteen in.
  *
- * Lifted by a surface step *and* a light shadow. `surface` (#141317) against
- * `background` (#0B0A0D) measures 1.068:1 — a soft boundary, so
- * `Elevation.card` still does part of the work.
+ * It was a corner of 16 with no edge — "an edge is what marks something
+ * pressable" — and the owner had every card made the review card's
+ * (2026-10-20): "with the same size and corner ratio and stuff". The edge is
+ * the review card's hairline, white at 7%; a *control*'s edge is `outline`,
+ * at 16%, so the two still read as different things.
  *
- * No border, and that is now the line between a card and a control: every
- * pressable control in the app carries a 1px edge, and a block of content does
- * not. An edge here would make a review card read as one big button.
- *
- * `Radius.card` corners (16, large and soft like the controls it holds) and
- * `x16` padding, both fixed. A card that needs different numbers is a
- * different component.
+ * On a game's page the fill is the game's own dark tone, as every card there
+ * is; elsewhere `surface`. A card that needs different numbers is a different
+ * component.
  */
-export function Card({
-  children,
-  elevated = false,
-  padded = true,
-  tinted = false,
-  panel = false,
-  style,
-}: CardProps) {
+export function Card({ children, elevated = false, padded = true, style }: CardProps) {
   const theme = useTheme();
-  const accent = useAccent();
-
-  const fill = tinted
-    ? elevated
-      ? accent.elevated
-      : accent.surface
-    : elevated
-      ? theme.surfaceElevated
-      : theme.surface;
+  const material = useCardMaterial();
 
   /*
    * Two views on purpose. Android's `elevation` is clipped by `overflow:
    * 'hidden'`, and the card needs that clip to round whatever it contains — so
-   * the outer view owns the fill and the shadow, and the inner one does the
-   * clipping. Collapsing these back into one view silently drops the shadow on
-   * Android only. See DESIGN.md § 6.3.
+   * the outer view owns the fill, the edge and the shadow, and the inner one
+   * does the clipping. Collapsing these back into one view silently drops the
+   * shadow on Android only. See DESIGN.md § 6.3.
+   *
+   * The inner corner is the outer one less the edge, so the art a card clips
+   * meets the hairline without a sliver of fill between them.
    */
   return (
     <View
       style={[
-        styles.card,
-        panel && styles.panel,
-        Elevation.card,
-        { backgroundColor: fill },
+        cardShape,
+        {
+          backgroundColor: elevated ? theme.surfaceElevated : material.fill,
+          borderColor: material.edge,
+        },
         style,
       ]}>
-      <View style={[styles.cardClip, panel && styles.panel, padded && styles.cardPadded]}>
-        {children}
-      </View>
+      <View style={[styles.cardClip, padded && styles.cardPadded]}>{children}</View>
     </View>
   );
 }
@@ -262,15 +230,10 @@ export function Skeleton({
 }
 
 const styles = StyleSheet.create({
-  /* Fill + shadow only — the clip lives on `cardClip` so Android's elevation
-     is not cut off. */
-  card: { borderRadius: Radius.card },
-  cardClip: { borderRadius: Radius.card, overflow: 'hidden' },
-  /* `panel`. Both views take it, because the outer one owns the corner the eye
-     sees and the inner one owns the clip — set it on only one and the fill is
-     rounded while its contents are not, or the reverse. */
-  panel: { borderRadius: Radius.cardLarge },
-  cardPadded: { padding: Spacing.x16 },
+  /* The clip, inside the edge — Android's elevation is on the outer view, which
+     must not clip, or the shadow is cut off. */
+  cardClip: { borderRadius: Radius.review - 1, overflow: 'hidden' },
+  cardPadded: { padding: CARD_INSET },
   /* `minHeight`, not `height`.
      
      React Native scales text with the OS font-size setting by default, and a

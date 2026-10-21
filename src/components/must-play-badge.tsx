@@ -1,32 +1,65 @@
-import { Image } from 'expo-image';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, View } from 'react-native';
 
 import { GAME_LABEL_TEXT } from '@/constants/game-labels';
-import { readableInk } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
+/** The star's share of the wedge's side. */
+const STAR_RATIO = 0.42;
+
+export type MustPlayCornerProps = {
+  /** The length of the wedge's two short sides, in dp. */
+  size: number;
+};
+
 /**
- * The mark itself: a face with a quiff, stars for eyes and a grin full of
- * teeth, giving a thumbs up.
+ * The Must Play label on a cover (0034): a green wedge filling the cover's
+ * top-right corner, its long side facing into the art, and a star in it in a
+ * darker green — the owner's direction (2026-10-17). It was a round badge
+ * with a face on it.
  *
- * Two layers, each one colour on a transparent ground: the lines of the mark,
- * and under them the white of its grin. `assets/images/badges/must-play.svg` is
- * the source of both and says how to rasterise them. The disc and its ring are
- * drawn here and the layers are tinted here, so every colour stays in the theme
- * and retuning `mustPlay` needs no new file.
+ * The wedge is a zero-sized box with two borders: the top one green, the left
+ * one clear. They meet on the diagonal, so the top border is the triangle
+ * whose right angle is the box's top-right corner. Drawn inside the cover's
+ * clip, it takes the cover's own rounded corner.
+ *
+ * The star stands on the triangle's centroid, a third of the side in from the
+ * top and from the right.
+ *
+ * Presentational. Whether a game carries the label is `useGameLabel`'s to say.
  */
-const MARK = require('@/assets/images/badges/must-play.png');
-const TEETH = require('@/assets/images/badges/must-play-teeth.png');
+export function MustPlayCorner({ size }: MustPlayCornerProps) {
+  const theme = useTheme();
+  const star = Math.round(size * STAR_RATIO);
+  const inset = size / 3 - star / 2;
 
-/** The ring's share of the badge's width, and the thinnest it is ever drawn. */
-const RING_RATIO = 0.06;
-const RING_MIN = 1.5;
+  return (
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={GAME_LABEL_TEXT.must_play.spoken}
+      style={[styles.corner, { width: size, height: size }]}>
+      <View
+        style={[
+          styles.wedge,
+          { borderTopWidth: size, borderLeftWidth: size, borderTopColor: theme.mustPlay },
+        ]}
+      />
+      <Ionicons
+        name="star"
+        size={star}
+        color={theme.mustPlayStar}
+        style={[styles.star, { top: inset, right: inset }]}
+      />
+    </View>
+  );
+}
 
-export type MustPlayBadgeProps = {
-  /** The badge's diameter, in dp. */
+export type MustPlayStarProps = {
+  /** The star's size, in dp. */
   size: number;
   /**
-   * Say what it is to a screen reader. Off where the badge sits beside the
+   * Say what it is to a screen reader. Off where the star sits beside the
    * words — the stats strip's cell, the list's own heading — and would be read
    * twice.
    */
@@ -34,22 +67,12 @@ export type MustPlayBadgeProps = {
 };
 
 /**
- * The Must Play badge: a moderator's pick (0034).
- *
- * After the mark OpenCritic puts on its top tier, at the owner's direction — a
- * round badge with a face on it, a green disc inside a dark ring. The ring is
- * what lets one colour sit on any cover: it separates the disc from a cover of
- * its own hue the way a sticker's edge does, and it is the same near-black the
- * face is drawn in. The teeth are the one other colour: the opposite ink, so
- * they read as teeth whichever way the disc's ink falls.
- *
- * Presentational. Whether a game carries the label is `useGameLabel`'s to say.
+ * The Must Play mark away from a cover — the star alone, in the label's
+ * green: the Must Play list's heading, the owner's direction (2026-10-17),
+ * and the game page's stats strip.
  */
-export function MustPlayBadge({ size, labelled = true }: MustPlayBadgeProps) {
+export function MustPlayStar({ size, labelled = true }: MustPlayStarProps) {
   const theme = useTheme();
-  const ink = readableInk(theme.mustPlay);
-  const teeth = readableInk(ink);
-  const ring = Math.max(RING_MIN, size * RING_RATIO);
 
   return (
     <View
@@ -58,41 +81,19 @@ export function MustPlayBadge({ size, labelled = true }: MustPlayBadgeProps) {
       accessibilityLabel={labelled ? GAME_LABEL_TEXT.must_play.spoken : undefined}
       importantForAccessibility={labelled ? 'yes' : 'no-hide-descendants'}
       accessibilityElementsHidden={!labelled}
-      style={[
-        styles.disc,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderWidth: ring,
-          borderColor: ink,
-          backgroundColor: theme.mustPlay,
-        },
-      ]}>
-      {/* Bundled assets: they are on screen with the frame they belong to, so
-          a fade would be the badge arriving late on every cover. */}
-      <Image
-        source={TEETH}
-        style={styles.mark}
-        tintColor={teeth}
-        contentFit="contain"
-        transition={0}
-        accessibilityIgnoresInvertColors
-      />
-      <Image
-        source={MARK}
-        style={styles.mark}
-        tintColor={ink}
-        contentFit="contain"
-        transition={0}
-        accessibilityIgnoresInvertColors
-      />
+      style={[styles.starBox, { width: size, height: size }]}>
+      <Ionicons name="star" size={size} color={theme.mustPlay} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  disc: { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  /* Stacked, both the size of the disc: the grin's white under its lines. */
-  mark: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  corner: { position: 'relative' },
+  wedge: {
+    width: 0,
+    height: 0,
+    borderLeftColor: 'transparent',
+  },
+  star: { position: 'absolute' },
+  starBox: { alignItems: 'center', justifyContent: 'center' },
 });

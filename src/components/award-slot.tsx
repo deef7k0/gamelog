@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { cardMaterialFor } from '@/components/ui/card-material';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { IconButton } from '@/components/ui/icon-button';
 import { Poster } from '@/components/ui/poster';
@@ -146,7 +147,16 @@ export function AwardSlotRow({
   const headline = index === 0;
 
   return (
-    <View style={[styles.container, { backgroundColor: lit ? accent.surface : theme.surface }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          /* Every card's material (`card-material`): the winner's own dark
+             tone, or `surface` for an empty slot and with game colours off. */
+          backgroundColor: lit ? cardMaterialFor(accent, theme).fill : theme.surface,
+          borderColor: theme.border,
+        },
+      ]}>
       <View style={styles.body}>
         {game ? (
           /* Straight through to the game — an award show is a set of
@@ -400,7 +410,9 @@ function EmptySlot({
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: Radius.card, overflow: 'hidden' },
+  /* Every card's corner and hairline. No shadow: it clips, and Android clips a
+     shadow with it. */
+  container: { borderRadius: Radius.review, borderWidth: 1, overflow: 'hidden' },
   body: { flexDirection: 'row', gap: Spacing.x16, padding: Spacing.x16 },
   /* Shrinks rather than pushing the row wide, so a long game title wraps
      instead of shoving the art off the left edge.

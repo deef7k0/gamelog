@@ -1,3 +1,6 @@
+import { matchValues, tallyValues, type FacetKind, type FacetValue } from './facets';
+import { pickStorefronts, type IgdbStoreFields, type StoreLink } from './storefronts';
+import { pickTrailer, type GameTrailer } from './trailer';
 import { editionKindFor, editionRank } from '../../constants/game-editions';
 import { supabase } from '../supabase';
 import { precisionOf, type DatePrecision } from './calendar';
@@ -97,13 +100,19 @@ const STEAM_EXTERNAL_CATEGORY = 1;
 /**
  * The game's Steam appid, when it has a Steam listing.
  *
- * Read from the shared field list rather than through `getGameStores()`, which
+ * Read from the shared field list rather than through `getGameExtras()`, which
  * is one request per game. A poster grid asks for artwork for fifty games at
  * once; fifty extra IGDB round trips to learn fifty appids would cost more than
  * the artwork is worth. The nested array is a few dozen bytes per row.
  *
  * Null for the many games that are not on Steam at all — every console
  * exclusive, and everything on itch.io. Those keep IGDB's own cover art.
+ *
+ * **Null on every IGDB game today**: IGDB renamed `category` to
+ * `external_game_source`, so this never matches (CLAUDE.md, § Steam CDN
+ * artwork — fixing it changes covers app-wide, so it is its own decision). The
+ * game page does not depend on it: `getGameExtras` reads the renamed field for
+ * its stores, prices, awards and news (`storefronts.ts`).
  */
 function steamAppIdOf(raw: IgdbGame): string | null {
   const listing = (raw.external_games ?? []).find(
@@ -539,6 +548,18 @@ export type GameExtras = {
   /** Broader franchises the game belongs to. A game can be in several. */
   franchises: { id: number; name: string }[];
   companies: GameCompany[];
+  /** The game's trailer on YouTube, when IGDB lists one (`pickTrailer`). */
+  trailer: GameTrailer | null;
+  /**
+   * The official stores IGDB links the game to, one a store, in the order
+   * "Where to buy" draws them (`pickStorefronts`).
+   *
+   * Optional because a row saved on the device before this field existed
+   * comes back without it (CLAUDE.md, § Loading) until it is refetched.
+   */
+  stores?: StoreLink[];
+  /** The Steam appid, when IGDB lists the game on Steam. */
+  steamAppId?: string | null;
 };
 
 type IgdbExtras = {
@@ -549,7 +570,8 @@ type IgdbExtras = {
     publisher?: boolean;
     company?: { id: number; name?: string };
   }[];
-};
+  videos?: { video_id?: string; name?: string }[];
+} & IgdbStoreFields;
 
 /**
  * The identifiers the Overview tab needs to make its sections navigable.
@@ -569,7 +591,10 @@ export async function getGameExtras(
     'games',
     `fields collection.id, collection.name, franchises.id, franchises.name,
             involved_companies.developer, involved_companies.publisher,
-            involved_companies.company.id, involved_companies.company.name;
+            involved_companies.company.id, involved_companies.company.name,
+            videos.video_id, videos.name,
+            websites.type, websites.url,
+            external_games.external_game_source, external_games.uid, external_games.url;
      where id = ${numeric};
      limit 1;`,
     signal
@@ -597,6 +622,8 @@ export async function getGameExtras(
       .filter((entry): entry is { id: number; name: string } => !!entry.id && !!entry.name)
       .map((entry) => ({ id: entry.id, name: entry.name })),
     companies,
+    trailer: pickTrailer(first.videos),
+    ...pickStorefronts(first),
   };
 }
 
@@ -817,67 +844,6 @@ function bannerArtOf(raw: IgdbGame, maxAspect: number): string | null {
   return imageUrl(artwork, '1080p') ?? imageUrl(raw.screenshots?.[0], '1080p');
 }
 
-// ---------------------------------------------------------------------------
-// Storefronts
-// ---------------------------------------------------------------------------
-
-/** One storefront listing for a game, keyed by IGDB's `external_games.category`. */
-export type GameStoreLink = {
-  /** IGDB category: 1 Steam, 11 Microsoft, 13 Apple, 15 Android, 36 PlayStation. */
-  category: number;
-  /** The store's own id. For Steam this is the appid, which unlocks pricing. */
-  uid: string;
-  url: string | null;
-};
-
-type IgdbExternal = { category?: number; uid?: string; url?: string };
-
-/**
- * Where a game can actually be bought, per storefront.
- *
- * Queried through `games` with a nested `external_games` expansion rather than
- * the `external_games` endpoint directly, so the Edge Function allowlist needs
- * no change and no redeploy.
- *
- * This is the closest thing to pricing IGDB offers: it says *where* a game is
- * sold and gives each store's own identifier, but never what it costs. The
- * Steam `uid` is the one that goes further — it is the appid, and Steam's own
- * store endpoint will quote a price for it.
- */
-export async function getGameStores(
-  sourceId: string,
-  signal?: AbortSignal
-): Promise<GameStoreLink[]> {
-  const numeric = Number(sourceId);
-  if (!Number.isFinite(numeric)) return [];
-
-  try {
-    const raw = await igdbQuery<{ external_games?: IgdbExternal[] }[]>(
-      'games',
-      `fields external_games.category, external_games.uid, external_games.url;
-       where id = ${numeric};
-       limit 1;`,
-      signal
-    );
-
-    const entries = raw?.[0]?.external_games ?? [];
-    const seen = new Set<number>();
-    const links: GameStoreLink[] = [];
-
-    for (const entry of entries) {
-      if (entry.category === undefined || !entry.uid) continue;
-      // A game can list the same store twice (regional SKUs); the first wins.
-      if (seen.has(entry.category)) continue;
-      seen.add(entry.category);
-      links.push({ category: entry.category, uid: entry.uid, url: entry.url ?? null });
-    }
-    return links;
-  } catch {
-    // A missing store row is not worth failing the page over.
-    return [];
-  }
-}
-
 /* -------------------------------------------------------------------------
  * Filtered search
  *
@@ -971,6 +937,53 @@ export async function searchGamesFiltered(
 }
 
 /* -------------------------------------------------------------------------
+ * Facets — a game's genres, themes, engine… as ways to more games
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Engines, series or franchises whose names match what was typed, best first.
+ *
+ * - **Series and franchises** have their own endpoints, both allowed; `search`
+ *   is refused on them, as on companies (§ Search), so they are matched with
+ *   `name ~ *"…"*` and ranked here (`matchValues`).
+ * - **Engines** have one too, `game_engines`, and it is *not* allowed — so the
+ *   question goes through `games`: the most-rated games whose engine's name
+ *   matches, every engine on them counted (`tallyValues`), the ones whose name
+ *   matches kept. The engine most games use leads a tie. Verified live:
+ *   "unreal" finds Unreal Engine 1 through 5.
+ */
+export async function searchFacetValues(
+  kind: FacetKind,
+  term: string,
+  signal?: AbortSignal
+): Promise<FacetValue[]> {
+  const typed = term.trim();
+  if (!typed) return [];
+  const like = `name ~ *"${quote(typed)}"*`;
+
+  if (kind === 'series' || kind === 'franchise') {
+    const raw = await igdbQuery<IgdbNamed[]>(
+      kind === 'series' ? 'collections' : 'franchises',
+      `fields name; where ${like}; limit 50;`,
+      signal
+    );
+    return matchValues(tagsOf(raw), typed).slice(0, 30);
+  }
+
+  if (kind === 'engine') {
+    const raw = await igdbQuery<{ game_engines?: IgdbNamed[] }[]>(
+      'games',
+      `fields game_engines.name; where game_engines.${like}; sort total_rating_count desc; limit 500;`,
+      signal
+    );
+    const tallied = tallyValues((raw ?? []).map((game) => tagsOf(game.game_engines)));
+    return matchValues(tallied, typed).slice(0, 30);
+  }
+
+  return [];
+}
+
+/* -------------------------------------------------------------------------
  * Surprise Me — one batch of candidate games
  * ---------------------------------------------------------------------- */
 
@@ -1012,6 +1025,26 @@ export type SurprisePoolFilters = {
    * figure `COMMUNITY`, so the two agree about whose score it is.
    */
   minRating?: number | null;
+  /** IGDB theme ids, "any of". See `lib/games/facets.ts`. */
+  themeIds?: readonly number[];
+  /** IGDB game-mode ids, "any of". */
+  modeIds?: readonly number[];
+  /**
+   * Platform families, each its machines' IGDB ids. A game is on a family when
+   * it is on any of its machines; combined, it must be on every family chosen.
+   */
+  platformGroups?: readonly (readonly number[])[];
+  /**
+   * How the picks combine — the owner's selection mode (2026-10-16). `any`, a
+   * game with at least one pick in each list; `all`, "Combined", a game with
+   * every pick — every genre, every theme, every family…
+   */
+  match?: 'all' | 'any';
+  /** IGDB language ids: a game with any support in any of them. */
+  languageIds?: readonly number[];
+  /** Released in or after this year, in or before that one. Null for no bound. */
+  fromYear?: number | null;
+  toYear?: number | null;
 };
 
 /**
@@ -1158,9 +1191,13 @@ function surprisePoolQuery(
    */
   const genreIds = filters.genreIds ?? [];
   const perspectiveIds = filters.perspectiveIds ?? [];
-  if (genreIds.length > 0) where.push(`genres = (${genreIds.join(',')})`);
+  /* `(a,b)` is any of them; `[a,b]` all of them — combined. Checked live:
+     `genres = [12,31]` is a game that is both. */
+  const combined = filters.match === 'all';
+  const list = (ids: readonly number[]) => (combined ? `[${ids.join(',')}]` : `(${ids.join(',')})`);
+  if (genreIds.length > 0) where.push(`genres = ${list(genreIds)}`);
   if (perspectiveIds.length > 0) {
-    where.push(`player_perspectives = (${perspectiveIds.join(',')})`);
+    where.push(`player_perspectives = ${list(perspectiveIds)}`);
   }
   /*
    * `> 0` rather than `!= null`: zero is the "no minimum" value the picker
@@ -1172,7 +1209,37 @@ function surprisePoolQuery(
     where.push(`total_rating >= ${Math.round(filters.minRating)}`);
   }
 
-  const filtered = genreIds.length > 0 || perspectiveIds.length > 0 || !!filters.minRating;
+  /* The rest, each "any of" as genres are, and each only when set. */
+  const anyOf = (field: string, ids: readonly number[] | undefined) => {
+    const whole = (ids ?? []).filter((id) => Number.isInteger(id) && id > 0);
+    if (whole.length > 0) where.push(`${field} = ${list(whole)}`);
+    return whole.length > 0;
+  };
+  /* A family is any of its machines either way; what combining changes is
+     whether a game must be on one family or on every one. */
+  const families = (filters.platformGroups ?? [])
+    .map((ids) => ids.filter((id) => Number.isInteger(id) && id > 0))
+    .filter((ids) => ids.length > 0);
+  if (families.length > 0) {
+    if (combined) for (const ids of families) where.push(`platforms = (${ids.join(',')})`);
+    else where.push(`platforms = (${[...new Set(families.flat())].join(',')})`);
+  }
+  const more =
+    [
+      anyOf('themes', filters.themeIds),
+      anyOf('game_modes', filters.modeIds),
+      anyOf('language_supports.language', filters.languageIds),
+    ].some(Boolean) || families.length > 0;
+  if (filters.fromYear) where.push(`first_release_date >= ${yearStart(filters.fromYear)}`);
+  if (filters.toYear) where.push(`first_release_date < ${yearStart(filters.toYear + 1)}`);
+
+  const filtered =
+    genreIds.length > 0 ||
+    perspectiveIds.length > 0 ||
+    !!filters.minRating ||
+    more ||
+    !!filters.fromYear ||
+    !!filters.toYear;
   return { clause: `where ${where.join(' & ')};`, sort, filtered };
 }
 
@@ -1447,9 +1514,29 @@ export type GameDetails = {
   ageRatings: AgeRating[];
   /** Languages with any support at all, deduped and sorted. */
   languages: string[];
+  /**
+   * The same values with their IGDB ids, by kind — what makes each one in the
+   * details card a way to its games (`lib/games/facets.ts`).
+   *
+   * Optional: a record saved on the device before this existed has none, and
+   * the card asks for a fresh one when it meets it.
+   */
+  tags?: Partial<Record<FacetKind, FacetValue[]>>;
 };
 
 type IgdbNamed = { id?: number; name?: string };
+
+/** Unique values with an id and a name, in the order IGDB returned them. */
+function tagsOf(list: (IgdbNamed | undefined)[] | undefined): FacetValue[] {
+  const out: FacetValue[] = [];
+  for (const entry of list ?? []) {
+    const name = entry?.name?.trim();
+    const id = entry?.id;
+    if (!name || typeof id !== 'number' || out.some((tag) => tag.id === id)) continue;
+    out.push({ id, name });
+  }
+  return out;
+}
 
 type IgdbDetails = {
   involved_companies?: { developer?: boolean; publisher?: boolean; company?: IgdbNamed }[];
@@ -1457,14 +1544,15 @@ type IgdbDetails = {
   themes?: IgdbNamed[];
   game_modes?: IgdbNamed[];
   player_perspectives?: IgdbNamed[];
-  collection?: IgdbNamed;
+  /* `collections`, plural: IGDB no longer answers the singular `collection`. */
+  collections?: IgdbNamed[];
   franchises?: IgdbNamed[];
   game_engines?: IgdbNamed[];
   age_ratings?: {
     organization?: { name?: string };
-    rating_category?: { rating?: string };
+    rating_category?: { id?: number; rating?: string };
   }[];
-  language_supports?: { language?: { name?: string } }[];
+  language_supports?: { language?: { id?: number; name?: string } }[];
 };
 
 /** Unique, non-empty names, in the order IGDB returned them. */
@@ -1503,7 +1591,7 @@ export async function getGameDetails(
     `fields involved_companies.developer, involved_companies.publisher,
             involved_companies.company.name,
             genres.name, themes.name, game_modes.name, player_perspectives.name,
-            collection.name, franchises.name, game_engines.name,
+            collections.name, franchises.name, game_engines.name,
             age_ratings.organization.name, age_ratings.rating_category.rating,
             language_supports.language.name;
      where id = ${numeric};
@@ -1542,14 +1630,41 @@ export async function getGameDetails(
   }
   languages.sort((a, b) => a.localeCompare(b));
 
+  /* An age rating is reached by its rating category — "PEGI 18" is one id,
+     whichever games carry it. */
+  const ratingTags: FacetValue[] = [];
+  for (const entry of first.age_ratings ?? []) {
+    const organization = entry.organization?.name?.trim();
+    const rating = entry.rating_category?.rating?.trim();
+    const id = entry.rating_category?.id;
+    if (!organization || !rating || typeof id !== 'number') continue;
+    if (ratingTags.some((tag) => tag.id === id)) continue;
+    ratingTags.push({ id, name: `${organization} ${rating}` });
+  }
+
+  const languageTags = tagsOf((first.language_supports ?? []).map((entry) => entry.language)).sort(
+    (a, b) => a.name.localeCompare(b.name)
+  );
+
   return {
+    tags: {
+      genre: tagsOf(first.genres),
+      theme: tagsOf(first.themes),
+      mode: tagsOf(first.game_modes),
+      perspective: tagsOf(first.player_perspectives),
+      series: tagsOf(first.collections),
+      franchise: tagsOf(first.franchises),
+      engine: tagsOf(first.game_engines),
+      language: languageTags,
+      rating: ratingTags,
+    },
     developers,
     publishers,
     genres: namesOf(first.genres),
     themes: namesOf(first.themes),
     gameModes: namesOf(first.game_modes),
     playerPerspectives: namesOf(first.player_perspectives),
-    series: first.collection?.name?.trim() ?? null,
+    series: first.collections?.[0]?.name?.trim() ?? null,
     franchises: namesOf(first.franchises),
     engines: namesOf(first.game_engines),
     ageRatings,

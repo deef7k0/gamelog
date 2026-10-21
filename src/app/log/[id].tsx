@@ -2,13 +2,24 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, BackHandler, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  Alert,
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 
 import { ChoiceChips } from '@/components/choice-chips';
+import { LogCard } from '@/components/log-card';
 import { ProgressPills } from '@/components/progress-pills';
 import { Button } from '@/components/ui/button';
+import { useCardMaterial } from '@/components/ui/card-material';
+import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
 import { GameCaseDisplay } from '@/components/game-case-display';
 import { PaintFill, PaintGlyph, inkTransition } from '@/components/ui/paint-fill';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -22,7 +33,6 @@ import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageScrollView } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { ScoreInput } from '@/components/ui/score-input';
-import { SelectField, type SelectOption } from '@/components/ui/select-field';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import {
@@ -44,26 +54,47 @@ import {
 } from '@/constants/theme';
 import { AccentProvider } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { deleteLog, getMyLog, saveLog } from '@/lib/api';
-import type { CompletionLevel, GameLog } from '@/lib/database.types';
+import {
+  cachedGameOf,
+  deleteLog,
+  getMyLog,
+  invalidateCommunityRatings,
+  reviewDisplaySaved,
+  saveLog,
+} from '@/lib/api';
+import type { CompletionLevel, GameLog, LogWithRelations } from '@/lib/database.types';
 import { getGameById, type Game } from '@/lib/games';
 import { formatReleaseDate, isUnreleased } from '@/lib/games/release';
 import { clearDraft, loadDraft, saveDraft, type LogDraft } from '@/lib/log-draft';
 import { platformOptionsFor } from '@/lib/platform-options';
 import { PLAY_FILTERS, type ReviewPlayFilter } from '@/lib/review-facets';
+import { QUOTE_MAX, displayOf, normaliseQuote, type ReviewDisplay } from '@/lib/review-quote';
 import { useAuth } from '@/store/auth';
 
 /** How long the form waits after the last keystroke before writing a draft. */
 const DRAFT_DEBOUNCE_MS = 800;
 
-/** Solo or co-op, in the words the review list filters by. */
-const PLAY_CHOICES = PLAY_FILTERS.map(({ key, label }) => ({ value: key, label }));
+/** Solo or co-op, in the words the review list filters by — or not said. */
+const PLAY_OPTIONS: DropdownOption<ReviewPlayFilter | ''>[] = [
+  { value: '', label: 'Not said' },
+  ...PLAY_FILTERS.map(({ key, label }) => ({ value: key, label })),
+];
 
-/** 2 to 16 — the range 0023's CHECK allows. */
-const PLAYER_OPTIONS: SelectOption[] = Array.from({ length: 15 }, (_, index) => ({
-  value: String(index + 2),
-  label: `${index + 2} players`,
-}));
+/** 2 to 16 — the range 0023's CHECK allows — or not said. */
+const PLAYER_OPTIONS: DropdownOption<string>[] = [
+  { value: '', label: 'Not said' },
+  ...Array.from({ length: 15 }, (_, index) => ({
+    value: String(index + 2),
+    label: `${index + 2} players`,
+    short: String(index + 2),
+  })),
+];
+
+/** What a card of the review shows — the writer's choice (0040). */
+const DISPLAY_CHOICES: { value: ReviewDisplay; label: string }[] = [
+  { value: 'text', label: 'The review' },
+  { value: 'quote', label: 'The sentence' },
+];
 
 /** The saved play type as the form holds it: '' is "didn't say". */
 function playFrom(coop: boolean | null | undefined): ReviewPlayFilter | '' {
@@ -184,8 +215,11 @@ type FormValues = {
   rating: number | null;
   advanced: boolean;
   metricDraft: ReviewMetricsDraft;
+  /** The game in one word or sentence — the quote (it was a headline). */
   reviewTitle: string;
   review: string;
+  /** What the review's cards show. */
+  display: ReviewDisplay;
   platinum: boolean;
   /** The author says this review gives something away. */
   spoilers: boolean;
@@ -243,6 +277,7 @@ function signature(values: FormValues): string {
     metrics,
     values.reviewTitle.trim(),
     values.review.trim(),
+    values.display,
     values.platinum,
     values.spoilers,
     values.hours.trim(),
@@ -260,6 +295,7 @@ function tap(run: () => Promise<void>) {
 
 function LogForm({ game, existing, draft, userId }: LogFormProps) {
   const theme = useTheme();
+  const cardMaterial = useCardMaterial();
   const router = useRouter();
   const navigation = useNavigation();
   const queryClient = useQueryClient();
@@ -287,6 +323,11 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     draft?.reviewTitle ?? existing?.review_title ?? ''
   );
   const [review, setReview] = useState(draft?.review ?? existing?.review ?? '');
+  const [display, setDisplay] = useState<ReviewDisplay>(() =>
+    draft?.reviewDisplay === 'quote' || draft?.reviewDisplay === 'text'
+      ? draft.reviewDisplay
+      : displayOf(existing ?? {})
+  );
   const [platinum, setPlatinum] = useState(draft?.platinum ?? existing?.platinum ?? false);
   const [spoilers, setSpoilers] = useState(draft?.spoilers ?? existing?.spoilers ?? false);
   const [hours, setHours] = useState(
@@ -305,8 +346,13 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
 
   /* What this game can honestly have been played on. See `platformOptionsFor`
      for why the stored value is the short form and a legacy value is kept. */
-  const platformOptions = useMemo<SelectOption[]>(
-    () => platformOptionsFor(game.platforms, existing?.played_on, theme.textSecondary),
+  const platformOptions = useMemo<DropdownOption<string>[]>(
+    () => [
+      { value: '', label: 'Not set' },
+      ...platformOptionsFor(game.platforms, existing?.played_on, theme.textSecondary).map(
+        ({ value, label, icon }) => ({ value, label, icon })
+      ),
+    ],
     [game.platforms, existing?.played_on, theme.textSecondary]
   );
 
@@ -320,9 +366,10 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
   const metricCount = countMetrics(metrics);
   const effectiveRating = advanced ? averageMetrics(metrics) : rating;
 
-  /* Touching either review field commits you to both. Derived rather than a
-     separate mode toggle: the intent is already legible from what was typed. */
+  /* A review is the sentence, the text, or both — the owner's change
+     (2026-10-16). It used to be a headline and a body, all or nothing. */
   const writingReview = !!reviewTitle.trim() || !!review.trim();
+  const quote = normaliseQuote(reviewTitle);
 
   const values: FormValues = {
     progress,
@@ -332,6 +379,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     metricDraft,
     reviewTitle,
     review,
+    display,
     platinum,
     spoilers,
     hours,
@@ -351,6 +399,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     metricDraft: draftFromMetrics(savedMetrics),
     reviewTitle: existing?.review_title ?? '',
     review: existing?.review ?? '',
+    display: displayOf(existing ?? {}),
     platinum: existing?.platinum ?? false,
     spoilers: existing?.spoilers ?? false,
     hours: existing?.hours_played != null ? String(existing.hours_played) : '',
@@ -386,11 +435,18 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
    */
   const clearsRating = advanced && metricCount === 0 && existing?.rating != null;
 
+  /* A sentence kept from before the cap — a headline of up to 140 — is the
+     one way past `maxLength`. It would be four or five lines on a card, so it
+     asks to be shortened rather than being cut there. */
+  const quoteError =
+    quote.length > QUOTE_MAX
+      ? `Shorten it to ${QUOTE_MAX} characters — it is drawn on three lines.`
+      : null;
+
   const blocked =
     (progress === null ? 'Pick where you are with it.' : null) ??
     hoursError ??
-    (writingReview && !reviewTitle.trim() ? 'Your review needs a headline.' : null) ??
-    (writingReview && !review.trim() ? 'Your review needs a body.' : null) ??
+    quoteError ??
     (clearsRating ? 'Advanced metrics are on with nothing scored.' : null);
 
   function invalidate() {
@@ -405,8 +461,10 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     queryClient.invalidateQueries({ queryKey: ['game-review-list', game.id] });
     /* The game page's rail of reviews: a new one, or new words, shows at once. */
     queryClient.invalidateQueries({ queryKey: ['top-reviews', game.id] });
-    queryClient.invalidateQueries({ queryKey: ['rating-breakdown', game.id] });
-    queryClient.invalidateQueries({ queryKey: ['review-stats', game.id] });
+    /* Every community score, not this game's alone: a rating changes its
+       rater's weight, and with it every other game they rated (0041). The
+       game's score, its sheet's breakdown, Beloved and the influence page. */
+    invalidateCommunityRatings(queryClient);
     // The library's head: logged, reviewed, averages, best and worst.
     queryClient.invalidateQueries({ queryKey: ['user-game-stats', userId] });
     /* 0038: the review may be in a language this game had none in, or one this
@@ -414,6 +472,10 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
     queryClient.invalidateQueries({ queryKey: ['review-languages', game.id] });
     queryClient.invalidateQueries({ queryKey: ['written-languages', userId] });
     queryClient.invalidateQueries({ queryKey: ['review-chart'] });
+    // Search's "Latest reviews": a new review is the newest one there is.
+    queryClient.invalidateQueries({ queryKey: ['latest-reviews'] });
+    // The game page's "On GameLog": how many are playing it and have played it.
+    queryClient.invalidateQueries({ queryKey: ['game-audience', game.id] });
   }
 
   const save = useMutation({
@@ -424,12 +486,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
          backstop for a save that arrives some other way. */
       if (progress === null) throw new Error('Pick where you are with it.');
       if (hoursError) throw new Error(hoursError);
-      if (reviewTitle.trim() && !review.trim()) {
-        throw new Error('Your review has a headline but no body.');
-      }
-      if (review.trim() && !reviewTitle.trim()) {
-        throw new Error('Your review needs a headline.');
-      }
+      if (quoteError) throw new Error(quoteError);
       if (clearsRating) {
         throw new Error('Score a metric, or untick advanced metrics to keep your score.');
       }
@@ -464,6 +521,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
         reviewMetrics: advanced ? metrics : null,
         reviewTitle,
         review,
+        reviewDisplay: display,
         platinum,
         spoilers,
         completion,
@@ -506,6 +564,48 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
   const mutationError = save.error ?? remove.error;
 
   /*
+   * The card a list will draw, from the form as it stands — the owner's
+   * direction: "it should show them the card with the info they've put,
+   * updating in real time". Their own face and name; the game as it will be
+   * cached; the time the form opened, or the log's own.
+   */
+  const profile = useAuth((state) => state.profile);
+  const [openedAt] = useState(() => new Date().toISOString());
+  const previewLog: LogWithRelations = {
+    id: existing?.id ?? 'preview',
+    user_id: userId ?? '',
+    game_id: game.id,
+    status: progress ? PROGRESS_META[progress].status : (existing?.status ?? 'played'),
+    rating: effectiveRating === null ? null : Math.round(effectiveRating),
+    review_title: reviewTitle,
+    review,
+    review_metrics: null,
+    completion_percent: null,
+    platinum,
+    spoilers,
+    hours_played: null,
+    played_on: null,
+    completion: null,
+    coop: null,
+    player_count: null,
+    review_display: display,
+    created_at: existing?.created_at ?? openedAt,
+    updated_at: openedAt,
+    game: cachedGameOf(game, openedAt),
+    profile,
+  };
+
+  /* Said under the choice when the card cannot show what was chosen yet. */
+  const displayNote =
+    display === 'quote' && !quote && review.trim()
+      ? 'Until you write the sentence, cards show the review.'
+      : display === 'text' && !review.trim() && quote
+        ? 'Until you write the review, cards show the sentence.'
+        : reviewDisplaySaved() === false
+          ? 'Cards will show the review until the app’s database is updated (0040).'
+          : null;
+
+  /*
    * Write the draft behind the keystrokes.
    *
    * Debounced because this runs on every character of a piece of writing that
@@ -521,6 +621,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
       void saveDraft(userId, game.id, {
         ...values,
         progress: values.progress ?? undefined,
+        reviewDisplay: values.display,
         savedAt: Date.now(),
       });
     }, DRAFT_DEBOUNCE_MS);
@@ -603,7 +704,7 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
   /* Words, not characters. "38,412 characters" tells a writer nothing about the
      length of what they have written; every writer counts in words. */
   const wordCount = review.trim() ? review.trim().split(/\s+/).length : 0;
-  const titleLeft = REVIEW_TITLE_MAX - reviewTitle.length;
+  const quoteLeft = QUOTE_MAX - reviewTitle.length;
   const bodyLeft = REVIEW_BODY_MAX - review.length;
 
   /* The button names the work. Arriving from "Write a review" and leaving via
@@ -750,118 +851,145 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
             )}
           </View>
 
-          {/* Trophies. `platinum` is self-reported for every platform — no
-              console publishes a trophy API. "Completed 100%" used to sit
-              beside it as a toggle; 100% is a progress choice now, above, and a
-              platinum still implies it. */}
+          {/*
+            The facts of the playthrough, as rows — compacted as Surprise Me's
+            settings were (2026-10-16), so the card preview below has room:
+            each a name and its control at the end of the row, one card of
+            them. They were full-width fields and pills, a screen of their own.
+          */}
           <View style={styles.section}>
             <Text variant="label" color="textMuted" accessibilityRole="header">
-              Trophies
+              Playthrough
             </Text>
-            <View style={styles.toggles}>
-              <Toggle
-                icon="trophy"
-                label="Platinum"
-                tint={theme.platinum}
-                value={platinum}
-                onPress={() => setPlatinum((current) => !current)}
-              />
-            </View>
-          </View>
+            <View
+              style={[
+                styles.rows,
+                { backgroundColor: cardMaterial.fill, borderColor: cardMaterial.edge },
+              ]}>
+              {/* Chosen, never typed: a typed platform could be a word that is
+                  not one, and the case's back prints whatever is here. */}
+              <FormRow label="Played on" first>
+                <DropdownButton
+                  label="Played on"
+                  value={playedOn}
+                  options={platformOptions}
+                  onChange={setPlayedOn}
+                />
+              </FormRow>
 
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <TextField
-                label="Hours played"
-                value={hours}
-                onChangeText={setHours}
-                keyboardType="numeric"
-                placeholder="0"
-                error={hoursError}
-              />
-            </View>
-            <View style={styles.rowItem}>
-              {/* Chosen, never typed. This used to be a free `<TextField>`, so a
-                  record could claim a platform the game never shipped on — or a
-                  word that is not a platform at all — and that string is read
-                  back on the case's printed back and in every feed row, where a
-                  typo is indistinguishable from a fact. */}
-              <SelectField
-                label="Played on"
-                sheetTitle="Played on"
-                value={playedOn}
-                options={platformOptions}
-                onChange={setPlayedOn}
-                placeholder="Not set"
-              />
-            </View>
-          </View>
+              <FormRow label="Hours played">
+                <TextInput
+                  value={hours}
+                  onChangeText={setHours}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={theme.textMuted}
+                  accessibilityLabel="Hours played"
+                  selectionColor={theme.primaryText}
+                  style={[
+                    styles.hours,
+                    {
+                      backgroundColor: theme.input,
+                      color: theme.text,
+                      borderColor: hoursError ? theme.danger : 'transparent',
+                    },
+                  ]}
+                />
+              </FormRow>
 
-          {/* Solo or co-op, and with how many. Optional, and nothing is assumed
-              when it is left alone: a review says "Co-op" only because its
-              writer did (the brief's "do not fabricate play context"). Tapping
-              the chosen one clears it. It is what the reviews sheet's Solo /
-              Co-op filter and breakdown read. */}
-          <View style={styles.section}>
-            <ChoiceChips
-              label="Solo or co-op"
-              choices={PLAY_CHOICES}
-              value={play || null}
-              onChange={(next) => {
-                setPlay(next ?? '');
-                // A player count means nothing without co-op; the database agrees.
-                if (next !== 'coop') setPlayers('');
-              }}
-            />
-            {play === 'coop' && (
-              <SelectField
-                label="Players"
-                sheetTitle="How many played"
-                value={players}
-                options={PLAYER_OPTIONS}
-                onChange={setPlayers}
-                placeholder="Not set"
-              />
+              {/* Optional, and nothing is assumed when it is left alone: a
+                  review says "Co-op" only because its writer did. It is what
+                  the reviews sheet's Solo / Co-op filter reads. */}
+              <FormRow label="Solo or co-op">
+                <DropdownButton
+                  label="Solo or co-op"
+                  value={play}
+                  options={PLAY_OPTIONS}
+                  onChange={(next) => {
+                    setPlay(next);
+                    // A player count means nothing without co-op; the database agrees.
+                    if (next !== 'coop') setPlayers('');
+                  }}
+                />
+              </FormRow>
+
+              {play === 'coop' && (
+                <FormRow label="Players">
+                  <DropdownButton
+                    label="How many played"
+                    value={players}
+                    options={PLAYER_OPTIONS}
+                    onChange={setPlayers}
+                  />
+                </FormRow>
+              )}
+
+              {/* Self-reported for every platform — no console publishes a
+                  trophy API. A platinum still implies 100%. */}
+              <FormRow label="Trophies" hint="Self-reported">
+                <Toggle
+                  icon="trophy"
+                  label="Platinum"
+                  tint={theme.platinum}
+                  value={platinum}
+                  onPress={() => setPlatinum((current) => !current)}
+                />
+              </FormRow>
+            </View>
+            {hoursError && (
+              <Text variant="bodySmall" color="danger">
+                {hoursError}
+              </Text>
             )}
           </View>
 
-          {/* Long-form review — all or nothing.
-              You can log a game without writing about it, but a *review* is a
-              headline and a body together. Half a review has nowhere to render:
-              the feed card leads with the headline and previews the body, so a
-              body with no headline arrives as an untitled block and a headline
-              with no body as a promise of writing that is not there.
+          {/*
+            The review — a sentence, the text, or both.
 
-              This is the only section announced as a *band* rather than as a
-              group inside the form (DESIGN.md § 17). Everything above it is
-              metadata about a playthrough; this is the thing the product is
-              for, and it was previously introduced by the same grey word in the
-              same size as "Completion". */}
+            The owner's change (2026-10-16): the headline became "Describe the
+            game in one word or sentence", drawn between large quotation marks
+            on the review's page, and the writer chooses which of the two their
+            cards show. The card is drawn here as they type, so the choice is
+            made looking at it.
+
+            This is still the one section announced as a band rather than as a
+            group inside the form (DESIGN.md § 17): everything above it is
+            metadata about a playthrough; this is the thing the product is for.
+          */}
           <View style={styles.reviewSection}>
             <Text variant="h2" accessibilityRole="header">
               Review
             </Text>
             <Text variant="bodySmall" color="textMuted">
-              {writingReview
-                ? 'A review needs both a headline and a body.'
-                : 'Optional. The score summarises this — it does not replace it.'}
+              Optional. One sentence, the whole story, or both. The score summarises it — it does
+              not replace it.
             </Text>
 
             <TextField
+              label="Describe the game in one word or sentence"
               value={reviewTitle}
-              onChangeText={setReviewTitle}
-              accessibilityLabel="Review headline"
-              placeholder="Headline"
-              maxLength={REVIEW_TITLE_MAX}
-              style={styles.reviewTitle}
-              hint={titleLeft <= 20 ? `${titleLeft} characters left` : undefined}
-              error={writingReview && !reviewTitle.trim() ? 'Your review needs a headline.' : null}
+              /* One line, however it wraps on screen: it is set justified
+                 between the marks, and a break would leave a hole in it. */
+              onChangeText={(text) => setReviewTitle(text.replace(/\s*\n\s*/g, ' '))}
+              placeholder="One word, or one sentence"
+              multiline
+              submitBehavior="blurAndSubmit"
+              maxLength={Math.max(QUOTE_MAX, reviewTitle.length)}
+              style={styles.quote}
+              hint={
+                quoteError
+                  ? undefined
+                  : quoteLeft <= 25
+                    ? `${quoteLeft} characters left`
+                    : undefined
+              }
+              error={quoteError}
             />
 
             <TextField
+              label="The review"
               value={review}
               onChangeText={setReview}
-              accessibilityLabel="Review body"
               placeholder="Write as much as you like — this can be a full article."
               multiline
               maxLength={REVIEW_BODY_MAX}
@@ -873,33 +1001,18 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
                     ? `${wordCount} ${wordCount === 1 ? 'word' : 'words'}`
                     : undefined
               }
-              error={writingReview && !review.trim() ? 'Your review needs a body.' : null}
             />
 
             {/*
-              The spoiler flag, under the body it describes and always visible.
-              Both of those are corrections.
+              The spoiler flag, under what it describes and always visible.
 
-              It was first placed up with Completion and gated on
-              `writingReview`, so it only appeared once you had typed — and it
-              appeared roughly a screen *above* the field you were typing in.
-              The gate had an argument behind it (a log with no prose has
-              nothing to give away, and a control that cannot do its job should
-              not be offered) and the argument lost to the obvious fact that
-              nobody could find the control. A toggle that materialises
-              off-screen after an unrelated action is not progressive
-              disclosure; it is a missing feature.
-
-              Always rendered now, and inside the Review section, which is what
-              scopes it: sitting under the body makes plain which text the flag
-              is about without a word of explanation. A log saved with no review
-              simply stores `false`, which is what it always did.
-
-              `danger` for the tint, not a new hue — it aliases onto a token that
-              already means "read this before you act". The label says the word
-              too, so colour never carries it alone.
+              It was first gated on having typed, and appeared a screen above
+              the field you were typing in; nobody could find it. A log saved
+              with no review stores `false`, as it always did. `danger` for the
+              tint — it aliases onto a token that already means "read this
+              before you act" — and the label says the word too.
             */}
-            <View style={styles.toggles}>
+            <View style={styles.spoilers}>
               <Toggle
                 icon="eye-off"
                 label="Contains spoilers"
@@ -907,10 +1020,10 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
                 value={spoilers}
                 onPress={() => setSpoilers((current) => !current)}
               />
+              <Text variant="bodySmall" color="textMuted" style={styles.flex}>
+                Readers see a notice instead of your words until they open them.
+              </Text>
             </View>
-            <Text variant="bodySmall" color="textMuted">
-              Readers see a notice instead of your review until they open it.
-            </Text>
           </View>
 
           {existing && (
@@ -922,6 +1035,40 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
               fullWidth
             />
           )}
+          {/*
+            The card, last — the owner's direction (2026-10-16): "Place the
+            review card in the review writing screen at the bottom". Drawn from
+            the form as it changes, with the choice of what it shows beside it.
+          */}
+          <View style={styles.reviewSection}>
+            {/* The card as a list will draw it — Home's, a profile's, Search's —
+                built from what is on this form, as it changes. Not pressable:
+                it is a picture of the card, not a way anywhere. */}
+            <View style={styles.preview}>
+              <Text variant="fieldLabel" color="textSecondary">
+                On a card
+              </Text>
+              <View
+                pointerEvents="none"
+                accessible
+                accessibilityLabel="How your review looks on a card">
+                <LogCard log={previewLog} />
+              </View>
+            </View>
+
+            <ChoiceChips
+              label="Cards show"
+              choices={DISPLAY_CHOICES}
+              value={display}
+              onChange={(next) => setDisplay(next ?? 'text')}
+              clearable={false}
+            />
+            {displayNote && (
+              <Text variant="bodySmall" color="textMuted">
+                {displayNote}
+              </Text>
+            )}
+          </View>
         </PageScrollView>
 
         {/*
@@ -961,7 +1108,6 @@ function LogForm({ game, existing, draft, userId }: LogFormProps) {
   );
 }
 
-const REVIEW_TITLE_MAX = 140;
 const REVIEW_BODY_MAX = 40000;
 
 /** "a moment ago" / "2 hours ago" / "on 4 Aug" — enough to judge whose draft it is. */
@@ -1021,6 +1167,38 @@ function LogFormSkeleton() {
         {block(80, 10)}
         {block('100%', 40)}
       </View>
+    </View>
+  );
+}
+
+/** One fact of the playthrough: its name, a hint when it needs one, its control at the end. */
+function FormRow({
+  label,
+  hint,
+  first = false,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  first?: boolean;
+  children: ReactNode;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      style={[
+        styles.formRow,
+        !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border },
+      ]}>
+      <View style={styles.formRowText}>
+        <Text variant="body">{label}</Text>
+        {!!hint && (
+          <Text variant="bodySmall" color="textMuted">
+            {hint}
+          </Text>
+        )}
+      </View>
+      {children}
     </View>
   );
 }
@@ -1094,10 +1272,36 @@ const styles = StyleSheet.create({
   // rather than one control with a stray checkbox attached.
   metrics: { marginTop: Spacing.x8 },
   skeletonRow: { flexDirection: 'row', gap: Spacing.x8 },
-  reviewTitle: { ...Type.h3 },
+  /* The playthrough's rows: one card, a hairline between rows (Surprise Me's). */
+  /* Every card's corner and hairline (`card-material`). No shadow: it clips
+     its rows, and Android clips a shadow with them. */
+  rows: { borderRadius: Radius.review, borderWidth: 1, overflow: 'hidden' },
+  formRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.x12,
+    minHeight: TapTarget + Spacing.x12,
+    paddingHorizontal: Spacing.x16,
+    paddingVertical: Spacing.x8,
+  },
+  formRowText: { flex: 1, gap: 2 },
+  /* The dropdown's height, the field's well: a number, so a narrow box. */
+  hours: {
+    ...Type.fieldText,
+    width: 88,
+    height: 40,
+    paddingHorizontal: Spacing.x12,
+    paddingVertical: 0,
+    borderRadius: Radius.input,
+    borderWidth: 1.5,
+    textAlign: 'center',
+  },
+  preview: { gap: Spacing.x8 },
+  /* Two or three lines as it wraps: room for the sentence to be read whole. */
+  quote: { minHeight: 64 },
   // Tall by default: a short box invites a short review.
-  reviewBody: { minHeight: 260 },
-  toggles: { flexDirection: 'row', gap: Spacing.x8, flexWrap: 'wrap' },
+  reviewBody: { minHeight: 200 },
+  spoilers: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   toggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1111,8 +1315,6 @@ const styles = StyleSheet.create({
     /* The paint is clipped to the control. */
     overflow: 'hidden',
   },
-  row: { flexDirection: 'row', gap: Spacing.x12 },
-  rowItem: { flex: 1 },
   /* Bled back out to the display edge: `<Screen padded>` insets its children by
      `x16`, and a rule that stops 12dp short of both edges reads as a stray line
      rather than as the top of a shelf. */

@@ -1,0 +1,142 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+
+import {
+  MAX_ANIMATED_BYTES,
+  animatedFormatOf,
+  igdbAnimatedCoverUrl,
+  lightEnough,
+  matchesAspect,
+  sgdbCandidates,
+  type SgdbGrid,
+} from './animated-cover.ts';
+
+/* Hollow Knight's animated grids, as SteamGridDB answered them (2026-10-20). */
+const WEBP: SgdbGrid = {
+  url: 'https://cdn2.steamgriddb.com/grid/2cffdc4195ce6adf0a57062e4318662e.webp',
+  thumb: 'https://cdn2.steamgriddb.com/thumb/2cffdc4195ce6adf0a57062e4318662e.webm',
+  mime: 'image/webp',
+  width: 600,
+  height: 900,
+  nsfw: false,
+  epilepsy: false,
+};
+const APNG: SgdbGrid = {
+  url: 'https://cdn2.steamgriddb.com/grid/58d8e2b3e0c6cef74a997f1b4b5497c7.png',
+  thumb: 'https://cdn2.steamgriddb.com/thumb/58d8e2b3e0c6cef74a997f1b4b5497c7.webm',
+  mime: 'image/png',
+  width: 600,
+  height: 900,
+  nsfw: false,
+  epilepsy: false,
+};
+
+describe('animatedFormatOf', () => {
+  it('tells a video from an animated image by its extension', () => {
+    assert.equal(animatedFormatOf(WEBP.thumb!), 'video');
+    assert.equal(animatedFormatOf('https://x.test/a.mp4'), 'video');
+    assert.equal(animatedFormatOf(WEBP.url!), 'image');
+    assert.equal(animatedFormatOf(APNG.url!), 'image');
+    assert.equal(animatedFormatOf('https://x.test/a.apng'), 'image');
+    assert.equal(animatedFormatOf('https://x.test/a.gif'), 'image');
+  });
+
+  it('reads past a query and a fragment, and ignores case', () => {
+    assert.equal(animatedFormatOf('https://x.test/a.WEBM?t=1#x'), 'video');
+    assert.equal(animatedFormatOf('https://x.test/a.webp?size=2'), 'image');
+  });
+
+  it('knows nothing it cannot draw', () => {
+    assert.equal(animatedFormatOf('https://x.test/a.jpg'), null);
+    assert.equal(animatedFormatOf('https://x.test/noextension'), null);
+  });
+});
+
+describe('sgdbCandidates', () => {
+  const full = (grid: SgdbGrid) => ({
+    url: grid.url,
+    format: 'image',
+    quality: 'full',
+    width: grid.width,
+    height: grid.height,
+  });
+  const preview = (grid: SgdbGrid) => ({ url: grid.thumb, format: 'video', quality: 'preview' });
+
+  it('plays the full animation first — the WebM is a 267×400 preview', () => {
+    assert.deepEqual(sgdbCandidates([WEBP], 'android'), [full(WEBP), preview(WEBP)]);
+    assert.deepEqual(sgdbCandidates([APNG], 'web'), [full(APNG), preview(APNG)]);
+  });
+
+  it('tries every grid’s full animation before any grid’s preview', () => {
+    assert.deepEqual(
+      sgdbCandidates([WEBP, APNG], 'android').map((asset) => asset.url),
+      [WEBP.url, APNG.url, WEBP.thumb, APNG.thumb]
+    );
+  });
+
+  it('animates the image alone on iOS, which cannot open a WebM', () => {
+    assert.deepEqual(sgdbCandidates([WEBP, APNG], 'ios'), [full(WEBP), full(APNG)]);
+  });
+
+  it('never offers a grid flagged for epilepsy or as NSFW', () => {
+    assert.deepEqual(sgdbCandidates([{ ...WEBP, epilepsy: true }], 'android'), []);
+    assert.deepEqual(sgdbCandidates([{ ...WEBP, nsfw: true }], 'ios'), []);
+  });
+
+  it('keeps SteamGridDB’s order within each kind', () => {
+    const order = sgdbCandidates([APNG, WEBP], 'android').map((asset) => asset.url);
+    assert.deepEqual(order, [APNG.url, WEBP.url, APNG.thumb, WEBP.thumb]);
+  });
+
+  it('falls back to the preview when a grid has no full animation it can draw', () => {
+    assert.deepEqual(sgdbCandidates([{ ...WEBP, url: 'https://x.test/a.jpg' }], 'android'), [
+      preview(WEBP),
+    ]);
+  });
+
+  it('offers nothing iOS cannot play', () => {
+    assert.deepEqual(sgdbCandidates([{ ...WEBP, url: 'https://x.test/a.jpg' }], 'ios'), []);
+  });
+});
+
+describe('matchesAspect', () => {
+  it('reads a taller-than-wide IGDB cover as portrait', () => {
+    assert.equal(matchesAspect(600, 800, 'portrait'), true);
+    assert.equal(matchesAspect(600, 375, 'portrait'), false);
+    assert.equal(matchesAspect(600, 600, 'portrait'), false);
+  });
+
+  it('reads a square to within a pixel in a hundred', () => {
+    assert.equal(matchesAspect(600, 600, 'square'), true);
+    assert.equal(matchesAspect(600, 605, 'square'), true);
+    assert.equal(matchesAspect(600, 620, 'square'), false);
+  });
+
+  it('refuses a cover with no size', () => {
+    assert.equal(matchesAspect(0, 0, 'square'), false);
+    assert.equal(matchesAspect(Number.NaN, 600, 'portrait'), false);
+  });
+});
+
+describe('igdbAnimatedCoverUrl', () => {
+  it('asks for the WebP — IGDB’s PNG of an animated cover is a still frame', () => {
+    assert.equal(
+      igdbAnimatedCoverUrl('co4a6r'),
+      'https://images.igdb.com/igdb/image/upload/t_720p/co4a6r.webp'
+    );
+  });
+});
+
+describe('lightEnough', () => {
+  it('passes over Hollow Knight’s 18.7 MB portrait WebP for its 6.5 MB third', () => {
+    assert.equal(lightEnough(18_690_280), false);
+    assert.equal(lightEnough(6_500_000), true);
+    assert.equal(lightEnough(1_399_028), true);
+  });
+
+  it('allows a size the server did not say', () => {
+    assert.equal(lightEnough(null), true);
+    assert.equal(lightEnough(MAX_ANIMATED_BYTES), true);
+    assert.equal(lightEnough(MAX_ANIMATED_BYTES + 1), false);
+  });
+});

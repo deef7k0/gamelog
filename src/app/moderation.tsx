@@ -6,6 +6,7 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ChoiceChips } from '@/components/choice-chips';
 import { Button } from '@/components/ui/button';
+import { CARD_INSET, cardShape } from '@/components/ui/card-material';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
@@ -328,7 +329,12 @@ function ReportCard({ entry }: { entry: SimilarityReportQueueRow }) {
   });
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        cardShape,
+        styles.card,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}>
       <View style={styles.cardHead}>
         <Text variant="label" color={entry.status === 'hidden' ? 'danger' : 'textMuted'}>
           {entry.status === 'hidden' ? 'HIDDEN BY REPORTS' : 'STILL SHOWN'}
@@ -425,7 +431,12 @@ function SuggestionReportCard({ entry }: { entry: SuggestionReportQueueRow }) {
   const reasons = entry.reasons.map((reason) => SIMILARITY_REASON_LABEL[reason]).join(' · ');
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        cardShape,
+        styles.card,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}>
       <View style={styles.cardHead}>
         <Text variant="label" color="textMuted" numberOfLines={1} style={styles.shrink}>
           {`SUGGESTION BY ${entry.author_name.toUpperCase()}`}
@@ -499,6 +510,8 @@ function ReviewReportCard({ entry }: { entry: ReviewReportQueueRow }) {
       queryClient.invalidateQueries({ queryKey: ['feed'] });
       queryClient.invalidateQueries({ queryKey: ['home-activity'] });
       queryClient.invalidateQueries({ queryKey: ['discover', 'reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['review-chart'] });
+      queryClient.invalidateQueries({ queryKey: ['latest-reviews'] });
     },
   });
 
@@ -517,7 +530,12 @@ function ReviewReportCard({ entry }: { entry: ReviewReportQueueRow }) {
   const prose = entry.review?.trim() || null;
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        cardShape,
+        styles.card,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}>
       <View style={styles.cardHead}>
         <Text variant="label" color="textMuted" numberOfLines={1} style={styles.shrink}>
           {`REVIEW BY ${entry.author_name.toUpperCase()}`}
@@ -692,7 +710,12 @@ function ClaimCard({ entry, siblings }: { entry: ContributionWithRelations; sibl
   ].filter(Boolean);
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        cardShape,
+        styles.card,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}>
       <View style={styles.cardHead}>
         <Text variant="label" color="textMuted">
           BARCODE {displayBarcode(entry.barcode)}
@@ -837,7 +860,8 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   head: { gap: Spacing.x12, marginBottom: Spacing.x16 },
   separator: { height: Spacing.x12 },
-  card: { gap: Spacing.x12, padding: Spacing.x16, borderRadius: Radius.card },
+  /* Every card's material (`card-material`), on the app's own page. */
+  card: { gap: Spacing.x12, padding: CARD_INSET },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.x8 },
   game: { flexDirection: 'row', gap: Spacing.x12, alignItems: 'flex-start' },
   photos: { gap: Spacing.x8 },

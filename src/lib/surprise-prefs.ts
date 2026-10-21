@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { validPerspectiveIds } from '../constants/player-perspectives';
+import {
+  GAME_MODES as MODE_VALUES,
+  LANGUAGES,
+  PLATFORM_GROUPS,
+  THEMES,
+  type MatchMode,
+  type PlatformGroupKey,
+} from './games/facets';
 import type { SurprisePool, SurprisePoolFilters } from './games/igdb';
 import type { TrackPickMode } from './soundtrack-pick';
 
@@ -47,6 +55,37 @@ export type SurpriseGameMode = SurprisePool | 'foryou';
 export const RATING_FLOORS = [0, 70, 80, 90] as const;
 export type RatingFloor = (typeof RATING_FLOORS)[number];
 
+/**
+ * When it came out, as the eras a person reaches for rather than two year
+ * pickers: "something from the 90s" is the request, not "1990 to 1999".
+ * `recent` is the last two calendar years and this one.
+ */
+export const RELEASE_ERAS = ['any', 'recent', '2020s', '2010s', '2000s', '1990s', 'retro'] as const;
+export type ReleaseEra = (typeof RELEASE_ERAS)[number];
+
+/** An era's years, inclusive at both ends — null for no bound. */
+export function eraYears(
+  era: ReleaseEra,
+  thisYear: number
+): { fromYear: number | null; toYear: number | null } {
+  switch (era) {
+    case 'recent':
+      return { fromYear: thisYear - 2, toYear: null };
+    case '2020s':
+      return { fromYear: 2020, toYear: 2029 };
+    case '2010s':
+      return { fromYear: 2010, toYear: 2019 };
+    case '2000s':
+      return { fromYear: 2000, toYear: 2009 };
+    case '1990s':
+      return { fromYear: 1990, toYear: 1999 };
+    case 'retro':
+      return { fromYear: null, toYear: 1989 };
+    default:
+      return { fromYear: null, toYear: null };
+  }
+}
+
 export type SurprisePrefs = {
   gameMode: SurpriseGameMode;
   trackMode: TrackPickMode;
@@ -73,6 +112,29 @@ export type SurprisePrefs = {
   perspectiveIds: number[];
   /** A floor on IGDB's own aggregate score. 0 is "any". */
   minRating: RatingFloor;
+  /*
+   * The rest of what a game's details card can send you to Search with
+   * (`lib/games/facets.ts`), as filters on a roll — the owner's "add these
+   * features for the Surprise Me page" (2026-10-16). Each is "any of", as
+   * genres are, and empty means no narrowing.
+   */
+  /** IGDB theme ids (`THEMES`). */
+  themeIds: number[];
+  /** IGDB game-mode ids (`GAME_MODES` in facets). */
+  modeIds: number[];
+  /** Platform families (`PLATFORM_GROUPS`), not machines. */
+  platforms: PlatformGroupKey[];
+  /** IGDB language ids (`LANGUAGES`): games with any support in one of them. */
+  languageIds: number[];
+  /** When it came out. */
+  era: ReleaseEra;
+  /**
+   * How the picks combine — the owner's selection mode (2026-10-16). `any`:
+   * a game with at least one of your picks in each list, as it always was.
+   * `all`, "Combined": a game with every pick, so RPG + Comedy is a game that
+   * is both.
+   */
+  match: MatchMode;
 };
 
 export const DEFAULT_SURPRISE_PREFS: SurprisePrefs = {
@@ -82,6 +144,12 @@ export const DEFAULT_SURPRISE_PREFS: SurprisePrefs = {
   genreIds: [],
   perspectiveIds: [],
   minRating: 0,
+  themeIds: [],
+  modeIds: [],
+  platforms: [],
+  languageIds: [],
+  era: 'any',
+  match: 'any',
 };
 
 /**
@@ -90,17 +158,73 @@ export const DEFAULT_SURPRISE_PREFS: SurprisePrefs = {
  * Narrowing here rather than passing the whole prefs object down is what keeps
  * `lib/games/` from knowing that a soundtrack mode exists.
  */
-export function poolFiltersFor(prefs: SurprisePrefs): SurprisePoolFilters {
+export function poolFiltersFor(
+  prefs: SurprisePrefs,
+  thisYear = new Date().getFullYear()
+): SurprisePoolFilters {
   return {
     genreIds: prefs.genreIds,
     perspectiveIds: prefs.perspectiveIds,
     minRating: prefs.minRating,
+    themeIds: prefs.themeIds,
+    modeIds: prefs.modeIds,
+    platformGroups: PLATFORM_GROUPS.filter((group) => prefs.platforms.includes(group.key)).map(
+      (group) => group.ids
+    ),
+    match: prefs.match,
+    languageIds: prefs.languageIds,
+    ...eraYears(prefs.era, thisYear),
   };
 }
 
 /** Whether anything is narrowing the pool. Drives the "Clear" control and the count. */
 export function activeFilterCount(prefs: SurprisePrefs): number {
-  return prefs.genreIds.length + prefs.perspectiveIds.length + (prefs.minRating > 0 ? 1 : 0);
+  return (
+    prefs.genreIds.length +
+    prefs.perspectiveIds.length +
+    prefs.themeIds.length +
+    prefs.modeIds.length +
+    prefs.platforms.length +
+    prefs.languageIds.length +
+    (prefs.minRating > 0 ? 1 : 0) +
+    (prefs.era !== 'any' ? 1 : 0)
+  );
+}
+
+/** The prefs with every narrowing taken off; the pool, the song and the exclusion kept. */
+export function withoutFilters(prefs: SurprisePrefs): SurprisePrefs {
+  return {
+    ...prefs,
+    genreIds: [],
+    perspectiveIds: [],
+    minRating: 0,
+    themeIds: [],
+    modeIds: [],
+    platforms: [],
+    languageIds: [],
+    era: 'any',
+  };
+}
+
+/**
+ * One string for everything that changes which games a roll is drawn from —
+ * what a batch's query key and "did that change anything" compare, so a new
+ * filter is added here once rather than in three lists.
+ */
+export function poolKey(prefs: SurprisePrefs): string {
+  return JSON.stringify([
+    prefs.gameMode,
+    prefs.excludePlayed,
+    prefs.genreIds,
+    prefs.perspectiveIds,
+    prefs.minRating,
+    prefs.themeIds,
+    prefs.modeIds,
+    prefs.platforms,
+    prefs.languageIds,
+    prefs.era,
+    prefs.match,
+  ]);
 }
 
 const GAME_MODES: readonly SurpriseGameMode[] = ['random', 'popular', 'hidden', 'foryou'];
@@ -121,6 +245,11 @@ function validIds(value: unknown): number[] {
   return value.filter(
     (id): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0
   );
+}
+
+/** Ids that are in a fixed vocabulary — anything else is dropped. */
+function knownIds(value: unknown, known: readonly { id: number }[]): number[] {
+  return validIds(value).filter((id) => known.some((entry) => entry.id === id));
 }
 
 function keyFor(userId: string) {
@@ -158,6 +287,19 @@ export async function loadSurprisePrefs(userId: string): Promise<SurprisePrefs> 
       minRating: RATING_FLOORS.includes(parsed?.minRating as RatingFloor)
         ? (parsed.minRating as RatingFloor)
         : DEFAULT_SURPRISE_PREFS.minRating,
+      /* Absent from anything saved before these existed: no narrowing. */
+      themeIds: knownIds(parsed?.themeIds, THEMES),
+      modeIds: knownIds(parsed?.modeIds, MODE_VALUES),
+      platforms: Array.isArray(parsed?.platforms)
+        ? PLATFORM_GROUPS.map((group) => group.key).filter((key) =>
+            (parsed.platforms as unknown[]).includes(key)
+          )
+        : [],
+      languageIds: knownIds(parsed?.languageIds, LANGUAGES),
+      era: RELEASE_ERAS.includes(parsed?.era as ReleaseEra)
+        ? (parsed.era as ReleaseEra)
+        : DEFAULT_SURPRISE_PREFS.era,
+      match: parsed?.match === 'all' ? 'all' : 'any',
     };
   } catch {
     return DEFAULT_SURPRISE_PREFS;

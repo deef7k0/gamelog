@@ -4,6 +4,7 @@ import { ASSUMED_LENGTH_S, eventPhase } from '../event-phase';
 import { precisionOf, monthStart, type CalendarGame } from './calendar';
 import { COUNT_BATCH, PAGE_SIZE, countByProbing } from './paging';
 import { LITE_FIELDS, toSearchResult, type IgdbGameLite } from '../news/discovery';
+import { CRITIC_FLOOR, chartLength, chartWindow, type ChartEntry } from '../top-chart';
 
 /**
  * The parts of IGDB's catalogue that are browsed rather than searched for by
@@ -156,8 +157,19 @@ export const FEATURED_PLATFORM_IDS: readonly number[] = [
   34, // Android
 ];
 
-/** How a platform's games are ordered — and, for some, which of them. */
-export type PlatformSort = 'popular' | 'rating' | 'newest' | 'upcoming' | 'oldest' | 'title';
+/**
+ * How a slice of the catalogue is ordered — and, for some, which of it.
+ *
+ * Every order but "Top rated", "Newest", "Upcoming" and "Oldest" is the whole
+ * set: nothing is dropped for being obscure. `added` is when IGDB filed the
+ * game, newest first, so a game entered a minute ago leads it — the owner's
+ * "even a game released a minute ago can be there" (2026-10-16).
+ */
+export type CatalogueSort =
+  'popular' | 'rating' | 'newest' | 'upcoming' | 'oldest' | 'title' | 'added';
+
+/** A platform's page orders its games the same ways. */
+export type PlatformSort = CatalogueSort;
 
 /**
  * The games that count as "a game on this platform".
@@ -189,9 +201,13 @@ function today(): number {
   return Math.floor(Date.now() / 86_400_000) * 86_400;
 }
 
-/** The `where` and `sort` one ordering resolves to. Built once, read twice. */
-function platformQuery(platformId: number, sort: PlatformSort): { where: string; sort: string } {
-  const base = `platforms = (${platformId}) & ${PLATFORM_GAMES}`;
+/**
+ * The `where` and `sort` one ordering resolves to, over any slice of the
+ * catalogue — a platform's games, a theme's, an engine's (`subject`, a clause).
+ * Built once, read twice: by the page and by its count.
+ */
+function catalogueQuery(subject: string, sort: CatalogueSort): { where: string; sort: string } {
+  const base = `${subject} & ${PLATFORM_GAMES}`;
 
   switch (sort) {
     case 'rating':
@@ -215,12 +231,20 @@ function platformQuery(platformId: number, sort: PlatformSort): { where: string;
       return { where: `${base} & first_release_date != null`, sort: 'first_release_date asc' };
     case 'title':
       return { where: base, sort: 'name asc' };
+    case 'added':
+      /* When IGDB filed it — checked live: the first rows were added hours
+         ago, most with no release date yet. */
+      return { where: base, sort: 'created_at desc' };
     default:
       /* How many people rated it, which is the nearest thing the catalogue has
          to "how well known". Unrated games follow, so the last pages are the
          long tail rather than missing. */
       return { where: base, sort: 'total_rating_count desc' };
   }
+}
+
+function platformQuery(platformId: number, sort: PlatformSort): { where: string; sort: string } {
+  return catalogueQuery(`platforms = (${platformId})`, sort);
 }
 
 /**
@@ -231,14 +255,39 @@ export function platformCountKey(platformId: number, sort: PlatformSort): string
   return platformQuery(platformId, sort).where;
 }
 
+/** The same, for any slice of the catalogue. */
+export function catalogueCountKey(subject: string, sort: CatalogueSort): string {
+  return catalogueQuery(subject, sort).where;
+}
+
 /** One page — `PAGE_SIZE` games — of a platform's catalogue. `page` is 1-based. */
-export async function getPlatformGamesPage(
+export function getPlatformGamesPage(
   platformId: number,
   sort: PlatformSort,
   page: number,
   signal?: AbortSignal
 ): Promise<GameSearchResult[]> {
-  const query = platformQuery(platformId, sort);
+  return pageOf(platformQuery(platformId, sort), page, signal);
+}
+
+/**
+ * One page of any slice of the catalogue — every game in it, obscure or a
+ * minute old, in the order asked for. Search's facets (`<CatalogueResults>`).
+ */
+export function getCatalogueGamesPage(
+  subject: string,
+  sort: CatalogueSort,
+  page: number,
+  signal?: AbortSignal
+): Promise<GameSearchResult[]> {
+  return pageOf(catalogueQuery(subject, sort), page, signal);
+}
+
+async function pageOf(
+  query: { where: string; sort: string },
+  page: number,
+  signal?: AbortSignal
+): Promise<GameSearchResult[]> {
   const offset = Math.max(0, page - 1) * PAGE_SIZE;
 
   const raw = await igdbQuery<IgdbGameLite[]>(
@@ -305,6 +354,79 @@ export function getPlatformGameCount(
   signal?: AbortSignal
 ): Promise<number> {
   return countGames(platformQuery(platformId, sort).where, signal);
+}
+
+/** How many games a slice of the catalogue holds, under one ordering. */
+export function getCatalogueGameCount(
+  subject: string,
+  sort: CatalogueSort,
+  signal?: AbortSignal
+): Promise<number> {
+  return countGames(catalogueQuery(subject, sort).where, signal);
+}
+
+// ---------------------------------------------------------------------------
+// The Top 1000, by the critics
+// ---------------------------------------------------------------------------
+
+/**
+ * The games the critics' Top 1000 draws from: a game as a platform's page
+ * counts one (`PLATFORM_GAMES`), with a cover — a chart renders no
+ * placeholders — and at least `CRITIC_FLOOR` critics' scores behind IGDB's
+ * average of them (`aggregated_rating`, the number the reviews sheet shows
+ * when OpenCritic has nothing to quote).
+ */
+const CRITIC_CHART_WHERE = `aggregated_rating != null & aggregated_rating_count >= ${CRITIC_FLOOR} & cover != null & ${PLATFORM_GAMES}`;
+
+type IgdbCriticGame = IgdbGameLite & {
+  aggregated_rating?: number;
+  aggregated_rating_count?: number;
+};
+
+/**
+ * One page — `TOP_CHART_PAGE_SIZE` games — of the critics' Top 1000, best
+ * first. `page` is 1-based; past rank 1,000 there is nothing.
+ */
+export async function getCriticChartPage(
+  page: number,
+  signal?: AbortSignal
+): Promise<ChartEntry[]> {
+  const { offset, limit } = chartWindow(page);
+  if (limit === 0) return [];
+
+  const raw = await igdbQuery<IgdbCriticGame[]>(
+    'games',
+    `${LITE_FIELDS.replace(';', ', aggregated_rating, aggregated_rating_count;')}
+     where ${CRITIC_CHART_WHERE};
+     sort aggregated_rating desc;
+     limit ${limit};
+     offset ${offset};`,
+    signal
+  );
+
+  return (raw ?? []).flatMap((row, index) => {
+    if (typeof row.aggregated_rating !== 'number') return [];
+    const game = toSearchResult(row);
+    return [
+      {
+        rank: offset + index + 1,
+        id: game.id,
+        title: game.title,
+        coverUrl: game.coverUrl,
+        heroUrl: game.heroUrl,
+        edition: game.edition,
+        developer: game.developer,
+        releaseYear: game.releaseYear,
+        score: row.aggregated_rating,
+        count: row.aggregated_rating_count ?? 0,
+      },
+    ];
+  });
+}
+
+/** How long the critics' chart is: every game it could hold, up to a thousand. */
+export async function getCriticChartLength(signal?: AbortSignal): Promise<number> {
+  return chartLength(await countGames(CRITIC_CHART_WHERE, signal));
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { memo } from 'react';
 
-import { MustPlayBadge } from '@/components/must-play-badge';
+import { MustPlayStar } from '@/components/must-play-badge';
 import {
   MARK_SIZE,
   StatsStrip,
@@ -10,7 +10,7 @@ import {
   type StatsCell,
 } from '@/components/ui/stats-strip';
 import { GAME_LABEL_TEXT } from '@/constants/game-labels';
-import { scoreColor } from '@/constants/score';
+import { clampScore, scoreColor } from '@/constants/score';
 import { useGameLabel } from '@/hooks/use-game-labels';
 import { useTheme } from '@/hooks/use-theme';
 import { getGameListCount, getRatingBreakdown } from '@/lib/api';
@@ -123,7 +123,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
 
   /* The keys here are shared with the components that already owned the data —
      `['rating-breakdown']` with the reviews sheet, `['game-details']` with
-     `<GameDetailsSheet>`. Same key, same arguments, so TanStack serves both from
+     `<GameDetailsCard>`. Same key, same arguments, so TanStack serves both from
      one request rather than the strip doubling the page's traffic. Diverge on
      either and it will. (`['time-to-beat']` was shared with the Time to beat
      card until the owner had it removed; the strip is its only reader now.) */
@@ -185,19 +185,21 @@ export const GameStatsStrip = memo(function GameStatsStrip({
    * glance — the thing a row of statistics is for.
    */
   const ratings = breakdown.data;
+  /* Rounded here, once: the stored score keeps its decimals (0041). */
+  const shown = ratings ? clampScore(ratings.average) : null;
   const listCount = lists.data ?? 0;
   const length = lengthOf(times.data);
   const board = boardOf(details.data?.ageRatings);
 
   const cells: StatsCell[] = [
-    ratings
+    ratings && shown !== null
       ? {
           key: 'score',
-          value: String(ratings.average),
+          value: String(shown),
           label: ratings.total === 1 ? '1 rating' : `${ratings.total} ratings`,
-          tint: scoreColor(ratings.average, theme),
+          tint: scoreColor(shown, theme),
           onPress: onOpenReviews,
-          a11y: `Rated ${ratings.average} out of 100 from ${ratings.total} ${
+          a11y: `Rated ${shown} out of 100 from ${ratings.total} ${
             ratings.total === 1 ? 'rating' : 'ratings'
           }. Opens the reviews.`,
         }
@@ -277,7 +279,7 @@ export const GameStatsStrip = memo(function GameStatsStrip({
           key: 'label',
           value: GAME_LABEL_TEXT.must_play.title,
           label: GAME_LABEL_TEXT.must_play.title,
-          mark: <MustPlayBadge size={MARK_SIZE} labelled={false} />,
+          mark: <MustPlayStar size={MARK_SIZE} labelled={false} />,
           onPress: () => router.push('/must-play'),
           a11y: `${GAME_LABEL_TEXT.must_play.spoken}. Opens every Must Play game.`,
         }

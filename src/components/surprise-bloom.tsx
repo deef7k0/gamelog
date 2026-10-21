@@ -8,6 +8,7 @@ import Animated, {
 
 import { SoftGlow } from '@/components/ui/soft-glow';
 import { useAccent } from '@/hooks/use-accent';
+import { useTheme } from '@/hooks/use-theme';
 import { mix } from '@/lib/color';
 
 /**
@@ -41,8 +42,8 @@ import { mix } from '@/lib/color';
  * `<SoftGlow>` takes hex strings, not shared values, and forking the app's single
  * glow primitive to accept animated colours would complicate every caller to
  * serve one screen. So the hue cuts — and `DIM` hides it: the room falls to half
- * strength as the card flies out, the cut lands in that trough underneath an
- * arriving opaque card, and it relights on the new hue. Free, and honest.
+ * strength as the page is dragged, the cut lands in that trough as the next
+ * card slides in, and it relights on the new hue. Free, and honest.
  */
 
 /**
@@ -83,13 +84,13 @@ export type SurpriseBloomProps = {
    * both shapes, and the light does not shrink when a game has no square art.
    */
   cardEdge: number;
-  /** Live card offset — the room dims as the card leaves. */
+  /** The finger's travel — the room dims as the page is dragged. */
   dealX: SharedValue<number>;
   /** Springs to 1 past the commit threshold. */
   bloom: SharedValue<number>;
-  /** The card's landing spring, so the light arrives with the object. */
+  /** The light's own arrival, 0–1 — Surprise Me's is lit from the first frame. */
   arrival: SharedValue<number>;
-  /** How far a dealt card travels before it is let go. */
+  /** The travel over which the room dims to half. */
   exitDistance: number;
 };
 
@@ -101,7 +102,12 @@ export function SurpriseBloom({
   exitDistance,
 }: SurpriseBloomProps) {
   const accent = useAccent();
+  const theme = useTheme();
   const reduceMotion = useReducedMotion();
+  /* The game's own colour as light. With game colours off there is no game
+     colour, and the house white at this strength is a torch behind the card:
+     the room's own soft grey light instead, as Home's edges are lit. */
+  const light = accent.tonal ? accent.color : theme.glowEdge;
 
   /*
    * The canvas is its own `size × size` box, centred by the layer around it —
@@ -133,11 +139,11 @@ export function SurpriseBloom({
     <Animated.View style={[styles.layer, animated]} pointerEvents="none">
       <View style={{ width: size, height: size }}>
         <SoftGlow
-          color={accent.color}
+          color={light}
           /* The mid stop half-way to the room it is lighting, so the ramp lands
              on the page rather than on a second hue — the construction
              `<SwipeEdge>` uses. */
-          secondaryColor={mix(accent.color, accent.page, 0.55)}
+          secondaryColor={mix(light, accent.page, 0.55)}
           opacity={PEAK}
           size={size}
           blurRadius={BLUR}

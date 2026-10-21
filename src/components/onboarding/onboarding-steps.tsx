@@ -19,12 +19,19 @@ import {
   Reveal,
   usePoster,
 } from '@/components/onboarding/poster-kit';
+import {
+  ExamplePager,
+  GamePagePreview,
+  SurprisePreview,
+} from '@/components/onboarding/look-previews';
 import { TypedText } from '@/components/onboarding/typed-text';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { sortGenresByReach } from '@/constants/game-genres';
 import { PosterAspectRatio, Radius, withAlpha } from '@/constants/theme';
+import { useAnimatedArtwork } from '@/hooks/use-animated-artwork';
+import { useGameColours } from '@/hooks/use-game-colours';
 import { useTheme } from '@/hooks/use-theme';
 import {
   addToList,
@@ -38,8 +45,10 @@ import {
 import { getGenres, type Game } from '@/lib/games';
 import { getNextEvent } from '@/lib/games/browse';
 import { searchWholeGames } from '@/lib/games/igdb';
-import { getOnboardingPicks, getPickingGrid } from '@/lib/games/onboarding-picks';
+import { getExampleGames, getOnboardingPicks, getPickingGrid } from '@/lib/games/onboarding-picks';
 import {
+  ANIMATED_EXAMPLES,
+  COLOUR_EXAMPLES,
   COMPANY_OPTIONS,
   FAVOURITE_LIMIT,
   HERE_FOR_OPTIONS,
@@ -536,6 +545,137 @@ function CoverChoice({
         </View>
       ) : null}
     </PressableScale>
+  );
+}
+
+/* -------------------------------------------------------------------------
+ * colours and animated — how the app looks, shown before it is asked
+ * ---------------------------------------------------------------------- */
+
+/** The examples' width: the page's column, between its two gutters. */
+function useExampleWidth(): number {
+  const { width } = useWindowDimensions();
+  return Math.round(Math.min(width, 520) - POSTER_GUTTER * 2);
+}
+
+/**
+ * Game colours — the owner's (2026-10-21): "When the user signs up, show
+ * examples of the game page and ask if they want the expressive material
+ * color or no color, with a button to switch on/off in real time."
+ *
+ * Three games' pages, drawn small in the roles the real page uses, swiped
+ * between; under them the two choices as the onboarding's own pills. A press
+ * writes the setting (`useGameColours`) and every example changes with it —
+ * the switch *is* the preview. Settings → Game colours changes it later.
+ */
+export function ColoursStep({ onNext }: { onNext: () => void }) {
+  const colours = useGameColours();
+  const width = useExampleWidth();
+  const headline = 'every game in its own colours.';
+  const examples = useQuery({
+    queryKey: ['onboarding-examples', 'colours'],
+    queryFn: ({ signal }) => getExampleGames(COLOUR_EXAMPLES, signal),
+    staleTime: Infinity,
+  });
+
+  return (
+    <>
+      <PosterBody>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}>
+          <Head label="your call" headline={headline} />
+          <Reveal after={revealAfter(headline)}>
+            <BracketNote>a game’s page takes its colours from its box art. try both</BracketNote>
+            <ExamplePager
+              games={examples.data ?? []}
+              width={width}
+              loading={examples.isPending}
+              render={(game) => <GamePagePreview game={game} width={width} />}
+            />
+            <View style={styles.chips} accessibilityRole="radiogroup">
+              <PosterChip
+                label="in colour"
+                selected={colours.on}
+                onPress={() => colours.setOn(true)}
+              />
+              <PosterChip
+                label="no colour"
+                selected={!colours.on}
+                onPress={() => colours.setOn(false)}
+              />
+            </View>
+          </Reveal>
+        </ScrollView>
+      </PosterBody>
+      <PosterFooter>
+        <PosterButton title="Continue" onPress={onNext} />
+      </PosterFooter>
+    </>
+  );
+}
+
+/**
+ * Animated artwork — the owner's (2026-10-21): "Same with animated artwork,
+ * show an example of 2-3 games that are in SteamGridDB, preferably most known
+ * games, and show it as a Surprise Me screen example."
+ *
+ * Three dealt cards, drawn small with Surprise Me's own art
+ * (`<SurpriseCardArt>`): Hollow Knight's animated square, Portal 2's and
+ * Cyberpunk 2077's animated portraits — only the one in view loads. The two
+ * pills write the setting (`useAnimatedArtwork`) and the card in view starts
+ * or stops at once. Settings → Animated artwork changes it later.
+ */
+export function AnimatedStep({ onNext }: { onNext: () => void }) {
+  const artwork = useAnimatedArtwork();
+  const width = useExampleWidth();
+  const headline = 'some covers move.';
+  const examples = useQuery({
+    queryKey: ['onboarding-examples', 'animated'],
+    queryFn: ({ signal }) => getExampleGames(ANIMATED_EXAMPLES, signal),
+    staleTime: Infinity,
+  });
+
+  return (
+    <>
+      <PosterBody>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}>
+          <Head label="your call" headline={headline} />
+          <Reveal after={revealAfter(headline)}>
+            <BracketNote>
+              surprise me and reviews play a game’s animated cover. still saves data
+            </BracketNote>
+            <ExamplePager
+              games={examples.data ?? []}
+              width={width}
+              loading={examples.isPending}
+              render={(game, inView) => (
+                <SurprisePreview game={game} width={width} inView={inView} />
+              )}
+            />
+            <View style={styles.chips} accessibilityRole="radiogroup">
+              <PosterChip
+                label="animated"
+                selected={artwork.on}
+                onPress={() => artwork.setOn(true)}
+              />
+              <PosterChip
+                label="still"
+                selected={!artwork.on}
+                onPress={() => artwork.setOn(false)}
+              />
+            </View>
+          </Reveal>
+        </ScrollView>
+      </PosterBody>
+      <PosterFooter>
+        <PosterButton title="Continue" onPress={onNext} />
+      </PosterFooter>
+    </>
   );
 }
 

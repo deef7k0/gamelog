@@ -1,5 +1,6 @@
 import type {
   AchievementWithUnlock,
+  CachedGame,
   CompletionLevel,
   GameReviewStats,
   LogStatus,
@@ -9,11 +10,13 @@ import type {
   ReviewMetrics,
   UserGameStats,
 } from '../database.types';
+import { isValidRating } from '../community-rating';
 import { leadReview } from '../discovery';
 import { fetchSteamUnlocks, getGameAchievements, parseGameId, type Game } from '../games';
 import { reviewLanguage } from '../language';
 import { inList } from '../postgrest';
 import { reviewFilterClauses, type ReviewFilters } from '../review-facets';
+import { hasWriting, normaliseQuote, type ReviewDisplay } from '../review-quote';
 import { supabase } from '../supabase';
 import { getEngagement } from './engagement';
 import { rememberLogs } from './seen-logs';
@@ -38,6 +41,34 @@ function unwrap<T>(data: T | null, error: { message: string } | null): T {
  * making one external API call per feed item. Upsert rather than insert so
  * re-logging an existing game refreshes stale metadata.
  */
+/**
+ * A game as its `games` row — what `cacheGame` writes, and what a card drawn
+ * before anything is saved (the log form's preview) reads.
+ */
+export function cachedGameOf(game: Game, cachedAt: string): CachedGame {
+  return {
+    id: game.id,
+    source: game.source,
+    source_id: game.sourceId,
+    title: game.title,
+    cover_url: game.coverUrl,
+    hero_url: game.heroUrl,
+    description: game.description,
+    release_date: game.releaseDate,
+    release_year: game.releaseYear,
+    developer: game.developer,
+    publisher: game.publisher,
+    genres: game.genres,
+    platforms: game.platforms,
+    screenshots: game.screenshots,
+    score: game.score,
+    store_url: game.storeUrl,
+    edition_kind: game.edition,
+    parent_game_id: game.parentId,
+    cached_at: cachedAt,
+  };
+}
+
 export async function cacheGame(game: Game): Promise<void> {
   const { error } = await supabase.from('games').upsert(
     {
@@ -83,9 +114,14 @@ export type SaveLogInput = {
   rating: number | null;
   /** Per-category scores, or null when the reviewer used the bar. */
   reviewMetrics?: ReviewMetrics | null;
-  /** Headline for a long-form review. */
+  /** The review in one sentence — the quote (0040; it was a headline). */
   reviewTitle?: string | null;
   review: string | null;
+  /**
+   * What the review's cards show (0040). Left out when undefined, like
+   * `completion`: a caller with no opinion keeps whatever the row says.
+   */
+  reviewDisplay?: ReviewDisplay;
   completionPercent?: number | null;
   platinum?: boolean;
   /** The author says this review gives something away. See `GameLog.spoilers`. */
@@ -120,16 +156,41 @@ export type SaveLogInput = {
  */
 let languageColumn: boolean | null = null;
 
+/**
+ * Whether `logs.review_display` exists here (0040) — the same treatment as
+ * `review_lang`, for the same reason: one unknown column and PostgREST refuses
+ * the row. A database without it saves the review; its cards show the text,
+ * which is what they always showed.
+ */
+let displayColumn: boolean | null = null;
+
+/**
+ * "Has something written": the review, or its one sentence (0040's quote). A
+ * review can now be either, and a list of reviews holds both. An `or` of its
+ * own, which PostgREST ANDs with any other on the same request — verified
+ * against the live project.
+ */
+const HAS_WRITING = 'review.not.is.null,review_title.not.is.null';
+
 function isMissingColumn(error: { code?: string; message: string }, column: string): boolean {
   return (error.code === 'PGRST204' || error.code === '42703') && error.message.includes(column);
 }
 
 /** Create or update the signed-in user's log for a game. */
 export async function saveLog(userId: string, input: SaveLogInput): Promise<void> {
+  /* The database refuses anything else (`logs_rating_check`, an int column);
+     saying so before the game is cached keeps a bad value from costing a
+     write. The form only produces whole numbers on the scale. */
+  if (input.rating !== null && !isValidRating(input.rating)) {
+    throw new Error('A score is a whole number from 0 to 100.');
+  }
+
   // The log has a FK to games, so the cache row must exist first.
   await cacheGame(input.game);
 
-  const reviewTitle = input.reviewTitle?.trim() ? input.reviewTitle.trim() : null;
+  /* The quote is kept as one line with no quotation marks of its own: the app
+     draws the marks (`normaliseQuote`). */
+  const reviewTitle = normaliseQuote(input.reviewTitle) || null;
   const review = input.review?.trim() ? input.review.trim() : null;
 
   const row = {
@@ -166,22 +227,47 @@ export async function saveLog(userId: string, input: SaveLogInput): Promise<void
    * The game's own title is read past: "The Last of Us" is four English words
    * in whatever language the sentence around them is.
    */
-  const labelled = {
-    ...row,
-    review_lang: reviewLanguage(review, reviewTitle, { ignore: [input.game.title] }),
-  };
+  const language = reviewLanguage(review, reviewTitle, { ignore: [input.game.title] });
 
-  const write = (withLanguage: boolean) =>
-    supabase.from('logs').upsert(withLanguage ? labelled : row, { onConflict: 'user_id,game_id' });
+  /* The two columns a database may not have yet, each sent until it is
+     refused once. Each refusal names one column, so this asks at most three
+     times, and only on the first save of a session. */
+  const write = () =>
+    supabase.from('logs').upsert(
+      {
+        ...row,
+        ...(languageColumn !== false ? { review_lang: language } : {}),
+        ...(displayColumn !== false && input.reviewDisplay !== undefined
+          ? { review_display: input.reviewDisplay }
+          : {}),
+      },
+      { onConflict: 'user_id,game_id' }
+    );
 
-  let { error } = await write(languageColumn !== false);
-  if (error && languageColumn !== false && isMissingColumn(error, 'review_lang')) {
-    languageColumn = false;
-    ({ error } = await write(false));
-  } else if (!error && languageColumn === null) {
-    languageColumn = true;
+  let { error } = await write();
+  for (let retry = 0; error && retry < 2; retry++) {
+    if (languageColumn !== false && isMissingColumn(error, 'review_lang')) {
+      languageColumn = false;
+    } else if (displayColumn !== false && isMissingColumn(error, 'review_display')) {
+      displayColumn = false;
+    } else {
+      break;
+    }
+    ({ error } = await write());
   }
   if (error) throw new Error(error.message);
+
+  if (languageColumn === null) languageColumn = true;
+  if (displayColumn === null && input.reviewDisplay !== undefined) displayColumn = true;
+}
+
+/**
+ * Whether the database has 0040's `review_display` — false once a save has
+ * been refused for it this session, null while nobody has asked. The log form
+ * says so under its choice, rather than offering one that is not kept.
+ */
+export function reviewDisplaySaved(): boolean | null {
+  return displayColumn;
 }
 
 export async function deleteLog(userId: string, gameId: string): Promise<void> {
@@ -237,72 +323,13 @@ export async function getLogById(logId: string): Promise<LogWithRelations | null
   return data as LogWithRelations | null;
 }
 
-/**
- * How this app's own users scored a game, as a 10-bucket histogram.
- *
- * ## Why a dedicated query and not a tally of `getGameReviews`
- *
- * That one is capped at 50 rows and joins the full profile and game on each,
- * because it renders cards. This needs every rating and nothing else, so it
- * selects one integer column — a game with four hundred ratings costs about
- * 1.6 KB here against several hundred KB there, and the number it prints is the
- * true total rather than "up to fifty".
- *
- * ## The buckets
- *
- * Ten of them, 1–10, 11–20 … 91–100, which maps the 0–100 scale onto the ten
- * bars the graph draws. **0 is folded into the first bucket**: `Math.ceil(0/10)`
- * is 0 and would fall outside the array, and a zero is a "1–10" opinion by any
- * reading.
- *
- * Returns `null` when nobody has rated it — distinct from an all-zero histogram,
- * which cannot happen, and which the widget would otherwise draw as ten empty
- * columns under a real heading.
- */
-export type RatingBreakdown = {
-  /** Ten counts, lowest band first. */
-  buckets: number[];
-  total: number;
-  /** Mean of every rating, 0-100. */
-  average: number;
-};
-
-export async function getRatingBreakdown(gameId: string): Promise<RatingBreakdown | null> {
-  const { data, error } = await supabase
-    .from('logs')
-    .select('rating')
-    .eq('game_id', gameId)
-    .not('rating', 'is', null);
-
-  if (error) throw new Error(error.message);
-
-  const ratings = (data ?? [])
-    .map((row) => row.rating)
-    .filter((rating): rating is number => rating !== null);
-
-  if (ratings.length === 0) return null;
-
-  const buckets = new Array<number>(10).fill(0);
-  let sum = 0;
-  for (const rating of ratings) {
-    const clamped = Math.max(0, Math.min(100, rating));
-    // `ceil` puts 10 in the first band and 11 in the second; `- 1` makes it an
-    // index. `max(0, …)` is what catches a literal 0.
-    const index = Math.max(0, Math.ceil(clamped / 10) - 1);
-    buckets[index] += 1;
-    sum += clamped;
-  }
-
-  return { buckets, total: ratings.length, average: Math.round(sum / ratings.length) };
-}
-
 /** Every log for a game that carries a rating or review — the game's reviews. */
 export async function getGameReviews(gameId: string): Promise<LogWithRelations[]> {
   const { data, error } = await supabase
     .from('logs')
     .select(LOG_WITH_RELATIONS)
     .eq('game_id', gameId)
-    .or('review.not.is.null,rating.not.is.null')
+    .or(`${HAS_WRITING},rating.not.is.null`)
     .order('created_at', { ascending: false })
     .limit(50);
 
@@ -676,6 +703,50 @@ export async function searchProfiles(query: string, signal?: AbortSignal): Promi
     .slice(0, 25);
 }
 
+/** How many of the newest reviews one page of "Latest reviews" holds. */
+export const LATEST_PAGE = 20;
+
+/**
+ * The newest writing on GameLog, a page at a time — Search's "Latest reviews".
+ *
+ * Anything with writing in it (a review or its one sentence), newest first by
+ * `created_at`, the time the review card prints: ordered by anything else, a
+ * "3w" would sit at the top of a list called latest. `before` is the last
+ * card's `created_at`, so a review written while somebody scrolls cannot push
+ * one they have already seen down onto the next page twice.
+ *
+ * **In the languages the reader reads**, unlabelled reviews always kept — the
+ * rule for every list the app picks for somebody, said under its heading by
+ * `<ReadingNote>` (CLAUDE.md § Discovery). Two `.or()`s on one request are
+ * ANDed, verified live. A database without 0038's `review_lang` answers 42703,
+ * and the list is then every language, as it could only be.
+ */
+export async function getLatestReviews({
+  before = null,
+  limit = LATEST_PAGE,
+  reading,
+}: {
+  before?: string | null;
+  limit?: number;
+  reading: readonly string[] | null;
+}): Promise<LogWithRelations[]> {
+  const ask = (languages: readonly string[] | null) => {
+    let query = supabase
+      .from('logs')
+      .select(LOG_WITH_RELATIONS)
+      .or(HAS_WRITING)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (before) query = query.lt('created_at', before);
+    if (languages) query = query.or(`review_lang.is.null,review_lang.in.${inList(languages)}`);
+    return query;
+  };
+
+  let { data, error } = await ask(reading);
+  if (error && reading && isUnknownColumn(error)) ({ data, error } = await ask(null));
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
+}
+
 /** Longest review query worth sending. A search term is not a paragraph. */
 const REVIEW_QUERY_MAX = 60;
 
@@ -713,14 +784,13 @@ export async function searchReviews(
   const byGame = supabase
     .from('logs')
     .select('*, game:games!inner(*), profile:profiles(*)')
-    .not('review', 'is', null)
+    .or(HAS_WRITING)
     .ilike('game.title', pattern)
     .order('created_at', { ascending: false })
     .limit(REVIEW_SEARCH_LIMIT);
   const byHeadline = supabase
     .from('logs')
     .select(LOG_WITH_RELATIONS)
-    .not('review', 'is', null)
     .ilike('review_title', pattern)
     .order('created_at', { ascending: false })
     .limit(REVIEW_SEARCH_LIMIT);
@@ -942,16 +1012,17 @@ export async function getTopGameReview(
     .from('logs')
     .select(LOG_WITH_RELATIONS)
     .eq('game_id', gameId)
-    /* A star rating alone is not a review — this block prints prose, and an
-       empty body under someone's name reads as a loading failure. */
-    .not('review', 'is', null)
+    /* A score alone is not a review — this block prints words, and an empty
+       card under someone's name reads as a loading failure. The words may be
+       the review's one sentence (0040). */
+    .or(HAS_WRITING)
     .order('created_at', { ascending: false })
     .limit(RANKED_REVIEWS);
 
   if (error) throw new Error(error.message);
 
   const reviews = rememberLogs((data as LogWithRelations[] | null) ?? []);
-  const written = reviews.filter((log) => (log.review ?? '').trim().length > 0);
+  const written = reviews.filter(hasWriting);
   if (written.length === 0) return null;
 
   const engagement = await getEngagement(
@@ -997,30 +1068,44 @@ export type ReviewListItem = {
   likedByViewer: boolean;
 };
 
+/** Reviews on one page of the reviews sheet — the owner's fifteen (2026-10-20). */
+export const REVIEW_PAGE_SIZE = 15;
+
 /**
- * The most rows the sheet will hold.
+ * The most reviews the sheet ranks: a thousand, which is sixty-seven pages.
  *
- * Popularity is ranked in memory — Postgres cannot order these by a count over
- * `likes` without a function per sort — so this is the ceiling on both the
- * transfer and the ranking. A hundred reviews is more than any game in this app
- * has, and far more than anybody scrolls.
+ * Popularity is ranked here — PostgREST cannot order a resource by a count
+ * over `likes`, which has no foreign key to `logs` (it is polymorphic) — so
+ * this is the ceiling on the ranking. It is a column of ids, ~40 KB at the
+ * ceiling, and the live project has under fifty reviews in all.
  */
-const REVIEW_PAGE = 100;
+const REVIEW_RANKING_CEILING = 1000;
+
+/** Ids a request asks `likes` about at once: a hundred UUIDs is a 4 KB URL. */
+const LIKE_CHUNK = 100;
 
 /** Days in each windowed sort. `popular` and `newest` are unwindowed. */
 const WINDOW_DAYS: Partial<Record<ReviewSort, number>> = { week: 7, month: 30 };
 
 /**
- * Every review of a game, ordered and filtered for the reviews sheet.
+ * Every review of a game that the sheet's sort and filters admit, as ids, in
+ * the order the sheet shows them. The pages are slices of this
+ * (`getGameReviewPage`), so the count — "Page 3 of 8 · 112 reviews" — is
+ * exact and turning a page is one small request.
  *
  * ## Why the ordering happens here and not in SQL
  *
  * Three of the four sorts rank by like count, and PostgREST cannot order a
  * resource by an aggregate over an embedded one — the same limitation 0013's
- * five functions exist to work around. Adding four more functions would mean a
- * migration for a read, on a schema whose owner has not run 0012 onwards yet. So
- * Postgres does what it is good at (filtering, windowing, limiting) and the
- * ranking happens over the hundred rows that come back.
+ * five functions exist to work around. So Postgres does what it is good at
+ * (filtering, windowing, limiting) on a request for ids alone, and the
+ * ranking happens over them: one more request for every hundred reviews, for
+ * their likes. A like row is a target and a person, so a hundred reviews with
+ * more than Supabase's 1,000-row response ceiling of likes between them would
+ * be ranked on the first thousand; nothing here is near it.
+ *
+ * Most liked first, newest first among equals — the rule `popular_reviews`
+ * uses in 0013. `newest` is the request's own order.
  *
  * ## What "this week" means
  *
@@ -1036,17 +1121,12 @@ const WINDOW_DAYS: Partial<Record<ReviewSort, number>> = { week: 7, month: 30 };
  * compose — PC + Finished + Co-op — and only matching rows come back. What each
  * one *means* lives in `lib/review-facets.ts`; this only spells it in PostgREST.
  */
-export async function getGameReviewList(
+export async function getGameReviewRanking(
   gameId: string,
   sort: ReviewSort,
-  filters: ReviewFilters,
-  viewerId: string | null
-): Promise<ReviewListItem[]> {
-  let query = supabase
-    .from('logs')
-    .select(LOG_WITH_RELATIONS)
-    .eq('game_id', gameId)
-    .not('review', 'is', null);
+  filters: ReviewFilters
+): Promise<string[]> {
+  let query = supabase.from('logs').select('id').eq('game_id', gameId).or(HAS_WRITING);
 
   const days = WINDOW_DAYS[sort];
   if (days) {
@@ -1083,13 +1163,76 @@ export async function getGameReviewList(
     }
   }
 
-  const { data, error } = await query.order('created_at', { ascending: false }).limit(REVIEW_PAGE);
-
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .limit(REVIEW_RANKING_CEILING);
   if (error) throw new Error(error.message);
 
-  const written = rememberLogs((data as LogWithRelations[] | null) ?? []).filter(
-    (log) => (log.review ?? '').trim().length > 0
+  const ids = (data ?? []).map((row) => row.id);
+  if (sort === 'newest' || ids.length === 0) return ids;
+
+  const likes = await likeCounts(ids);
+  /* A stable sort over rows that arrived newest first, so recency breaks ties. */
+  return ids
+    .map((id, index) => ({ id, index, likes: likes.get(id) ?? 0 }))
+    .sort((a, b) => b.likes - a.likes || a.index - b.index)
+    .map((entry) => entry.id);
+}
+
+/** How many likes each of these reviews has, a hundred ids a request. */
+async function likeCounts(logIds: string[]): Promise<Map<string, number>> {
+  const chunks: string[][] = [];
+  for (let start = 0; start < logIds.length; start += LIKE_CHUNK) {
+    chunks.push(logIds.slice(start, start + LIKE_CHUNK));
+  }
+
+  const answers = await Promise.all(
+    chunks.map((chunk) =>
+      supabase.from('likes').select('target_id').eq('target_type', 'log').in('target_id', chunk)
+    )
   );
+
+  const counts = new Map<string, number>();
+  for (const { data, error } of answers) {
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) {
+      counts.set(row.target_id, (counts.get(row.target_id) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+/**
+ * One page of the sheet: the reviews with these ids, whole, in this order,
+ * with their likes and replies.
+ *
+ * The rows are the complete record (`LOG_WITH_RELATIONS`), so each is kept for
+ * the review page it opens (`rememberLogs`). A review deleted between the
+ * ranking and the page is simply not there; the page is one short until the
+ * ranking is next asked for.
+ */
+export async function getGameReviewPage(
+  ids: readonly string[],
+  viewerId: string | null
+): Promise<ReviewListItem[]> {
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .in('id', [...ids]);
+  if (error) throw new Error(error.message);
+
+  const byId = new Map(
+    rememberLogs((data as LogWithRelations[] | null) ?? [])
+      .filter(hasWriting)
+      .map((log) => [log.id, log])
+  );
+  const written = ids.flatMap((id) => {
+    const log = byId.get(id);
+    return log ? [log] : [];
+  });
   if (written.length === 0) return [];
 
   const engagement = await getEngagement(
@@ -1098,18 +1241,12 @@ export async function getGameReviewList(
     viewerId
   );
 
-  const items: ReviewListItem[] = written.map((log) => ({
+  return written.map((log) => ({
     log,
     likes: engagement[log.id]?.likes ?? 0,
     comments: engagement[log.id]?.comments ?? 0,
     likedByViewer: engagement[log.id]?.likedByViewer ?? false,
   }));
-
-  /* `newest` is already in order from the query. The other three rank by likes,
-     and the rows arrive newest-first, so a stable sort leaves recency as the
-     tiebreak — the same rule `popular_reviews` uses in 0013. */
-  if (sort === 'newest') return items;
-  return items.sort((a, b) => b.likes - a.likes);
 }
 
 /** PostgREST's and Postgres's codes for a column the database does not have. */

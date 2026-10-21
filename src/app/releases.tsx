@@ -7,7 +7,6 @@ import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
-import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { getNewReleases } from '@/lib/news';
 
@@ -45,11 +44,6 @@ export default function ReleasesScreen() {
         showsVerticalScrollIndicator={false}
         refreshing={releases.isRefetching}
         onRefresh={() => releases.refetch()}
-        ListHeaderComponent={
-          <Text variant="bodySmall" color="textMuted" style={styles.note}>
-            Released in the past 45 days, newest first.
-          </Text>
-        }
         renderItem={({ item }) => <CoverTile game={item} width={tileWidth} />}
         ListEmptyComponent={
           releases.isLoading ? (
@@ -72,6 +66,5 @@ export default function ReleasesScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
-  note: { paddingBottom: Spacing.x8 },
   skeleton: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
 });

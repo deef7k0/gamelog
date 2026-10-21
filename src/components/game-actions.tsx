@@ -8,10 +8,10 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
-import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
+import { KEY_GROUP_GAP, TonalKey, keyPosition, type KeyPosition } from '@/components/ui/tonal-key';
 import { PROGRESS_META, progressChoiceFor } from '@/constants/progress';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { ARRIVAL_CONTROL, useLandingArrival } from '@/hooks/use-arrival';
 import { useTheme } from '@/hooks/use-theme';
@@ -57,9 +57,10 @@ export const GameActions = memo(function GameActions({
   /** The collection picker, opened by the fifth action. */
   const [picking, setPicking] = useState(false);
   /* The masthead's palette is a Material 3 scheme seeded by the game's box art:
-     `accent.color` (M3 `primary`) for the one loud control, `primaryContainer`
-     for the lit keys under it, `surfaceContainerHigh` for the unlit ones. See
-     `AccentRoles` and `theme/dynamic-color.ts`. */
+     the review button and the lit keys under it are filled with `primary`,
+     their words and glyphs in its `onPrimary` (`lib/filled`), and the unlit
+     keys sit on `surfaceContainerHigh`. See `AccentRoles` and
+     `theme/dynamic-color.ts`. */
   const accent = useAccent();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -78,6 +79,8 @@ export const GameActions = memo(function GameActions({
     queryClient.invalidateQueries({ queryKey: ['lists', userId] });
     queryClient.invalidateQueries({ queryKey: ['feed'] });
     queryClient.invalidateQueries({ queryKey: ['user-logs', userId] });
+    // The game page's "On GameLog": how many have it on their wishlist.
+    queryClient.invalidateQueries({ queryKey: ['game-audience', game.id] });
   }
 
   const toggleList = useMutation({
@@ -245,15 +248,7 @@ export const GameActions = memo(function GameActions({
             /* Shape comes from position in the list rather than being written
                per button, so dropping the middle two on an unreleased game
                re-closes the group on whichever keys are left. */
-            position={
-              actions.length === 1
-                ? 'solo'
-                : index === 0
-                  ? 'start'
-                  : index === actions.length - 1
-                    ? 'end'
-                    : 'middle'
-            }
+            position={keyPosition(index, actions.length)}
             /* Offset by one beat when the review button is present, so it leads
                the sequence it now leads visually. */
             delay={ACTION_ARRIVAL_START + (unreleased ? index : index + 1) * ACTION_ARRIVAL_STEP}
@@ -311,7 +306,9 @@ const ACTION_ARRIVAL_STEP = 38;
  * its left and squared on its right; the last is the mirror; the three between
  * are rounded squares.
  *
- * `GROUP_END` is `Radius.pill` — at a 52dp key that resolves to a true 26dp
+ * The corners are `<TonalKey>`'s now (`keyCorners`), shared with Surprise
+ * Me's Backlog and Next by the owner's direction (2026-10-16). Its end is
+ * `Radius.pill` — at a 52dp key that resolves to a true 26dp
  * semicircle, which is what closes the group. `GROUP_SEAM` is `Radius.lg`, the
  * last step of the app's own scale below the pill: squarer than the 12 it used
  * to be, so the three inner keys read as segments cut out of one bar rather than
@@ -319,35 +316,45 @@ const ACTION_ARRIVAL_STEP = 38;
  * group still closes on itself — that contrast between a hard seam and a round
  * end is what says "one object, divided" rather than "five buttons". It is part
  * of the same narrow Material-3 exception the vivid review button documents —
- * see `ButtonProps.tone` — and belongs to this cluster and nothing
- * else.
+ * see `ButtonProps.tone` — and belongs to this cluster and to Surprise Me's
+ * pair, which is the same object.
  */
-const GROUP_END = Radius.pill;
-const GROUP_SEAM = Radius.lg;
-const GROUP_GAP = Spacing.x4;
-
-/** The four corner radii for a key at `position`. */
-function groupCorners(position: GroupPosition) {
-  const start = position === 'start' || position === 'solo';
-  const end = position === 'end' || position === 'solo';
-
-  return {
-    borderTopLeftRadius: start ? GROUP_END : GROUP_SEAM,
-    borderBottomLeftRadius: start ? GROUP_END : GROUP_SEAM,
-    borderTopRightRadius: end ? GROUP_END : GROUP_SEAM,
-    borderBottomRightRadius: end ? GROUP_END : GROUP_SEAM,
-  };
-}
+const GROUP_GAP = KEY_GROUP_GAP;
 
 /**
- * Where a key sits in the group, which is the only thing that decides its shape.
+ * One quick-action toggle: a wide tonal key under the primary button.
  *
- * `solo` exists because the group is built from a list that an unreleased game
- * shortens — if it ever came down to one key, a lone half-round shape would look
- * like a rendering fault rather than a button.
+ * ## No label, and what replaced it
+ *
+ * The word under each glyph is gone. Five labelled tiles read as a form of five
+ * fields; five keys read as a control panel for the object above them, which is
+ * what they are. The glyphs are the five most conventional in the set — an
+ * outlined star, a bookmark, a controller, a tick, a stack — and each carries
+ * its `accessibilityLabel`, so the word is still spoken, just not printed.
+ *
+ * The honest cost: a first-time user has to recognise five icons rather than
+ * read five words. That is the trade a transport control makes everywhere it
+ * appears, and it is only affordable because these five are conventions rather
+ * than invented marks.
+ *
+ * ## Fill is a state carrier again
+ *
+ * These used to be five solid blocks of the accent, which meant on/off had to be
+ * carried by the glyph and the label alone — and with the label gone that would
+ * leave exactly one carrier. Moving the *off* state to a tonal fill restores the
+ * pair:
+ *
+ *  - **off** — `surfaceContainerHigh`, the neutral palette at tone 24, and an
+ *    outline glyph.
+ *  - **on** — the game's colour, filled as the review button is, with a
+ *    solid glyph in the fill's own `onPrimary` (`filledRoles`, 2026-10-17).
+ *
+ * This is Material's filled-tonal → filled toggle, and it is also the reason the
+ * old note here said a grey strip above a coloured button read as disabled: a
+ * *grey* row would. A tonal row carrying the game's own hue does not, and it now
+ * sits below the primary rather than above it, where a quieter tier is what the
+ * eye expects.
  */
-type GroupPosition = 'start' | 'middle' | 'end' | 'solo';
-
 type ActionSpec = {
   icon: keyof typeof Ionicons.glyphMap;
   outline: keyof typeof Ionicons.glyphMap;
@@ -394,40 +401,6 @@ function Arriving({
   );
 }
 
-/**
- * One quick-action toggle: a wide tonal key under the primary button.
- *
- * ## No label, and what replaced it
- *
- * The word under each glyph is gone. Five labelled tiles read as a form of five
- * fields; five keys read as a control panel for the object above them, which is
- * what they are. The glyphs are the five most conventional in the set — an
- * outlined star, a bookmark, a controller, a tick, a stack — and each carries
- * its `accessibilityLabel`, so the word is still spoken, just not printed.
- *
- * The honest cost: a first-time user has to recognise five icons rather than
- * read five words. That is the trade a transport control makes everywhere it
- * appears, and it is only affordable because these five are conventions rather
- * than invented marks.
- *
- * ## Fill is a state carrier again
- *
- * These used to be five solid blocks of the accent, which meant on/off had to be
- * carried by the glyph and the label alone — and with the label gone that would
- * leave exactly one carrier. Moving the *off* state to a tonal fill restores the
- * pair:
- *
- *  - **off** — `surfaceContainerHigh`, the neutral palette at tone 24, and an
- *    outline glyph.
- *  - **on** — `primaryContainer`, the seed's hue at tone 30, with
- *    `onPrimaryContainer` ink and a solid glyph.
- *
- * This is Material's filled-tonal → filled toggle, and it is also the reason the
- * old note here said a grey strip above a coloured button read as disabled: a
- * *grey* row would. A tonal row carrying the game's own hue does not, and it now
- * sits below the primary rather than above it, where a quieter tier is what the
- * eye expects.
- */
 function Action({
   icon,
   outline,
@@ -437,62 +410,22 @@ function Action({
   onPress,
   delay,
   position,
-}: ActionSpec & { delay: number; position: GroupPosition }) {
-  const accent = useAccent();
-
+}: ActionSpec & { delay: number; position: KeyPosition }) {
+  /* The key is `<TonalKey>`, shared with Surprise Me's Backlog and Next, so
+     the two are the same object. The arrival wraps it here: the key's own
+     press scale is a transform too, and two `useAnimatedStyle` results on one
+     view would have the later one silently replace the earlier. */
   return (
-    /* The arrival wraps the button rather than the button animating itself: the
-       press scale below is also a transform, and two `useAnimatedStyle` results
-       on one view would have the later one silently replace the earlier. */
     <Arriving delay={delay} style={styles.actionSlot}>
-      <PressableScale
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        /* `selected` only where there is something to be selected. Collect
-           carries no `active`, so it announces as an action rather than as a
-           permanently unselected toggle. */
-        accessibilityState={{ selected: active, busy, disabled: busy }}
-        disabled={busy}
+      <TonalKey
+        icon={icon}
+        outline={outline}
+        active={active}
+        busy={busy}
+        label={label}
         onPress={onPress}
-        scaleTo={0.92}
-        /* `Elevation.raised` on the lit state only. A tonal key is part of the
-           page's own surface stack and should sit *in* it; the active one is a
-           solid block of the accent on a gradient made of the same hue, where
-           depth is the only edge available. One tier under `overlay`, so the
-           game case keeps the heaviest shadow on the page. */
-        style={StyleSheet.flatten([
-          styles.action,
-          groupCorners(position),
-          active ? Elevation.raised : Elevation.none,
-          {
-            /*
-              Material 3's filled-tonal → filled pair, in M3's own roles.
- 
-              The row used to light up in `accent.color` — the primary fill —
-              which put it at the same volume as the review button directly
-              above it. Two elements wearing the loudest colour on the screen is
-              two primary actions, and this row is explicitly the *modifiers*
-              for the one above.
- 
-              `primaryContainer` is the role M3 has for exactly that: the seed's
-              own hue at tone 30, unmistakably lit, unmistakably quieter than
-              tone 80. Off is `surfaceContainerHigh`, the same step the platform
-              keys and the rows inside cards take.
-            */
-            backgroundColor: active ? accent.m3.primaryContainer : accent.m3.surfaceContainerHigh,
-            borderColor: active ? accent.m3.primaryContainer : accent.m3.surfaceContainerHigh,
-          },
-          busy && styles.actionBusy,
-        ])}>
-        <Ionicons
-          name={active ? icon : outline}
-          size={22}
-          /* `quietInk` off, near-black on: both are measured against the fill
-             directly behind them rather than against the page, which is what the
-             old `textSecondary` label got wrong on a lit gradient. */
-          color={active ? accent.m3.onPrimaryContainer : accent.m3.onSurfaceVariant}
-        />
-      </PressableScale>
+        position={position}
+      />
     </Arriving>
   );
 }
@@ -531,26 +464,4 @@ const styles = StyleSheet.create({
   /* The arrival wrapper is the row's flex child, so it carries the width share
      that `action` used to. The button inside stretches to fill it. */
   actionSlot: { flex: 1 },
-  /*
-   * Wide, not round, and shaped by `groupCorners` rather than here.
-   *
-   * No `borderRadius` in this rule at all — a blanket value would be overridden
-   * on some corners and not others depending on position, which is the kind of
-   * half-applied style that only shows up on one of the five buttons.
-   *
-   * 52 rather than the old 46: with the label gone the glyph is the entire
-   * control, and this is the height at which the row balances a 60dp primary
-   * instead of looking like its footnote. Past both tap floors on its own.
-   */
-  action: {
-    minHeight: 52,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* The write is a single round trip, so this is a brief dim rather than a
-     spinner — long enough to say "heard you", short enough not to flash. It is
-     also what stops a second tap on a slow connection recomputing `next` from
-     state the first tap has not updated yet. */
-  actionBusy: { opacity: 0.5 },
 });

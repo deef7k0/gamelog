@@ -10,6 +10,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { useSectionMetrics } from '@/components/ui/section';
 import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Text } from '@/components/ui/text';
+import { HEADER_ART_SHARE } from '@/constants/header-art';
 import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
 import { useSquareCover } from '@/hooks/use-square-cover';
@@ -20,9 +21,10 @@ import type { Profile } from '@/lib/database.types';
 
 /**
  * How much of the display the artwork block occupies: half, SimpMusic's album
- * and playlist header (`screenInfo.hDP / 2`), full width and cropped.
+ * and playlist header (`screenInfo.hDP / 2`), full width and cropped. Shared
+ * with a review's hero (`constants/header-art`).
  */
-export const COLLECTION_COVER_RATIO = 0.5;
+export const COLLECTION_COVER_RATIO = HEADER_ART_SHARE;
 
 /**
  * How much of the artwork the scrim covers, from the bottom: 70%, the

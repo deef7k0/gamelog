@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  ACTIONS,
   AVATAR,
+  COUNTS,
   FAVOURITES,
   HEADER_GAP,
   PROFILE_MARGIN,
+  actionRowWidth,
   avatarSize,
   favouriteCoverWidth,
 } from './profile-layout';
@@ -56,9 +59,34 @@ describe('the four covers of a widget', () => {
 });
 
 describe('the face', () => {
-  it('is a fifth of the display, between 72 and 96', () => {
+  it('is the reference’s share of the display, between 72 and 96', () => {
+    /* 54px across a 242px phone. */
+    assert.equal(avatarSize(360), Math.round((360 * 54) / 242));
     assert.equal(avatarSize(360), Math.round(360 * AVATAR.ratio));
     assert.equal(avatarSize(900), 96);
     assert.equal(avatarSize(300), 72);
+  });
+});
+
+describe('the centred head', () => {
+  /** The reference's pixels, at 360/242 dp each. */
+  const dp = (px: number) => (px * 360) / 242;
+
+  it('spaces the three counts as the reference does', () => {
+    /* Their centres are 59px apart. */
+    assert.ok(Math.abs(COUNTS.column - dp(59)) < 1);
+    assert.ok(COUNTS.column * 3 <= 320 - PROFILE_MARGIN * 2, 'fits the narrowest phone');
+  });
+
+  it('draws the follow button the reference’s width, and at least the tap floor tall', () => {
+    assert.ok(Math.abs(ACTIONS.button - dp(120)) < 1);
+    assert.ok(ACTIONS.height >= 44);
+    assert.ok(ACTIONS.key >= 44);
+  });
+
+  it('fits the row of actions on the narrowest phone', () => {
+    assert.ok(actionRowWidth(2) <= 320 - PROFILE_MARGIN * 2, `${actionRowWidth(2)}`);
+    assert.equal(actionRowWidth(0), ACTIONS.button);
+    assert.equal(actionRowWidth(1), ACTIONS.button + ACTIONS.gap + ACTIONS.key);
   });
 });

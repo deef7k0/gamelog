@@ -510,7 +510,7 @@ const DayCell = memo(function DayCell({
         )}
         {more > 0 && (
           <View style={[styles.dayMore, { backgroundColor: theme.scrim }]}>
-            <Text variant="h6" color="onPrimary">
+            <Text variant="h6" color="white">
               +{more}
             </Text>
           </View>

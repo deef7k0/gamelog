@@ -6,3 +6,6 @@ ios/
 *.lock
 package-lock.json
 expo-env.d.ts
+# Excerpts of real pages and API answers, kept byte for byte: a parser is
+# tested against them as they were served.
+src/lib/games/fixtures/

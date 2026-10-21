@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, StyleSheet, View } from 'react-native';
 
@@ -8,7 +8,14 @@ import { useTabBarClearance } from '@/components/app-tab-bar';
 import { DiscoverFeed } from '@/components/discover-feed';
 import { GameSearchResults, MIN_QUERY_LENGTH } from '@/components/game-search-results';
 import { CollapsingField } from '@/components/search/collapsing-field';
+import { CatalogueResults } from '@/components/search/catalogue-results';
 import { CollectionResults } from '@/components/search/collection-results';
+import {
+  FacetBar,
+  FacetPicker,
+  FacetSuggestions,
+  SearchBy,
+} from '@/components/search/facet-search';
 import { PeopleResults } from '@/components/search/people-results';
 import { PlatformDirectory } from '@/components/search/platform-directory';
 import { ReviewResults } from '@/components/search/review-results';
@@ -23,6 +30,14 @@ import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTheme } from '@/hooks/use-theme';
+import {
+  FACET_INFO,
+  facetsFromParams,
+  facetsParams,
+  sameFacet,
+  type Facet,
+  type FacetKind,
+} from '@/lib/games/facets';
 import {
   addSearchHistory,
   clearSearchHistory,
@@ -89,8 +104,41 @@ export default function SearchScreen() {
   const queryClient = useQueryClient();
   const userId = useAuth((state) => state.session?.user.id);
 
-  const [scope, setScope] = useState<SearchScope>('games');
-  const [input, setInput] = useState('');
+  /*
+   * A facet — a genre, a theme, an engine… — whose games the Games tab shows
+   * (`lib/games/facets.ts`). It lives in the route, not in state: a game's
+   * details card sends the reader here with one ("Thriller" → this tab, its
+   * thrillers), and picking one here sets the same params, so there is one
+   * way in and one source of truth.
+   */
+  const params = useLocalSearchParams<{ facets?: string; match?: string }>();
+  /* Several at once since the owner's selection mode (2026-10-16): combined —
+     a game that is all of them — or any of them. */
+  const { facets, match } = facetsFromParams(params);
+  const facet = facets.length > 0;
+  const facetKey = facets.map((entry) => `${entry.kind}:${entry.id}`).join(',');
+
+  const [chosenScope, setScope] = useState<SearchScope>('games');
+  /* A facet's games are games, whatever tab the reader left open. */
+  const scope: SearchScope = facet ? 'games' : chosenScope;
+
+  /*
+   * What is typed, and what "Search by" is set to, each belong to the facet
+   * they were set under. A facet arriving from a game's page starts on its
+   * own games — not filtered by whatever was left in the field — and picking
+   * one leaves the picker, with no effect to reset either: they are simply
+   * not this facet's (`owner`).
+   */
+  const [typed, setTyped] = useState({ owner: '', text: '' });
+  const input = typed.owner === facetKey ? typed.text : '';
+  const setInput = (text: string) => setTyped({ owner: facetKey, text });
+  const [looking, setLooking] = useState<{ owner: string; kind: FacetKind | null }>({
+    owner: '',
+    kind: null,
+  });
+  const lookup = looking.owner === facetKey ? looking.kind : null;
+  const setLookup = (kind: FacetKind | null) => setLooking({ owner: facetKey, kind });
+
   /* Tracked here rather than read off the input, because the panel it controls
      is a sibling of the field, not a child. */
   const [focused, setFocused] = useState(false);
@@ -101,6 +149,10 @@ export default function SearchScreen() {
   /* Platforms filter a list already in memory; every other scope asks a
      server, and those are the searches worth a spinner and a history row. */
   const remote = scope !== 'platforms';
+
+  /* The history is of titles searched in a scope; looking up a theme, or
+     searching within one, is not one of those. */
+  const recordable = remote && !lookup && !facet;
 
   const history = useQuery({
     queryKey: ['search-history', userId],
@@ -118,7 +170,7 @@ export default function SearchScreen() {
    * reason to know about the Search tab's history.
    */
   useEffect(() => {
-    if (!userId || !remote || !isQueryable) return;
+    if (!userId || !recordable || !isQueryable) return;
 
     const timer = setTimeout(() => {
       void addSearchHistory(userId, query, scope).then(() =>
@@ -127,7 +179,7 @@ export default function SearchScreen() {
     }, HISTORY_RECORD_MS);
 
     return () => clearTimeout(timer);
-  }, [userId, remote, isQueryable, query, scope, queryClient]);
+  }, [userId, recordable, isQueryable, query, scope, queryClient]);
 
   function refreshHistory() {
     queryClient.invalidateQueries({ queryKey: ['search-history', userId] });
@@ -147,12 +199,35 @@ export default function SearchScreen() {
       () => {
         if (!navigation.isFocused()) return;
         Keyboard.dismiss();
-        setInput('');
+        setTyped({ owner: '', text: '' });
+        setLooking({ owner: '', kind: null });
         setScope('games');
+        router.setParams({ facets: undefined, match: undefined });
       }
     );
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, router]);
+
+  /** Add a facet to the ones whose games are shown — the same params a game's details card sends. */
+  function pickFacet(next: Facet) {
+    setTyped({ owner: '', text: '' });
+    setLooking({ owner: '', kind: null });
+    setScope('games');
+    Keyboard.dismiss();
+    setFocused(false);
+    const list = facets.some((known) => sameFacet(known, next)) ? facets : [...facets, next];
+    router.setParams(facetsParams(list, match));
+  }
+
+  function removeFacet(gone: Facet) {
+    const list = facets.filter((known) => !sameFacet(known, gone));
+    if (list.length === 0) clearFacet();
+    else router.setParams(facetsParams(list, match));
+  }
+
+  function clearFacet() {
+    router.setParams({ facets: undefined, match: undefined });
+  }
 
   const entries = history.data ?? [];
 
@@ -162,6 +237,12 @@ export default function SearchScreen() {
      Never over Platforms: nothing is recorded from that scope, and its field
      filters the directory on the first letter. */
   const showHistory = focused && remote && !isQueryable && entries.length > 0;
+
+  /* "Search by" answers the field being touched in Games, before anything is
+     typed — the owner's "the app tells the user a few options" — over the
+     recent searches when there are some, alone when there are none. */
+  const showSearchBy = focused && scope === 'games' && !isQueryable;
+  const searchBy = <SearchBy value={lookup} onChange={setLookup} />;
 
   /*
    * Is the screen busy on the reader's behalf right now?
@@ -175,12 +256,65 @@ export default function SearchScreen() {
   const searching = remote && input.trim() !== query;
 
   function renderBody() {
+    /* A kind chosen in "Search by": its values, matching what is typed. */
+    if (lookup) {
+      return (
+        <FacetPicker
+          kind={lookup}
+          typed={input}
+          settled={query}
+          header={searchBy}
+          onPick={pickFacet}
+        />
+      );
+    }
+
+    /* Every game a facet holds — none left out for being obscure or new —
+       paged, sorted, narrowed by platform and drawn as rows or a grid, and
+       within them the ones whose names hold what is typed. The platform
+       page's system (`<CatalogueResults>`). */
+    if (facet) {
+      return (
+        <CatalogueResults
+          facets={facets}
+          match={match}
+          term={isQueryable ? query : ''}
+          header={
+            <View>
+              {showSearchBy && searchBy}
+              <FacetBar
+                facets={facets}
+                match={match}
+                onRemove={removeFacet}
+                /* Opens the picker on genres; "Search by" over it changes kind. */
+                onAdd={() => setLookup('genre')}
+                onClearAll={clearFacet}
+                onMatchChange={(next) => router.setParams(facetsParams(facets, next))}
+              />
+            </View>
+          }
+        />
+      );
+    }
+
+    if (showSearchBy && !showHistory) {
+      return (
+        <PageScrollView
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.panel, { paddingBottom: Spacing.x48 + clearance }]}>
+          {searchBy}
+        </PageScrollView>
+      );
+    }
+
     if (showHistory) {
       return (
         <PageScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: Spacing.x48 + clearance }}>
+          {showSearchBy && <View style={styles.panel}>{searchBy}</View>}
           <SearchHistory
             entries={entries}
             onSelect={(entry) => {
@@ -223,7 +357,15 @@ export default function SearchScreen() {
       default:
         /* Games, before a title is typed, is Discover: the most useful thing
            this scope can do then is answer "what should I play next". */
-        return isQueryable ? <GameSearchResults query={query} layoutToggle /> : <DiscoverFeed />;
+        return isQueryable ? (
+          <GameSearchResults
+            query={query}
+            layoutToggle
+            header={<FacetSuggestions query={query} onPick={pickFacet} />}
+          />
+        ) : (
+          <DiscoverFeed />
+        );
     }
   }
 
@@ -245,7 +387,13 @@ export default function SearchScreen() {
             icon="search"
             /* The pill: here the field *is* the screen's primary control. */
             variant="search"
-            placeholder={info.placeholder}
+            placeholder={
+              lookup
+                ? `Search ${FACET_INFO[lookup].plural}`
+                : facet
+                  ? 'Search within these games'
+                  : info.placeholder
+            }
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
@@ -256,7 +404,7 @@ export default function SearchScreen() {
             onSubmitEditing={() => {
               /* Submitting is a definite search, so it is remembered immediately
                rather than waiting out `HISTORY_RECORD_MS`. */
-              if (userId && remote && isQueryable) {
+              if (userId && recordable && isQueryable) {
                 void addSearchHistory(userId, query, scope).then(refreshHistory);
               }
               Keyboard.dismiss();
@@ -303,7 +451,16 @@ export default function SearchScreen() {
       {/* Under the field, iOS scope-bar style: the placeholder already names
           the scope, so the two agree wherever the eye lands first. Outside the
           header's padding: the bar brings the page margin itself. */}
-      <TabBar tabs={SCOPE_TABS} value={scope} onChange={setScope} label="What to search" />
+      <TabBar
+        tabs={SCOPE_TABS}
+        value={scope}
+        onChange={(next) => {
+          /* Another tab is another search: the facet was the Games tab's. */
+          if (facet) clearFacet();
+          setScope(next);
+        }}
+        label="What to search"
+      />
 
       {renderBody()}
     </Screen>
@@ -312,4 +469,5 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x8 },
+  panel: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x16 },
 });

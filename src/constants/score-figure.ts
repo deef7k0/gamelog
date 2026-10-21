@@ -1,6 +1,19 @@
 import { clampScore } from './score';
 
 /**
+ * Whether the drawings are shown at all. **Off, for now** — the owner
+ * (2026-10-16): "remove the ratings drawing for now. Don't remove it from the
+ * code or app, just don't show it. I will replace the images later."
+ *
+ * Everything stays: the five drawings, the arithmetic below, `<ScoreFigure>`.
+ * With this off, `<FiguredScore>` is its number alone, `<ScoreMeter>` is its
+ * readout and bar, and `<ScoreSummary>`'s placeholder is the number's size —
+ * so no gap is left where a drawing was. Set it back to `true` when the new
+ * images are in `assets/images/scores/`.
+ */
+export const SHOW_SCORE_FIGURES = false;
+
+/**
  * Which drawing stands for a score.
  *
  * A 0–100 score is also shown as one of five drawings of a little man and his

@@ -7,7 +7,6 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { InfoCardButton } from '@/components/ui/info-card';
-import { useSectionMetrics } from '@/components/ui/section';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
@@ -62,7 +61,6 @@ export function CommunitySimilarCard({
 }) {
   const theme = useTheme();
   const router = useRouter();
-  const sections = useSectionMetrics();
   const userId = useAuth((state) => state.session?.user.id) ?? null;
 
   const picks = useQuery({
@@ -77,8 +75,8 @@ export function CommunitySimilarCard({
   if (picks.isLoading) {
     return (
       <View style={styles.card} accessibilityLabel="Loading community picks">
-        {/* The card's own corner, which is the section card's now. */}
-        <Skeleton width="100%" height={112} radius={sections.cardRadius} />
+        {/* The card's own corner, which is every card's now. */}
+        <Skeleton width="100%" height={112} radius={Radius.review} />
       </View>
     );
   }
@@ -213,9 +211,6 @@ export function CommunitySimilarSheet({
     <View style={styles.header}>
       <Text variant="h1" numberOfLines={2}>
         Games like {gameTitle}
-      </Text>
-      <Text variant="bodySmall" color="textMuted">
-        What players here say, and how many agree. Tap one for everyone’s reasons.
       </Text>
       <View style={styles.controls}>
         <SortBar options={SORTS} value={sort} onChange={setSort} accessibilityLabel="Sort picks" />

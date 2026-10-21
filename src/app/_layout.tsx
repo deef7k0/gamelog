@@ -7,20 +7,23 @@
  * eighteen — megabytes of fonts in every APK that were never drawn. The
  * subpaths require one file each.
  *
- * Inter, and two weights that onboarding alone sets: Inter ExtraBold for its
- * headlines and Geist Mono for the small instruction over them (the owner's
- * reference, 2026-10-15). Source Serif 4 set reviews until the owner had it
- * removed; see `FontFamily` in `constants/theme.ts`.
+ * Poppins — SimpMusic's own font, read off its `Typo.kt` (one family, pinned
+ * to its `poppins_medium` file for every weight) and brought in properly
+ * instead: real weight files, same as Inter's were, so `fontWeight` keeps
+ * working rather than leaning on Android's fake-bold the way SimpMusic's does.
+ * The owner's direction (2026-10-17): replace Inter app-wide. Onboarding's
+ * Geist Mono is untouched — it was always its own reference, not SimpMusic's.
+ * See `FontFamily` in `constants/theme.ts`.
  */
 import { GeistMono_400Regular } from '@expo-google-fonts/geist-mono/400Regular';
-import { Inter_300Light } from '@expo-google-fonts/inter/300Light';
-import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
-import { Inter_400Regular_Italic } from '@expo-google-fonts/inter/400Regular_Italic';
-import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
-import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
-import { Inter_600SemiBold_Italic } from '@expo-google-fonts/inter/600SemiBold_Italic';
-import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold';
+import { Poppins_300Light } from '@expo-google-fonts/poppins/300Light';
+import { Poppins_400Regular } from '@expo-google-fonts/poppins/400Regular';
+import { Poppins_400Regular_Italic } from '@expo-google-fonts/poppins/400Regular_Italic';
+import { Poppins_500Medium } from '@expo-google-fonts/poppins/500Medium';
+import { Poppins_600SemiBold } from '@expo-google-fonts/poppins/600SemiBold';
+import { Poppins_600SemiBold_Italic } from '@expo-google-fonts/poppins/600SemiBold_Italic';
+import { Poppins_700Bold } from '@expo-google-fonts/poppins/700Bold';
+import { Poppins_800ExtraBold } from '@expo-google-fonts/poppins/800ExtraBold';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
@@ -34,6 +37,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { MiniPlayer } from '@/components/player/mini-player';
 import { PlayerHost } from '@/components/player/player-host';
+import { GameColoursWarmup } from '@/hooks/use-game-colours';
 import { primeSteamArtwork } from '@/hooks/use-steam-artwork';
 import { queryClient } from '@/lib/query-client';
 import { forgetAppleMusicCache } from '@/lib/soundcloud/legacy';
@@ -72,34 +76,35 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     ...Ionicons.font,
     /*
-     * Inter, in the four weights the type scale uses. Each weight is a separate
-     * family on purpose — Android will not synthesise a bold from a custom
-     * font, so `fontWeight` on Inter silently renders regular. See `FontFamily`.
+     * Poppins, in the four weights the type scale uses. Each weight is a
+     * separate family on purpose — Android will not synthesise a bold from a
+     * custom font, so `fontWeight` on Poppins silently renders regular. See
+     * `FontFamily`.
      */
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
     /*
      * The two italics, for user-written emphasis only — `*italic*` in a
      * collection's description, through `<RichText>`. `fontStyle: 'italic'` is
      * the same silent no-op on Android that `fontWeight` is, for the same
      * reason: a custom family has no oblique to synthesise from.
      */
-    Inter_400Regular_Italic,
-    Inter_600SemiBold_Italic,
+    Poppins_400Regular_Italic,
+    Poppins_600SemiBold_Italic,
     /*
-     * Inter Light, for exactly one thing: the release year beside a review's
+     * Poppins Light, for exactly one thing: the release year beside a review's
      * game title. The brief calls for Graphik Light there, and a year sitting
      * next to a bold title has to recede without shrinking.
      */
-    Inter_300Light,
+    Poppins_300Light,
     /*
      * Onboarding's two (`FontFamily.extraBold`, `FontFamily.mono`). Loaded with
      * the rest rather than on the onboarding screens, because the signed-out
      * pitch is the first thing a new install draws.
      */
-    Inter_800ExtraBold,
+    Poppins_800ExtraBold,
     GeistMono_400Regular,
   });
 
@@ -255,6 +260,12 @@ export default function RootLayout() {
                 <Stack.Screen name="soundtrack/[id]" />
                 <Stack.Screen name="notifications/index" />
                 <Stack.Screen name="settings" />
+                {/* How the GameLog score is weighted (0041), and the reader's own
+                  weight — from the reviews sheet and from Settings. */}
+                <Stack.Screen name="how-ratings-work" />
+                {/* Everyone who scored one game, twenty to a page — from the
+                  reviews sheet, under the score it is the list behind. */}
+                <Stack.Screen name="ratings/[id]" />
                 <Stack.Screen name="comments/[type]/[id]" />
                 <Stack.Screen name="log/[id]" options={SHEET} />
                 <Stack.Screen name="playthrough/[id]" options={SHEET} />
@@ -312,6 +323,9 @@ export default function RootLayout() {
             <PlayerHost />
             <MiniPlayer />
             <AfterOnboarding />
+            {/* Settings → Game colours, read once there is an account, so the
+                first game's page never opens in colour and then turns grey. */}
+            <GameColoursWarmup />
           </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

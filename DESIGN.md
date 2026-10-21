@@ -4,18 +4,18 @@ description: A premium, calm, information-dense gaming social platform. A near-b
 scheme: dark-only
 target: react-native
 colors:
-  # A near-black with a faint cool trace: darker than the #14171b it replaced
-  # and without its blue-grey cast — not black. The whole ladder shares the
-  # trace (hue ~260°, too faint to read as a colour), with slightly wider steps
-  # than before: card on page 1.068:1,
-  # elevated on card 1.070, selected on elevated 1.100. Nothing on a game's
-  # screens uses these for surfaces — those derive them from the artwork
-  # through `accentRoles`.
-  background: "#0B0A0D"
-  surface: "#141317"
-  # Nested blocks and wells.
-  surfaceElevated: "#1B1A20"
-  surfaceSelected: "#24222A"
+  # The owner's pair, measured out of their own reference (2026-10-20): a cool
+  # dark blue-grey page and a card one perceptible step above it. The ladder
+  # climbs from there in the intervals it has always kept — card on page
+  # 1.089:1, elevated on card 1.063, selected on elevated 1.111 — and it has to
+  # climb: a control resting on a card is drawn by being lighter than the card.
+  # Nothing on a game's screens uses these for surfaces; those derive them from
+  # the artwork through `accentRoles`.
+  background: "#14171C"
+  surface: "#1B1F28"
+  # Nested blocks and wells, and the resting fill of a control.
+  surfaceElevated: "#1F2430"
+  surfaceSelected: "#262C3A"
   # The owner's reference, SimpMusic, measured from its code: a field's well is
   # its onSurfaceVariant at 8% (#0F0F0F on black), an action's fill at 12%
   # (#181818 on black). Translucent, so the lift is the same on every floor.
@@ -84,12 +84,6 @@ colors:
   # The ambient page glow. A gradient, never an image.
   glowCore: "#6B4C9A"
   glowEdge: "#3A2050"
-  # The fill of a review card in a list (log-card), and nothing else's: the
-  # page three levels darker in each channel, 1.03:1 against it — a flat card
-  # "almost the same but ever so slightly different" (the owner). Not `surface`,
-  # which is a step above the page; this is a step below. It follows the page:
-  # move `background` / `homeBackground` and move this with them.
-  reviewCard: "#111419"
   platinum: "#A9B6CC"
   # The Must Play label's disc (0034) — a moderator's pick, the one coloured
   # mark this app puts on box art. = identityJade; a meaning joins the ramp.
@@ -397,11 +391,13 @@ rounded:
   # Pressable controls that are not buttons — toggles, segments. Buttons are
   # full pills (`pill`); icon buttons are circles: size / 2, not a token.
   control: "20px"
-  # Cards, notices, selection cards (the reference's Server options are 16).
-  card: "16px"
-  # The Card `panel` variant and the welcome screen. It was the game page's
-  # <InfoCard> panels until those became SimpMusic's description card (§ 14).
-  cardLarge: "18px"
+  # Every card — and so every notice, selection card and menu row — has the
+  # review card's corner since 2026-10-20 ("all the cards in the app with that
+  # style of the review ones"). `cardLarge` (18) was deleted with that.
+  card: "12px"
+  # The review card's corner, measured off the owner's references
+  # (2026-10-20): about 3% of the card's width in both. The same as `card`.
+  review: "12px"
   # Every field — text, text area, select, search: the reference's 18. Squarer
   # than a button's full pill, so a field and its button read as two objects.
   input: "18px"
@@ -451,11 +447,15 @@ layout:
   heroHeightRatio: 0.38
 components:
   card:
+    # On a game's page, the game's `primaryContainer` at half brightness;
+    # `surface` everywhere else, and there with game colours off.
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.card}"
-    padding: "10px"
-    # No edge: an edge is what marks something pressable.
-    border: none
+    padding: "15px"
+    gap: "12px"
+    # The review card's hairline, white at 7%. A control's edge is `outline`,
+    # at 16% — more than twice as bright — so a card still is not a button.
+    border: "1px {colors.border}"
     shadow: "{elevation.card}"
   card-elevated:
     backgroundColor: "{colors.surfaceElevated}"
@@ -714,7 +714,7 @@ defined in the frontmatter, which is normative where this prose disagrees:
   the accent in force there is the game's colour, not the house blue.
 - Medium-high density, achieved with chips and spacing, never by shrinking text.
 - **Two radius regimes.** Interface is large and soft — controls at 20, fields
-  and cards at 16, sheets at 24, a pill for anything that filters or tags, a
+  at 18, cards at 12, sheets at 24, a pill for anything that filters or tags, a
   circle for a glyph on its own. Artwork keeps its small, square-ish corners.
 
 **The control language is a premium music player's — specifically the owner's
@@ -722,15 +722,11 @@ reference, SimpMusic, read from its source.** Grey pills for actions, soft wells
 for fields, outlined cards with a leading circle for choices, the accent only
 where something is selected, focused or primary, and next to no shadow. See § 9.
 
-The deliberate exceptions to all this restraint are the system's two **depicted
-physical objects** — the things that are drawn as objects rather than as
-interface, and the only elements allowed to cast, gloss and turn:
-
-- the **physical game case** (§ 4.1), the app's signature object, and
-- the **dealt card** on Surprise Me (§ 4.2), which is a card off a deck.
-
-They are not equals. The case is the ceiling on every material axis and § 4.2
-exists mostly to say by how much.
+The deliberate exception to all this restraint is the system's **depicted
+physical object** — the thing drawn as an object rather than as interface, and
+the only element allowed to cast, gloss and turn: the **physical game case**
+(§ 4.1), the app's signature object. Surprise Me's dealt card was a second one,
+a card off a deck, until the owner had it made a plain slide (§ 4.2).
 
 ---
 
@@ -1183,8 +1179,8 @@ direction to put "everything inside the card":
 
 ```text
 ┌────────────────────────────────────────┐   the review card's own card:
-│ 🏆 Horror I finished at 3am   12 games │   reviewCard, 8 corner, 15 in, the card
-│                                        │   shadow, no border
+│ 🏆 Horror I finished at 3am   12 games │   surface, 12 corner, 15 in, the card
+│                                        │   shadow, a hairline edge
 │ ▮▮▮▮▮▮▮[ ▮▮▮▮▮▮▮▮▮ ]▮▮▮▮▮▮▮           │   the stack, margin to margin
 │                                        │
 │ Two lines of the owner's own argument… │   the description, if there is one
@@ -1194,7 +1190,7 @@ direction to put "everything inside the card":
 
 | | Reference (card 222px wide) | Here |
 | --- | --- | --- |
-| The card | a flat slate panel | `<LogCard>`'s own: `reviewCard`, `Radius.lg`, the card shadow |
+| The card | a flat slate panel | `<LogCard>`'s own: `surface`, `Radius.review`, a hairline edge, the card shadow |
 | First line | name left, count right | `h5` with its kind's glyph, the count in `bodySmall` / `textMuted` on its baseline |
 | Inset | 7px | `Spacing.x16`, the review card's |
 | Posters | from one inset to the other | five covers from one inset to the other |
@@ -1498,67 +1494,37 @@ annulus. The centre hole is punched out by the template inside `hubRadius`.
 
 # 4.2 The dealt card
 
-Surprise Me deals one game at a time and you swipe it away. That card is the
-system's **second depicted physical object**, and this section exists because
-§ 0 used to say there was only one.
+Surprise Me deals one game at a time. Its art is a **page on a pager**: the
+owner's direction (2026-10-21), "Remove the way the artwork moves as a card out
+of the screen, just make it a simple slide like SimpMusic when sliding to the
+next song inside the now playing screen."
 
-## 4.2.1 Why it is an object at all
+## 4.2.1 What it was, and what it is
 
-Because the feature already insisted it was, everywhere except on screen. The
-code calls it `deal()` and `dealX`; its docblocks say "the card is dealt"; the
-Home entry point draws a three-card fan of a hand being cut. What shipped was a
-flat rectangle that slid sideways on a flat field — a picture of a card rather
-than a card.
+It was a depicted object — a card off a face-down deck, leaning ±7° under a
+shared `perspective: 900` as it was pulled, a sheen crossing it while it tilted,
+flying off the screen on release and springing in from the side. All of that is
+gone: no deck, no lean, no lift, no sheen, no flight.
 
-Giving it a deck to come off, a lean as it is pulled, and a highlight that moves
-across it is not decoration added to an interface element. It is the element
-finally behaving like the thing every other part of the feature calls it.
+What is left is SimpMusic's `HorizontalPager` round its artwork. The cards either
+side are laid out a display's width away; the strip follows the finger one for
+one; a release past a third of a card, or a flick, springs it to the next page on
+Compose's pager default — `spring(stiffness = 400)`, critically damped — and
+anything less springs it back. The art keeps `Elevation.raised`, the square its
+18 corner. The words under it fade in when the deck moves on.
 
-## 4.2.2 The ceiling — the case wins on every axis
+## 4.2.2 What a drag shows
 
-| | game case (§ 4.1) | dealt card |
-| --- | --- | --- |
-| **cast** | 0.45 / r18 / (6, 12) / elev 12 | `Elevation.raised` — 0.30 / r12 / (0, 5) / elev 6 |
-| **gloss** | 0.20 peak | 0.16 peak |
-| **turn** | full 180°, draggable, readable from the back | ±7°, drag-linked only |
+The next card's art slides in under the finger, as the next song's cover does in
+the reference. It used to be face down — "drawing its cover would spoil the
+surprise" — and a pager cannot hide the page it is bringing in without stopping
+being the reference's slide. The surprise now lasts until the drag begins.
 
-The gap is load-bearing, exactly as § 6.2 says of the shadow: the case is the one
-thing you could pick up and inspect, and it stays special only while nothing else
-comes close. **A card may lean and catch light. Only the case may be turned over.**
+## 4.2.3 What stays round it
 
-`perspective: 900` is shared, and deliberately: two objects in one app disagreeing
-about how far away the viewer is standing is worse than either value being wrong.
-
-## 4.2.3 The deck
-
-Two cards behind the dealt one, **face down** — one surface step, one hairline,
-no artwork and no glyph.
-
-Face down is not a stylistic choice. The next game is already in memory, and
-drawing its cover would spoil the surprise, which is the whole feature. The card
-behind is blank because there is nothing to read yet; that is what a face-down
-card *means*.
-
-The three depths cast in descending order — `raised`, `control`, `card` — which
-is physically right (a card lower in a stack is closer to the table) and keeps the
-whole object a clear tier under the case.
-
-Surfaces come from `accentRoles`, never the grey ladder: the page is filled with
-the game's own tone-10 neutral, and a fixed `surfaceElevated` card on it would be
-the one object in the room lit by a different lamp.
-
-## 4.2.4 The sheen, and the line it must not cross
-
-§ 25 bans gradients as decoration. **At rest the sheen is at opacity 0.** It
-exists only while the card is tilting: no tilt, no sheen. That is the entire
-difference between a texture painted on a card and a reflection coming off one,
-and it is the test any future change to it has to pass.
-
-## 4.2.5 Where the card may appear
-
-On the Surprise Me reveal, and nowhere else. The deck is not a pattern for feeds,
-rails or lists — those use `<Poster>` and stay flat and fast, for the same reason
-§ 4.1.2 keeps the case off them.
+The room's light behind the art (`<SurpriseBloom>`) and the edge lights that say
+what letting go will do (`<SwipeEdge>`) — neither moves the artwork. Both are
+this screen's alone.
 
 ---
 
@@ -1701,8 +1667,8 @@ Named for **what they wrap**, not for how big they are.
 | `Radius.image`     |     4 | Covers, screenshots, thumbnails                          |
 | `Radius.pill`      |   999 | Every button, filter, tab, chip and the search pill      |
 | `Radius.control`   |    20 | Pressable controls that are not buttons: toggles, segments|
-| `Radius.card`      |    16 | Cards, notices, list tiles, selection cards, menu rows  |
-| `Radius.cardLarge` |    18 | The `Card` panel variant, the welcome screen             |
+| `Radius.card`      |    12 | Every card, notice, list tile, selection card, menu row |
+| `Radius.review`    |    12 | The review card's — the corner every card was brought to |
 | `Radius.input`     |    18 | Every field: text, text area, select, search            |
 | `Radius.sheet`     |    24 | Bottom sheets (top corners), dialogs, menus             |
 
@@ -1997,7 +1963,7 @@ own, filled with the ink at 12% because the page under them changes colour — t
 sign-in providers' brand colours (on the shared pill shape), and every *meaning*
 colour: a log status fills with the status's hue, a platinum or spoiler toggle
 lights in its own colour, a tier chip fills with its tier. The physical game
-case and the dealt card are objects, not controls, and are untouched.
+case is an object, not a control, and is untouched.
 
 ## 9.1 Buttons — every action is the same grey pill
 
@@ -2048,7 +2014,7 @@ a hue — the wash is lighter than the bare page and the edge far brighter than
 the resting one, so a choice survives colour blindness and greyscale.
 
 - **Selection cards** (`<SelectionCard>`) — the reference's Server options:
-  `Radius.card` (16), 15dp padding, 13dp between parts, **a 34dp circle on the
+  `Radius.card` (12), 15dp padding, 13dp between parts, **a 34dp circle on the
   leading edge**, then the name (`optionTitle`, 13 medium) and its hint
   (`bodySmall`). The circle is an empty ring at rest; chosen, it fills with the
   accent at 18% and holds a check. A report's reasons, a copy's condition, a
@@ -2093,10 +2059,26 @@ searches — the Search tab, the game pickers, a library's search — is this sh
 
 # 11. Cards
 
-Filled `surface`, `Radius.card` (16), `x16` padding, a light `Elevation.card`,
-and **no border**: an edge is what marks something pressable, and a card of
-content is not one big button. `elevated` puts it on `surfaceElevated`, for a
-card on a card.
+**Every card is the review card** (2026-10-20, the owner's: "make all the cards
+in the app with that style of the review ones, with the same size and corner
+ratio and stuff. Even the ones in the game page"). One material,
+`components/ui/card-material.ts`: a flat fill one step above the page,
+`Radius.review` (12), a 1dp hairline in `border` (white at 7%), the card
+shadow, 15 in and 12 between parts. `<Card>`, the game page's section cards
+and titled panels, the member's and the critics' review cards, and every
+screen's own content card read it.
+
+The fill follows the page: `surface` on the app's own pages, and on a game's
+page — built from its Material 3 colours — the game's `primaryContainer` at
+half brightness, so the card is not the one neutral object on a coloured page.
+With game colours off (Settings) a game's page is the app's own room — its
+cards `surface`, its accent the owner's grey `#CACACA` (`gameNeutral`) — and a
+collection's and a studio's page lose the colour read from their art.
+
+The hairline does not make a card a button: a control's edge is `outline`, at
+16%, more than twice as bright. `elevated` puts a card on `surfaceElevated`,
+for a card on a card. A card that clips its contents keeps the corner and the
+edge and drops the shadow, which Android would clip with them.
 
 ---
 
@@ -2349,9 +2331,11 @@ Editions & extras
   below or above, `Radius.sheet`, `Elevation.overlay`, rows with the full name
   and the selected state of § 9.4 plus a check. One platform is a fact, drawn
   as a metadata chip (§ 12), never a one-row menu.
-- **The card** is filled with the game's `primaryContainer` at half brightness —
-  the reference halves Palette's dark-vibrant swatch — with `Elevation.card`.
-  Every ink on it clears AA: `textSecondary` 6.4:1, `controlInk` 10.5:1.
+- **The card** is every card's (§ 11): the review card's corner, hairline,
+  inset and shadow, filled with the game's `primaryContainer` at half
+  brightness — the tone the reference's halved dark-vibrant swatch came to.
+  Every ink on it clears AA: `textSecondary` 6.4:1, `controlInk` 10.5:1. With
+  game colours off it is `surface`, as everywhere else.
 - **Opening in place** animates the height of a window onto the whole text,
   250ms on FastOutSlowIn (`<ExpandableText>`), never the line clamp. The
   masthead's synopsis opens the same way with a fade in place of the More — a

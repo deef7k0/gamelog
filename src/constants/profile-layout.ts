@@ -44,12 +44,51 @@ export function favouriteCoverWidth(display: number): number {
   return Math.floor((row - FAVOURITES.gap * (FAVOURITES.columns - 1)) / FAVOURITES.columns);
 }
 
-/** The face: a fifth of the display, held between 72 and 96. */
-export const AVATAR = { ratio: 0.21, min: 72, max: 96 } as const;
+// ---------------------------------------------------------------------------
+// The head, centred (2026-10-17)
+// ---------------------------------------------------------------------------
+
+/*
+ * The owner's reference for the top of the profile — a music app's: the face,
+ * the name, the bio, three counts with rules between them, then one big
+ * filled button with two glyph keys beside it, all centred on the screen. Its
+ * screenshot is 242px across a phone; these are its pixels at 360/242 dp each.
+ * The owner: "Pfp, username, follow count bio, etc, centered in the screen. Add
+ * a big white filled rounded button for follow".
+ */
+
+/** The face: 54px of 242, held between 72 and 96. */
+export const AVATAR = { ratio: 0.223, min: 72, max: 96 } as const;
 
 export function avatarSize(display: number): number {
   return Math.round(Math.max(AVATAR.min, Math.min(AVATAR.max, display * AVATAR.ratio)));
 }
 
-/** From the face to the name and the counts beside it. */
-export const IDENTITY_GAP = 20;
+/** From the face to the name: the name's capitals 16dp under it. */
+export const NAME_TOP = 12;
+
+/** From the name to the bio. */
+export const BIO_TOP = 4;
+
+/**
+ * The three counts: each a column 59px wide, centred on its figure and word,
+ * with a faint rule 16px tall between two.
+ */
+export const COUNTS = { column: 88, rule: 24 } as const;
+
+/** From the counts to the actions. */
+export const ACTIONS_TOP = 16;
+
+/**
+ * The actions: the big button, then two glyph keys.
+ *
+ * The button is the reference's 120px — 178dp — and taller than its 25px,
+ * at the owner's "big": the tap floor, a full pill. The keys are the tap
+ * floor too, their glyphs the reference's 14px.
+ */
+export const ACTIONS = { button: 178, height: 44, gap: 8, key: 44, glyph: 21 } as const;
+
+/** The whole row, centred: the button, then the keys, the first `gap` after it. */
+export function actionRowWidth(keys: number): number {
+  return ACTIONS.button + (keys > 0 ? ACTIONS.gap + keys * ACTIONS.key : 0);
+}

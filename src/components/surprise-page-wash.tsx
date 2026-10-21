@@ -19,9 +19,9 @@ import Animated, {
  * rewrite of the app's colour system to serve one screen, and it is unnecessary:
  * an audit of what is actually tinted here found that **`accent.page` is the only
  * role visible across a deal.** The facts pill, the round buttons, the credit
- * line and the two support cards all live inside `<SurpriseReveal>`, which is
- * keyed on the game — they remount and are already crossfaded by `useCrossfade`.
- * The swipe edges are at opacity 0 at the instant the game changes.
+ * line and the two support cards all live inside `<SurpriseReveal>`, keyed on
+ * the game — they remount and fade in with it. The swipe edges spring back to
+ * opacity 0 as the game changes.
  *
  * So: one colour, two shared values and a progress. The rest was already right.
  *

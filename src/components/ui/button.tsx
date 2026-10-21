@@ -13,39 +13,11 @@ import {
 } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
-import { mix, readableInk, saturate } from '@/lib/color';
+import { filledRoles } from '@/lib/filled';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'large' | 'medium' | 'small';
 type Tone = 'default' | 'vivid';
-
-/**
- * The saturation floor `tone="vivid"` lifts a primary fill to.
- *
- * `accent.color` is M3's `primary` — the seed's hue at tone 60, with chroma
- * clamped to 48–72 so a fill is never neon. That is the right ceiling for a
- * colour that might appear several times on a page, and it is one step quieter
- * than the single button a screen is *about* wants to be: measured on real
- * seeds, a muted cover lands its primary around 0.45 HSL saturation, which on a
- * near-black page reads closer to slate than to the game's colour.
- *
- * 0.72 is a floor rather than a set point, so `saturate()` leaves an already
- * vivid extraction — DOOM's red at 0.84, a gold cover at 1.00 — exactly where it
- * was and only lifts the ones that arrived muted. It is deliberately short of
- * the 0.78 this was first set to: the only seed the two really disagree about is
- * a mid-green, which 0.78 takes to `#1AD156` — a neon that stops looking like
- * the game's colour and starts looking like a highlighter.
- *
- * Hue and HSL lightness are preserved, but relative luminance is not exactly, so
- * the ink is recomputed against the fill that actually ships rather than
- * inherited from `accent.ink`. Measured across eight real seeds at this floor:
- * ink-on-fill 5.45–8.87:1, fill-on-page 4.85–7.90:1. Nothing here is close to a
- * line, which is the point of lifting saturation rather than tone.
- */
-const VIVID_FLOOR = 0.72;
-
-/** How far a vivid fill deepens toward its ink while held — `PRESSED_DEPTH`'s twin. */
-const VIVID_PRESSED_DEPTH = 0.14;
 
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   title: string;
@@ -54,8 +26,8 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   /**
    * `default` is the grey pill every button is.
    *
-   * `vivid` fills the pill with the accent in force, its saturation lifted to
-   * `VIVID_FLOOR`. **For the game page's "Write a review", and nothing else** —
+   * `vivid` fills the pill with the accent in force (`filledRoles`), its words
+   * and icon in the fill's own `onPrimary`. **For the game page's "Write a review", and nothing else** —
    * the one button whose Material 3 treatment was kept through the move to the
    * grey pill: it sits above a row of tonal keys built from the same palette,
    * on a page filled with that palette's darkest tone, and it is the button the
@@ -148,12 +120,10 @@ export function Button({
   const small = size === 'small';
   const large = size === 'large';
 
-  /* The fill first, then the label measured against it — in that order, because
-     a vivid lift moves the fill and `accent.ink` was chosen for the unlifted
-     one. See `VIVID_FLOOR`. */
+  /* The game's colour, and its words and icon in the fill's own `onPrimary`
+     — SimpMusic's rule, in `filledRoles`. */
   const vivid = tone === 'vivid';
-  const primaryFill = saturate(accent.color, VIVID_FLOOR);
-  const primaryInk = readableInk(primaryFill);
+  const filled = filledRoles(accent);
 
   /*
    * One look for every action, the owner's reference measured: SimpMusic's
@@ -174,13 +144,13 @@ export function Button({
       }
     : vivid
       ? {
-          background: primaryFill,
+          background: filled.fill,
           /* Transparent rather than the fill: the background paints under the
              border, so the edge deepens with the fill while held instead of
              staying behind as a lighter 1px ring. */
           edge: 'transparent',
-          foreground: primaryInk,
-          pressed: mix(primaryFill, primaryInk, VIVID_PRESSED_DEPTH),
+          foreground: filled.ink,
+          pressed: filled.pressed,
         }
       : {
           primary: {

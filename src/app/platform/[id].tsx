@@ -5,7 +5,8 @@ import { FlatList, StyleSheet, View } from 'react-native';
 
 import { GameListItem } from '@/components/game-list-item';
 import { usePlatformDirectory } from '@/components/search/platform-directory';
-import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
+import { CATALOGUE_SORT_OPTIONS } from '@/components/search/catalogue-results';
+import { DropdownButton } from '@/components/ui/dropdown-button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { LogoMark } from '@/components/ui/logo-mark';
 import { PageFlatList } from '@/components/ui/page-scroll';
@@ -27,23 +28,17 @@ import type { GameSearchResult } from '@/lib/games';
 const LOGO = { width: 96, height: 60 };
 
 /**
- * The orders a platform's games can be read in.
+ * The orders a platform's games can be read in — the catalogue's own
+ * (`CATALOGUE_SORT_OPTIONS`), shared with a facet's games in Search.
  *
- * Most rated first by default: with no search term there is no relevance to
+ * Most popular first by default: with no search term there is no relevance to
  * lead with, and "the games people have actually played on this" is the page
  * somebody opening PlayStation 5 expects to land on. Some orders are also a
  * different *set* — "Top rated" needs a few ratings behind a score, "Upcoming"
  * is only what is not out — so the page count changes with them; see
- * `platformQuery`.
+ * `catalogueQuery`.
  */
-const SORT_OPTIONS: readonly DropdownOption<PlatformSort>[] = [
-  { value: 'popular', label: 'Most popular' },
-  { value: 'rating', label: 'Rating, highest first', short: 'Top rated' },
-  { value: 'newest', label: 'Release date, newest first', short: 'Newest' },
-  { value: 'upcoming', label: 'Not out yet, soonest first', short: 'Upcoming' },
-  { value: 'oldest', label: 'Release date, oldest first', short: 'Oldest' },
-  { value: 'title', label: 'Title, A to Z', short: 'A–Z' },
-];
+const SORT_OPTIONS = CATALOGUE_SORT_OPTIONS;
 
 /**
  * Every game on one platform, ten to a page.

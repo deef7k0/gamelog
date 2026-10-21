@@ -205,12 +205,6 @@ export const SurpriseEntry = memo(function SurpriseEntry({ covers = [] }: Surpri
           <Text variant="h2" accessibilityRole="header">
             Surprise me
           </Text>
-          {/* Three beats, 32 characters. The two-sentence version said the same
-              thing and ran to three lines in the 135dp column a 320dp display
-              leaves once the deck has taken its half. */}
-          <Text variant="bodySmall" color="textMuted">
-            One game, one song, no browsing.
-          </Text>
 
           {/*
             No call-to-action row.

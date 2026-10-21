@@ -1,10 +1,6 @@
-import { StyleSheet, View } from 'react-native';
-
 import { DiscoverCollections } from '@/components/discover-lists';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { Screen } from '@/components/ui/screen';
-import { Text } from '@/components/ui/text';
-import { Spacing } from '@/constants/theme';
 
 /**
  * The most-liked collections, in full.
@@ -19,17 +15,7 @@ import { Spacing } from '@/constants/theme';
 export default function CollectionsScreen() {
   return (
     <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Collections" />}>
-      <View style={styles.head}>
-        <Text variant="bodySmall" color="textMuted">
-          Lists people are building, ranked by likes.
-        </Text>
-      </View>
-
       <DiscoverCollections />
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  head: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x12, gap: Spacing.x4 },
-});

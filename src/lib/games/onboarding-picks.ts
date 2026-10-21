@@ -1,6 +1,8 @@
 import {
   EMPTY_ANSWERS,
   PICKS_COUNT,
+  examplesClause,
+  inExampleOrder,
   interleave,
   picksClause,
   pickingGridClause,
@@ -9,6 +11,17 @@ import {
 
 import { getGamesWhere, getSimilarIds } from './igdb';
 import type { Game } from './types';
+
+/**
+ * The games the look questions are asked over (`COLOUR_EXAMPLES`,
+ * `ANIMATED_EXAMPLES`), whole and in the order given. One request.
+ */
+export async function getExampleGames(
+  ids: readonly number[],
+  signal?: AbortSignal
+): Promise<Game[]> {
+  return inExampleOrder(ids, await getGamesWhere(examplesClause(ids), ids.length, signal));
+}
 
 /** The favourites step's grid before anything is typed: the most-rated games. */
 export function getPickingGrid(signal?: AbortSignal): Promise<Game[]> {

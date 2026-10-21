@@ -4,13 +4,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { CARD_INSET, cardShape } from '@/components/ui/card-material';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { COMPLETION_LABEL, formatPartialDate } from '@/constants/progress';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getMyLog, getPlaythroughs } from '@/lib/api';
 import type { PlaythroughRow } from '@/lib/database.types';
@@ -181,6 +182,7 @@ function RunCard({
       onPress={onPress}
       scaleTo={0.98}
       style={StyleSheet.flatten([
+        cardShape,
         styles.card,
         { backgroundColor: theme.surface, borderColor: theme.border },
       ])}>
@@ -216,12 +218,9 @@ const styles = StyleSheet.create({
   head: { gap: Spacing.x4, marginBottom: Spacing.x24 },
   separator: { height: Spacing.x12 },
   footer: { marginTop: Spacing.x24 },
-  card: {
-    gap: Spacing.x4,
-    padding: Spacing.x16,
-    borderRadius: Radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
+  /* Every card's material (`card-material`): the review card's corner, edge
+     and inset. */
+  card: { gap: Spacing.x4, padding: CARD_INSET },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   flex: { flex: 1 },
 });

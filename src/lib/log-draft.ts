@@ -34,8 +34,11 @@ export type LogDraft = {
   rating: number | null;
   advanced: boolean;
   metricDraft: Record<string, string | undefined>;
+  /** The quote — the review in one sentence (it was a headline; 0040). */
   reviewTitle: string;
   review: string;
+  /** What the review's cards show. Absent from drafts written before 0040. */
+  reviewDisplay?: string;
   platinum: boolean;
   /* Optional, unlike its siblings: drafts written before 0021 have no such key,
      and `loadDraft` casts the parsed JSON rather than validating it field by

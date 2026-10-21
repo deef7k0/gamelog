@@ -1,15 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { QuoteBlock } from '@/components/quote-block';
 import { Avatar } from '@/components/ui/avatar';
-import { useSectionMetrics } from '@/components/ui/section';
+import { CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
 import { Text } from '@/components/ui/text';
 import { scoreColor } from '@/constants/score';
-import { Elevation, Palette, Spacing, Type } from '@/constants/theme';
-import { useAccent } from '@/hooks/use-accent';
+import { Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { mix } from '@/lib/color';
 
 export type ReviewQuoteProps = {
   /** The words: a critic's snippet, or what a member wrote. */
@@ -33,15 +32,21 @@ export type ReviewQuoteProps = {
   /** Set the text in quotation marks: it is an excerpt of something published elsewhere. */
   quoted?: boolean;
   /**
+   * A member's review in one sentence, drawn between large marks in place of
+   * the words when its writer chose it for their cards (0040) — the copy
+   * screen passes it when `cardShows` says so. Never a critic's.
+   */
+  pullQuote?: string | null;
+  /**
    * The writer flagged the review as spoiling something. The words are
    * withheld and the card says so; the review's own page is where they are
    * uncovered, and the card is the way there.
    */
   spoiler?: boolean;
   /**
-   * The card's fill. Defaults to the section card's tone — the game's own dark
-   * colour at half brightness — which is right on a game's page. The reviews
-   * sheet passes the app's neutral surface instead.
+   * The card's fill. Defaults to the card material's (`useCardMaterial`) —
+   * the game's own dark tone on its page, `surface` elsewhere. The reviews
+   * sheet passes the app's neutral surface, whatever the page under it.
    */
   fill?: string;
   /** A fixed frame, for a rail. Without one the card is as tall as its text. */
@@ -69,8 +74,9 @@ export type ReviewQuoteProps = {
  * sheet, for a while: text, a name and a score, and nothing else. The owner
  * replaced that with `<MemberReviewCard>` (2026-10-09), which is drawn as a
  * review is on a film's page in Letterboxd — a face, the score and replies on
- * the name's line, the likes under the words. The card itself — this fill,
- * corner, inset and shadow — is what that one kept.
+ * the name's line, the likes under the words. The card itself is every
+ * card's material (`useCardMaterial`): the review card's corner, its
+ * hairline, fifteen in, the card shadow.
  *
  * The card is not pressable itself: the rail or the row around it is, so
  * there is one target and one spoken label. `avatarUrl` leads the name with
@@ -88,15 +94,14 @@ export const ReviewQuote = memo(function ReviewQuote({
   score,
   lines,
   quoted = false,
+  pullQuote = null,
   spoiler = false,
   fill,
   size,
   style,
 }: ReviewQuoteProps) {
   const theme = useTheme();
-  const accent = useAccent();
-  const metrics = useSectionMetrics();
-  const tone = useMemo(() => mix(accent.m3.primaryContainer, Palette.shadowInk, 0.5), [accent]);
+  const material = useCardMaterial();
 
   const rounded = score === null ? null : Math.round(score);
   const words = text.trim();
@@ -105,13 +110,9 @@ export const ReviewQuote = memo(function ReviewQuote({
     <View
       style={[
         size,
+        cardShape,
         styles.card,
-        Elevation.card,
-        {
-          backgroundColor: fill ?? tone,
-          borderRadius: metrics.cardRadius,
-          padding: metrics.cardPadding,
-        },
+        { backgroundColor: fill ?? material.fill, borderColor: material.edge },
         style,
       ]}>
       {spoiler ? (
@@ -123,6 +124,8 @@ export const ReviewQuote = memo(function ReviewQuote({
             This review contains spoilers
           </Text>
         </View>
+      ) : pullQuote ? (
+        <QuoteBlock text={pullQuote} size="card" color={theme.proseInk} accessible={false} />
       ) : (
         <Text variant="reviewExcerpt" color="proseInk" numberOfLines={lines} style={styles.text}>
           {quoted ? `“${words}”` : words}
@@ -159,7 +162,7 @@ const styles = StyleSheet.create({
   /* The words take the room there is and the foot sits under them: the name at
      the leading edge, the score at the trailing one — the corner a price tag
      is in. */
-  card: { justifyContent: 'space-between', gap: Spacing.x8 },
+  card: { justifyContent: 'space-between', gap: Spacing.x8, padding: CARD_INSET },
   text: { flexShrink: 1 },
   covered: {
     flexShrink: 1,

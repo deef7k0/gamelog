@@ -14,6 +14,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { getMyLog, getOwnedGames, getProfile } from '@/lib/api';
 import { displayNameFor } from '@/lib/format';
 import { formatPlaytime } from '@/lib/gaming';
+import { normaliseQuote } from '@/lib/review-quote';
 import { useAuth } from '@/store/auth';
 
 /**
@@ -147,9 +148,10 @@ function Stats({
               {log.played_on && <Stat label="Played on" value={log.played_on} />}
             </View>
 
-            {log.review_title && (
-              <Text variant="h5" numberOfLines={2}>
-                {log.review_title}
+            {/* The review in one sentence (0040; it was a headline). */}
+            {!!normaliseQuote(log.review_title) && (
+              <Text variant="h5" numberOfLines={3}>
+                {`“${normaliseQuote(log.review_title)}”`}
               </Text>
             )}
           </View>

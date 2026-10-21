@@ -1,12 +1,12 @@
-import { useMemo, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { useSectionInset, useSectionMetrics } from '@/components/ui/section';
+import { useSectionInset } from '@/components/ui/section';
 import { Text } from '@/components/ui/text';
-import { Elevation, Palette, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
-import { mix } from '@/lib/color';
 
 export type PanelProps = {
   title: string;
@@ -38,9 +38,9 @@ export type PanelProps = {
  *
  * A game's Overview has three of these — Ratings, and the two "Played by"
  * squares — from the owner's reference for it, a film's page in Letterboxd
- * (2026-10-09). The same shape as a box on the Profile tab (`<ProfileBox>`),
- * in a game page's own material: the description card's tone (the game's dark
- * colour at half brightness), its 8dp corner, its inset and the card shadow.
+ * (2026-10-09), in the review card's material like every card in the app
+ * (`useCardMaterial`, 2026-10-20): its corner, its hairline, fifteen in, the
+ * card shadow — and on a game's page the game's dark tone for a fill.
  *
  * ## It is not for rows of games
  *
@@ -61,18 +61,16 @@ export function Panel({
   children,
 }: PanelProps) {
   const accent = useAccent();
-  const metrics = useSectionMetrics();
+  const material = useCardMaterial();
   const sectionInset = useSectionInset();
 
-  const tone = useMemo(() => mix(accent.m3.primaryContainer, Palette.shadowInk, 0.5), [accent]);
-
   const shell = StyleSheet.flatten([
-    Elevation.card,
+    cardShape,
     {
       marginHorizontal: margin ?? sectionInset,
-      borderRadius: metrics.cardRadius,
-      backgroundColor: tone,
-      paddingHorizontal: metrics.cardPadding,
+      backgroundColor: material.fill,
+      borderColor: material.edge,
+      paddingHorizontal: CARD_INSET,
     },
     styles.shell,
     style,
@@ -117,7 +115,7 @@ export function Panel({
 export const PANEL_GAP = Spacing.x12;
 
 const styles = StyleSheet.create({
-  shell: { paddingTop: Spacing.x12, paddingBottom: Spacing.x16 },
+  shell: { paddingTop: Spacing.x12, paddingBottom: CARD_INSET },
   head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, minHeight: 24 },
   /* Takes the line, so whatever follows it sits at the far end. */
   title: { flex: 1 },

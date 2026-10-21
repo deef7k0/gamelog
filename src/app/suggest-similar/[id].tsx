@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { MultiChoiceChips } from '@/components/choice-chips';
 import { GamePicker } from '@/components/game-picker';
 import { Button } from '@/components/ui/button';
+import { CARD_INSET, cardShape } from '@/components/ui/card-material';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
@@ -17,7 +18,7 @@ import {
   SIMILARITY_REASONS,
   SIMILARITY_REASON_LABEL,
 } from '@/constants/similarity';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getPairWithMyVote, suggestSimilarGame } from '@/lib/api';
 import type { GameSimilarityVoteRow, SimilarityReason } from '@/lib/database.types';
@@ -190,7 +191,12 @@ function SuggestForm({
           </Text>
         </View>
 
-        <View style={[styles.gameRow, { backgroundColor: theme.surface }]}>
+        <View
+          style={[
+            cardShape,
+            styles.gameRow,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}>
           <Poster
             coverUrl={other.coverUrl}
             heroUrl={other.heroUrl}
@@ -261,12 +267,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: Spacing.x16, gap: Spacing.x24, paddingBottom: Spacing.x48 },
   head: { gap: Spacing.x4 },
-  gameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.card,
-  },
+  /* Every card's material (`card-material`). */
+  gameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12, padding: CARD_INSET },
   centred: { textAlign: 'center' },
 });

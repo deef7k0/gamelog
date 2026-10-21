@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { CARD_INSET, cardShape } from '@/components/ui/card-material';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
@@ -10,7 +11,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { CONTRIBUTION_STATUS_LABEL, releaseLine } from '@/constants/physical';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getMyContributions, type ContributionWithRelations } from '@/lib/api';
 import { displayBarcode } from '@/lib/barcode';
@@ -100,7 +101,12 @@ function SubmissionRow({
   const theme = useTheme();
 
   const body = (
-    <View style={[styles.row, { backgroundColor: theme.surface }]}>
+    <View
+      style={[
+        cardShape,
+        styles.row,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}>
       <Poster
         coverUrl={entry.game?.cover_url ?? null}
         heroUrl={entry.game?.hero_url ?? null}
@@ -156,13 +162,8 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.x16, paddingBottom: Spacing.x48 },
   head: { gap: Spacing.x8, marginBottom: Spacing.x24 },
   separator: { height: Spacing.x8 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.card,
-  },
+  /* Every card's material (`card-material`). */
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12, padding: CARD_INSET },
   rowText: { flex: 1, gap: 2 },
   status: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 });

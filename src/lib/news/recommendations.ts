@@ -17,11 +17,15 @@
  * moves it on. Pure, so `npm test` covers it.
  */
 
+import { hasWriting } from '../review-quote';
+
 /** What a seed needs of a log — `LogWithRelations` has all of it. */
 export type SeedLog = {
   game_id: string;
   rating: number | null;
   review: string | null;
+  /** The review's one sentence (0040): writing too. */
+  review_title?: string | null;
   updated_at: string;
   game?: { title?: string | null } | null;
 };
@@ -56,7 +60,11 @@ export function recommendationSeed(logs: readonly SeedLog[]): RecommendationSeed
     .slice()
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 
-  const reviewed = candidates.find((log) => !!log.review?.trim() || log.rating !== null);
+  const reviewed = candidates.find(
+    (log) =>
+      hasWriting({ review: log.review, review_title: log.review_title ?? null }) ||
+      log.rating !== null
+  );
   const seed = reviewed ?? candidates[0];
   if (!seed) return null;
 

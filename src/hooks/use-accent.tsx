@@ -3,6 +3,7 @@ import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { identityColorFor } from '@/constants/identity';
 import { accentRoles, type AccentRoles } from '@/constants/theme';
 import { useAlbumArtColor } from '@/hooks/use-album-art-color';
+import { useGameColours } from '@/hooks/use-game-colours';
 import { useTheme } from '@/hooks/use-theme';
 import { DynamicThemeValueProvider } from '@/theme/dynamic-theme-provider';
 
@@ -21,6 +22,14 @@ import { DynamicThemeValueProvider } from '@/theme/dynamic-theme-provider';
  * feed, search, news and profile stay on `primary` deliberately: twenty games in
  * a list is twenty hues, and a scrolling fruit salad is not identity, it is
  * noise. Colour identifies a game when you are looking at *that game*.
+ *
+ * **Every game screen can be neutral instead** — Settings → Game colours
+ * (`useGameColours`), the owner's switch (2026-10-20). Off, a provider hands
+ * down the app's own page and `surface` cards, with the owner's grey
+ * (`gameNeutral`, #CACACA) as the accent where `neutral` gives the house
+ * white. The components did not
+ * learn about it: they read the same role names either way (`accentRoles`),
+ * and the cards read `tonal` to choose their fill (`useCardMaterial`).
  */
 const AccentContext = createContext<AccentRoles | null>(null);
 
@@ -36,15 +45,44 @@ export type AccentProviderProps = {
   genres?: readonly string[] | null;
   /** Bypass everything with an explicit hue. For a tier row or a preview. */
   color?: string | null;
+  /**
+   * Provide the house accent instead — the app's own page and its white — as
+   * if there were no provider at all. A review's page switches this from its
+   * top bar (`useReviewColour`); keeping the provider mounted is what lets the
+   * page change colour without remounting, so it keeps its scroll and state.
+   *
+   * Implied for every provider while game colours are off (`useGameColours`).
+   */
+  neutral?: boolean;
 };
 
-export function AccentProvider({ children, artwork, genres, color }: AccentProviderProps) {
-  const hue = useArtworkHue({ artwork, genres, color });
+export function AccentProvider({
+  children,
+  artwork,
+  genres,
+  color,
+  neutral = false,
+}: AccentProviderProps) {
+  const theme = useTheme();
+  const colours = useGameColours();
+  /* No artwork read while game colours are off. A review's own `neutral` still
+     reads it, so its switch turns the colour back on in the same frame. */
+  const hue = useArtworkHue({ artwork: colours.on ? artwork : null, genres, color });
   /* `tonal`: this hue came off box art, so the whole screen is built out of it —
      a Material 3 tonal palette seeds the page, the surfaces, the cards and the
      one loud fill. The house blue below stays in the legacy mode. See
      `accentRoles`. */
-  const roles = useMemo(() => accentRoles(hue, { tonal: true }), [hue]);
+  /* A review's own `neutral` is the house white; game colours off is the
+     owner's grey (`gameNeutral`). */
+  const roles = useMemo(
+    () =>
+      !colours.on
+        ? accentRoles(theme.gameNeutral)
+        : neutral
+          ? accentRoles(theme.primary)
+          : accentRoles(hue, { tonal: true }),
+    [hue, neutral, colours.on, theme.primary, theme.gameNeutral]
+  );
 
   /* Both contexts, from one extraction. `useAccent()` is what the app's own
      components read; `useDynamicTheme()` is the full M3 role set underneath it,
@@ -133,12 +171,18 @@ export function useAccent(): AccentRoles {
  *
  * For the screen that *renders* the provider and therefore cannot consume it —
  * a component is not inside its own context. Same two sources in the same
- * order, so the value matches what the children below will read.
+ * order, and the same switch (`useGameColours`), so the value matches what
+ * the children below will read: the owner's grey while game colours are off.
  */
 export function useGameAccent(
   artwork: string | null | undefined,
   genres: readonly string[] | null | undefined
 ): AccentRoles {
-  const hue = useArtworkHue({ artwork, genres });
-  return useMemo(() => accentRoles(hue, { tonal: true }), [hue]);
+  const theme = useTheme();
+  const colours = useGameColours();
+  const hue = useArtworkHue({ artwork: colours.on ? artwork : null, genres });
+  return useMemo(
+    () => (colours.on ? accentRoles(hue, { tonal: true }) : accentRoles(theme.gameNeutral)),
+    [hue, colours.on, theme.gameNeutral]
+  );
 }

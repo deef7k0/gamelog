@@ -24,6 +24,7 @@ import { useTheme } from '@/hooks/use-theme';
 import {
   deleteLog,
   getPlaythroughs,
+  invalidateCommunityRatings,
   setProgress,
   updateLogDetails,
   type LogDetailPatch,
@@ -103,6 +104,8 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
     queryClient.invalidateQueries({ queryKey: ['review-stats', game.id] });
     // The library's head: logged, reviewed, averages, best and worst.
     queryClient.invalidateQueries({ queryKey: ['user-game-stats', userId] });
+    // The game page's "On GameLog": how many are playing it and have played it.
+    queryClient.invalidateQueries({ queryKey: ['game-audience', game.id] });
   }
 
   const choose = useMutation({
@@ -132,6 +135,10 @@ export function ProgressSheet({ game, log, onClose, onOpenPlaythroughs }: Progre
     onSuccess: () => {
       invalidate();
       queryClient.invalidateQueries({ queryKey: ['playthroughs', userId, game.id] });
+      /* Removing the log removes its score, which moves this game's
+         community score and can move every other one its rater scored
+         (0041). The progress choices above never touch a score. */
+      if (log?.rating != null) invalidateCommunityRatings(queryClient);
       onClose();
     },
   });

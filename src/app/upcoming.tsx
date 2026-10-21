@@ -7,7 +7,6 @@ import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { Skeleton } from '@/components/ui/surface';
-import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { getUpcomingReleases } from '@/lib/news';
 
@@ -44,11 +43,6 @@ export default function UpcomingScreen() {
         showsVerticalScrollIndicator={false}
         refreshing={upcoming.isRefetching}
         onRefresh={() => upcoming.refetch()}
-        ListHeaderComponent={
-          <Text variant="bodySmall" color="textMuted" style={styles.note}>
-            Due in the next 120 days, soonest first.
-          </Text>
-        }
         renderItem={({ item }) => <CoverTile game={item} width={tileWidth} />}
         ListEmptyComponent={
           upcoming.isLoading ? (
@@ -71,6 +65,5 @@ export default function UpcomingScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48, gap: GAP },
   column: { gap: GAP },
-  note: { paddingBottom: Spacing.x8 },
   skeleton: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
 });

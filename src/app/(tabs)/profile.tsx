@@ -6,20 +6,13 @@ import { useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated';
 
+import { ProfileActionRow, ProfileButton, ProfileKey } from '@/components/profile-actions';
 import { ProfileView } from '@/components/profile-view';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { PROFILE_MARGIN } from '@/constants/profile-layout';
-import {
-  ControlHeight,
-  Elevation,
-  Motion,
-  Radius,
-  SmallControlSlop,
-  Spacing,
-  TapTarget,
-} from '@/constants/theme';
+import { Elevation, Motion, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
 import { getProfile } from '@/lib/api';
@@ -138,45 +131,22 @@ export default function MyProfileScreen() {
         profileId={userId}
         headerAction={
           /*
-           * One control cut in two: Edit profile, and Share beside it.
-           *
-           * The game page's connected keys, at the reference's chip height:
-           * round where the pair begins and ends, nearly square where the two
-           * halves meet across a 4dp seam — so it reads as one bar with a cut
-           * rather than as two buttons parked side by side.
+           * The head's action row (`<ProfileActionRow>`): the big pill and a
+           * share glyph beside it, as someone else's profile has Follow. In
+           * the action grey, not white: white is the call to act on someone
+           * else's page, and editing your own is not that.
            */
-          <View style={styles.actions}>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Edit profile"
-              onPress={() => router.push('/edit-profile')}
-              hitSlop={SmallControlSlop}
-              scaleTo={0.98}
-              pressedColor={theme.controlPressed}
-              style={StyleSheet.flatten([
-                styles.half,
-                styles.start,
-                { backgroundColor: theme.controlFill },
-              ])}>
-              <Text variant="button" style={{ color: theme.controlInk }}>
-                Edit profile
-              </Text>
-            </PressableScale>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Share your profile"
-              onPress={share}
-              hitSlop={SmallControlSlop}
-              scaleTo={0.94}
-              pressedColor={theme.controlPressed}
-              style={StyleSheet.flatten([
-                styles.half,
-                styles.end,
-                { backgroundColor: theme.controlFill },
-              ])}>
-              <Ionicons name="share-outline" size={17} color={theme.controlInk} />
-            </PressableScale>
-          </View>
+          <ProfileActionRow
+            button={
+              <ProfileButton
+                title="Edit profile"
+                icon="create-outline"
+                filled={false}
+                onPress={() => router.push('/edit-profile')}
+              />
+            }
+            keys={<ProfileKey icon="share-outline" label="Share your profile" onPress={share} />}
+          />
         }
       />
 
@@ -255,9 +225,6 @@ function MenuRow({
   );
 }
 
-/** The cut between Edit profile and Share: the game page's seam corner. */
-const SEAM = Radius.lg;
-
 const styles = StyleSheet.create({
   /* Home's masthead row at this screen's own margin: a little air above, keys
      at the floor. */
@@ -276,27 +243,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: { flex: 1, textAlign: 'center' },
-  actions: { flex: 1, flexDirection: 'row', gap: Spacing.x4 },
-  half: {
-    minHeight: ControlHeight.small,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /* Edit profile takes the width; Share is a square-ish end cap. */
-  start: {
-    flex: 1,
-    borderTopLeftRadius: Radius.pill,
-    borderBottomLeftRadius: Radius.pill,
-    borderTopRightRadius: SEAM,
-    borderBottomRightRadius: SEAM,
-  },
-  end: {
-    width: ControlHeight.small + Spacing.x20,
-    borderTopLeftRadius: SEAM,
-    borderBottomLeftRadius: SEAM,
-    borderTopRightRadius: Radius.pill,
-    borderBottomRightRadius: Radius.pill,
-  },
   menu: {
     position: 'absolute',
     left: PROFILE_MARGIN,

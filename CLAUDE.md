@@ -52,8 +52,12 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # logo is drawn from its pixels (lib/logo-ink), what the
                    # saved query cache keeps and evicts (lib/query-persist-rules),
                    # the seen-records store (lib/seen), the "12h ago" time
-                   # (lib/format), the review card's colour against the
-                   # page and the inks set on it (constants/review-card), and
+                   # (lib/format), the card's colour against the page, the
+                   # inks on it, the whole surface ladder's climb and that
+                   # every card has the review card's corner
+                   # (constants/review-card), Search's Top 1000 — its
+                   # length, its pages of twenty, what a score is made of
+                   # (lib/top-chart), and
                    # the copy showcase: its camera against the projection it
                    # stands in for, the idle turn and the lamp
                    # (lib/stage-geometry), how large a case stands, how deep it
@@ -100,12 +104,59 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # what IGDB is asked for the last page (lib/onboarding);
                    # every poster ink at AA and the seven progress pills'
                    # colours and grid (constants/poster, constants/progress);
-                   # and where an event is in its life (lib/event-phase)
+                   # and where an event is in its life (lib/event-phase);
+                   # where a game is sold — IGDB's store links and which
+                   # ITAD price goes with which store, against IGDB's real
+                   # records (lib/games/storefronts) — and its Steam page:
+                   # the Awards section and the events, read by the Edge
+                   # Function's own _shared/steam-store.ts out of real page
+                   # excerpts (lib/games/steam-store.test); and a game's
+                   # genres, themes, engines… as ways to more games — the
+                   # clause each is asked by, the fixed vocabularies, name
+                   # matching (lib/games/facets); and a review in one
+                   # sentence — its lines and marks, the closing mark always
+                   # at the far right of the last line (lib/quote-layout), its
+                   # length against Inter's own advance widths on Surprise
+                   # Me's card, which half a card shows, 0040's CHECK
+                   # (lib/review-quote), where the drawn marks stand against
+                   # the words (constants/pull-quote), the share cards' inks
+                   # on every swatch and what its eight lines hold
+                   # (constants/share-card), and the share sheet's
+                   # highlighter — words laid out, a finger to a word, a
+                   # pick's lines on the card, dragging an end to the card's
+                   # limit (lib/review-highlight); and a review's own
+                   # page — every line of it and its composer against the
+                   # owner's phone screenshot (constants/review-page) and
+                   # how a run is said in a
+                   # sentence (lib/review-details); and the community score
+                   # — entropy, leave-one-out deviation, the percentile, the
+                   # weight and its ramp, the weighted mean and its range,
+                   # new members, inactivity, no review bonus, and that 0041
+                   # holds the same parameters (lib/community-rating), and the
+                   # breakdown's weighted groups (lib/review-facets), and
+                   # animated covers — which file of a SteamGridDB grid each
+                   # platform plays (the full animation before the preview),
+                   # the size cap, IGDB's shapes and its WebP
+                   # (lib/animated-cover); SimpMusic's Apple Music page under
+                   # the game page's cover — the mesh, its blur, the BMP it is
+                   # drawn as, the top wash and whether white holds on it
+                   # (lib/artwork-mesh); Surprise Me's card — its shape, still
+                   # or animated, and what is fetched ahead within a byte
+                   # budget (lib/surprise-prefetch); and how tall a
+                   # collection's and a review's header art is
+                   # (constants/header-art)
 
 node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
                    # (PGlite, in-process) over every migration, with seven
                    # people who do known things. Needs PGlite, which is not
                    # a dependency: npm install --no-save @electric-sql/pglite
+node scripts/community-rating-sql.mjs   # 0041 on PGlite, over ratings
+                   # given before it ran: every weight and score against the
+                   # TypeScript reference, the triggers, RLS, retries, the
+                   # large-app path. Same PGlite as above
+node scripts/community-rating-report.mjs [--out f.md]   # a read-only dry
+                   # run over the LIVE ratings (anon key from .env): who
+                   # would be adjusted, which games move, a sensitivity sweep
 ```
 
 `npm test` runs the `*.test.ts` files under plain Node, so a module under test
@@ -161,6 +212,18 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    were (every like there has ever been, no period control, no friends
    section), reviews are saved without a language, and no chart is narrowed by
    one. See § Discovery.
+   `0039` is the Steam store page cache and is optional — see step 9.
+   `0040` is a review's one sentence: one column, `logs.review_display`
+   ('text' or 'quote', what its cards show), and nothing dropped. **Nothing
+   breaks without it**: `saveLog` reads the PGRST204 and saves without the
+   column, and every card shows the review's text as before — the log form
+   says so under the choice. See § A review in one sentence.
+   `0041` is the weighted community score: three derived tables, the
+   triggers that keep them current, and `game_review_stats` / `beloved_games`
+   redefined weighted. It reads `logs` and writes nothing canonical, and
+   weights every existing rating as it runs. **Nothing breaks without it**:
+   `getRatingBreakdown` reads the PGRST205 and shows the plain mean, worked
+   out on the phone as before. See § The community score.
    `0006`, `0015`, `0019` and `0022` each add an enum value and must run
    **alone** — see the notes in those files.
    Moderators are rows in `public.moderators`, which no client can write; make
@@ -180,8 +243,8 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    `supabase secrets set ITAD_API_KEY=…` then `supabase functions deploy itad`.
    Only the **API key** is used; ITAD's OAuth client id and secret are for
    user-scoped endpoints this app does not call. See
-   `supabase/functions/README.md`. Without it the game page simply has no
-   "Where to buy" section.
+   `supabase/functions/README.md`. Without it the game page's "Where to buy"
+   still lists the official stores IGDB links the game to, without prices.
 6. Optional: deploy the ScanDex Edge Function so a scan identifies boxes nobody
    has added yet — run migration `0027`, then
    `supabase secrets set SCANDEX_API_TOKEN=…` and
@@ -206,6 +269,12 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    `supabase/functions/README.md` lists the five things to check on the first
    run with keys. `EXPO_PUBLIC_SOUNDCLOUD_FIXTURE=true` shows a sample
    soundtrack in a dev build, so the screens can be seen before then.
+9. Optional: deploy the Steam store Edge Function for the game page's
+   **Awards** card and its **Events & announcements** rail —
+   `supabase functions deploy steam-store`, and run migration `0039`. No
+   secrets: both are public Steam pages. Without the function both sections
+   are simply absent; without `0039` it works and fetches Steam's page on
+   every request. See § Where to buy, awards and Steam news.
 
 ## Adding a route
 
@@ -254,11 +323,24 @@ src/
                      (modal). Every `<ReportFlag>` in the app opens it
     profile/[id]     someone else's profile
     new-list, edit-list/[id], edit-profile (modals)
-    settings         the games hidden from Surprise Me, a link to the
-                     moderation queue for moderators, and Sign out. Opened from
+    settings         game colours (a game's screens in its box art's Material
+                     3 colours, or the app's own), animated artwork (covers
+                     that move by themselves, or still), review languages, how
+                     ratings work, the games hidden from Surprise Me, a link
+                     to the moderation queue for moderators, and Sign out.
+                     Opened from
                      the profile tab's bar. It was deliberately empty for a long
                      time and the argument in its docblock still stands —
                      nothing goes here until it works
+    how-ratings-work how the GameLog score is weighted, the reader's own
+                     weight and why, and — for moderators — the weighting
+                     across the app in aggregate. From the reviews sheet and
+                     Settings. See § The community score
+    ratings/[id]     everyone who gave a game a score — with a review or a log
+                     alone — twenty to a page, newest or by score; a row opens
+                     the review, or that person's record of the game. From the
+                     reviews sheet, under the GameLog score (?title= the
+                     heading, so it is there at once)
     quick-log        the profile's +: pick a game, then ?mode=review replaces
                      this with the log form and ?mode=log raises the game
                      page's progress sheet over it (modal)
@@ -289,8 +371,9 @@ src/
                      in, or make an account), "check your inbox" — one route,
                      the owner's onboarding reference. Replaced the old
                      welcome carousel, sign-in-options, sign-in and sign-up
-    onboarding       signed in and not onboarded: twelve steps at most, from a
-                     name to six games to start with. The root layout routes
+    onboarding       signed in and not onboarded: fourteen steps at most, from
+                     a name to six games to start with — game colours and
+                     animated artwork asked over real examples among them. The root layout routes
                      here and nowhere else until it is done. See § The poster
                      screens
   components/        shared UI; components/ui/ is the primitive layer
@@ -317,13 +400,22 @@ src/
                      game-filter-bar    genre / platform / studio / year pills
                      game-lineage       original game / editions & extras
                      game-insights      the head of a game's Overview — the
-                                        Ratings card, the two Played by squares,
-                                        the most liked review. (Time to beat was
-                                        a card here; the owner had it removed)
+                                        Ratings card, "On GameLog" (how many
+                                        wishlisted / are playing / played it),
+                                        the two Played by squares, the most
+                                        liked review. (Time to beat was a card
+                                        here; the owner had it removed)
+                     game-awards        the Awards card: the publisher's graphic
+                                        from the Steam page's Awards section,
+                                        and the Steam Awards it won
+                     steam-events       the Steam page's recent events and
+                                        announcements, as a rail
                      score-summary      GameLog's verdict on a game: the word,
                                         the score as its drawing and number,
                                         the three-part bar. The Ratings card's
                                         and the reviews sheet's, one component
+                     score-method-note  "How the GameLog score works ›", under
+                                        the sheet's summary
                      ui/score-figure    a score as a drawing: a little man and
                                         his gaming chair, in five states. Drawn
                                         in the ratings graph (with the number,
@@ -333,7 +425,15 @@ src/
                      member-review-card a member's review on a game's own
                                         screens: face, name, score and replies,
                                         the words, the likes. The Overview's
-                                        card and every row of the reviews sheet
+                                        card, every row of the reviews sheet,
+                                        and Surprise Me's (three lines, through
+                                        top-review-card)
+                     ui/card-material   every card's material, the review
+                                        card's: `useCardMaterial()` (the fill —
+                                        `surface`, or the game's dark tone on a
+                                        game's page — and the hairline),
+                                        `cardShape`, `CARD_INSET`, `CARD_GAP`.
+                                        See § Review cards
                      ui/panel           a small card that titles itself — the
                                         Ratings card and the two Played by
                                         squares on a game's Overview. Never a
@@ -348,7 +448,11 @@ src/
                                         a face, a name and a score under each
                      game-details-sheet the full IGDB record, behind a button
                      add-to-collection  pick which collection a game joins
-                     store-prices       where to buy, from IsThereAnyDeal
+                     store-prices       where to buy: IGDB's official stores,
+                                        priced by IsThereAnyDeal where it can,
+                                        then ITAD's other shops; folded to the
+                                        first three, official first, under
+                                        "Show all"
                      ui/soft-glow       a radial glow — a native CSS gradient,
                                         no Skia; Surprise Me's bloom and edges
                      ui/cover-stack     up to five covers as one stack, the
@@ -365,16 +469,51 @@ src/
                                         heading and its content — the profile's
                                         favourites, games and pinned song. Not
                                         a card
+                     reply-composer     the reply field docked at the foot of
+                                        a review's page: bold, italic, the
+                                        count against 500, send
+                     profile-actions    the profile head's actions: the big
+                                        white pill (Follow; Edit profile in
+                                        grey) and the glyph keys beside it
                      ui/ambient-light   Home's soft light in the top-left
                                         corner (a native CSS gradient, no Skia)
-                     surprise-deck / -bloom / -sheen / -page-wash
-                                        the dealt card's deck, its light, its
-                                        gloss and the page's colour transition.
-                                        DESIGN.md § 4.2; that screen only
+                     surprise-card-art  a dealt card's art: square or portrait,
+                                        still or animated (`chooseCardShape`),
+                                        kept in the shape it was first drawn
+                     surprise-bloom / -page-wash
+                                        the room's light behind the card and
+                                        the page's colour transition. The art
+                                        is a plain pager (DESIGN.md § 4.2);
+                                        that screen only
                      ui/square-art / ui/round-action / ui/marquee-text
                                         the square cover, the round keys beside
-                                        its title, and the title that scrolls —
-                                        shared by Surprise Me and a review
+                                        its title (a review's like and share),
+                                        and the title that scrolls — shared by
+                                        Surprise Me and a review. The square
+                                        can move (`animation`)
+                     ui/animated-cover-image  a cover that moves when it can:
+                                        the still, and the animated file over
+                                        it once found — expo-image for WebP /
+                                        APNG / GIF, expo-video (lazily,
+                                        ui/animated-cover-video) for WebM / MP4.
+                                        See § Animated covers
+                     cover-viewer       the game page's cover full size at the
+                                        top of the screen, SimpMusic's Apple
+                                        Music page under it, and Static /
+                                        Animated — see § Animated covers
+                     ui/artwork-mesh-page  that page: a cover's colours as a
+                                        blurred mesh hung from its foot
+                                        (lib/artwork-mesh), drawn as two
+                                        stretched images
+                     onboarding/look-previews  a game's page and a Surprise Me
+                                        card, drawn small, for onboarding's
+                                        two look questions
+                     ui/tonal-key       the game page's action key — M3
+                                        filled-tonal, in a connected group —
+                                        and Surprise Me's Backlog and Next,
+                                        the same object
+                     ui/multi-pick-sheet  a checklist in a sheet: Surprise
+                                        Me's genres, themes, platforms…
                      ui/stats-strip     a row of figures with rules between;
                                         the game page's strip and a review's,
                                         and `size="compact"` on a review card
@@ -440,10 +579,18 @@ src/
                                         collections, studios, events, and the
                                         platform directory — and
                                         spotlight-slider, the slider at the
-                                        head of Discover. logo-tile is a
+                                        head of Discover; top-chart, its Top
+                                        1000 (GameLog's or the critics',
+                                        twenty to a page). logo-tile is a
                                         platform or a
                                         studio as a square with its name under
-                                        it. See § Search
+                                        it. facet-search is "Search by", the
+                                        facet picker, the chosen facet's bar
+                                        and the suggestions over a title
+                                        search. discover-sections is the
+                                        untyped Reviews and Collections tabs'
+                                        headings, "See all" and per-section
+                                        loading and failure. See § Search
                      ui/pager           previous / next / the pages around you /
                                         go to a number, for a list in pages
                      ui/logo-mark       somebody else's logo — a platform's, a
@@ -474,6 +621,20 @@ src/
                                         § Soundtracks
                      soundtrack-section the game page's Soundtrack tab: a
                                         summary and the Listen button
+                     quote-block        a review's one sentence between a
+                                        blocky 66 and 99: the closing one at
+                                        the far right of the last line. Cards,
+                                        the review page (typing itself out)
+                                        and both shared images
+                     review-podium-card the second shared image ("Rating"):
+                                        the owner's music-app reference
+                     review-share-sheet / review-share-card  Share on a review:
+                                        pick the words, choose a background,
+                                        Save image or Share — and the card it
+                                        captures
+                     review-highlighter the whole review with a highlight over
+                                        the part that goes on the card: tap a
+                                        word, hold an end and drag
                      review-chart-head  the heading over the Reviews chart:
                                         its name, the period at the far end,
                                         the languages it is in
@@ -512,6 +673,8 @@ src/
                      see § Gotchas, performance traps), player.ts (the mini
                      player's measurements, shared by the bar, the tab bar's
                      clearance and `<Screen>`),
+                     header-art.ts (a collection's and a review's header art:
+                     half the display tall — pure, tested),
                      top-bar.ts (the top bar: its row, its controls, the glass
                      discs, the frost, and the arithmetic of how each moves
                      with the page — pure, tested; see § The top bar),
@@ -519,7 +682,13 @@ src/
                      score — pure, tested; see § Score figures),
                      poster.ts (onboarding's page colours: which token is the
                      page, the ink, the pill — pure, tested; see § The poster
-                     screens)
+                     screens),
+                     pull-quote.ts (a quote's four fixed sizes and where its
+                     marks go — pure, tested), share-card.ts (SimpMusic's share
+                     card, measured; its swatches and inks — pure, tested),
+                     review-page.ts (a review's own page, measured off the
+                     owner's phone screenshot at 2px a dp, and where Android
+                     puts a Poppins line's baseline — pure, tested)
   theme/
     dynamic-color.ts    Material 3 (Monet): one seed hex → 23 M3 roles, via
                         DynamicScheme + TONAL_SPOT. Pure; `npm test` covers it
@@ -547,14 +716,32 @@ src/
     use-studio-logo     a studio's verified public-domain logo, or null;
                         stored on the device (a month; "none" a week). No
                         IGDB request of its own
+    use-animated-cover  a game's animated cover in one shape (square /
+                        portrait), "none" included, kept a month on the
+                        device; `useCoverPlayback` — one plays at a time;
+                        `prefetchAnimatedCover` / `peekAnimatedCover` for
+                        Surprise Me's next cards
+    use-animated-artwork  whether covers move by themselves — Settings and
+                        onboarding's switch, read by `useAnimatedCover`
+    use-artwork-mesh    a cover's mesh, from its 90×128 thumbnail decoded in
+                        JavaScript — the cover viewer's page
     use-square-cover    a game's 1:1 cover from SteamGridDB, persisted to
                         AsyncStorage. Returns `resolved` — do not draw the IGDB
                         cover before it is true; that is the swap it prevents
+    use-game-prices     `useGameStorefronts` (a game's official stores and
+                        Steam appid, from the page's own `['game-extras']`) and
+                        `useGamePrices` (its ITAD prices). Where to buy, the
+                        Platforms price, the Awards card and the events rail
+                        all read these, so each is one request
     use-game-labels     which games carry a label, as one shared list of ids:
                         a module store, because `<Poster>` asks for every cover
     use-logo-ink        what an IGDB logo is made of (cut out? dark? its own
                         ground?), measured once and kept on the device. Returns
                         `resolved` — draw nothing before it is true
+    use-game-colours    whether the screens about one game wear its colours —
+                        Settings' switch, read by `<AccentProvider>` and
+                        `useGameAccent`. `<GameColoursWarmup>` in the root
+                        layout reads it before the first game page opens
     use-game-soundtrack a game's soundtrack on SoundCloud: the one query the
                         Soundtrack tab, the soundtrack screen and Surprise Me
                         share. Never persisted
@@ -575,8 +762,19 @@ src/
                      sort.ts for in-memory ordering, recommend.ts for
                      "Games for you" (your logs → IGDB similarity),
                      itad.ts for storefront prices,
-                     steamgriddb.ts for square (1:1) cover art — artwork
-                     only, never a catalogue; see the note below.
+                     facets.ts for a game's genres, themes, modes,
+                     perspectives, engine, series, franchises, languages and
+                     age ratings as ways to more games: the clause, the fixed
+                     lists, the route params. Pure, tested.
+                     storefronts.ts for which official stores a game is on
+                     (IGDB's websites and external_games) and which ITAD
+                     price goes with which store. Pure, tested.
+                     steam-store.ts for a game's Steam page — its awards and
+                     its events — through the steam-store function,
+                     steamgriddb.ts for square (1:1) cover art and animated
+                     grids — artwork only, never a catalogue; see the note
+                     below. animated-covers.ts finds a game's animated cover:
+                     SteamGridDB, then IGDB.
                      browse.ts for what is browsed rather than searched by
                      title: the platform directory and a platform's games by
                      page, studios by name, events, a year of releases.
@@ -644,6 +842,11 @@ src/
     discovery.ts     a chart's periods, the line that says why somebody is in
                      one, which review a game leads with, the reviews sheet's
                      language choices. Pure, tested — and its test reads 0038
+    community-rating.ts  the community score's method as a TypeScript
+                     reference: entropy, deviation, the weight, the weighted
+                     mean, the parameters, and a weight in words. Pure,
+                     tested; the SQL in 0041 is the authority, this is what
+                     it is checked against. See § The community score
     device-locale.ts the languages the phone is set to, from React Native's
                      own modules (no `expo-localization`)
     reading-languages.ts  the reader's choice of languages, kept on the device
@@ -652,6 +855,36 @@ src/
                      Pure, tested. games/onboarding-picks.ts sends it to IGDB
     event-phase.ts   upcoming / live / over, whether the games are shown, the
                      countdown. Pure, tested
+    review-quote.ts  a review's one sentence: its cap (QUOTE_MAX), what a card
+                     shows (`cardShows`), `hasWriting`. Pure, tested
+    review-details.ts  how a review's run was played, as the sentence under
+                     it on its page, and "16th October 2026". Pure, tested
+    quote-layout.ts  a quote's lines and its marks, placed. Pure, tested
+    review-highlight.ts  the share sheet's highlighter as data: the
+                     review's words and breaks, their layout, the word under a
+                     finger, a pick's lines on the card. Pure, tested
+    inter-advance.ts Inter Regular's and Bold's advance widths, read from the
+                     font files: text laid out before it is drawn
+    review-colour.ts whether a review's page wears its game's colours, kept
+                     on the device per account (`useReviewColour`)
+    game-colours.ts  whether every game screen does — Settings → Game
+                     colours — kept the same way (`useGameColours`)
+    animated-artwork.ts  whether covers move by themselves — Settings →
+                     Animated artwork — kept the same way
+                     (`useAnimatedArtwork`)
+    artwork-mesh.ts  SimpMusic's Apple Music page as data: a cover averaged to
+                     a 6×6 grid, lifted, shifted, smoothed, blurred, and
+                     written as a BMP. Pure, tested
+    surprise-prefetch.ts  Surprise Me's media rules: a card's shape, and what
+                     is fetched ahead within a byte budget. Pure, tested
+    top-chart.ts     Search's Top 1000 as rules: a thousand at most, pages of
+                     twenty, the critics' floor of seven, what a score is made
+                     of. Pure, tested
+    typing.ts        the letter-at-a-time clock onboarding and a review's
+                     quote share (`lib/onboarding` re-exports it)
+    testkit/         node-only helpers for tests (Inter's advance widths read
+                     from the font file). Excluded from tsc; never imported by
+                     the app
     api/             everything that talks to Supabase, split by domain
       core.ts        games cache, logs, profiles, follows, achievements,
                      the reviews sheet
@@ -659,6 +892,10 @@ src/
       lists.ts       lists, tier lists, favourites, wishlist
       awards.ts      award shows: the ballot and its slots
       progress.ts    progress writes and playthroughs
+      ratings.ts     the community score: `getRatingBreakdown` (one row of
+                     0041's `game_ratings`, or the plain mean before it), the
+                     reader's own influence, the moderators' report, and
+                     `invalidateCommunityRatings`
       physical.ts    releases, barcode lookup, claims, moderation, copies
       similarity.ts  community similar games: pairs, votes, reports
       reports.ts     reports on suggestions and reviews, and their queues
@@ -705,13 +942,23 @@ supabase/
                      period, a damped average,
                      0038 discovery: logs.review_lang, circle_of(),
                      review_popularity() and member_popularity() — activity
-                     in a period, among everybody or the reader's circle
+                     in a period, among everybody or the reader's circle,
+                     0039 the Steam store page cache (awards, events),
+                     0040 logs.review_display — a review's cards show its text
+                     or its one sentence,
+                     0041 the weighted community score: rater_stats,
+                     game_ratings, community_rating_state, the triggers on
+                     logs, and 0026's and 0037's functions weighted
                      (0006, 0015, 0019 and 0022 each add an enum value and must
                       run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
   functions/opencritic/  what critics wrote and scored (snippets, per outlet);
                      IGDB has none. Caches its answers in 0035
   functions/itad/    Edge Function proxying IsThereAnyDeal (prices)
+  functions/steam-store/  a game's Steam store page: the Awards section out of
+                     its HTML, and its events & announcements. Caches in 0039
+  functions/_shared/steam-store.ts  the parser for both. No imports, so
+                     `npm test` loads it against real page excerpts
   functions/scandex/ Edge Function proxying ScanDex (barcode → IGDB game)
   functions/soundcloud/  a game's soundtrack on SoundCloud, and a stream for
                      one track. Holds the client secret and the app's token
@@ -770,11 +1017,16 @@ for 2:3, so the crop cuts the logo. `lib/games/steamgriddb.ts` is not a provider
 and must never become one: nothing there may put a game *into* the app, only art
 onto a game already in it.
 
-**Exactly three surfaces use it**, all through `useSquareCover()`: Surprise Me,
-a review's own page — built as Surprise Me is: the art at 84% of the width, its
-title and two round actions under it, the portrait at the same height when
-there is no square (`app/review/[id].tsx`) — and **the hero at the top of a
-collection's own screen**: the one cover `<CollectionHeader>` draws.
+**Its static square has three surfaces**, all through `useSquareCover()`: Surprise Me,
+a review's own page — the square as the hero at its top, full width and
+fading into the page, the landscape art or the cover cropped in its place
+when there is no square (`app/review/[id].tsx`, § A review in one sentence) —
+and **the hero at the top of a
+collection's own screen**: the one cover `<CollectionHeader>` draws. Its
+**animated** grids are a separate lookup with surfaces of their own (§ Animated
+covers): the square on Surprise Me and a review's page, the portrait on
+Surprise Me and in the game page's cover viewer, and both on onboarding's
+example cards.
 
 **A collection is square in exactly one place — the hero you see after tapping
 in — by the owner's decision, the fourth one on this.** The picture used
@@ -1005,6 +1257,160 @@ Commons — only ever a verified public-domain or CC0 file:
 - Everything fails to the name: no item, no free logo, a rate limit, no
   network, an image that will not load.
 
+**The artwork plays its game's trailer** — SimpMusic's animated artist artwork
+(`ArtistScreen.kt`, `artistMotion`), at the owner's direction (2026-10-17): on
+the studio page's banner (the banner game's) and on the game page's hero. The
+game's official trailer from its Steam listing loops silently under the art
+(`<TrailerBackdrop>`, `<TrailerVideo>`, `lib/games/steam-trailer.ts`,
+`use-game-trailer`):
+
+- **Steam, not IGDB**: IGDB's trailers are YouTube ids, playable only in
+  YouTube's own player. Steam serves plain H.264 HLS, no key, CORS open. A
+  console exclusive has no Steam listing and keeps its still art.
+- **The app picks the rendition** (SimpMusic's rule): H.264, the cheapest at
+  least 720 tall — and the *video's own playlist*, never the master, so the
+  separate audio track is never downloaded. About 1.1 Mbps measured, ~17 MB
+  for a two-minute pass.
+- **The art stays on top until the first frame**, then fades over 500ms; a
+  slow or failed stream leaves the picture. On the game page the video
+  dissolves into the page by a gradient on the art mask's own curve — a video
+  surface does not render inside a mask on Android. On the studio page the
+  page is **near black** with the art's hue as a trace (`nearBlackBackground`,
+  `depth: 'black'`), so a letterboxed trailer's bars meet it without an edge.
+- **The player exists only while its page is in front**: a covered page
+  unmounts it, releasing the decoder — a stack of game pages holds one player,
+  not one each (phones have a handful of hardware decoders). It pauses once
+  the art is scrolled away, stops itself in the background, and is never
+  mounted under Reduce Motion. Muted, `mixWithOthers`, a 6s buffer.
+- **`surfaceType="textureView"`, never the default `surfaceView`**: a
+  SurfaceView is a hole punched through the window, and Android 12's stretch
+  overscroll moved the page without it — the video flickered over the UI and
+  parts of the page vanished at the end of a scroll. A TextureView is drawn
+  inside the page and moves with it.
+- **The answer is kept a day** (the owner's), "no trailer" included, on the
+  device like any query; a failure is not. The appid rides on the game page's
+  own `['game-extras']`, so it costs no IGDB request.
+- **One switch for both pages**, the disc at the top right, kept per account
+  on the device (`lib/trailers.ts`, `NEVER_PERSIST`). Drawn only when the game
+  has a trailer.
+- **`expo-video` is a native module and is imported only through
+  `React.lazy`**: it calls `requireNativeModule` on import, so a build made
+  before it was added draws the still art instead of crashing. Expo Go has
+  it; a sideloaded APK needs a new build. Not seen on a phone.
+
+## Animated covers
+
+The owner's request (2026-10-20): where a game has an animated cover, show it
+— the square on Surprise Me and a review's page, the portrait on the game page
+once its cover is tapped. Then (2026-10-21): higher quality ("like 720p"),
+animated portraits on Surprise Me too, a viewer redesigned round the cover,
+the choice asked at sign-up, and Surprise Me's loading planned by media type.
+The still is always on screen first; the animation crossfades in (200ms)
+once it has a frame.
+
+- **Sources, both verified live**: SteamGridDB's v2 grids with
+  `types=animated`, the shape's sizes (`SGDB_DIMENSIONS`) and nothing NSFW or
+  flagged for epilepsy (`getAnimatedGrids`) — `/api/public/files`, which the
+  request named, is a 404 — then IGDB's `covers` where `animated = true` and
+  the shape matches (portrait: taller than wide; square: within 1%). IGDB has
+  **51** animated covers in its whole catalogue, mostly small and landscape,
+  so it is a rare second chance. `covers` was already on the function's
+  allowlist; no deploy.
+- **Which file plays: the full animation, every grid's, before any preview**
+  (`sgdbCandidates`). A SteamGridDB animated grid is the animation as a WebP
+  or an APNG (`url`) *and* a WebM (`thumb`) — and the WebM is a **267×400
+  preview** (ffprobe, live), which Android played until 2026-10-21 and which
+  is the "low quality" the owner saw. Now every grid's full file (600×900 for
+  a portrait, 512 or 1024 square) is HEAD-checked against
+  `MAX_ANIMATED_BYTES` (**12 MB**, up from 8) and the first that fits wins;
+  only when none does is the preview played (never on iOS, which has no
+  WebM). Measured over twenty well-known games' portraits, the walk finds a
+  full file for nineteen. The HEAD's size rides on the answer (`bytes`), and
+  whether it is `full` or a `preview`. IGDB's is its **`.webp`** at `t_720p`:
+  its `.png` is the first frame only. The cache is `animated-cover:v2` — v1's
+  answers named previews.
+- **No new dependencies.** expo-image already decodes APNG, animated WebP and
+  GIF on both platforms and expo-video is linked for trailers (§ APK size).
+  expo-video is imported through `React.lazy` only (`ui/animated-cover-video`).
+- **Asked once per game and shape, and remembered** — the owner's rule: "If
+  the user has already seen that no animated cover exists for this game… the
+  animated query is not done every time." `use-animated-cover` is a module
+  store kept in AsyncStorage for a month, **"none" included**. A file that
+  will not play is "none" for the session and logged, never written to disk.
+  `enabled: false` holds the lookup but still reads a known answer.
+- **Animated artwork is a setting** (`useAnimatedArtwork`, Settings and
+  onboarding; on by default, kept per account on the device). Off, Surprise
+  Me and a review's hero are still and look nothing up. The game page's
+  Animated button is `explicit` — somebody asking by hand — and works either
+  way.
+- **Never under Reduce Motion**, **only while the screen is focused**, and
+  **one at a time** (`useCoverPlayback`). Either kind is mounted only while
+  its cover is the one playing — a covered cover holds no decoder and its
+  download is cancelled; `paused` holds it on its frame (Surprise Me, under a
+  finger).
+- **The review page draws it subdued**: at 0.6 over the page's colour, under
+  the hero's own veil and fade — about 0.4 of full strength.
+- **The game page's viewer** (`<CoverViewer>`, 2026-10-21): "the artwork
+  must be full-size zoomed in to the edges of the screen… the space left
+  below should be filled with the same effect that SimpMusic uses for their
+  Apple Music Now Playing screen… a button for 'static' or 'animated'. Only
+  fetch animated when the user taps on the animated button… text alone, in
+  bold. Not inside a pill or a container. Static above and Animated below."
+  - **The cover runs edge to edge from the top of the display**, at its own
+    proportions; a display too short to leave room for the two words under
+    it takes width off the cover instead.
+  - **Under it, SimpMusic's Apple Music page, ported from its source**
+    (`AppleMusicMeshBackdrop.kt` → `lib/artwork-mesh.ts`,
+    `<ArtworkMeshPage>`): the cover's 90×128 thumbnail averaged to a 6×6
+    grid read from the foot up, lifted, every row but the first shifted and
+    mirrored by a seed, smoothed, hung from the cover's foot with the first
+    row held behind it, and a 6%→30% scrim. **One departure**: the reference
+    blurs the page 44dp at draw time; there is no blur here (no Skia), and
+    without it the cells read as blocks (seen on a contact sheet of four
+    real covers), so the 64×64 texture is Gaussian-blurred in JavaScript and
+    drawn as a BMP data URI the platform stretches. The page is drawn again
+    over the cover's last eighth inside a mask, so the cover dissolves into
+    it — the reference's own method, the one that works over a video. The
+    mesh is the still's: with Animated on, the page keeps the box art's
+    colours. A wash under the status bar is as dark as the cover's top is
+    bright (16–65%).
+  - **Static / Animated**: bold `h2` words on the page, nothing round them,
+    the chosen one at full ink. Nothing is looked up until Animated is
+    pressed; a line under it says "Looking for one…", "Loading the
+    animation…" until its first frame, or "This game has no animated cover"
+    — which a known answer says before anybody presses. Unavailable under
+    Reduce Motion, and it says so. The words are white unless white would
+    not hold 3:1 on the mesh (`whiteHoldsOn`).
+  - A copy of the cover in a modal, transformed from the masthead cover's
+    measured place and transitioned (Reanimated CSS, 300ms) to rest, its
+    corner going to none; the close key, back and a tap on the page reverse
+    it. The cover is the 1080p one over the page's `t_cover_big`.
+- **Surprise Me plays portraits too** (`<SurpriseCardArt>`,
+  `chooseCardShape`): an animated square, then an animated portrait, then
+  the still square, then the box — full-size animations before previews, so
+  Hades' sharp portrait beats its soft square. The card waits up to 1.2s for
+  the answers, then draws what is known, and keeps that shape for the session.
+- **Surprise Me loads by media type** (`lib/surprise-prefetch.ts`, the
+  owner's brief): what the next two cards are is looked up first (the
+  metadata — square, animations, their weight); stills for up to five cards
+  ahead are prefetched within a 2.5 MB budget; a light animated image (≤ 1.5
+  MB) only with the next card; a heavy one or a video only once its card is
+  in front and the deck has rested 200 ms; nothing while a finger is on the
+  deck; and a card swiped away drops its animation and its download.
+  `<SquareArt>` caches under its own address so a prefetch lands where it
+  reads.
+- `<AnimatedCoverImage showNotFound>` draws "No animated cover found" over
+  the cover; no screen passes it.
+
+**Not seen on a phone.** Types, lint, `npm test` (`lib/animated-cover`,
+`lib/artwork-mesh`, `lib/surprise-prefetch`) pass; the sources and sizes were
+checked live and the mesh was rendered from four real covers. To judge on a
+device: that a BMP data URI draws stretched and smooth through expo-image on
+both platforms (Glide and ImageIO both decode BMP; if a platform refuses it,
+the page is the game's colour and nothing else breaks), the 600×900 WebP's
+decoding cost on an older Android, the mask over the cover's foot, and the
+zoom's feel.
+
 ## Search: six tabs under one field, and three pages behind it
 
 The Search tab is **a field with six tabs under it** (`<TabBar>`): Games,
@@ -1031,7 +1437,7 @@ list.
   reference (2026-10-09), in the app's materials (`<DiscoverFeed>`). Top to
   bottom: the slider, then four rows of games — Popular this month, Similar to
   (the game you reviewed last), Beloved by the community, Highly rated — then
-  Browse by genre. Every one is a heading on the page with its content under
+  the Top 1000, then Browse by genre. Every one is a heading on the page with its content under
   it, thirty-two apart. Typed, it is the results. **No collections here**: a
   band of the most-liked ones closed the page and the owner had it removed
   from the Games tab — the Collections tab shows the same list. Three owner
@@ -1087,6 +1493,34 @@ list.
   period's mean), so one 100 does not top thirty 94s and a week with four
   ratings still has a row. `null` from the query means the database has not
   run 0037 and the row is absent; an empty period says so and keeps the control.
+- **The Top 1000** (`<TopChart>`, `lib/top-chart`, pure and tested) — the
+  owner's request (2026-10-20): "a chart widget on the search home screen and
+  show a ranking of best reviewed games on gamelog and a toggle for critic
+  review sorting. Use pages and show 20 per page. It's a top 1000 games." A
+  heading, a line saying what ranks it, two pills (GameLog / Critics), twenty
+  ranked rows — rank, box, title, developer · year, the score in the ramp's
+  colour over "3 ratings" / "27 critics" — and `<Pager>` under them; a page
+  turn brings the heading back to the top of the screen. Each ranking keeps
+  its own page. Things that are easy to get wrong:
+  - **GameLog's is "Beloved" over all time**: `beloved_games` (0037, weighted
+    by 0041 when it runs) with `p_since` at 1970 and `p_limit` 1,000 — one
+    request for the order (`getGameLogRanking`), and the page's boxes from
+    `games` for its twenty ids (`getGameLogChartPage`). The damped order is
+    deliberate: one 100 does not top thirty 94s. The live project has 55
+    rated games, so it is three pages today. `null` (no 0037) says the chart
+    arrives with the database's next update; none rated says so.
+  - **The critics' is IGDB's `aggregated_rating`**, the number the reviews
+    sheet shows when OpenCritic has nothing to quote — OpenCritic is a
+    request per game and cannot rank a thousand. A game needs seven critics'
+    scores (`CRITIC_FLOOR`) and a cover, and must be a game as a platform's
+    page counts one. 1,635 qualified, live, on 2026-10-20; page 50 answers.
+    Its length is `games/count`, capped at 1,000 and kept a day.
+  - **Rows on the page, hairlines between them — not a card.** "Widget" is
+    the owner's word for a profile section, which is not a card either, and
+    Discover's bands stand on the page by their ruling.
+  - **Ties at IGDB are ordered by IGDB.** APIcalypse takes one sort field, so
+    two games on 75.3 may swap between requests; a page boundary between
+    them could show one twice or skip one. Not seen; not guarded.
 - **The field folds away as the page is read; the tabs never move**
   (`<CollapsingField>`) — the owner's direction (2026-10-15), after SimpMusic's
   Home, whose top bar is an `AnimatedVisibility(visible = isScrollingUp)` over
@@ -1114,6 +1548,70 @@ list.
   `games!inner` — verified live. Untyped, it is the chart: the reviews people
   responded to in a period (§ Discovery). **Typed, nothing is narrowed by
   language** — a search is somebody asking for a thing by name.
+- **Untyped, Reviews and Collections are two sections each** — the owner's
+  request (2026-10-20): "Latest reviews on review tab and most popular
+  collections + latest collections". Reviews: the chart's first three
+  (`CHART_PREVIEW`) under its own heading and period, "See all popular
+  reviews" to `/reviews?period=…` (the same chart, opened on the same
+  period), then **Latest reviews** — everything with writing, newest by
+  `created_at` (the time the card prints), a page of twenty at a time as the
+  list scrolls (`getLatestReviews`, keyset on `created_at`), **in the
+  reader's languages** with its own `<ReadingNote>`, because it is a list
+  the app picks. Collections: **Most popular**'s first three and "See all"
+  (`/collections`), then **Latest collections** — authored kinds with a game
+  in them, newest first (`getLatestCollections`: `list_items!inner` drops the
+  empty ones, verified live). Each section loads and fails on its own; a
+  section with nothing in it says so in a sentence and keeps its heading.
+  Keyed `['latest-reviews', languages]` (the log form and a moderator's
+  removal invalidate it) and `['lists', 'latest']` — under `['lists']` so
+  the eight places that already invalidate that prefix cover it.
+- **A facet's games are the Games tab's, and a facet is in the route** — the
+  owner's request (2026-10-16). A game's details card makes every value — a
+  genre, a theme, a mode, a perspective, the engine, a series, a franchise, a
+  language, an age rating — a bold link, and pressing one `navigate`s to
+  `/search?facet=theme&facetId=20&facetName=Thriller`; "Search by" sets the
+  same params (`facetParams`, `facetFromParams`, `lib/games/facets.ts`). The
+  Games tab then shows **every game that facet holds** — not only the
+  most-rated: the owner (2026-10-16), "all, even the most obscure games and a
+  game released a minute ago" — through `<CatalogueResults>`, which is the
+  platform page's system: ten to a page, an exact count, the pager, and
+  menus for the order (`CATALOGUE_SORT_OPTIONS`, shared with `platform/[id]`,
+  including "Recently added", IGDB's `created_at`), the platform
+  (`PLATFORM_GROUPS`) and rows or a grid. Typing narrows it to names holding
+  the word (`name ~`, not `search`, which refuses a `sort` and a count).
+  `getCatalogueGamesPage` / `getCatalogueGameCount` (`lib/games/browse.ts`)
+  are the platform functions over any clause. Things that are easy to
+  break:
+  - **`navigate` pops the game page**: the Search tab is under it in the root
+    stack. Back from the results does not return to the game. A pushed copy
+    of Search would keep it, at the price of a second tab navigator in the
+    stack; that was not done.
+  - **What is typed and "Search by"'s choice belong to a facet** (`owner`), so
+    a facet arriving from a game's page starts on its own games and not on
+    whatever was left in the field — without an effect, which the React
+    Compiler rules forbid for this.
+  - **Four vocabularies are literals** — themes (22), game modes (6),
+    perspectives (7), languages (28) — because their endpoints are not on the
+    `igdb` allowlist; they were read off the live catalogue through `games`.
+    Genres are fetched. Engines are searched *through `games`*
+    (`game_engines.name ~ *"…"*`, tallied), series and franchises through
+    their own allowed endpoints.
+  - **A series is `collections`, plural.** IGDB no longer answers the
+    singular: `collection = 106` is empty, `collections = (106)` is Zelda.
+    `getGameExtras` and `getCollectionGames` still ask for the singular, so
+    the game page's series rail has been falling back to the franchise all
+    along. Left as it is — fixing it changes which games that rail shows.
+  - **Facet answers are under `['search', …]`**, so they are never written
+    to the device (`NEVER_PERSIST`).
+  - **The only floor is what a "game" is** (`PLATFORM_GAMES`: no repackages,
+    DLC, bundles, mods, episodes or updates) — the same as a platform's page.
+    No cover or rating is required, so obscure entries come with blank art.
+- **"Search by" answers the field being touched** in the Games tab: Game,
+  Genre, Theme, Perspective, Game mode, Engine, Series, Franchise, Language
+  (`<SearchBy>`), over the recent searches. A kind chosen shows its values
+  matching what is typed (`<FacetPicker>`); a title typed in plain Games mode
+  offers the genres, themes, perspectives and modes whose names it matches,
+  as pills over the games (`<FacetSuggestions>`).
 - **Every scope is its own component and takes the settled query** — except
   Platforms, which takes the field's text as it stands, because it filters ~220
   names already in memory.
@@ -1429,6 +1927,104 @@ decides: what `deviceLocales()` actually returns on the owner's phone, how
 the period control and the language note sit in the People tab's headings,
 and the Settings panel with thirty-nine chips in it.
 
+## The community score: a weighted average (0041)
+
+The owner's brief (2026-10-20, a long specification pasted with the Search
+request): a game's GameLog score becomes a **weighted average of every rating**,
+after analyses of Phish.net's show ratings — some rating patterns carry less
+information about how one game compares with another, and a weighted mean
+can give them a little less influence without discarding anything. The brief
+named its parameters (10 and 30 ratings, 0.15, 97.5, 0.15 / 0.30, 0.70) and
+its non-negotiables; the Phish.net posts themselves answered automated
+readers with 403 and were **not read**, so nothing here claims to restate
+them.
+
+**The method** is `lib/community-rating.ts`'s docblock, in eight steps; in
+one breath: a person's weight is 1.00 unless their ratings rarely vary
+(normalised Shannon entropy over five fixed 20-point bands under 0.15: up to
+0.85) or rarely vary *and* sit further from everybody else's than 97.5% of
+comparable people's (leave-one-out, on games with 3+ other raters, once 40
+people have 10 such games: up to 0.70); the adjustment grows linearly from
+nothing at 10 ratings to all of it at 30; the score is Σ r·w / Σ w.
+
+**The authority is the SQL; the TypeScript is the reference.** Migration 0041
+computes everything in Postgres from `(user_id, game_id, rating)` and the
+parameters in `community_rating_params()`; `lib/community-rating.ts` is the
+same algorithm, which `npm test` holds to the brief and
+`scripts/community-rating-sql.mjs` holds the SQL to — every statistic, weight
+and score, on a database seeded *before* 0041 ran. Nothing on the phone
+computes a score.
+
+What is easy to break:
+
+- **The parameters live twice and must agree.** The JSON literal in
+  `community_rating_params()` and `COMMUNITY_RATING`;
+  `community-rating.test.ts` parses the one and compares it with the other,
+  and reads the `weight between 0.70 and 1.00` CHECK. A change to any number
+  is a new migration that bumps `version`, then both scripts.
+- **No time, no reviews, no counts of anything else are inputs.** Never a
+  date, a login, account age, a review, followers. `RatingRecord` has three
+  fields; the test scans 0041's weighting SQL for `created_at`, `updated_at`,
+  `interval` and `review`, and for any `cron.schedule`. Beloved's *period*
+  is a chart's window (0037), not anybody's weight.
+- **Ten ratings or fewer is always 1.00, and nothing is ever 0.** The signals
+  only exist past ten ratings; the floor is 0.70 in the function and in the
+  table's CHECK. High deviation alone costs nothing — the harness has a
+  contrarian who is the most different person in the room and counts in full.
+- **Statistics are rounded to six decimals before a threshold or a rank reads
+  them**, in both implementations, and the SQL sums in `numeric` (exact,
+  order-independent) — so a recalculation is deterministic and the two
+  implementations agree except within 1e-12 of a sixth-decimal boundary. The
+  TS reference sorts its records first (`canonicalOrder`): a floating-point
+  sum depends on order, which is what its determinism test caught.
+- **The score is never rounded until it is drawn** (`clampScore`), and the
+  verdict word, its colour and its figure are read off the *rounded* number:
+  an unrounded 54.6 beside the "55" it prints would otherwise read "Mixed".
+  `RatingBreakdown.average` is the unrounded weighted score.
+- **Consistency.** Statement-level triggers on `logs` (insert / update /
+  delete, with transition tables) fire on a change to who rated what, or how
+  much — a status edit does nothing. Up to 5,000 ratings a change recalculates
+  everything inside the save, so after it commits no screen can read a stale
+  number; above that, the changed games at once and the weights within 15
+  minutes (the next save after that, or a pg_cron job — 0041's header has the
+  line). An advisory transaction lock serialises recalculations against lost
+  updates. Measured in PGlite: one save 0.3 s at 10k ratings and 0.9 s at 25k
+  on the full path, 23 ms on the per-game path — which is where 5,000 came
+  from.
+- **The client caches every score as one family**: a rating write calls
+  `invalidateCommunityRatings` (the seven roots under § Conventions, query
+  keys). The progress sheet's delete did not refresh the score at all before.
+- **Who sees what.** `game_ratings` is public except `weight_sum` and
+  `effective_raters` (column grants: on a one-rater game the weight sum *is*
+  that person's weight) — so it is selected by named columns, never `*`.
+  `rater_stats` is its owner's alone (`my_rating_influence()`), moderators get
+  aggregates only (`community_rating_report()`), and no client can write any
+  of the three tables or call the recalculation (moderators have
+  `recalculate_community_ratings()`). The breakdown's groups carry a weighted
+  mean and, for platforms, a share of the game's weight — never a weight sum.
+  Weighted means over public ratings do let a determined reader infer weight
+  *ratios* on a game with two or three raters; that is inherent, and said in
+  0041's header.
+- **Words.** The explanation never describes a person: "ratings that rarely
+  vary", never "unreliable". `explainInfluence` writes the personal part and
+  its test checks for a list of judging words.
+
+**What it changed on the live data: nothing, today.** A read-only dry run
+(`scripts/community-rating-report.mjs`, 2026-10-20): 59 ratings by 3 raters of
+55 games; no rater has a comparable rating (no game has 3+ other raters), so
+the deviation signal is unavailable; nobody's ratings are concentrated enough
+for the entropy signal (0.688, 0.491, and one rater with a single rating); so
+every weight is 1.00 and every score equals its plain mean — under the
+configured parameters and every variation in the script's sweep. The method
+starts to matter as the community grows; until then it is the plain mean, by
+construction.
+
+**Not applied to the live project, and not seen on a phone.** Types, lint,
+`npm test` and the PGlite harness pass. Still to do on the owner's side: run
+0041 in the SQL editor (it weights every existing rating as it runs). Concurrent
+saves were not exercised — PGlite has one connection; the lock is argued in
+0041's header.
+
 ## Loading: SimpMusic's rules, on TanStack Query
 
 How the app loads was rebuilt after reading how SimpMusic does it — its source,
@@ -1486,7 +2082,8 @@ What follows from them, and is easy to get wrong:
   Return ISO strings and arrays from a `queryFn`.
 - **Bump `CACHE_VERSION` when a query's shape changes incompatibly** (a field
   renamed, an array that became an object). Rows of another version are dropped
-  unread. Adding a field needs no bump. It is 3. The first bump was not for
+  unread. Adding a field needs no bump. It is 4 (the fourth bump is the
+  community score's: § The community score). The first bump was not for
   shape but for *content* — every saved game named the old hero image (see
   § Artwork), and its page would have opened on an upscaled icon until the
   fresh record arrived. **The second is what forgetting this rule costs:** a
@@ -1566,14 +2163,21 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
   row of covers (§ Conventions, rows of games).
 - **`<MemberReviewCard>` is a game's own screens**: the one card on the game
   page's Overview (the most liked review) and every row of the reviews
-  sheet. The owner's direction (2026-10-09): "keep the current card style and
-  material color, but the content inside the card should replicate" a review
-  on a film's page in Letterboxd. So the card is the one it replaced — the
-  fill, the 8dp corner, the inset, the shadow; the game's dark tone on its
-  page, the app's neutral `surface` in the sheet — and inside it: the writer's
-  face at the left, their name with **the score and the reply count at the far
-  end of that line**, the words (`reviewExcerpt`, `proseInk`), then the likes.
-  A spoiler notice takes the words' place. Three things that are not in it:
+  sheet. **Its layout is the owner's second reference** (2026-10-20, "for the
+  review sheet: look at the second image" — a music app's review card): the
+  words first and alone (`reviewExcerpt`, `proseInk`), **a rule under them**,
+  then the writer along the foot — a 28dp face, the name in `text` (the
+  brightest thing in the row, as the reference measures it: ~#D0D5DD against
+  the writing's ~#99A3AE), and the score as **the number and its verdict word**
+  (`<ScoreLine>`) where the reference sets stars. The likes and the replies sit
+  at the far right of that row, where the reference puts a chip. The fill is
+  still the caller's — the game's dark tone on its page, the app's neutral
+  `surface` in the sheet — and the corner is now `Radius.review`, shared with
+  `<LogCard>`. A spoiler notice takes the words' place. Twelve above the rule
+  and eight below, measured off the reference. It replaced the Letterboxd
+  arrangement of 2026-10-09 (face at the left of the words, name and score
+  across the top, the likes on a line of their own); nothing it carried was
+  dropped, only reordered. Three things that are not in it:
   - **No stars.** A score is 0–100, the number in the score ramp's colour.
   - **No orange heart beside the score.** In the reference it means the writer
     marked the film as liked; GameLog records no such fact about a game. The
@@ -1585,16 +2189,61 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
   score, the outlet printed under it by its rail — and the card a copy's screen
   shows its owner's review in. It was the member's card too ("text, a name and
   a score, and nothing else") until the change above; do not put a member's
-  review back in it. Surprise Me keeps `<ReviewCard>`.
-- **A flat card, almost the colour of the page.** One solid fill (`reviewCard`,
-  `#111419`) — the page three levels darker in each channel, 1.03:1 — corners
-  just taken off (`Radius.lg`, half the app's card corner) and the card shadow.
-  Nothing is drawn on it. It is *not* `surface`, which sits a step above the
-  page; this sits a step below.
+  review back in it. **Surprise Me draws `<MemberReviewCard>` too**, at three
+  lines, the owner's "literally the same one" (2026-10-16); `<ReviewCard>` was
+  deleted with that.
+- **A flat card, one step above the page** (2026-10-20). One solid fill —
+  `surface`, the owner's `#1B1F28` on their `#14171C` page, 1.089:1 — the
+  corner measured off their references (`Radius.review`, 12), **a 1dp hairline
+  edge in `border`** as both references draw one, and the card shadow. Nothing
+  else is drawn on it.
+  It was the other way round for several months: its own near-black
+  `reviewCard` (#020306 by the end), a shade *under* the page, with no edge.
+  That token is deleted — the owner gave one colour for every card — and the
+  "a block of content never takes an edge" rule is lifted for this card and
+  this card only (§ Conventions, actions and choices).
 - **A collection's card is this card**, at the owner's direction ("the same
   card as the review card in the home page"): `<ListTile>` restates the fill,
   the corner, the inset, the twelve between parts and the shadow. Change one
   and change the other. See the bullet on collections under § Conventions.
+- **Every card in the app is this card** — the owner's direction
+  (2026-10-20): "make all the cards in the app with that style of the review
+  ones, with the same size and corner ratio and stuff. Even the ones in the
+  game page." The material is `components/ui/card-material.ts`, once:
+  `cardShape` (`Radius.review`'s corner, the 1dp hairline's width, the card
+  shadow), `CARD_INSET` (15), `CARD_GAP` (12) and `useCardMaterial()` for the
+  fill and the edge. `<Card>`, `<SectionCard>` / `<InfoCard>` (every section
+  card on a game's Overview), `<Panel>` (Ratings, On GameLog, Played by),
+  `<MemberReviewCard>`, `<ReviewQuote>` (the critics' card), Surprise Me's
+  review shell, the game page's own-log block, an award slot, the log form's
+  and Surprise Me's cards of rows, and the screens' own content cards
+  (moderation, playthroughs, copies, submissions, the scan and release forms'
+  game rows, the library's two ends, the captioned board's tiles, the genre
+  tiles) all read it. `Radius.card` *is* 12 now, so anything card-shaped that
+  is not a content card (a notice, a selection card, a menu row) has the same
+  corner; `cardLarge` (18) and the section metrics' scaled 8 / 16 are gone.
+  `review-card.test.ts` holds the two radii equal and fails by file if a card
+  is drawn with the old metrics again.
+  - **The fill follows the page, as this card's always has.** `surface` on
+    the app's own pages; on a game's page — built from the game's Material 3
+    colours — the game's dark tone, its `primaryContainer` at half
+    brightness, which is what the Overview's cards and its review card were
+    already filled with. A blue-grey card on a red game's page would be the
+    one foreign object there. With game colours off (Settings) a game's page
+    is the app's room and its cards are `surface` (`AccentRoles.tonal` is
+    what tells them apart). **This was a reading of "even the ones in the
+    game page", not a quote**: the shape, edge and inset moved; the colour
+    stayed the game's. If the owner meant `#1B1F28` on every game's page
+    too, it is the one line in `cardMaterialFor`.
+  - **A card that clips (`overflow: 'hidden'`) takes the corner and the edge
+    but not the shadow**: Android clips a view's elevation with its
+    contents. `<Card>` keeps two views for that reason; a card of rows drops
+    the shadow.
+  - **Not cards, and left alone**: rows of covers (never in a card — the
+    owner's ruling), the actions drawn as filled grey rows (Settings' rows,
+    the add-to-collection picker's), choices (`<SelectionCard>`, outlined),
+    sheets, menus, the Top 1000's rows (a list on the page) and the protected
+    game case.
 - **It was "black chrome" for one pass, and the owner took it off. Do not
   rebuild it.** The first build was a plate of near-black metal with a
   spotlight at its top centre, a sideways streak and a violet fringe, as one
@@ -1607,34 +2256,227 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
   box behind the words.
 - **The colour follows the page.** The card is on Home (`homeBackground`, the
   colour the owner tries things on) and everywhere else (`background`); the two
-  are the same hex today. Move either and move `reviewCard` with it, the same
-  three levels under; `review-card.test.ts` fails if the card drifts past
-  1.04:1 from either page or meets it, and checks the three inks on it at AA.
-- **The layout** — top row: picture, `@username`, the badge slot, the time
-  ("now", "12h ago", then a date after a week: `timeAgoPosted`). Body: 83×124
-  box art; beside it the title (bold, two lines at most), developer · year, and
-  `<ScoreTile size="small">` at the far end of that row — the square with the
-  number in it, which the score's drawing replaced for one build and the owner
-  put back (§ Score figures); under them up to three lines of the review,
-  straight on the card. **The art is exactly as tall as
-  the fullest column** (`ART_HEIGHT`), so a full review ends on the art's bottom
-  edge and every card is 194dp at the default font size (`LOG_CARD_HEIGHT`,
-  which Home's skeleton uses).
-- **Type**: `text` for the name, the title and the review; `textSecondary` for
-  the developer line; `textMuted` for the time, the quietest thing on the card.
-  Bold is the title and the score only. Upright, no quotation marks — the
-  reference sets a one-line quip in italics, and three lines of 13sp italic are
-  harder to read than the same three upright.
+  are the same hex today. `review-card.test.ts` holds `surface` to one
+  perceptible step above *both* pages (1.05–1.15), checks every ink on it at
+  AA, and — since the card moved up past where the ladder's middle used to be —
+  that the whole ladder still only ever climbs.
+- **The layout is the owner's reference** (2026-10-20, the three small cards:
+  "look at the round corner ratio of the card, the color, where the information
+  is at, the stars are gamelog's 71 + label score"). Three blocks, twelve
+  apart:
+  1. **The art and the billing**, side by side. 56×84 box art
+     (`ART_HEIGHT`/`ART_WIDTH`, as tall as a two-line title plus the credit
+     line plus the score, so the row never changes height with the title); then
+     the title (bold, two lines at most), developer · year, and **the score as
+     `<ScoreLine>` — "92 OUTSTANDING"**, the number and its verdict word in the
+     score ramp, where the reference sets five stars. The square
+     (`<ScoreTile>`) that was here is gone, as the score's *drawing* went
+     before it (§ Score figures). A log with no score shows its status word
+     there instead, which is the only thing that slot can say about it.
+  2. **The writing**, across the card's **full width** — it was beside the art.
+  3. **The writer**: a 24dp picture, `@username`, the badge slot, and the time
+     at the far end ("now", "12h ago", then a date after a week:
+     `timeAgoPosted`). The reference has no time there; the card has carried
+     one since the owner asked for it, so it kept its corner of the row.
+  **The card hugs the writing**: "when the review ends, immediately under is
+  the username" — the owner's one correction to their reference, whose cards
+  are a rail and stand equal-height. Nothing in the card grows to fill space,
+  so cards in a list are no longer all one height (`LOG_CARD_HEIGHT` is gone
+  with that; nothing read it since Home stopped drawing the card).
+- **Type**: `text` for the title and the review; `textSecondary` for the
+  developer line and the `@username`; `textMuted` for the time, the quietest
+  thing on the card. All four match the reference's own inks, measured (title
+  ~#E1E4EB, credit and handle ~#697581). Bold is the title and the score only.
+  Upright, with no quotation marks of its own — a quote brings its own drawn
+  marks, and three lines of 13sp italic are harder to read than the same three
+  upright.
 - **The badge slot is real and empty.** `badges` is a prop that renders between
   the name and the time; nothing is drawn today and no space is visibly
   reserved — the gap is what pushes the time to the far end.
+- **The writing may be the review's one sentence**, between drawn marks,
+  when its writer chose that for their cards (§ A review in one sentence).
 - **It carries a time, and nothing else about the response to it.** No like,
   headline, playthrough strip or report flag — those are on the review's page.
 - **Three targets**: picture and name open the person, the art opens the game,
-  the title and the writing open the review. A spoiler notice takes the
+  the billing and the writing open the review. A spoiler notice takes the
   review's place and is its own button.
-- **Not yet seen on a phone.** It was checked on a still rendered with the real
-  font and a real cover, not on a device.
+- **Not yet seen on a phone.** Both cards were checked on a still rendered
+  from the real tokens and Poppins' real advance widths, and the references
+  were measured pixel by pixel (their page is `#14171C` and their card
+  `#1B1F28` exactly, which is where the owner's two hexes come from). Nothing
+  about either has been judged on a device.
+
+## A review in one sentence, and its image
+
+The owner's direction (2026-10-16), with three mock-ups: the review's headline
+became **"Describe the game in one word or sentence"** — a quote — drawn
+between large quotation marks; the review page lays the score beside it; the
+writer chooses whether their cards show the quote or the text; and a review can
+be made into an image to save or send, after SimpMusic's lyrics card.
+
+- **The quote is `logs.review_title`, reused.** It already held one line of the
+  writer's words and every reader, search and report read it; 0040 adds only
+  `review_display`. A review is now the sentence, the text, or both — the
+  form's old "a headline and a body, all or nothing" is gone. **Whether a log
+  "has a review" is `hasWriting`**, never `review` alone: the top review, the
+  reviews sheet, Search, a profile's Reviews tab, Home's activity and the
+  "Similar to" seed all ask that now, and a query spells it
+  `.or('review.not.is.null,review_title.not.is.null')` (`HAS_WRITING`). A
+  second `.or()` on the same request is ANDed with it — verified live.
+- **85 characters** (`QUOTE_MAX`): the owner asked for "no more than 3 lines…
+  in the surprise me screen". It was measured with Inter's own advance widths
+  (`lib/testkit/inter-font.ts` reads the TTF): Surprise Me's card holds about
+  ninety, a list's card — beside its art, the narrowest — about eighty-five,
+  and the owner's own example is eighty-one. An 85-character quote can take a
+  fourth line in a list's card, which then grows by a line; 0004's CHECK still
+  allows 140, so an old headline is kept, and the form asks for it shortened.
+- **The marks are drawings, not letters, and blocky.** Inter's “ ” are two
+  slanted bars that read the same either way round; the owner asked for "the
+  upside and upside-down ones", then — shown round teardrops — for blocky ones
+  like their mock-up's. `assets/images/quotes/quote-marks.svg` is a 66 and a 99
+  as heavy slabs with a wedge,
+  rasterised by `node scripts/quote-marks.mjs`, each PNG exactly its ink and
+  tinted where it is drawn. They are React Native's `<Image>`, not expo-image:
+  the shared image is captured on a software canvas (below).
+- **The layout, the owner's third pass** (2026-10-16), from their examples:
+  `“ This game is the / best          ”` — the opening mark before the first
+  word, the lines under it, flush left, and **the closing mark always at the
+  far right of the last line**, whatever its length; so the last line keeps
+  room for it and a last word that would run into it goes down. One fixed
+  size a place (`PULL_QUOTE`: 12 on cards, 15 on the page, 16 on the classic
+  image, 14 on the Rating one), all in Inter ExtraBold — onboarding's headline
+  weight, measured from its own font file (`lib/inter-advance.ts`) so the lines
+  break where the phone breaks them — the marks a little taller than the
+  capitals, a gap of about two spaces from the words.
+  - **The page's quote was fitted to the score's row for one pass** — every
+    length sized until its ink touched the square's top and foot — and the
+    owner took it back: "The text size should be fixed, and it should be much
+    smaller." Do not bring the fitting back. Justification went the pass
+    before ("just have it regular").
+  - **`<QuoteBlock>` lays the lines out itself** (`lib/quote-layout.ts`, from
+    Inter's advance widths in `lib/inter-advance.ts`) and draws each as a
+    one-line text where it was put: a first-line indent is not something
+    React Native's text can do, and the closing mark's room can only be kept
+    by a layout that knows where the lines break. A mark stands a little above
+    the capitals — as high as the closing one can go without touching the line
+    above (tested). Without a `width` it measures its place first, so a card
+    draws its quote a frame after the card.
+  - On the page the square's number and word are white (`ScoreTile ink`), the
+    review's text is white, and the writer is a face and a name, no pill. The
+    page's three parts — the game, the verdict, the writing — stand forty
+    apart, at the owner's "everything is too clustered".
+- **The review page is the owner's phone screenshot, 1:1** (2026-10-17, the
+  third pass: "FOLLOW THE SCREENSHOT, THE EXACT SAME STYLE, SIZES, GAPS"). A
+  music app's review at 720px across a 360dp phone — two pixels a dp — and
+  `constants/review-page.ts` is its pixels halved; its test lays the page out
+  with Android's line-height rule and holds every line to within a dp of the
+  screenshot. Top to bottom: **the game's square art as the hero** (SteamGridDB,
+  else the landscape art or the cover, cropped), full width and **half the
+  display tall — a collection's header art's size** (`constants/header-art`,
+  the owner's 2026-10-21: "like the collection's screen size-wise"; it was the
+  screenshot's 263dp, and everything under it is still the screenshot's,
+  measured from its foot), dimmed and faded
+  into the page by the screenshot's own ramp (`HERO_FADE`) — there is no small
+  art beside the title any more; a row of **the writer's 72dp face**, their
+  name with **the score and its word at the far end of its line** ("87
+  AMAZING", where the screenshot has stars), the game's name in Poppins
+  ExtraBold 22, "by" its developer — no year; **the quote, centred, in
+  quotation marks, typing itself out** (`<QuoteBlock>`), or nothing; the date;
+  the review at 14 on 18; **how it was played** (`lib/review-details.ts`)
+  under its progress glyph where the screenshot says "Translate to English";
+  **the platform** under its mark, right-aligned, where it has the track the
+  listener liked; the like and share (and the report flag); "Replies"
+  (`<CommentSection docked>`); and **the reply composer docked at the foot of
+  the screen** (`<ReplyComposer>`): bold and italic keys that write
+  `<RichText>`'s marks, the count against 500, a round send. Two earlier
+  passes are gone: a line of white type over the art (an Instagram caption on
+  the first screenshot, not the reference) and the game page's masthead as
+  the header. The quote is not covered by a spoiler flag — it was the
+  headline, and the headline never was — but on a card the flag covers
+  whichever half is shown. **Replies render through `<RichText>`** now, here
+  and on the thread screen, so the keys' marks show as bold and italic.
+- **Cards** — `<LogCard>`, `<MemberReviewCard>` (the game page, the reviews
+  sheet, Surprise Me) and the copy screen's `<ReviewQuote>` — show what
+  `cardShows` says: the writer's choice when it can be honoured, else whichever
+  half exists. The form draws a `<LogCard>` from its own values as they change,
+  **at the very bottom of the form** with the choice beside it (the owner's).
+- **The log form was compacted, as Surprise Me's settings were**: played on,
+  hours, solo or co-op, players and the platinum are rows in one card, each
+  with its control at the end (`<DropdownButton>`, a narrow number field, the
+  pouring toggle). The progress pills and the score are untouched.
+- **The shared image is SimpMusic's, measured from `ShareLyricsCard.kt` /
+  `ShareLyricsSheet.kt` / `ShareLyricsSelection.kt`** (`constants/share-card.ts`):
+  340 at most, 24 in, a ramp 28% to black, the words bold 22 on 30 and eight
+  lines at most, the signature (a controller in a disc — there is no GameLog
+  logo yet) opposite the score. The owner changed three things: the art (56)
+  and the title (17) are bigger, the writer is on a row of their own under
+  them, and the score is in its colour — lifted to 3:1 on the chosen ground.
+  Then the backgrounds (the game's own colour, then SimpMusic's four), Save
+  image and Share.
+- **Two shared images**: "Words" (SimpMusic's, above) and **"Rating"**
+  (`<ReviewPodiumCard>`, `SHARE_PODIUM`) — the owner's reference, a music
+  rating app's card, its layout replicated: the writer's face, handle and time
+  across the top with the app's mark at the right; the art, the game and its
+  credit, and the score — the app's square, not the reference's ring — in a
+  row; the words under them, the quote between its marks or the excerpt in
+  italic. Its ground is the Words card's — the chosen background as the same
+  ramp, the type by its luminance; the reference's light frosted wash was
+  tried and the owner had it match the first card. Chosen with two chips
+  under the card.
+- **The words are picked with a highlighter, not SimpMusic's list of lines** —
+  the owner's correction, after Instagram's slider for a song in a story
+  (`<ReviewHighlighter>`, `lib/review-highlight.ts`). The whole review is shown
+  with its line breaks; the first six words are highlighted as it opens; a tap
+  moves the highlight to one word; **holding an end and dragging** stretches or
+  shrinks it, a word at a time, and it stops at the last word the card's eight
+  lines hold — counted as the card wraps it, line breaks included, which the
+  card prints. Things that are easy to break:
+  - **An end drags only after it is held** (`activateAfterLongPress`, 220ms),
+    so a finger that moves at once scrolls; once one is dragging, the scroll is
+    switched off. A tap fails as soon as the finger moves. The view is
+    react-native-gesture-handler's `ScrollView`, which is what lets the drag
+    take the touch from it.
+  - **Every word is laid out by the app** from Inter's advance widths and drawn
+    where it was put, one text a word (only the lines near the screen are
+    mounted). That is how a finger becomes a word and the highlight sits
+    exactly round its words. Draw them in the weight they were measured in.
+  - **The ends are a rule at the highlight's edge and a knob on its corner**
+    — the start's above the line, the end's below — standing in the gap
+    between lines (hence lines of 32 on 17). Tabs beside the words covered the
+    very words somebody is deciding whether to take.
+  - The gestures are rebuilt every render, as the app's others are, and call
+    plain functions through `runOnJS`; the React Compiler's rules refuse refs
+    read in gesture callbacks built during render.
+- **The review page's colours can be switched off** — a disc at the top right,
+  where a collection keeps its menu (the owner's). Off, the page is the app's
+  own room and every control the house white: `<AccentProvider neutral>`,
+  which keeps the provider mounted so the page changes colour without
+  remounting (its scroll, its typed quote and its uncovered spoiler stay). The
+  choice is the reader's for every review they open, kept on the device per
+  account (`lib/review-colour.ts`, `['review-colour', userId]`, in
+  `NEVER_PERSIST`); the page waits for that one read before it draws.
+- **Three native modules came with it**: `react-native-view-shot`,
+  `expo-media-library` and `expo-sharing` — all in Expo Go. **They are imported
+  when a pill is pressed, never at the top of a file**, so an APK built before
+  them still opens the review page and says it cannot save. A new preview build
+  is needed for the image on a sideloaded APK; it is this change's one native
+  step. **A build can have the media library's old module and not its new
+  one** — seen on the owner's dev client: "Cannot find native module
+  'ExpoMediaLibraryNext'". Saving tries the current API, then
+  `expo-media-library/legacy`, then hands the image to the system's share
+  sheet, which can save it. Saving asks for **write-only** photo access with no media kinds (no
+  `READ_MEDIA_*` in the manifest: `granularPermissions: []`) — and in Expo Go
+  on Android asking for `photo` throws, which is the other reason it is `[]`.
+- **What the image cannot hold**: anything expo-image draws. Glide hands its
+  views hardware bitmaps, and view-shot draws into a software canvas, which
+  cannot draw one. Art and faces on the card are React Native's `<Image>`.
+
+**Not seen on a phone.** Types, lint, `npm test` (the measurements above), an
+Android bundle, and a still of the three sizes rendered from the same geometry
+with Inter were checked here. Still to judge on a device: where the marks land
+against the words (the geometry assumes both platforms centre a line's font as
+measured), the typing, the capture on Android, saving in Expo Go, and the form's
+rows. 0040 is not applied to the live project.
 
 ## Soundtracks: SoundCloud, and one player
 
@@ -1798,6 +2640,13 @@ games: "design different symbols/drawings for the ratings in the app. For 0,
   100   standing   on his feet
 ```
 
+- **It is not shown at all, for now** — `SHOW_SCORE_FIGURES` is `false`
+  (`constants/score-figure.ts`). The owner (2026-10-16): "remove the ratings
+  drawing for now. Don't remove it from the code or app, just don't show it.
+  I will replace the images later." With it off `<FiguredScore>` is its number
+  alone, and `<ScoreSummary>`'s
+  placeholder the number's size, so no gap is left. Everything below is how it
+  is drawn when it is on.
 - **It is drawn in three places, and the owner named them.** The first build
   put it everywhere a score was a square or was given room — every review
   card, the critics' number, your own log, the log form. The owner, on seeing
@@ -1807,8 +2656,10 @@ games: "design different symbols/drawings for the ratings in the app. For 0,
   - **the ratings graph**, which is one component in both of its places —
     `<ScoreSummary>`, the Ratings card on a game's Overview and the head of
     the reviews sheet: the drawing and then the number (`<FiguredScore>`);
-  - **a review's own page** (`<ScoreMeter>`): the drawing over the readout —
-    beside it "87 AMAZING out of 100" no longer fits one line.
+  - **a review's own page** — it was (`<ScoreMeter>`), and the page no longer
+    uses that: the score is a number and its word in the row under the hero
+    now ("87 AMAZING", 2026-10-17). Where the drawing goes there if it is shown again is the
+    owner's call; nothing on that page draws it today.
 
   **Do not put it on a card, in a form, or beside any other score.**
   `<ScoreTile>`, the square with the number in it, is what a review card and
@@ -2064,8 +2915,14 @@ cannot tell a sign-in from a sign-up: the password page logs in, and "New here?
 Make an account" turns it into a sign-up. Signing up asks for nothing else —
 `signUp(email, password)`, no handle. With email confirmation on it ends on
 "check your inbox." `onboarding` is signed in: name, welcome, what you are here
-for, platforms, genres, solo or not, favourites, notifications, Steam, photo,
-handle, and six games to start with (`onboardingSteps`). IGDB only answers a
+for, platforms, genres, solo or not, favourites, **game colours, animated
+artwork**, notifications, Steam, photo, handle, and six games to start with
+(`onboardingSteps`). The two look questions are the owner's (2026-10-21):
+each is asked over three real games drawn small — a game's page in its
+colours (Hollow Knight, Hades, Elden Ring), and Surprise Me's card with its
+animated cover (Hollow Knight, Portal 2, Cyberpunk 2077: full-size, 1–4 MB,
+only the one in view loading) — and the two pills under them write the
+setting, so the examples change as they are pressed. IGDB only answers a
 signed-in caller, which is why half of it comes after the account exists.
 
 - **Only a sign-up is asked the questions; a log-in never is** — the owner's
@@ -2163,7 +3020,11 @@ and the event page's foot bar are all for a device.
   `['similar-suggestions', pairId]`, and the reviews sheet's three:
   `['game-review-list', gameId, …]`, `['rating-breakdown', gameId]`,
   `['review-stats', gameId]` — anything that writes a log's status, completion,
-  score or co-op invalidates all three. `['top-reviews', gameId, viewerId]` is the
+  score or co-op invalidates all three. The first is two queries since the
+  sheet was paged (2026-10-20): `['game-review-list', gameId, sort, filters]`
+  is every matching review's id in order (`getGameReviewRanking`) and
+  `['game-review-list', gameId, 'page', ids, viewerId]` the fifteen on screen
+  (`getGameReviewPage`); both go with the prefix. `['top-reviews', gameId, viewerId]` is the
   game page's most liked review: the log form and a moderator's removal
   invalidate it by its first two parts. `['game-players', gameId, viewerId]` is
   the Overview's two Played by squares and `['home-activity', userId]` Home's
@@ -2174,7 +3035,18 @@ and the event page's foot bar are all for a device.
   write invalidates both and updates the badge store (`setGameLabelLocally`).
   Browse: `['platform-directory']`, `['platform-games', id, sort, page]`,
   `['platform-game-count', clause]`, `['events', term]`, `['event', id]`,
-  `['release-calendar', year]`, `['critic-reviews', gameId]`. Events:
+  `['release-calendar', year]`, `['critic-reviews', gameId]`. A game's
+  shops and its Steam page: `['itad-game', gameId, appid, title]` (its ITAD
+  id — it was `['itad-id', …]`, whose answers were kept for good and some of
+  which were another game's), `['itad-prices', itadId]`, `['steam-awards',
+  appid]`, `['steam-events', appid]`. Search's facets: `['search',
+  'catalogue', clause, sort, page]` and `['search', 'catalogue-count',
+  clause]` (a facet's games, paged and counted) and `['search',
+  'facet-values', kind, term]` (engines, series, franchises by name) — never
+  kept on the device. Surprise Me's batch and pool size key on `poolKey(prefs)`
+  — every setting that changes the pool, in one string. `['game-audience', gameId]` is the
+  Overview's "On GameLog" counts: the log form, the progress sheet and the
+  action row's Wishlist key invalidate it. Events:
   `['event-attendance', eventId, viewerId]` (one record, `useEventAttendance`)
   and `['event-attendees', eventId, viewerId]` (the faces) — an RSVP
   invalidates both by their first two parts. Music:
@@ -2190,6 +3062,22 @@ and the event page's foot bar are all for a device.
   `readingKey()`, never as the array: the same languages in another order are
   the same question. `['top-reviews', gameId, viewerId, languages]` grew a
   fourth part and is still invalidated by its first two.
+  The community score: `['rating-breakdown', gameId]` (the strip, the
+  Ratings card, the sheet and the masthead share it), `['review-stats',
+  gameId]`, `['beloved-games', period]`, `['rating-influence', userId]` and
+  `['rating-report']`, a game's raters `['game-ratings', gameId, sort, page]`
+  (`ratings/[id]`) and GameLog's Top 1000 `['top-chart', 'gamelog', …]` —
+  **a rating write invalidates all seven by their first part**
+  (`invalidateCommunityRatings`), not the one game's: a rating changes its
+  rater's weight, and with it every other game they rated. The critics' Top
+  1000 is `['critic-chart', page]` and `['critic-chart', 'length']` — its own
+  root, so a rating here never refetches IGDB. Search:
+  `['latest-reviews', languages]`, `['lists', 'latest']`. Settings:
+  `['game-colours', userId]` and `['animated-artwork', userId]` read device
+  stores and are in `NEVER_PERSIST`; each one writer sets its own.
+  `['artwork-mesh', thumbnail]` is the cover viewer's page, never persisted;
+  `['onboarding-examples', 'colours' | 'animated']` the look questions'
+  games.
 - **Colours**: always `useTheme()`. Never hardcode a hex in a component; add the
   token to `Colors.dark` in `constants/theme.ts` — that object is the entire
   palette. There is no `Colors.light`: `APP_SCHEME` is `'dark'` and `useTheme()`
@@ -2241,7 +3129,9 @@ and the event page's foot bar are all for a device.
   four screens that are about one game — its page, its log form, its review, its
   achievements. **The feed, search, news, profile and the bottom tab bar stay on
   the house blue on purpose**: twenty games in a list is twenty hues, and colour
-  identifies a game only when you are looking at that game.
+  identifies a game only when you are looking at that game. **And every
+  provider is the house accent while Settings → Game colours is off** — see
+  the Material 3 bullet below.
 - **A tinted surface is not a lighter one.** `tint()` in `lib/color.ts` mixes the
   hue in and restores the original luminance, so a tinted card measures the same
   as the grey it replaced (max drift 0.07, no AA verdict flips at any hue). Never
@@ -2338,14 +3228,19 @@ and the event page's foot bar are all for a device.
   where the colour *is* the datum — a rarity band, a status — and tints the label
   only, never the fill. A run of filled colour capsules reads as a row of buttons
   demanding to be pressed, and chips are not buttons.
-- **The dealt card is the app's second depicted object, and the deck behind it is
-  face down.** Surprise Me shows a stack: the card you are holding, and two
-  behind it in the app's own material with no artwork and no glyph. `games[cursor
-  + 1]` is already in memory, so drawing the next cover would be free and would
-  spoil the surprise — which is the feature. Blank *is* the meaning of a
-  face-down card. The card may lean (±7°) and catch light (0.16 peak), and the
-  game case stays the ceiling on cast, gloss and turn; DESIGN.md § 4.2 states by
-  how much. The deck belongs to that one screen — feeds and rails stay flat.
+- **Surprise Me's art is a plain pager, SimpMusic's** — the owner's direction
+  (2026-10-21): "Remove the way the artwork moves as a card out of the screen,
+  just make it a simple slide like SimpMusic when sliding to the next song".
+  The card used to be a depicted object — a face-down deck behind it, a ±7°
+  lean, a sheen, a flight off the screen; all of it is gone, and
+  `surprise-deck` / `surprise-sheen` are deleted. The deck is one strip
+  (`pageX`, every batch's cards counted by `base`) with the cards either side
+  laid out a display's width away; the strip follows the finger and springs
+  on Compose's pager default (400, critically damped). The strip is as wide as
+  every card on it, because Android hands a touch only to a child inside its
+  parent's bounds. **The next card's art shows during a drag**, as the next
+  song's does in the reference — it was face down "to keep the surprise"; the
+  surprise now lasts until the drag begins. DESIGN.md § 4.2.
 - **The ambient effect belongs on a game's own page and the review, nowhere
   else.** Not on rails, grids, feeds or any screen showing several games side by
   side: one glow per screen is atmosphere, eight is a lava lamp. `<Poster>`
@@ -2438,15 +3333,27 @@ and the event page's foot bar are all for a device.
   silently renders regular. **Onboarding has two more, and only onboarding**:
   Inter ExtraBold for its headlines and Geist Mono for the small instruction
   over them (`FontFamily.extraBold`, `.mono`), the owner's reference. One weight
-  each, by path. Nothing else in the app sets them.
-- **The fixed-colour surface ladder is on the page's faint cool trace.** The page is
-  `#0B0A0D` — darker than the cool `#14171b` it replaced and not black — and
-  `surface` (`#141317`), `surfaceElevated` (`#1B1A20`, the resting fill of every
-  control), `surfaceSelected`, `input` and `skeleton` share its hue with slightly
-  wider steps than before. The three text inks stayed neutral on purpose: the
-  protected game case's back is set in them. Nothing on a game's own screens
-  uses the ladder for surfaces — those derive them from the artwork through
-  `accentRoles`.
+  each, by path. **A review's quote is the one other place ExtraBold is set**
+  (`<QuoteBlock>`, at the owner's direction, 2026-10-16: "use the same font
+  that's used in the onboarding screen for the bold text into the quote");
+  nothing else sets either.
+- **The fixed-colour surface ladder is the owner's two colours and the steps
+  above them.** The page is `#14171C` and a card is `#1B1F28` (`surface`) —
+  given on 2026-10-20 and measured out of their own reference, where those are
+  the page and the card exactly. Everything above follows: `surfaceElevated`
+  (`#1F2430`, the resting fill of every control), `surfaceSelected`
+  (`#262C3A`) and `skeleton`; `input` and `controlFill` are translucent white
+  and need no moving. **The ladder only ever climbs, and that is load-bearing**
+  — a control resting on a card is drawn by being lighter than the card, so
+  when the page and the card moved up, `surfaceElevated` had to move with them
+  or every button inside a card would have been a dark hole. Its old middle
+  (`#15171D`) is darker than the new card. `review-card.test.ts` holds the
+  whole ladder monotonic and every step between 1.04 and 1.2.
+  The page has been `#14171b`, then a near-black `#0B0A0D`, then `#050609`,
+  and is now back where it started, one blue level up. The three text inks
+  stayed neutral through all of it on purpose: the protected game case's back
+  is set in them. Nothing on a game's own screens uses the ladder for surfaces
+  — those derive them from the artwork through `accentRoles`.
 - **Typography** goes through `<Text variant="…">` from `components/ui/text`,
   not raw `<Text>`. `Type` in `constants/theme.ts` and DESIGN.md's `typography:`
   frontmatter now agree, so either is safe to read and neither needs migrating.
@@ -2463,10 +3370,16 @@ and the event page's foot bar are all for a device.
 - **Actions are filled, choices are outlined, content takes a shadow.** An action
   is the grey `controlFill` with no edge; a choice is an `outline` with no fill
   until chosen; neither casts. A card of content takes `Elevation.card` and never
-  an edge or the action grey — a review card that looked like either would read
-  as one huge control.
+  the action grey — a review card that looked like one would read as one huge
+  control. **The "never an edge" half is lifted for every card** (2026-10-20):
+  both of the owner's references draw a 1dp hairline round the card, measured
+  at about 7% white — which is `border`, the app's own subtle edge — and the
+  owner then had every card in the app made the review card (§ Review cards,
+  `card-material`). The distinction the rule protects still holds, because
+  the edge that marks a *control* is `outline` at 16%, more than twice as
+  bright.
 - **`<Card style>` cannot lay out the card's contents.** It lands on the outer
-  view (fill and shadow), whose only child is the inner view holding
+  view (fill, edge and shadow), whose only child is the inner view holding
   `children` — so padding works there and `flexDirection`, `gap` and
   `alignItems` silently do not. This is what stacked the community sheet's text
   *under* each cover instead of beside it, and what left a suggestion card's
@@ -2640,7 +3553,15 @@ and the event page's foot bar are all for a device.
   **It is in the sheet, not on the game page**: it was a rail on the Overview
   until the owner moved it — "a section at the top for critic's reviews, and
   then below is the app's user reviews". The sheet's two sections are headed
-  "Critic reviews" and "GameLog reviews". When OpenCritic has nothing to
+  "Critic reviews" and "GameLog reviews". **GameLog's reviews are in pages of
+  fifteen** (2026-10-20, "like the other search stuff in the app"): the same
+  `<Pager>`, over the list with its count and under it plainly; a sort or a
+  filter starts again at page one. The pages are slices of one ranking of ids
+  (`getGameReviewRanking` — likes are counted on the phone, a hundred ids a
+  request, because `likes` has no foreign key PostgREST could order by — up
+  to a thousand reviews), so a page turn fetches fifteen reviews and nothing
+  else. Under GameLog's score, **"Everyone who rated it · N"** opens
+  `ratings/[id]`: every score, written or not. When OpenCritic has nothing to
   quote, the critics' section is IGDB's one averaged number, said as that;
   with neither there is no critics' section. It comes through `functions/opencritic` (`getCriticSummary`), which
   needs `OPENCRITIC_API_KEY`; undeployed, or deployed from before snippets, the
@@ -2674,20 +3595,29 @@ and the event page's foot bar are all for a device.
   under "Editions & extras", and a derivative's page swaps the franchise rail for
   its one original. `games.edition_kind` / `parent_game_id` (0017) carry the
   label into collections and feeds, where there is no IGDB response to read.
-- **The profile is the old Instagram-shaped layout, at a margin of ten.**
-  Face beside name-over-counts → bio → full-width actions → the widgets under
-  hairlines → four glyph tabs → the chosen tab's rows (`<ProfileView>`,
-  `constants/profile-layout.ts`, under `npm test`). **It was a Letterboxd-style
+- **The profile is a centred head over the old layout, at a margin of ten.**
+  The head — face, name, bio, three counts, actions — is centred on the
+  screen (2026-10-17, the owner's music-app reference: "Pfp, username, follow
+  count bio, etc, centered… a big white filled rounded button for follow");
+  under it, unchanged: the widgets under hairlines → four glyph tabs → the
+  chosen tab's rows (`<ProfileView>`, `constants/profile-layout.ts`, under
+  `npm test`). **It was a Letterboxd-style
   profile for about a week** — a 20pt margin, the widgets as cards forty
   apart, a bigger name, centred counts, tabs at the top — measured off a mock
   and ruled on six times. The owner used it and went back (2026-10-12): "go
   back to the old profile page layout, remove the widgets being inside cards,
   etc. make the margins 10". What holds it now:
-  1. **The head is compact: twelve between its parts** (`HEADER_GAP`) — the
-     face's row, the bio, the actions, each widget, the tabs — so it reads as
-     one thing about one person. The name is `h4`, the counts a bold figure
-     (`h5`) over a quiet word, flush left. The bio is under the row, four
-     lines at most.
+  1. **The head is centred, and only the head changed.** The face (22% of
+     the display), the name in `h2`, the bio in `textMuted` (four lines at
+     most), three counts in columns with faint rules between them (Followers
+     · Logged · Following, the reference's order), then the actions
+     (`components/profile-actions`): **a big white pill** — Follow, which
+     turns the action grey once followed — and two glyph keys beside it, the
+     friend control (one glyph per state, a dot for a request waiting on you)
+     and share. Your own profile has the same row: Edit profile in the grey
+     pill, and share. It was Instagram's — the face beside the name over the
+     counts, two half-width buttons — until 2026-10-17. Twelve between the
+     head, each widget and the tabs (`HEADER_GAP`).
   2. **The widgets are not cards.** The favourites, the games and the pinned
      song are each `<ProfileWidget>` (`components/profile-section`): a
      hairline, a small heading (`itemTitle`, the star glyph on Favourites and
@@ -2703,9 +3633,8 @@ and the event page's foot bar are all for a device.
   4. **Three counts: Logged, Followers, Following.** Friends was the fourth
      and the owner had it taken off the top of the page, to "keep it as a tab
      in the screen that opens up when the user taps on the following/follower
-     count" — `people/[id]`, whose Friends tab is untouched, as is the Friend
-     button under the bio. The three sit in a row from the name's left edge,
-     not spread to the far margin. (I read "move the friends counter" as
+     count" — `people/[id]`, whose Friends tab is untouched; the friend
+     control is the glyph beside Follow now. (I read "move the friends counter" as
      *remove*; if they meant something else, this is the ruling to revisit.)
   5. **The games are four separate covers, exactly as the favourites are** —
      an earlier ruling that survived the return (2026-10-09: "Drop the stacked
@@ -2797,10 +3726,10 @@ and the event page's foot bar are all for a device.
     (`resolveStack` — the cover first, then the rest in order), five covers
     from the title's left edge to the count's right one; two lines of
     description if there is one; the owner's picture and name. **The card is
-    the review card** (`<LogCard>`'s: `reviewCard`, `Radius.lg`, fifteen in,
-    the card shadow, no border), by the owner's direction — it was the app's
-    `<Card>` for one pass, a step *above* the page where a review is a step
-    below, and the two in one feed were different objects. **One to a row,
+    the review card** (`<LogCard>`'s: `surface`, `Radius.review`, fifteen in,
+    the card shadow and its hairline edge), by the owner's direction — change
+    one and change the other, which is what happened on 2026-10-20 when both
+    took the owner's new colours and shape. **One to a row,
     twelve apart**, as review cards are; it was thirty-two of air while the
     tile stood on the bare page. The owner chose one per row over two. **No
     likes or comments on it** — the owner chose "game count only"; they are on
@@ -2898,6 +3827,41 @@ and the event page's foot bar are all for a device.
   page never move with any game.
   `npm test` asserts every role is a valid hex and that every ink/surface pair
   clears 4.5:1, across six seeds and both modes. Run it after touching `ROLES`.
+- **Game colours can be switched off, for the whole app** — Settings → Game
+  colours, the owner's request (2026-10-20): "Add a setting to turn off the
+  material expressive colors in the app. Adapt the app to non-material
+  colors." `lib/game-colours.ts` keeps "off" on the device per account (on
+  by default), `useGameColours()` reads it (`['game-colours', userId]`,
+  `NEVER_PERSIST`), and **two places obey it, so nothing else has to**:
+  `<AccentProvider>`, which then hands down what `neutral` does — the house
+  accent, as if there were no provider — and `useGameAccent`, for the
+  screens that draw a provider and colour their own page from it. Every game
+  screen (the game page, log form, review, achievements, soundtrack, a copy,
+  a genre, Surprise Me, an award slot) is therefore the app's room: the
+  neutral page, `surface` cards, and **the owner's grey `#CACACA` as the
+  accent** (`gameNeutral`, 2026-10-20 — not the house white: the review
+  button, the lit keys, the selected tab), through `accentRoles`' neutral M3
+  mapping (`neutralM3`). A review's own colour disc still means the house
+  white. No artwork is decoded while it is off. What had to be adapted for
+  it:
+  - **Cards.** Every card's fill was the game's `primaryContainer` at half
+    brightness, which on the neutral mapping (`surfaceSelected` halved) is
+    *darker than the page*. Cards read `AccentRoles.tonal` now
+    (`useCardMaterial`) and are `surface` on the house accent.
+  - **Surprise Me's bloom** is the game's colour as light; on the house
+    accent that is white at 50% behind the card — a torch. It is the room's
+    soft grey (`glowEdge`) instead. The swipe edges, the sheen and a copy's
+    lamp stay white: brief, or faint.
+  - **A review's own disc** (its page's colour switch) is not drawn while
+    game colours are off: it would switch on something that cannot be on.
+  - `<GameColoursWarmup>` in the root layout reads the switch once there is
+    an account, so the first game page finds the answer in memory and an
+    "off" never opens in colour first.
+  - **A collection's and a studio's page colour** (`useImmersiveBackground`)
+    follow it too, at the owner's word ("it should apply for collection and
+    studio page"): off, a collection is the app's page and a studio keeps
+    its near black, made from the app's page colour rather than the art's, so
+    a trailer's letterbox bars still meet it without an edge.
 - **`react-native-image-colors` must never be imported statically.** Its entry is
   a bare `requireNativeModule('ImageColors')` evaluated at import scope, and Expo
   Go ships only Expo SDK modules — so a static import throws while the module is
@@ -3043,14 +4007,21 @@ and the event page's foot bar are all for a device.
   `AdapterItems.kt` and `DescriptionView.kt`, at the owner's direction. Every
   section is a heading on the page (`h4`, the reference's 16sp bold) with its
   content under it, and what the content is decides its shape:
-  - **Screenshots are first**, then what the people here made of it. The
+  - **Screenshots are first**, then what the people here made of it. A
+    screenshot opens `<ScreenshotViewer>`, where each one **pinches to zoom,
+    double-taps in and out, and pans while zoomed** (2026-10-16); the swipe
+    between shots is off while one is zoomed. The modal has its own
+    `GestureHandlerRootView` — a modal is a window of its own on Android, and
+    the app's root one does not reach it. Not tried on a phone. The
     three things below led the tab for one build, as they do on the
     reference's film page; the owner had the screenshots moved "back to the
     top of the page". The three — the owner's redesign (2026-10-09), from a
     film's page in Letterboxd — are each absent when they have nothing to show:
-    1. **Ratings** (`<RatingsCard>`): a card titled inside, the count at the
-       far end of the title, a hairline, then `<ScoreSummary>` — the verdict,
-       the score as its drawing and number, and the three-part bar. **The reviews sheet's own
+    1. **Ratings** (`<RatingsCard>`): a card titled inside, a hairline, then
+       `<ScoreSummary>` — the verdict ("Very Positive"), **under it "Based on
+       N reviews"**, the score as its drawing and number, and the three-part
+       bar. The count was at the far end of the title until the owner had it
+       put under the verdict (2026-10-16). **The reviews sheet's own
        summary, one component in both places**: the owner was offered a
        ten-bar histogram like the reference's and chose "the sheet's
        three-part bar, as it is". The card is a door to the sheet. Do not put
@@ -3066,9 +4037,17 @@ and the event page's foot bar are all for a device.
     3. **Reviews** (`<TopReview>`): the heading, its More to the sheet, and
        **one** card — the most liked review (`getTopGameReview`), as a
        `<MemberReviewCard>`. It was a rail of ten.
-    Ratings and the two squares are cards titled *inside* (`<Panel>`: `h5`, a
-    hairline) — small labelled cards, as the profile's boxes are — where the
-    rest of the tab titles on the page.
+    Between the first two, **On GameLog** (`<GameAudienceCard>`,
+    `getGameAudience`, 2026-10-16): the masthead strip's figures, three of
+    them — Wishlisted (the wishlist list, not the backlog), Playing now,
+    Played (played, paused or dropped, so nobody is counted twice). Everybody's
+    and the viewer's too; a zero is printed. IGDB's "Want to Play / Playing /
+    Played" are shares of its traffic (0.000042), not people — do not swap them
+    in. After the review, **Awards** (`<GameAwards>`) — see § Where to buy,
+    awards and Steam news.
+    Ratings, On GameLog and the two squares are cards titled *inside*
+    (`<Panel>`: `h5`, a hairline) — small labelled cards, as the profile's
+    boxes are — where the rest of the tab titles on the page.
   - **Pictures → a rail, no card.** Screenshots are `<Section>` + `<ArtRail>`:
     16:9 at the reference's video height. Original game, Editions & extras and
     the franchise are `<Section>` + `<GameCoverRail>`: small covers under a
@@ -3090,19 +4069,22 @@ and the event page's foot bar are all for a device.
     title, "is available on …", the platform `<DropdownButton>` and the price.
     No card, because its subject is an object, and the case casts its own
     shadow. **The case lives here, not in the masthead**: the masthead shows
-    the plain cover, still (a `<Poster>`), and has no gesture and no price.
+    the plain cover (a `<Poster>`) and no price; its one gesture is a tap,
+    which brings it to the middle of the screen (§ Animated covers).
     The section opens on the platform you logged, else the first with a case,
     else the first; its art slot reserves the tallest shape the game can show
     so switching PS5 → PC does not move the page, and **the box hangs from the
     slot's top, level with the title** — the owner's direction (2026-10-15); it
     stood at the foot, which sank a short box under empty space.
-  - **Words and figures → a card.** Details, Where to buy, Your copy and
-    Achievements are
+  - **Words and figures → a card.** Details, Awards, Where to buy, Your copy
+    and Achievements are
     `<InfoCard>` (read) or `<InfoCardButton>` (a door, whose heading carries the
-    reference's More and whose card is the same door). The card is the
-    reference's description card: 8 in the corner, 16 in, filled with
-    `primaryContainer` at half brightness — SimpMusic halves Palette's
-    dark-vibrant swatch, and that is the tone the dynamic scheme holds.
+    reference's More and whose card is the same door). The card is every
+    card's — the review card's corner, hairline and inset (§ Review cards,
+    2026-10-20) — filled with `primaryContainer` at half brightness, the
+    tone SimpMusic's halved dark-vibrant swatch came to. It was the
+    reference's description card (8 in the corner, 16 in, scaled with the
+    display) until the owner had every card made the review card.
   - **A heading's More** (`<SectionMore>`) is the reference's `TextButton`: one
     quiet word at the end of the heading row — all reviews, the copies, the
     achievements, the full IGDB record.
@@ -3134,6 +4116,38 @@ and the event page's foot bar are all for a device.
     all 24") are not text and still step.
   Nothing here is `Radius.cardLarge` any more; the token survives for the
   `Card` panel variant and the welcome screen.
+- **Selection mode: Combined or Any of** (2026-10-16), on Search's facets and
+  on Surprise Me. The owner: "Combination mode makes it so it can *only* show
+  a game with all the selected options… if I put RPG, isometric, comedy, Unity
+  and it's on combined, it will only show games that are RPGs, isometric,
+  comedy and made in Unity". Search's facets are now a list
+  (`facetsParams` / `facetsFromParams`, one JSON param, `match=all|any`), joined
+  by `&` or by `|` in brackets (`facetsClause`); Surprise Me's lists switch from
+  `(a,b)` to `[a,b]`, and its platform families each stay any-of-their-machines
+  with every family required. Both say plainly when nothing is all of them —
+  the example above is 80 games on IGDB, checked live. Search defaults to
+  Combined; Surprise Me to Any of, which is what it always did.
+- **Surprise Me's card is the game page's** (2026-10-16): the review is
+  `<MemberReviewCard>` at three lines, Backlog and Next are `<TonalKey>`s in
+  the game page's connected group, and the SoundCloud card is a
+  `<SectionCard>` with M3 tonal and filled keys — "the same card and button
+  style as the game page and the full-screen review".
+- **A review's own page** was redesigned again on 2026-10-17, to the owner's
+  music-app reference — see § A review in one sentence. The 2026-10-16 layout
+  (the score as words, the strip, the scorecard chart) is gone.
+- **Surprise Me's settings are rows, menus and checklists** (2026-10-16): the
+  owner, "make the options more friendly to look at, easier to arrange and
+  pick… it's kind of a mess". A single choice — which games, released, minimum
+  rating, the song — is a `<DropdownButton>` at the end of its row; a many-of
+  list — genres, themes, perspective, game modes, platforms, languages — is one
+  row in a card saying what it holds, opening `<MultiPickSheet>` (chosen ones
+  pinned, a find field past ten, Clear and Done). **Every setting is still on
+  the page**, none folded away: the standing ruling that this screen is a
+  discovery tool and the options are the feature. Themes, game modes,
+  platforms, languages and the release era were added then, as "any of"
+  clauses in `surprisePoolQuery`; a new one goes in `SurprisePrefs`, its
+  loader, `poolFiltersFor`, `activeFilterCount`, `withoutFilters` and
+  `poolKey` (`lib/surprise-prefs.ts`), and nowhere else.
 - **A hidden game is a promise, not a preference.** Double-tapping a cover in
   Surprise Me writes it to `lib/surprise-hidden.ts` and it never comes up again.
   **The card does not change when you hide it** — the gesture means "not in
@@ -3164,6 +4178,92 @@ and the event page's foot bar are all for a device.
   "You are passing an array of styles to a child of `<Slot>`". Wrap it:
   `style={StyleSheet.flatten([a, b])}`. A `({ pressed }) => …` function style has
   the same problem; use `PressableScale` for press feedback instead.
+
+## Where to buy, awards and Steam news
+
+Three things on a game's Overview, from the owner's requests of 2026-10-16,
+that come from outside the app. All three were built against the live APIs
+(IGDB through the deployed function, ITAD through its function, Steam's pages
+directly) and none has been seen on a phone.
+
+**Where to buy is the owner's rule, in `arrangeOffers`** (`lib/games/
+storefronts.ts`, pure, tested against IGDB's real records): "display all
+available links to buy the game at different official stores from IGDB. If
+one of those stores has a price on the API we use for game prices, display the
+price, but the link and the store is always shown and taken from IGDB (except
+unofficial stores, who are taken from the prices API)."
+
+- **Folded, it is three rows** — the first three in drawing order, so the
+  official stores fill them before any other shop — and "Show all" opens
+  every store, at the owner's direction (2026-10-16).
+- **Official** means a platform's own shop: Steam, GOG, Epic, the Microsoft
+  Store (xbox.com's), the PlayStation Store, the Nintendo eShop, the App Store,
+  Google Play, Meta's, itch.io, Game Jolt. They come from IGDB's `websites`
+  (`type` — IGDB renamed `category`) first and `external_games`
+  (`external_game_source`) second; the ids are in `storefronts.ts` with what
+  each was checked against. Amazon is never one: a retailer, by region.
+- **ITAD tracks PC shops only**, so it can price four official stores (Steam
+  61, GOG 35, Epic 16, Microsoft Store 48 — its link lands on the same xbox.com
+  product page) and never a console or phone shop: those rows are links, with
+  "Price on the store". Everything else ITAD quotes is an "Other stores" row
+  with ITAD's link. An official store ITAD prices and IGDB missed is kept,
+  on ITAD's link — the one case the rule does not name.
+- **`constants/stores.ts` had the wrong ITAD shop ids for months** — 48 was
+  filed as the PlayStation Store, and picking PS5 in Platforms printed the
+  Microsoft Store's price under the PS5 box. They are ITAD's live ids now, and
+  `PLATFORM_STORE_IDS` prices the PC from any shop, an Xbox from the Microsoft
+  Store, and nothing else at all.
+- **`getGameStores` read `external_games.category`, which IGDB no longer
+  answers**, so no IGDB game ever had a Steam appid and every ITAD lookup went
+  by title — through the function's fuzzy fallback, which could answer with
+  another game. The appid now comes from `getGameExtras` (`pickStorefronts`),
+  is sent alone, and a title match must be the same title (`sameTitle`).
+  `GAME_FIELDS` still asks for `category` (§ Steam CDN artwork): this fixes the
+  game page's prices, not covers.
+
+**The Awards card** (`<GameAwards>`) is the publisher's graphic from the
+Steam page's **`#awardsTable`**, and the Steam Awards the game won:
+
+- **Server-side, in `steam-store`** (`supabase/functions/steam-store`): the
+  page is ~250 KB of HTML to read one block. The parser is
+  `_shared/steam-store.ts` — no imports, loaded by `npm test` against excerpts
+  of seven real pages in `src/lib/games/fixtures/steam/`. Kept a week in 0039.
+- **The block is in the server's HTML or nowhere**: no later request fills
+  it, and a page without it has no markup for it (Half-Life, Counter-Strike,
+  Vampire Survivors, Schedule I). Mature games redirect to the age check; the
+  function sends the cookies a browser keeps after one, and reads only the
+  Awards block. An honest `GameLog/1.0` User-Agent gets the full page.
+- **What varies**: one tall strip (Disco Elysium 349×1792, Baldur's Gate 3
+  794×6008), several images (Hollow Knight 3, Elden Ring 5), unquoted
+  attributes, a larger copy in `data-big-src`, and **Steam Awards banners**
+  — HTML text round a generic trophy — whose class names carry the year since
+  2020 and not in 2018's. The trophy is not an award graphic and is left out;
+  the banner is read as words. Counter-Strike 2's section is only that.
+- **Images are the URLs the page names**, on Steam's hosts only, resolved and
+  on https — never built from an appid — and hot-linked, not re-hosted. They
+  are AVIF with alpha, drawn for Steam's dark page; expo-image decodes AVIF on
+  both platforms (Glide's avif integration, SDWebImageAVIFCoder). Each is drawn
+  at the width Steam draws it, at most the card's, and the card folds at
+  Steam's own 400. **Baldur's Gate 3's 6,008px strip is the tallest seen and
+  has not been drawn on a device** — a bitmap that tall is past some older
+  GPUs' texture limit.
+
+**Events & announcements** (`<SteamEvents>`) is the store page's own "Recent
+Events & Announcements", from the endpoint that block is filled from
+(`/events/ajaxgetpartnereventspageable`), read by the same function and kept
+an hour. Chosen over the public `ISteamNews/GetNewsForApp`, which has no
+pictures and cannot tell an event from a post; that endpoint is undocumented
+and answers CORS for Steam's origin only, which is the other reason it is read
+on the server. Each post is a 16:9 capsule (Steam's `_400x225`), a title and
+"Update · Aug 27"; an in-game event in its window says "On now", and a post
+with no capsule (Valve's patch notes) is a glyph. It opens on Steam. Kinds are
+grouped coarsely (`eventKindOf`): only types 12–15, 20, 25, 28 and 34 were
+seen on real posts.
+
+**Not deployed and not seen.** `steam-store` and 0039 are new, and neither
+the function's fetch, its cache, nor any of the three sections has run on a
+device. Types, lint, `npm test` and an Android bundle were checked here, and
+the parser was run over the live pages it was written from.
 
 ## Linked gaming accounts
 
@@ -3200,9 +4300,11 @@ a conditional — the UI renders from `provider.capabilities`.
   lives in the `itad` Edge Function, so prices need a signed-in session like
   everything IGDB. `fetchSteamPrice` survives for the masthead's per-platform
   line, where the question is "what does it cost on *this* platform" rather than
-  "where is it cheapest". A store with no usable price is dropped rather than
-  rendered blank, and a game ITAD does not track shows no section at all —
-  never fill either gap from another platform's price.
+  "where is it cheapest". **Where to buy is the owner's rule now**: the
+  official stores are IGDB's and always shown, ITAD prices the ones it can,
+  and the other shops are ITAD's — § Where to buy, awards and Steam news. An
+  ITAD shop with no usable price is still dropped; never fill a gap from
+  another platform's price.
 - **No inventory pricing API, anywhere.** Inventory carries `market_hash_name` — the join
   key every price service uses — and nothing else. Adding valuation later must
   not require re-syncing or a schema change.
@@ -3510,6 +4612,11 @@ was not this app's code. The rules that keep it that way:
   `content:encoded` (and PC Gamer again in `dc:content`): 5.1 MB, parsed on the
   JS thread as Home loads. `lightenFeed` cuts them to what is read — 226 KB —
   and its test holds the parsed result identical.
+- **`react-native-view-shot`, `expo-media-library` and `expo-sharing` are
+  loaded lazily** (`import()` when the share sheet's pills are pressed) — see
+  § A review in one sentence. They were added together; a release build has not
+  been made with them. **`expo-video`** is the same: `React.lazy`, in `<TrailerBackdrop>`
+  (§ Immersive pages).
 - **Judge speed in a release build**, not Expo Go: `npx expo start --no-dev
   --minify`, or the preview APK. Dev mode is several times slower and its
   performance warnings measure that.
@@ -3692,9 +4799,10 @@ was not this app's code. The rules that keep it that way:
   gets nothing back and no error.
 - **The rating breakdown is the app's own scores, never IGDB's.** The masthead
   already carries IGDB's aggregate as `COMMUNITY`; `getRatingBreakdown` reads
-  `logs.rating` and is a separate query from `getGameReviews` on purpose — that
-  one caps at 50 rows and joins profiles because it renders cards, so tallying it
-  would print "up to fifty" as the total.
+  one row of 0041's `game_ratings` (before 0041, every `logs.rating` of the
+  game, averaged on the phone) and is a separate query from `getGameReviews`
+  on purpose — that one caps at 50 rows and joins profiles because it renders
+  cards, so tallying it would print "up to fifty" as the total.
 - **IGDB has no achievement data at all.** Every game added through search now
   shows zero achievements. Only legacy `steam:` rows and games matched out of a
   linked Steam account still resolve definitions — the game page treats an empty

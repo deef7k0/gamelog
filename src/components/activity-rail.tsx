@@ -13,6 +13,7 @@ import { FontFamily } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { CachedGame, LogWithRelations } from '@/lib/database.types';
 import { displayNameFor } from '@/lib/format';
+import { hasWriting } from '@/lib/review-quote';
 
 /** A log whose game came back with it — the only kind this row can draw. */
 type Entry = LogWithRelations & { game: CachedGame };
@@ -28,7 +29,8 @@ function boxOf(game: CachedGame): CoverRailGame {
   };
 }
 
-const wrote = (log: LogWithRelations) => (log.review ?? '').trim().length > 0;
+/* Words behind the number: the review, or its one sentence (0040). */
+const wrote = (log: LogWithRelations) => hasWriting(log);
 
 /**
  * What people have been playing, as a row of covers with a face under each —

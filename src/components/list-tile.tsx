@@ -77,12 +77,12 @@ export type ListTileProps = {
  * ## The card is the review card
  *
  * The owner's direction: "the same card as the review card in the home page".
- * So it is `<LogCard>`'s, restated: `reviewCard` — a shade *under* the page —
- * the corner just taken off (`Radius.lg`), fifteen in, twelve between its
- * parts, the card shadow. It was the app's `<Card>` for one pass (`surface`, a
- * step above the page, a 16 corner), and a review and a collection in one feed
- * were two different objects. Drawn on the pressable itself, so each row of a
- * list is one view. No border: an edge is what marks a control here.
+ * So it is `<LogCard>`'s, restated: the same fill (`surface`, the owner's
+ * `#1B1F28`), the same corner (`Radius.review`, measured off their reference),
+ * the same hairline edge, fifteen in, twelve between its parts, the card
+ * shadow. Drawn on the pressable itself, so each row of a list is one view.
+ * Change one and change the other — and both moved on 2026-10-20, when the
+ * owner gave new colours and a new shape for the review card.
  *
  * ## What is not on it
  *
@@ -175,7 +175,10 @@ export const ListTile = memo(function ListTile({ list, width }: ListTileProps) {
         accessibilityLabel={[list.title, `by ${owner}`, games].join(', ')}
         scaleTo={0.98}
         onLayout={onLayout}
-        style={StyleSheet.flatten([styles.card, { backgroundColor: theme.reviewCard }])}>
+        style={StyleSheet.flatten([
+          styles.card,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+        ])}>
         {/* The reference's first line: the name at the left, how many are in it
             at the right. The name gives way before the count does — it wraps to
             a second line and then truncates; the count is the part that cannot
@@ -222,12 +225,13 @@ export const ListTile = memo(function ListTile({ list, width }: ListTileProps) {
 
 const styles = StyleSheet.create({
   /* `<LogCard>`'s card, to the token: its inset, its twelve between parts, its
-     corner and its shadow, on the fill set inline. Change one and change the
-     other. */
+     corner, its hairline edge and its shadow, on the fill set inline. Change
+     one and change the other. */
   card: {
     padding: INSET,
     gap: Spacing.x12,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.review,
+    borderWidth: 1,
     ...Elevation.card,
   },
 

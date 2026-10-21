@@ -135,13 +135,61 @@ describe('reviewBreakdown', () => {
     ]);
   });
 
-  it('rounds to a whole score', () => {
+  it('keeps the decimals: the badge rounds where it is drawn', () => {
     const [progress] = reviewBreakdown(
       stats({ groups: { ...stats({}).groups, finished: { count: 3, sum: 274 } } }),
       FAMILIES,
       familyOf
     );
-    assert.equal(progress.rows[0].average, 91);
+    assert.ok(Math.abs(progress.rows[0].average - 274 / 3) < 1e-12);
+  });
+
+  it('uses a group’s weighted mean when the database sends one (0041)', () => {
+    const [progress] = reviewBreakdown(
+      stats({
+        groups: { ...stats({}).groups, finished: { count: 2, sum: 140, weighted_mean: 73.5 } },
+      }),
+      FAMILIES,
+      familyOf
+    );
+    assert.equal(progress.rows[0].average, 73.5);
+  });
+
+  it('folds weighted platforms into a family by their shares of the weight, exactly', () => {
+    // PS5: 90 at weight 1 and 50 at 0.7; PS4: 80 at weight 1. Total weight 2.7.
+    // The family's weighted mean is (90 + 35 + 80) / 2.7.
+    const [platform] = reviewBreakdown(
+      stats({
+        platforms: [
+          {
+            platform: 'PS5',
+            count: 2,
+            sum: 140,
+            weighted_mean: 125 / 1.7,
+            weight_share: 1.7 / 2.7,
+          },
+          { platform: 'PS4', count: 1, sum: 80, weighted_mean: 80, weight_share: 1 / 2.7 },
+        ],
+      }),
+      FAMILIES,
+      familyOf
+    );
+    assert.equal(platform.rows[0].count, 3);
+    assert.ok(Math.abs(platform.rows[0].average - 205 / 2.7) < 1e-9);
+  });
+
+  it('falls back to the plain mean when any platform has no share', () => {
+    const [platform] = reviewBreakdown(
+      stats({
+        platforms: [
+          { platform: 'PS5', count: 2, sum: 140, weighted_mean: 70, weight_share: 0.5 },
+          { platform: 'PS4', count: 2, sum: 100 },
+        ],
+      }),
+      FAMILIES,
+      familyOf
+    );
+    assert.equal(platform.rows[0].average, 60);
   });
 
   it('leaves out rows and sections with nobody in them', () => {

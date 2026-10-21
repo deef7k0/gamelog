@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScoreBadge } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
+import { clampScore } from '@/constants/score';
 import { Spacing } from '@/constants/theme';
 import type { BreakdownSection } from '@/lib/review-facets';
 
@@ -71,7 +72,7 @@ export function ReviewBreakdown({ sections, failed, onRetry }: ReviewBreakdownPr
                 key={row.key}
                 style={styles.cell}
                 accessible
-                accessibilityLabel={`${row.label}: ${row.average} from ${row.count} ${
+                accessibilityLabel={`${row.label}: ${clampScore(row.average)} from ${row.count} ${
                   row.count === 1 ? 'rating' : 'ratings'
                 }`}>
                 <Text

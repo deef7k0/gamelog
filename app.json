@@ -63,7 +63,16 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      [
+        "expo-media-library",
+        {
+          "savePhotosPermission": "GameLog saves the images you make of reviews to your photos.",
+          "granularPermissions": [],
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -2,11 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type TextStyle } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { RichText } from '@/components/ui/rich-text';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { FontFamily, Spacing, TapTarget } from '@/constants/theme';
@@ -46,6 +47,15 @@ export type CommentSectionProps = {
    * does and what a reader is actually looking for.
    */
   title?: string;
+  /**
+   * The composer is docked at the foot of the screen (`<ReplyComposer>`), so
+   * this is the conversation alone: the heading as a quiet line, no "Add
+   * comment" and no inline field, and nothing said when there is nothing yet.
+   * A review's page.
+   */
+  docked?: boolean;
+  /** The heading's type, when `docked`. */
+  headingStyle?: StyleProp<TextStyle>;
 };
 
 /**
@@ -82,7 +92,13 @@ export type CommentSectionProps = {
  * comment still go to the thread screen, which is the only place the two-level
  * structure exists.
  */
-export function CommentSection({ targetType, targetId, title }: CommentSectionProps) {
+export function CommentSection({
+  targetType,
+  targetId,
+  title,
+  docked = false,
+  headingStyle,
+}: CommentSectionProps) {
   const theme = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -134,23 +150,29 @@ export function CommentSection({ targetType, targetId, title }: CommentSectionPr
 
   return (
     <View style={styles.section}>
-      <View style={[styles.heading, { borderBottomColor: theme.border }]}>
-        <Text variant="label" color="textMuted">
+      {docked ? (
+        <Text variant="body" color="textMuted" accessibilityRole="header" style={headingStyle}>
           {heading}
         </Text>
+      ) : (
+        <View style={[styles.heading, { borderBottomColor: theme.border }]}>
+          <Text variant="label" color="textMuted">
+            {heading}
+          </Text>
 
-        {!composing && (
-          <Button
-            title={roots.length === 0 ? 'Write the first' : 'Add comment'}
-            variant="secondary"
-            size="small"
-            icon="chatbubble-outline"
-            onPress={() => setComposing(true)}
-          />
-        )}
-      </View>
+          {!composing && (
+            <Button
+              title={roots.length === 0 ? 'Write the first' : 'Add comment'}
+              variant="secondary"
+              size="small"
+              icon="chatbubble-outline"
+              onPress={() => setComposing(true)}
+            />
+          )}
+        </View>
+      )}
 
-      {composing && (
+      {composing && !docked && (
         <View style={styles.composer}>
           <TextField
             value={draft}
@@ -198,12 +220,14 @@ export function CommentSection({ targetType, targetId, title }: CommentSectionPr
           Comments could not be loaded.
         </Text>
       ) : roots.length === 0 ? (
-        /* Honest rather than decorative. There is nothing to illustrate here and
+        docked ? null : (
+          /* Honest rather than decorative. There is nothing to illustrate here and
            an empty state with artwork in it would be louder than the comments it
            is standing in for. */
-        <Text variant="bodySmall" color="textMuted" style={styles.quiet}>
-          No comments yet.
-        </Text>
+          <Text variant="bodySmall" color="textMuted" style={styles.quiet}>
+            No comments yet.
+          </Text>
+        )
       ) : (
         shown.map((comment) => (
           <CommentRow
@@ -283,7 +307,8 @@ function CommentRow({
         </View>
 
         <View style={styles.bodyColumn}>
-          <Text variant="body">{comment.body}</Text>
+          {/* `**bold**` and `*italic*` are what the composer's keys write. */}
+          <RichText variant="body">{comment.body}</RichText>
         </View>
       </PressableScale>
 

@@ -5,7 +5,8 @@ import { PlayerArtwork } from '@/components/player/player-bar';
 import { SoundCloudMark } from '@/components/player/soundcloud-mark';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Card, Skeleton } from '@/components/ui/surface';
+import { SectionCard } from '@/components/ui/section';
+import { Skeleton } from '@/components/ui/surface';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
@@ -85,7 +86,7 @@ export function SurpriseSoundtrack({
 
   if (loading) {
     return (
-      <Card tinted elevated padded={false} style={styles.pad}>
+      <SectionCard>
         <View style={styles.row}>
           <Skeleton width={ARTWORK} height={ARTWORK} />
           <View style={styles.meta}>
@@ -93,7 +94,7 @@ export function SurpriseSoundtrack({
             <Skeleton width="40%" height={10} radius={Radius.sm} />
           </View>
         </View>
-      </Card>
+      </SectionCard>
     );
   }
 
@@ -105,9 +106,9 @@ export function SurpriseSoundtrack({
    */
   if (!track) {
     return (
-      <Card tinted elevated padded={false} style={styles.pad}>
+      <SectionCard>
         <View style={styles.row}>
-          <View style={[styles.blank, { backgroundColor: theme.surfaceElevated }]}>
+          <View style={[styles.blank, { backgroundColor: accent.m3.surfaceContainerHigh }]}>
             <Ionicons name="musical-notes-outline" size={19} color={theme.textMuted} />
           </View>
           <Text variant="bodySmall" color="textMuted" style={styles.meta} numberOfLines={2}>
@@ -119,12 +120,15 @@ export function SurpriseSoundtrack({
               accessibilityLabel="Look for the soundtrack again"
               onPress={onRetry}
               scaleTo={0.9}
-              style={styles.disc}>
-              <Ionicons name="refresh" size={19} color={theme.textSecondary} />
+              style={StyleSheet.flatten([
+                styles.disc,
+                { backgroundColor: accent.m3.surfaceContainerHigh },
+              ])}>
+              <Ionicons name="refresh" size={19} color={accent.m3.onSurfaceVariant} />
             </PressableScale>
           )}
         </View>
-      </Card>
+      </SectionCard>
     );
   }
 
@@ -132,7 +136,7 @@ export function SurpriseSoundtrack({
   const active = playing || starting;
 
   return (
-    <Card tinted elevated padded={false} style={styles.pad}>
+    <SectionCard>
       <View style={styles.row}>
         {/* The row's body opens the soundtrack. Everything the card used to
             carry — the full track list, the star — lives on that screen. */}
@@ -163,8 +167,13 @@ export function SurpriseSoundtrack({
           disabled={!canShuffle}
           onPress={onAnotherSong}
           scaleTo={0.9}
-          style={StyleSheet.flatten([styles.disc, !canShuffle && styles.dimmed])}>
-          <Ionicons name="shuffle" size={19} color={theme.textSecondary} />
+          style={StyleSheet.flatten([
+            styles.disc,
+            /* M3 filled-tonal: the game page's keys' resting fill. */
+            { backgroundColor: accent.m3.surfaceContainerHigh },
+            !canShuffle && styles.dimmed,
+          ])}>
+          <Ionicons name="shuffle" size={19} color={accent.m3.onSurfaceVariant} />
         </PressableScale>
 
         <PressableScale
@@ -182,7 +191,9 @@ export function SurpriseSoundtrack({
           scaleTo={0.9}
           style={StyleSheet.flatten([
             styles.disc,
-            { backgroundColor: playable ? accent.color : theme.surfaceElevated },
+            /* M3 filled: the one primary key on the card, as the game page's
+               review button is the one on its page. */
+            { backgroundColor: playable ? accent.color : accent.m3.surfaceContainerHigh },
           ])}>
           {starting ? (
             <ActivityIndicator size="small" color={accent.ink} />
@@ -209,7 +220,12 @@ export function SurpriseSoundtrack({
             {note}
           </Text>
         ) : (
-          <View style={[styles.track, styles.footLead, { backgroundColor: theme.surfaceElevated }]}>
+          <View
+            style={[
+              styles.track,
+              styles.footLead,
+              { backgroundColor: accent.m3.surfaceContainerHigh },
+            ]}>
             <View
               style={[
                 styles.fill,
@@ -220,14 +236,11 @@ export function SurpriseSoundtrack({
         )}
         <SoundCloudMark url={track.permalinkUrl} label={`Open ${track.title} on SoundCloud`} />
       </View>
-    </Card>
+    </SectionCard>
   );
 }
 
 const styles = StyleSheet.create({
-  /* `Card` pads generously for a block of content; this is a row, and its own
-     padding is what keeps the discs at `TapTarget` without a 76dp-tall row. */
-  pad: { paddingHorizontal: Spacing.x12, paddingVertical: Spacing.x8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
   body: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   blank: {
@@ -257,7 +270,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
-    marginTop: Spacing.x8,
   },
   footLead: { flex: 1 },
 });

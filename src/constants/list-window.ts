@@ -52,3 +52,16 @@ export const ArtRowWindow = {
   maxToRenderPerBatch: 6,
   windowSize: 7,
 } as const;
+
+/**
+ * A list of tall cards that each draw several images — a collection's tile (a
+ * stack of five covers, a face), roughly 300dp each. Two or three fill a
+ * screen, so this keeps about two screens mounted and draws two at a time.
+ * Without it the defaults mounted the whole list of tiles at once: "You have a
+ * large list that is slow to update", with the JS thread stalled for seconds.
+ */
+export const TallCardWindow = {
+  initialNumToRender: 3,
+  maxToRenderPerBatch: 2,
+  windowSize: 5,
+} as const;

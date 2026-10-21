@@ -7,6 +7,7 @@ import {
   immersiveBackground,
   logoNeedsLightInk,
   meanOpaqueLuminance,
+  nearBlackBackground,
   smoothScrimStops,
   towardBlack,
 } from './immersive-color.ts';
@@ -135,6 +136,44 @@ describe('immersiveBackground (toImmersiveBackground, in Oklab)', () => {
 
   it('passes a non-hex value through rather than inventing a colour', () => {
     assert.equal(immersiveBackground('transparent'), 'transparent');
+  });
+});
+
+describe('nearBlackBackground (the studio page)', () => {
+  const COVERS = ['#C1272D', '#4A90D9', '#3FA34D', '#B69254', '#F0F0F0', '#6B7984', '#8E44AD'];
+
+  it('is black to the eye: within 1.06:1 of pure black, and darker than the app’s page', () => {
+    for (const cover of COVERS) {
+      const page = nearBlackBackground(cover);
+      assert.ok(contrast(page, '#000000') <= 1.06, `${cover} → ${page}`);
+      assert.ok(contrast(page, '#0B0A0D') < 1.05, `${cover} → ${page}`);
+    }
+  });
+
+  /* A player draws a video's black as #000 (full range) or #101010 (limited);
+     the page is never further from either than the two are from each other. */
+  it('meets a video’s black either way it is drawn — full range or limited', () => {
+    const gap = contrast('#000000', '#101010');
+    for (const cover of COVERS) {
+      const page = nearBlackBackground(cover);
+      assert.ok(contrast(page, '#000000') < gap && contrast(page, '#101010') < gap, page);
+    }
+  });
+
+  it('keeps the cover’s hue as a trace, and leaves a grey cover grey', () => {
+    const [r, , b] = [1, 3, 5].map((at) =>
+      parseInt(nearBlackBackground('#C1272D').slice(at, at + 2), 16)
+    );
+    assert.ok(r > b, 'a red cover tints the black red');
+    const grey = nearBlackBackground('#808080');
+    assert.equal(grey.slice(1, 3), grey.slice(3, 5));
+    assert.equal(grey.slice(3, 5), grey.slice(5, 7));
+  });
+
+  it('keeps the quietest ink well past AA on it', () => {
+    for (const cover of COVERS) {
+      assert.ok(contrast('#8F8F8F', nearBlackBackground(cover)) >= 4.5);
+    }
   });
 });
 

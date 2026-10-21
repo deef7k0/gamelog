@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -66,6 +67,14 @@ export type SlideUpSheetProps = {
    * resting height changes.
    */
   maxHeightRatio?: number;
+  /**
+   * A surface of the sheet's own: a ramp from its top colour to its foot's,
+   * in place of the page's. For a sheet that belongs to one thing — the share
+   * sheet is tinted from the game, as SimpMusic tints its lyrics sheet from the
+   * song. Both stops must be dark: the handle, the title and the close key are
+   * the app's light ink.
+   */
+  surface?: readonly [string, string];
   children: ReactNode;
 };
 
@@ -108,7 +117,7 @@ export function SlideUpSheet(props: SlideUpSheetProps) {
   return <OpenSheet {...props} />;
 }
 
-function OpenSheet({ onClose, title, maxHeightRatio, children }: SlideUpSheetProps) {
+function OpenSheet({ onClose, title, maxHeightRatio, surface, children }: SlideUpSheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -203,10 +212,17 @@ function OpenSheet({ onClose, title, maxHeightRatio, children }: SlideUpSheetPro
           maxHeightRatio
             ? { height: height * maxHeightRatio, top: 'auto' as const }
             : { paddingTop: insets.top },
-          { backgroundColor: theme.background, borderColor: theme.border },
+          { backgroundColor: surface?.[1] ?? theme.background, borderColor: theme.border },
           sheetStyle,
           settled && styles.sheetSettled,
         ]}>
+        {surface && (
+          <LinearGradient
+            colors={[surface[0], surface[1]]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        )}
         <GestureDetector gesture={drag}>
           <View style={styles.grabRow}>
             {/* The handle. Centred and the full width of the row, so the drag

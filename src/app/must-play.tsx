@@ -4,7 +4,7 @@ import { Alert, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { GameGridTile } from '@/components/game-grid-tile';
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
-import { MustPlayBadge } from '@/components/must-play-badge';
+import { MustPlayStar } from '@/components/must-play-badge';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
@@ -24,7 +24,7 @@ const LABEL: GameLabel = 'must_play';
 /** Between covers, across and down — the collection grid's. */
 const GRID_GAP = Spacing.x12;
 
-/** The badge beside the screen's name: the mark, large enough to be looked at. */
+/** The star beside the screen's name — the mark alone, no wedge (2026-10-17). */
 const HEAD_BADGE = 56;
 
 /**
@@ -122,7 +122,7 @@ export default function MustPlayScreen() {
   const head = (
     <View style={styles.head}>
       <View style={styles.title}>
-        <MustPlayBadge size={HEAD_BADGE} labelled={false} />
+        <MustPlayStar size={HEAD_BADGE} labelled={false} />
         <View style={styles.titleText}>
           <Text variant="display" accessibilityRole="header">
             {GAME_LABEL_TEXT[LABEL].title}

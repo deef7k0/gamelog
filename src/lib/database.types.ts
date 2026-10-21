@@ -10,6 +10,9 @@
  * If you edit the SQL, edit this too — nothing enforces that they agree.
  */
 
+import type { CommunityRatingConfig } from './community-rating';
+import type { ReviewDisplay } from './review-quote';
+
 /** `paused` since 0022 — stopped, meaning to come back. */
 export type LogStatus = 'playing' | 'played' | 'backlog' | 'dropped' | 'paused';
 
@@ -119,7 +122,12 @@ export type GameLog = {
   status: LogStatus;
   /** 0-100 score, or null when unscored. See constants/score.ts for labels. */
   rating: number | null;
-  /** Headline for a long-form review. Null for a score with no article. */
+  /**
+   * The review in one word or sentence — the quote (0040; it was a headline).
+   * Drawn between large quotation marks on the review's page and, when
+   * `review_display` says so, on its cards. Null when the writer gave none.
+   * See `lib/review-quote.ts`.
+   */
   review_title: string | null;
   review: string | null;
   /**
@@ -163,6 +171,13 @@ export type GameLog = {
    * column, so the field is *absent* from its rows. Read it as `?? null`.
    */
   review_lang?: string | null;
+  /**
+   * What a card of this review shows: three lines of it (`'text'`) or the
+   * quote (`'quote'`) — the writer's choice (0040). Optional, as `review_lang`
+   * is: a database without 0040 has no such column. Read it through
+   * `displayOf` / `cardShows`, never directly.
+   */
+  review_display?: ReviewDisplay | null;
   created_at: string;
   updated_at: string;
 };
@@ -851,8 +866,21 @@ export type ReviewReportQueueRow = {
   first_reported: string;
 };
 
-/** How many rated logs, and the sum of their scores. Sums merge; averages do not. */
-export type ScoreTally = { count: number; sum: number };
+/**
+ * How many rated logs, and the sum of their scores. Sums merge; averages do not.
+ *
+ * Since 0041 a tally also carries its **weighted** mean — the community score's
+ * method, over just these ratings — and, for a platform, its share of the
+ * game's whole weight, which is what lets PS4 and PS5 fold into PlayStation
+ * exactly. Never a weight sum: on a group of one, that is somebody's weight.
+ * Absent on a database before 0041.
+ */
+export type ScoreTally = {
+  count: number;
+  sum: number;
+  weighted_mean?: number | null;
+  weight_share?: number | null;
+};
 
 /**
  * `game_review_stats()` (0026) — one game's ratings, tallied by how they were
@@ -862,6 +890,8 @@ export type GameReviewStats = {
   /** Every rated log: the same population as the rating histogram. */
   count: number;
   sum: number;
+  /** The game's community score, as 0041's `game_ratings` holds it. Absent before 0041. */
+  weighted_mean?: number | null;
   groups: Record<'finished' | 'full' | 'playing' | 'dropped' | 'solo' | 'coop', ScoreTally>;
   /** Rated logs per stored platform string, not yet folded into families. */
   platforms: ({ platform: string } & ScoreTally)[];
@@ -904,6 +934,85 @@ export type UserGameStats = {
 export type ModeratorRow = {
   user_id: string;
   created_at: string;
+};
+
+/**
+ * One rater's statistics and weight (0041) — derived from `logs`, readable by
+ * its owner alone. `lib/community-rating.ts` says what every column means.
+ */
+export type RaterStatsRow = {
+  user_id: string;
+  rated_count: number;
+  distribution: number[];
+  entropy: number;
+  normalized_entropy: number;
+  comparison_count: number;
+  average_deviation: number | null;
+  deviation_percentile: number | null;
+  low_entropy: boolean;
+  high_deviation: boolean;
+  pattern_confidence: number;
+  target_penalty: number;
+  weight: number;
+  algorithm_version: number;
+  computed_at: string;
+};
+
+/**
+ * One game's community score (0041). Public — except `weight_sum` and
+ * `effective_raters`, which are not granted to clients: select columns by
+ * name, never `*`.
+ */
+export type GameRatingRow = {
+  game_id: string;
+  weighted_rating: number;
+  raw_mean: number;
+  raters: number;
+  weight_sum: number;
+  effective_raters: number;
+  min_rating: number;
+  max_rating: number;
+  histogram: number[];
+  algorithm_version: number;
+  computed_at: string;
+};
+
+/** The last full recalculation of the community scores (0041), one row. */
+export type CommunityRatingStateRow = {
+  id: boolean;
+  algorithm_version: number;
+  recalculated_at: string | null;
+  duration_ms: number | null;
+  rated_logs: number | null;
+  raters: number | null;
+  comparable_raters: number | null;
+  games: number | null;
+  stale_since: string | null;
+};
+
+/** `community_rating_report()` (0041): the weighting across the app, in aggregate. Moderators only. */
+export type CommunityRatingReport = {
+  params: CommunityRatingConfig;
+  state: Omit<CommunityRatingStateRow, 'id'> | null;
+  raters: {
+    total: number;
+    adjusted: number;
+    at_minimum: number;
+    low_entropy: number;
+    high_deviation: number;
+    both: number;
+    mean_weight: number;
+  };
+  weights: { weight: number; raters: number }[];
+  games: { total: number; moved: number; mean_difference: number; max_difference: number };
+  largest: {
+    game_id: string;
+    title: string;
+    raters: number;
+    raw_mean: number;
+    weighted_rating: number;
+    effective_raters: number;
+  }[];
 };
 
 /**
@@ -1333,6 +1442,27 @@ export type Database = {
       // UPDATE policies, because `external_id` is only trustworthy when the
       // server verified it. Writes happen in the Edge Functions with the service
       // role. The types stay accurate so the *unlink* path still typechecks.
+      // --- 0041 the community score ---------------------------------------
+      // Derived and read-only: no client has a write grant on any of these.
+      // The Insert/Update types are only what supabase-js's generics need.
+      rater_stats: {
+        Row: RaterStatsRow;
+        Insert: RaterStatsRow;
+        Update: Partial<RaterStatsRow>;
+        Relationships: [FK<'rater_stats_user_id_fkey', 'user_id', 'profiles', 'id'>];
+      };
+      game_ratings: {
+        Row: GameRatingRow;
+        Insert: GameRatingRow;
+        Update: Partial<GameRatingRow>;
+        Relationships: [FK<'game_ratings_game_id_fkey', 'game_id', 'games', 'id'>];
+      };
+      community_rating_state: {
+        Row: CommunityRatingStateRow;
+        Insert: CommunityRatingStateRow;
+        Update: Partial<CommunityRatingStateRow>;
+        Relationships: [];
+      };
       gaming_accounts: {
         Row: GamingAccountRow;
         Insert: Insert<GamingAccountRow, 'linked_at' | 'last_synced_at'>;
@@ -1573,6 +1703,29 @@ export type Database = {
       user_game_stats: {
         Args: { p_user: string };
         Returns: UserGameStats;
+      };
+      // --- 0041 ---------------------------------------------------------------
+      community_rating_params: {
+        Args: Record<string, never>;
+        Returns: CommunityRatingConfig;
+      };
+      /** The caller's own statistics — `null` until something has been computed. */
+      my_rating_influence: {
+        Args: Record<string, never>;
+        Returns: {
+          rated: number;
+          stats: Omit<RaterStatsRow, 'user_id'> | null;
+          state: Omit<CommunityRatingStateRow, 'id'> | null;
+          params: CommunityRatingConfig;
+        };
+      };
+      recalculate_community_ratings: {
+        Args: Record<string, never>;
+        Returns: Record<string, number>;
+      };
+      community_rating_report: {
+        Args: { p_limit?: number };
+        Returns: CommunityRatingReport;
       };
     };
     Enums: { log_status: LogStatus };

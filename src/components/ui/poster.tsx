@@ -3,7 +3,7 @@ import { memo, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
-import { MustPlayBadge } from '@/components/must-play-badge';
+import { MustPlayCorner } from '@/components/must-play-badge';
 import { Text } from '@/components/ui/text';
 import { editionLabel, type EditionKind } from '@/constants/game-editions';
 import { Elevation, PosterAspectRatio, Radius, Spacing, withAlpha } from '@/constants/theme';
@@ -23,19 +23,19 @@ import { useTheme } from '@/hooks/use-theme';
 const BADGE_MIN_WIDTH = 72;
 
 /**
- * The Must Play badge: below this width a cover goes without it, and its size
- * otherwise.
+ * The Must Play wedge: below this width a cover goes without it, and the
+ * length of its two short sides otherwise.
  *
- * A mark, not a word, so it survives further down than the edition badge does —
- * to the 56dp covers in a row, where it is 18dp across and still a face in a
- * ring. Under that it is a dot. It grows with the cover to a quarter of its
- * width and stops at 30: on a 180dp rail cover a larger badge starts to compete
- * with the box's own logo, which is usually in the same corner.
+ * A mark, not a word, so it survives further down than the edition badge does
+ * — to the 56dp covers in a row, where it is 20dp a side with an 8dp star.
+ * It grows with the cover to three tenths of its width and stops at 44: on a
+ * 180dp rail cover a larger wedge starts to eat the box's own logo, which is
+ * usually in the same corner.
  */
 const MUST_PLAY_MIN_WIDTH = 56;
-const MUST_PLAY_RATIO = 0.25;
-const MUST_PLAY_MIN = 18;
-const MUST_PLAY_MAX = 30;
+const MUST_PLAY_RATIO = 0.3;
+const MUST_PLAY_MIN = 20;
+const MUST_PLAY_MAX = 44;
 
 /**
  * How far the artwork may slide inside its frame, as a fraction of the width.
@@ -284,24 +284,25 @@ export const Poster = memo(function Poster({
           <View
             style={[styles.badge, { backgroundColor: withAlpha(theme.shadowInk, 0.82) }]}
             pointerEvents="none">
-            <Text variant="label" style={{ color: theme.onPrimary }} numberOfLines={1}>
+            <Text variant="label" style={{ color: theme.white }} numberOfLines={1}>
               {badge}
             </Text>
           </View>
         )}
 
         {/*
-          The Must Play badge, in the corner the edition word is not in.
+          The Must Play wedge, filling the corner the edition word is not in.
 
           A sibling of the artwork like the word above, so it stays put while a
-          parallax slides the art behind it. It is the one coloured thing this
+          parallax slides the art behind it, and inside the clip, so it takes
+          the cover's rounded corner. It is the one coloured thing this
           component puts on a cover — the owner's call, and a narrow one: a
-          moderator's label is data about the game, drawn as a mark with a dark
-          ring round it rather than as a tint on the art.
+          moderator's label is data about the game, drawn as a mark in a corner
+          rather than as a tint on the art.
         */}
         {mustPlay && (
           <View style={styles.mustPlay} pointerEvents="none">
-            <MustPlayBadge
+            <MustPlayCorner
               size={Math.round(
                 Math.min(MUST_PLAY_MAX, Math.max(MUST_PLAY_MIN, width * MUST_PLAY_RATIO))
               )}
@@ -381,9 +382,10 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: Radius.image,
   },
-  /* `end`, for the reason the edition badge is `start`: the two are in
-     opposite corners in either reading direction. */
-  mustPlay: { position: 'absolute', top: Spacing.x4, end: Spacing.x4 },
+  /* Flush in the corner, so the wedge's two short sides are the cover's own
+     edges. `right`, not `end`: the wedge is drawn for the top-right corner,
+     and a mirrored corner would need a mirrored triangle. */
+  mustPlay: { position: 'absolute', top: 0, right: 0 },
   clip: { width: '100%', height: '100%', overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },

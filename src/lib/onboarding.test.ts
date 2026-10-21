@@ -7,10 +7,14 @@ import {
   EMPTY_ANSWERS,
   INTRO_LINES,
   PLATFORM_OPTIONS,
+  ANIMATED_EXAMPLES,
+  COLOUR_EXAMPLES,
   afterPicks,
+  examplesClause,
   TYPE_MS,
   handleProblem,
   hasFallbackUsername,
+  inExampleOrder,
   interleave,
   lettersShown,
   normaliseHandle,
@@ -107,7 +111,14 @@ describe('the typing', () => {
 
 describe('the steps', () => {
   it('shows every step where everything is available', () => {
-    assert.equal(onboardingSteps({ notifications: true, steam: true }).length, 12);
+    assert.equal(onboardingSteps({ notifications: true, steam: true }).length, 14);
+  });
+
+  it('asks how the app should look after the favourites, examples in hand', () => {
+    const steps = onboardingSteps({ notifications: false, steam: false });
+    const favourites = steps.indexOf('favourites');
+    assert.equal(steps[favourites + 1], 'colours');
+    assert.equal(steps[favourites + 2], 'animated');
   });
 
   it('leaves out a page that could only fail', () => {
@@ -121,6 +132,22 @@ describe('the steps', () => {
   it('claims the handle before the last page, so finishing needs one', () => {
     const steps = onboardingSteps({ notifications: true, steam: true });
     assert.equal(steps.indexOf('handle'), steps.length - 2);
+  });
+});
+
+describe('the examples', () => {
+  it('shows three well-known games for each question', () => {
+    assert.equal(COLOUR_EXAMPLES.length, 3);
+    assert.equal(ANIMATED_EXAMPLES.length, 3);
+    assert.equal(examplesClause([14593, 72]), 'id = (14593,72)');
+  });
+
+  it('keeps the order asked for, whatever IGDB answers in', () => {
+    const games = [{ sourceId: '1877' }, { sourceId: '14593' }, { sourceId: '72' }];
+    assert.deepEqual(
+      inExampleOrder(ANIMATED_EXAMPLES, games).map((game) => game.sourceId),
+      ['14593', '72', '1877']
+    );
   });
 });
 

@@ -3,7 +3,7 @@ import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
-import { figureFor, type ScoreFigureKey } from '@/constants/score-figure';
+import { SHOW_SCORE_FIGURES, figureFor, type ScoreFigureKey } from '@/constants/score-figure';
 import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -147,6 +147,7 @@ export type FiguredScoreProps = {
  * everywhere, and the pair is one thing to a screen reader.
  */
 export function FiguredScore({ score, size = 'medium', ink, style }: FiguredScoreProps) {
+  /* With the drawings off (`SHOW_SCORE_FIGURES`), the number alone. */
   const theme = useTheme();
   const { figure, number, line } = FIGURED[size];
   const rounded = Math.round(score);
@@ -156,7 +157,7 @@ export function FiguredScore({ score, size = 'medium', ink, style }: FiguredScor
       style={[styles.figured, style]}
       accessible
       accessibilityLabel={`Rated ${rounded} out of 100, ${labelFor(score)}`}>
-      <ScoreFigure score={score} size={figure} ink={ink} labelled={false} />
+      {SHOW_SCORE_FIGURES && <ScoreFigure score={score} size={figure} ink={ink} labelled={false} />}
       <Text
         style={[
           styles.number,

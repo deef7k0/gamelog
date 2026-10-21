@@ -34,3 +34,11 @@ export const SEARCH_SCOPE_INFO: readonly ScopeInfo[] = [
 export function scopeInfo(scope: SearchScope): ScopeInfo {
   return SEARCH_SCOPE_INFO.find((entry) => entry.key === scope) ?? SEARCH_SCOPE_INFO[0];
 }
+
+/**
+ * How many of a chart an untyped tab shows before its "See all": the top of
+ * Popular reviews on Reviews, the top of Most popular on Collections. Three
+ * tall cards is a screenful — enough to say what the chart is — and leaves the
+ * newest, under it, a thumb away instead of twenty cards down.
+ */
+export const CHART_PREVIEW = 3;

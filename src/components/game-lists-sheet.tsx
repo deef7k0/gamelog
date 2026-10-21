@@ -4,6 +4,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { ListTile } from '@/components/list-tile';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
+import { TallCardWindow } from '@/constants/list-window';
 import { Spacing } from '@/constants/theme';
 import { getGameListCount, getGameLists } from '@/lib/api';
 
@@ -90,6 +91,7 @@ export function GameListsSheet({ gameId, gameTitle }: GameListsSheetProps) {
       keyExtractor={(list) => list.id}
       contentContainerStyle={styles.body}
       showsVerticalScrollIndicator={false}
+      {...TallCardWindow}
       renderItem={({ item }) => <ListTile list={item} />}
       ListFooterComponent={
         /* Only when the cap actually bit. A footnote saying "and 0 more" is the

@@ -10,6 +10,7 @@ import { PageFlatList } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
+import { RichText } from '@/components/ui/rich-text';
 import { TextField } from '@/components/ui/text-field';
 import { ControlHeight, FontFamily, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
@@ -260,9 +261,9 @@ function CommentRow({
           </Text>
         </View>
 
-        <Text variant="body" color="textSecondary">
+        <RichText variant="body" color="textSecondary">
           {comment.body}
-        </Text>
+        </RichText>
 
         <View style={styles.commentActions}>
           <Text variant="caption" color="textMuted" onPress={onReply}>

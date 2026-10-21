@@ -39,8 +39,14 @@
  * the cache, which is why "Try again" worked. The owner met it on the first
  * launch after the change. **Adding a field needs no bump; renaming one is
  * removing one, and does.**
+ *
+ * 4: a game's GameLog score became the weighted community score (0041), and
+ * `['rating-breakdown']`'s `average` stopped being a rounded plain mean. The
+ * shape barely moved; what it means did — as with 2, every saved score would
+ * have opened a game's page on the old number for the moment before the new
+ * one arrived, beside a verdict and a breakdown already weighted.
  */
-export const CACHE_VERSION = 3;
+export const CACHE_VERSION = 4;
 
 /** A week, as SimpMusic keeps its own cached answers (`MOOD_ARTWORK_TTL_MILLIS`). */
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -89,11 +95,18 @@ const NEVER_PERSIST: ReadonlySet<string> = new Set([
   'search-history',
   'log-draft',
   'reading-languages',
+  'review-colour',
+  'game-colours',
+  'animated-artwork',
+  'trailers',
   'album-art-color',
   'artwork-color',
   'artwork-dominant',
   'studio-logo',
   'studio-banner',
+  /* A mesh is a few kilobytes of data URI worked out from a 90×128 thumbnail:
+     cheaper to rebuild than to keep a row of. */
+  'artwork-mesh',
 
   'gaming-sync',
   'gaming-sync-state',

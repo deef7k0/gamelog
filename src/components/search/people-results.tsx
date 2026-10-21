@@ -7,6 +7,7 @@ import { useTabBarClearance } from '@/components/app-tab-bar';
 import { DiscoverPeople } from '@/components/discover-people';
 import { PersonRow } from '@/components/person-row';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
+import { ArtRowWindow } from '@/constants/list-window';
 import { Spacing } from '@/constants/theme';
 import { searchProfiles } from '@/lib/api';
 
@@ -46,6 +47,7 @@ export function PeopleResults({ query }: { query: string }) {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
+      {...ArtRowWindow}
       renderItem={({ item, index }) => <PersonRow profile={item} divided={index > 0} />}
       ListEmptyComponent={
         <EmptyState

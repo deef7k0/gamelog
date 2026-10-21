@@ -1,15 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { memo, useCallback, useState, useSyncExternalStore } from 'react';
+import { memo, useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
-import { GameDetailsSheet } from '@/components/game-details-sheet';
-import { PlayedBy, RatingsCard, TopReview } from '@/components/game-insights';
+import { GameDetailsCard } from '@/components/game-details-card';
+import { GameAwards } from '@/components/game-awards';
+import { GameAudienceCard, PlayedBy, RatingsCard, TopReview } from '@/components/game-insights';
+import { GameScreenshots } from '@/components/game-screenshots';
 import { GameEditions, OriginalGame } from '@/components/game-lineage';
 import { GameListItem } from '@/components/game-list-item';
 import { GameListsSheet } from '@/components/game-lists-sheet';
@@ -17,16 +18,20 @@ import { GameModeratorCard } from '@/components/game-moderation';
 import { GamePlatforms } from '@/components/game-platforms';
 import { GameCoverRail } from '@/components/game-rail';
 import { CommunitySimilarCard, CommunitySimilarSheet } from '@/components/community-similar';
+import { CoverViewer, type CoverOrigin } from '@/components/cover-viewer';
 import { GameStatsStrip } from '@/components/game-stats-strip';
 import { ProgressSheet } from '@/components/progress-sheet';
 import { SoundtrackSummary } from '@/components/soundtrack-section';
+import { SteamEvents } from '@/components/steam-events';
 import { StorePrices } from '@/components/store-prices';
 import { useCriticSummary } from '@/components/critic-reviews';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
+import { CARD_INSET, cardMaterialFor, cardShape } from '@/components/ui/card-material';
 import { CoverHalo } from '@/components/ui/cover-halo';
-import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { TrailerBackdrop } from '@/components/trailer-backdrop';
+import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -35,7 +40,7 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { InfoCard, InfoCardButton } from '@/components/ui/info-card';
 import { PageScrollView } from '@/components/ui/page-scroll';
-import { ArtRail, Section, SectionInsetProvider, useSectionMetrics } from '@/components/ui/section';
+import { Section, SectionInsetProvider, useSectionMetrics } from '@/components/ui/section';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { editionLabel } from '@/constants/game-editions';
@@ -50,14 +55,17 @@ import { copyStateLine, releaseLine } from '@/constants/physical';
 import { labelFor, scoreColor } from '@/constants/score';
 import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
-import { FontFamily, PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
+import { FontFamily, PosterAspectRatio, Spacing } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useLandingArrival } from '@/hooks/use-arrival';
+import { useGameStorefronts } from '@/hooks/use-game-prices';
+import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
 import { recallGame } from '@/lib/games/seen-games';
+import { hasWriting } from '@/lib/review-quote';
 import {
   getCollectionGames,
   getFranchiseGames,
@@ -171,6 +179,70 @@ const MastheadCover = memo(function MastheadCover({
           Platforms. This is the cover as the game is billed. */}
       <Poster coverUrl={coverUrl} heroUrl={heroUrl} title={title} width={width} />
     </Animated.View>
+  );
+});
+
+/**
+ * The masthead's cover as a button: tapped, it is measured where it stands
+ * and `<CoverViewer>` brings a copy of it to the top of the screen, edge to
+ * edge, over the cover's own colours — where its animated portrait is one
+ * press away.
+ *
+ * Its own component, holding the viewer's state, so opening and closing the
+ * viewer re-renders this and not the page (CLAUDE.md, performance traps).
+ */
+const MastheadCoverButton = memo(function MastheadCoverButton({
+  gameId,
+  title,
+  coverUrl,
+  heroUrl,
+  width,
+  page,
+  label,
+}: {
+  gameId: string;
+  title: string;
+  coverUrl: string | null;
+  heroUrl: string | null;
+  width: number;
+  page: string;
+  label: string;
+}) {
+  const box = useRef<View>(null);
+  const [origin, setOrigin] = useState<CoverOrigin | null>(null);
+
+  function openViewer() {
+    box.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
+      if (measuredWidth > 0) setOrigin({ x, y, width: measuredWidth, height: measuredHeight });
+    });
+  }
+
+  return (
+    <>
+      <PressableScale
+        accessibilityRole="imagebutton"
+        accessibilityLabel={label}
+        accessibilityHint="Shows the cover full size, with its animated version a tap away"
+        onPress={openViewer}
+        scaleTo={0.97}>
+        <View
+          ref={box}
+          collapsable={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants">
+          <MastheadCover coverUrl={coverUrl} heroUrl={heroUrl} title={title} width={width} />
+        </View>
+      </PressableScale>
+
+      {origin && (
+        <CoverViewer
+          game={{ id: gameId, title, coverUrl, heroUrl }}
+          origin={origin}
+          page={page}
+          onClosed={() => setOrigin(null)}
+        />
+      )}
+    </>
   );
 });
 
@@ -342,6 +414,21 @@ export default function GameDetailScreen() {
     staleTime: 30 * 60_000,
   });
 
+  /*
+   * The game's official stores and its Steam appid, read from the same record
+   * as `extras` above — the same key, so the same request. The appid is what
+   * Where to buy prices by and what the Awards card and the events rail ask
+   * Steam about.
+   */
+  const storefronts = useGameStorefronts(id ?? '');
+
+  /* The trailer behind the hero, from the game's Steam listing — the studio
+     page's banner, here too (the owner's, 2026-10-17). It rides on the same
+     record as the storefronts, so it costs the page two small Steam requests
+     a day and nothing from IGDB. One switch for both pages. */
+  const trailer = useGameTrailer(id ?? null);
+  const trailers = useTrailerSetting();
+
   const collectionId = extras.data?.collection?.id ?? null;
   const franchiseId = extras.data?.franchises[0]?.id ?? null;
 
@@ -372,6 +459,9 @@ export default function GameDetailScreen() {
    * from.
    */
   const accent = useGameAccent(game.data?.coverUrl ?? game.data?.heroUrl, game.data?.genres);
+  /* Every card's material, in this game's tone — for the log block below,
+     which this component draws itself. */
+  const cardMaterial = cardMaterialFor(accent, theme);
   /* The same extraction the accent uses, returning its three-depth ramp rather
      than the single accent hue — one query, served from cache on both calls. */
 
@@ -452,6 +542,8 @@ export default function GameDetailScreen() {
 
   const data = game.data;
   const logged = myLog.data;
+  /* A legacy row may carry its appid on the record itself. */
+  const steamAppId = storefronts.steamAppId ?? data.steamAppId ?? null;
 
   const unlockedCount = (achievements.data ?? []).filter((entry) => entry.unlocked_at).length;
   const achievementTotal = achievements.data?.length ?? 0;
@@ -510,13 +602,21 @@ export default function GameDetailScreen() {
             The dissolve itself is softer than it was: it starts higher, eases
             at both ends and trails off, where it used to run in a straight
             line to the hero's bottom edge and stop. See `<HeroArt>`. */}
-        <HeroArt
-          uri={data.heroUrl}
-          steamAppId={data.steamAppId}
+        {/* The trailer under the art, when there is one and it is switched
+            on: the art fades off it at its first frame, and it dissolves into
+            the page along the art's own curve (`<TrailerBackdrop>`). */}
+        <TrailerBackdrop
+          url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
           height={heroHeight}
-          scrim
-          fade="mask"
-        />
+          dissolveInto={accent.page}>
+          <HeroArt
+            uri={data.heroUrl}
+            steamAppId={data.steamAppId}
+            height={heroHeight}
+            scrim
+            fade="mask"
+          />
+        </TrailerBackdrop>
       </View>
 
       {/*
@@ -558,7 +658,8 @@ export default function GameDetailScreen() {
         {/*
           The billing: the name, then what the game is in three quiet lines.
 
-          Sizes are the reference's, matched to Inter by capital height: 22 for
+          Sizes are the reference's, matched by capital height (to Inter, since
+          replaced by Poppins app-wide): 22 for
           the name (its own step, `styles.billingTitle` — `Type` has nothing
           between 20 and 23) and `body` for the rest. It was 28 / 18 / 15, a size
           above the interface, on the argument that the cover beside it does not
@@ -581,12 +682,12 @@ export default function GameDetailScreen() {
           ellipsis.
         */}
         <View style={styles.billing}>
-          {/* `onPrimary` is the palette's one pure white. `text` is a step
-              under it, and the reference's title is not. */}
+          {/* Pure white (`white`). `text` is a step under it, and the
+              reference's title is not. */}
           <Text
             variant="display"
             numberOfLines={4}
-            style={[styles.billingTitle, { color: theme.onPrimary }]}>
+            style={[styles.billingTitle, { color: theme.white }]}>
             {data.title}
           </Text>
 
@@ -679,35 +780,30 @@ export default function GameDetailScreen() {
         </View>
 
         {/*
-          The cover, plain and still: nothing to press.
+          The cover: still on the page, and a door to itself, larger.
 
           The case is in the Overview's Platforms section, with the platform
           button beside it and the turn-over that shows your record on its back.
           The masthead says *which game*; the section says *which box*.
 
+          Tapping it brings it full size to the top of the screen, with the
+          animated portrait a press away (2026-10-21, `<CoverViewer>`).
+
           One label for the whole thing, set here: the poster inside is hidden
           from assistive tech so the art is read once, with the edition the case
           would have printed.
         */}
-        <View
-          accessible
-          accessibilityRole="image"
-          accessibilityLabel={[
-            data.title,
-            data.edition ? editionLabel(data.edition) : null,
-            'cover art',
-          ]
+        <MastheadCoverButton
+          gameId={data.id}
+          title={data.title}
+          coverUrl={data.coverUrl}
+          heroUrl={data.heroUrl}
+          width={coverWidth}
+          page={accent.page}
+          label={[data.title, data.edition ? editionLabel(data.edition) : null, 'cover art']
             .filter(Boolean)
-            .join(', ')}>
-          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            <MastheadCover
-              coverUrl={data.coverUrl}
-              heroUrl={data.heroUrl}
-              title={data.title}
-              width={coverWidth}
-            />
-          </View>
-        </View>
+            .join(', ')}
+        />
       </View>
 
       {/*
@@ -799,11 +895,10 @@ export default function GameDetailScreen() {
         These are the one kind of colour that cannot be lifted to suit a
         backdrop: they are *data*, tuned as a ramp, and forcing `statusPlayed`
         to AA on the gradient moves it 165 RGB units to a pale #C0DFF8 that no
-        longer belongs to the set. So the surface comes back — but tinted
-        rather than grey. `accent.surface` mixes the game's own hue into
-        `surface` and restores the original luminance, so every one of these
-        tokens measures what it was chosen for (worst case 5.07:1) while the
-        block reads as belonging to this game rather than to the app.
+        longer belongs to the set. So the surface comes back, and since
+        2026-10-20 it is a card like every other: the review card's material
+        (`cardMaterialFor`) in the game's own dark tone — or `surface`, with
+        game colours off.
       */}
       {/*
         Rendered only when there is something in it to read.
@@ -814,9 +909,14 @@ export default function GameDetailScreen() {
         nothing else — by far the most common log there is) would leave an
         empty tinted rectangle above the actions.
       */}
-      {logged && (logged.review?.trim() || logged.rating !== null || logged.platinum) && (
-        <View style={[styles.myLog, { backgroundColor: accent.surface }]}>
-          {logged.review?.trim() ? (
+      {logged && (hasWriting(logged) || logged.rating !== null || logged.platinum) && (
+        <View
+          style={[
+            cardShape,
+            styles.myLog,
+            { backgroundColor: cardMaterial.fill, borderColor: cardMaterial.edge },
+          ]}>
+          {hasWriting(logged) ? (
             /*
              * You wrote about this — so the block says so in a sentence and
              * then gets out of the way.
@@ -912,9 +1012,6 @@ export default function GameDetailScreen() {
                 <Text variant="h3" accessibilityRole="header">
                   Similar, according to IGDB
                 </Text>
-                <Text variant="caption" color="textMuted">
-                  The catalogue’s own list. No reasons given.
-                </Text>
               </View>
 
               {similar.isLoading ? (
@@ -969,27 +1066,7 @@ export default function GameDetailScreen() {
                 build, as they do on the reference's film page; the owner had
                 the screenshots moved "back to the top of the page".
               */}
-              {screenshots.length > 0 && (
-                <Section title="Screenshots">
-                  <ArtRail
-                    data={screenshots}
-                    keyOf={(shot) => shot.url}
-                    shape="wide"
-                    renderArt={(shot, size) => (
-                      <Image
-                        source={{ uri: shot.url }}
-                        style={[size, styles.shot, { backgroundColor: theme.surfaceElevated }]}
-                        contentFit="cover"
-                        transition={200}
-                        accessible
-                        accessibilityRole="image"
-                        accessibilityLabel={shot.label}
-                        accessibilityIgnoresInvertColors
-                      />
-                    )}
-                  />
-                </Section>
-              )}
+              <GameScreenshots shots={screenshots} trailer={extras.data?.trailer ?? null} />
 
               {/*
                 Then what the people here made of it — the three things a
@@ -1002,6 +1079,11 @@ export default function GameDetailScreen() {
                 is a door to that sheet.
               */}
               <RatingsCard gameId={data.id} title={data.title} onOpen={openReviews} />
+
+              {/* How many people here want it, are playing it, have played
+                  it — the owner's request (2026-10-16). Under the ratings:
+                  what the room thought, then how many are in it. */}
+              <GameAudienceCard gameId={data.id} title={data.title} />
 
               {/* Anybody, and the people you follow: two faces each. */}
               <PlayedBy gameId={data.id} />
@@ -1020,7 +1102,13 @@ export default function GameDetailScreen() {
                 own, so nothing that could be reached from here was lost in the
                 move. Absent for a game that is not IGDB's, which has no record.
               */}
-              <GameDetailsSheet gameId={data.id} trigger="card" />
+              <GameDetailsCard gameId={data.id} />
+
+              {/* What the critics and the shows gave it, as the publisher
+                  shows it on Steam — the graphic from the store page's Awards
+                  section, and the Steam Awards it won. Under the details, at the
+                  owner's direction (2026-10-16). */}
+              <GameAwards appId={steamAppId} title={data.title} />
 
               {/*
                 Platforms: which machines it is on, and the box on each — the
@@ -1043,7 +1131,7 @@ export default function GameDetailScreen() {
 
               {/* Under the box, not above it: the price is the next question
                   for a reader who has decided which one. */}
-              <StorePrices gameId={data.id} title={data.title} steamAppId={data.steamAppId} />
+              <StorePrices gameId={data.id} title={data.title} />
 
               {/*
                 Your copy, directly under where to buy one — the two answers to
@@ -1086,6 +1174,11 @@ export default function GameDetailScreen() {
                   </View>
                 </InfoCardButton>
               )}
+
+              {/* What is new with it: the store page's recent events and
+                  announcements — patches, in-game events, DLC, news — opened
+                  on Steam. After how to get it, before the series. */}
+              <SteamEvents appId={steamAppId} title={data.title} />
 
               {/* "Featured in" — the showcases a game appeared at — followed
                   this, and the owner had it taken off the page; and so did the
@@ -1200,7 +1293,22 @@ export default function GameDetailScreen() {
              name and the cover) has gone under where it sits: the hero, less
              how far the row rises into it, plus the cover. */
           topBar={
-            <FrostedTopBar back title={data.title} header={heroHeight - overlap + coverHeight} />
+            <FrostedTopBar
+              back
+              title={data.title}
+              header={heroHeight - overlap + coverHeight}
+              /* The trailer on and off, opposite the back disc — the studio
+                 page's key — shown only when there is a trailer to switch. */
+              right={
+                trailer ? (
+                  <TopBarDisc
+                    icon={trailers.on ? 'videocam-off-outline' : 'videocam-outline'}
+                    label={trailers.on ? 'Stop the trailer' : 'Play the trailer'}
+                    onPress={() => trailers.setOn(!trailers.on)}
+                  />
+                ) : undefined
+              }
+            />
           }>
           {/*
             A ScrollView, not a one-item FlatList.
@@ -1404,11 +1512,12 @@ const styles = StyleSheet.create({
      labels to the buttons. */
   actions: { marginTop: Spacing.x12 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 + 2 },
+  /* Every card's material (`card-material`): the review card's corner, edge
+     and inset, in the game's dark tone. */
   myLog: {
     gap: Spacing.x8,
-    padding: Spacing.x16,
+    padding: CARD_INSET,
     marginTop: Spacing.x20,
-    borderRadius: Radius.card,
   },
   /* `flex-end`, not `space-between`. The row held the status word on the left
      and the platinum trophy on the right; with the word gone `space-between`
@@ -1433,5 +1542,4 @@ const styles = StyleSheet.create({
   similarHead: { gap: 2 },
   reviewRow: { marginBottom: Spacing.x12 },
   /* The size comes from the rail; the corner is the app's box-art corner. */
-  shot: { borderRadius: Radius.image },
 });

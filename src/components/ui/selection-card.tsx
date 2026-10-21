@@ -42,7 +42,8 @@ export type SelectionCardProps = {
  * One choice, drawn as the owner's reference draws it — SimpMusic's Server
  * options, taken from its code rather than traced from a screenshot:
  *
- *  - a row, `Radius.card` (16) corners, 15dp of padding and 13 between parts;
+ *  - a row, `Radius.card` (12, every card's corner) corners, 15dp of padding and
+ *    13 between parts;
  *  - **the circle first**, 34dp, on the leading edge (`<RadioMark>`);
  *  - the name in `optionTitle`, and what it means under it in `bodySmall`;
  *  - at rest, only an outline; chosen, the accent's wash inside and its edge

@@ -3,7 +3,9 @@ import { resolvePreview, resolveStack, SUMMARY_ITEMS, type SummaryRow } from './
 import { rememberLogs } from './seen-logs';
 import type { ListSummary } from './types';
 import type { CachedGame, LogStatus, LogWithRelations, Profile } from '../database.types';
+import { hasWriting } from '../review-quote';
 import { supabase } from '../supabase';
+import type { ChartEntry } from '../top-chart';
 
 /**
  * The Reviews / Collections / People tabs.
@@ -387,14 +389,15 @@ export async function getHomeActivity(viewerId: string, limit = 20): Promise<Hom
     supabase
       .from('logs')
       .select(LOG_WITH_RELATIONS)
-      .or('rating.not.is.null,review.not.is.null')
+      .or('rating.not.is.null,review.not.is.null,review_title.not.is.null')
       .neq('user_id', viewerId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
-  /* An empty review is not a null one, and a row holding only that says nothing. */
+  /* An empty review is not a null one, and a row holding only that says nothing.
+     The review's one sentence is words too (0040). */
   const worthShowing = (rows: LogWithRelations[]) =>
-    rows.filter((log) => log.rating !== null || (log.review ?? '').trim().length > 0);
+    rows.filter((log) => log.rating !== null || hasWriting(log));
 
   if (circle.length > 0) {
     const friends = await said().in('user_id', circle);
@@ -507,6 +510,71 @@ export async function getGamePlayers(
 }
 
 // ---------------------------------------------------------------------------
+// A game's page: how many want it, are playing it, have played it
+// ---------------------------------------------------------------------------
+
+/** Played it and not playing it now: finished, set down, or stopped. */
+const PLAYED_BEFORE: LogStatus[] = ['played', 'paused', 'dropped'];
+
+export type GameAudience = {
+  /** People with the game on their wishlist. */
+  wishlisted: number;
+  /** People whose log says they are playing it now. */
+  playing: number;
+  /** People who have played it and are not playing it now. */
+  played: number;
+};
+
+/**
+ * How many people here want a game, are playing it, and have played it — the
+ * game page's "On GameLog" figures, the owner's request (2026-10-16).
+ *
+ * Everybody's, the viewer's included: these are counts of the room, not the
+ * faces in "Played by", which are other people. Three `head` requests in
+ * parallel — a `COUNT(*)` each and no rows.
+ *
+ * - **Wishlisted** is the wishlist (the action row's bookmark): one list a
+ *   person, so a row of `list_items` in one is one person. A backlog log is
+ *   not counted here — that is a game somebody has, not one they want.
+ * - **Playing** is the `playing` status.
+ * - **Played** is played, paused or dropped: everybody who has played it and
+ *   is not playing it right now, so the two never count one person twice and
+ *   together they are the "Played by" square's total, plus the viewer.
+ *
+ * Unlike IGDB's popularity "Want to Play / Playing / Played", which are shares
+ * of its own traffic (0.000042 for Disco Elysium, 2026-10-16) and not people.
+ */
+export async function getGameAudience(gameId: string): Promise<GameAudience> {
+  const [wishlisted, playing, played] = await Promise.all([
+    supabase
+      .from('list_items')
+      .select('list_id, lists!inner(kind)', { count: 'exact', head: true })
+      .eq('game_id', gameId)
+      .eq('lists.kind', 'wishlist'),
+    supabase
+      .from('logs')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('game_id', gameId)
+      .eq('status', 'playing'),
+    supabase
+      .from('logs')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('game_id', gameId)
+      .in('status', PLAYED_BEFORE),
+  ]);
+
+  for (const answer of [wishlisted, playing, played]) {
+    if (answer.error) throw new Error(answer.error.message);
+  }
+
+  return {
+    wishlisted: wishlisted.count ?? 0,
+    playing: playing.count ?? 0,
+    played: played.count ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Search: beloved by the community
 // ---------------------------------------------------------------------------
 
@@ -520,7 +588,11 @@ export type BelovedGame = Pick<
   CachedGame,
   'id' | 'title' | 'cover_url' | 'hero_url' | 'edition_kind' | 'release_year'
 > & {
-  /** GameLog's own average over the period, 0-100, rounded. */
+  /**
+   * GameLog's own average over the period, 0-100, **unrounded**: the
+   * period's ratings weighted as the community score is (0041). Round it
+   * where it is drawn.
+   */
   average: number;
   ratings: number;
 };
@@ -565,40 +637,87 @@ export async function getBelovedGames(
 
   return ranked.flatMap((row) => {
     const game = byId.get(row.game_id);
-    return game
-      ? [{ ...game, average: Math.round(Number(row.average)), ratings: Number(row.ratings) }]
-      : [];
+    return game ? [{ ...game, average: Number(row.average), ratings: Number(row.ratings) }] : [];
   });
 }
 
-/**
- * Collections that changed most recently.
- *
- * `updated_at` rather than `created_at`: a collection someone is actively
- * curating is the interesting one, and 0003's trigger already touches the
- * column on every edit. Favourites and wishlists are excluded — they are
- * per-user state the profile renders itself, not published collections.
- */
-export async function getRecentCollections(limit = 10): Promise<ListSummary[]> {
-  const { data, error } = await supabase
-    .from('lists')
-    .select(`*, ${SUMMARY_ITEMS}`)
-    .in('kind', ['list', 'tier'])
-    .order('updated_at', { ascending: false })
-    .limit(limit * 2);
+// ---------------------------------------------------------------------------
+// The Top 1000, by GameLog's members
+// ---------------------------------------------------------------------------
 
-  return (
-    unwrap(data as SummaryRow[] | null, error)
-      // An empty collection is a draft, and PostgREST cannot filter on the
-      // embedded count — so it is dropped here, which is why the query
-      // over-fetches above.
-      .filter((row) => (row.items?.length ?? 0) > 0)
-      .slice(0, limit)
-      .map((row) => ({
-        ...row,
-        itemCount: row.items?.length ?? 0,
-        preview: resolvePreview(row),
-        stack: resolveStack(row),
-      }))
-  );
+/** One place in GameLog's ranking: the game, its score and how many gave one. */
+export type GameLogRank = {
+  gameId: string;
+  /** 0-100, **unrounded** — the community score (0041), or the plain mean. */
+  average: number;
+  ratings: number;
+};
+
+/**
+ * Every game rated on GameLog, best first, up to `TOP_CHART_SIZE` — or `null`
+ * on a database without 0037.
+ *
+ * "Beloved by the community" over all time: the same function (`beloved_games`)
+ * with the period opened to the beginning, so the chart and that row are one
+ * rule — the community score as each game's average (0041 weights it, as the
+ * game's own page does) and a damped figure for the order, so one 100 does not
+ * top thirty 94s. One request, a column of ids and two numbers, ~50 KB at a
+ * thousand games; the pages are slices of it (`getGameLogChartPage`).
+ */
+export async function getGameLogRanking(limit: number): Promise<GameLogRank[] | null> {
+  const ranking = await supabase.rpc('beloved_games', {
+    p_since: '1970-01-01T00:00:00Z',
+    p_limit: limit,
+  });
+  if (ranking.error) {
+    if (isMissingFunction(ranking.error)) return null;
+    throw new Error(ranking.error.message);
+  }
+  return (ranking.data ?? []).map((row) => ({
+    gameId: row.game_id,
+    average: Number(row.average),
+    ratings: Number(row.ratings),
+  }));
+}
+
+/**
+ * One page of GameLog's ranking, with each game's box and credit: the games
+ * cache (`games`) for the slice's ids, in the ranking's order. A game the
+ * cache has lost is left out rather than drawn as a blank.
+ */
+export async function getGameLogChartPage(
+  slice: readonly GameLogRank[],
+  firstRank: number
+): Promise<ChartEntry[]> {
+  if (slice.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('games')
+    .select('id, title, cover_url, hero_url, edition_kind, release_year, developer')
+    .in(
+      'id',
+      slice.map((row) => row.gameId)
+    );
+  if (error) throw new Error(error.message);
+
+  const byId = new Map((data ?? []).map((game) => [game.id, game]));
+  return slice.flatMap((row, index) => {
+    const game = byId.get(row.gameId);
+    return game
+      ? [
+          {
+            rank: firstRank + index,
+            id: game.id,
+            title: game.title,
+            coverUrl: game.cover_url,
+            heroUrl: game.hero_url,
+            edition: game.edition_kind,
+            developer: game.developer,
+            releaseYear: game.release_year,
+            score: row.average,
+            count: row.ratings,
+          },
+        ]
+      : [];
+  });
 }

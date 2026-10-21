@@ -14,7 +14,7 @@ import type {
  * ## Filters are predicates, sent with the query
  *
  * Each filter becomes a clause on `logs` in the request itself — see
- * `getGameReviewList` — so a game with thousands of reviews returns only the
+ * `getGameReviewRanking` — so a game with thousands of reviews returns only the
  * ones that match, and nothing is downloaded to be sifted on the phone. They
  * compose by AND: PC + Finished + Co-op is three clauses on one request.
  *
@@ -28,7 +28,9 @@ import type {
  * test cannot load — and a test running these same clauses against a real
  * Postgres is the point of keeping them here.
  *
- * Every number is Gamelog's own: the scores people gave on this app.
+ * Every number is Gamelog's own: the scores people gave on this app — and,
+ * since 0041, each group's average is weighted as the game's score is, so a
+ * group everybody is in says exactly what the headline above it says.
  */
 
 // ---------------------------------------------------------------------------
@@ -201,6 +203,7 @@ export function platformFacets(
 // The breakdown
 // ---------------------------------------------------------------------------
 
+/** `average` is unrounded: the row's badge rounds it where it is drawn. */
 export type BreakdownRow = { key: string; label: string; count: number; average: number };
 
 export type BreakdownSection = {
@@ -209,9 +212,39 @@ export type BreakdownSection = {
   rows: BreakdownRow[];
 };
 
+/**
+ * A group's average: its weighted mean when the database sends one (0041),
+ * else the plain one — a database before 0041 has no weights to apply.
+ */
 function row(key: string, label: string, tally: ScoreTally | undefined): BreakdownRow | null {
   if (!tally || tally.count <= 0) return null;
-  return { key, label, count: tally.count, average: Math.round(tally.sum / tally.count) };
+  const average = tally.weighted_mean ?? tally.sum / tally.count;
+  return { key, label, count: tally.count, average };
+}
+
+/**
+ * Several stored platforms as one family's tally.
+ *
+ * Counts and sums add. Weighted means do not — but each platform carries its
+ * share of the game's whole weight, and the shares weight the means exactly:
+ * `Σ shareᵢ × meanᵢ / Σ shareᵢ` is the family's weighted mean. Without a
+ * share for every platform (before 0041), the family gets the plain mean.
+ */
+function familyTally(items: readonly ScoreTally[]): ScoreTally {
+  const count = items.reduce((total, item) => total + item.count, 0);
+  const sum = items.reduce((total, item) => total + item.sum, 0);
+  const weighed = items.every(
+    (item) => typeof item.weighted_mean === 'number' && typeof item.weight_share === 'number'
+  );
+  const share = weighed ? items.reduce((total, item) => total + item.weight_share!, 0) : 0;
+  return {
+    count,
+    sum,
+    weighted_mean:
+      weighed && share > 0
+        ? items.reduce((total, item) => total + item.weight_share! * item.weighted_mean!, 0) / share
+        : null,
+  };
 }
 
 /**
@@ -232,11 +265,7 @@ export function reviewBreakdown(
   );
 
   const platforms = byFamily(stats.platforms, (entry) => entry.platform, families, familyOf).map(
-    ({ family, items }) =>
-      row(family.key, family.name, {
-        count: items.reduce((total, item) => total + item.count, 0),
-        sum: items.reduce((total, item) => total + item.sum, 0),
-      })
+    ({ family, items }) => row(family.key, family.name, familyTally(items))
   );
 
   const play = PLAY_FILTERS.map(({ key, label }) => row(key, label, stats.groups[key]));

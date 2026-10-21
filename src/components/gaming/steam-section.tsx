@@ -337,7 +337,7 @@ export function SteamSection({
                   )}
                   {item.amount > 1 && (
                     <View style={[styles.amountPill, { backgroundColor: theme.scrim }]}>
-                      <Text variant="caption" color="onPrimary">
+                      <Text variant="caption" color="white">
                         ×{item.amount}
                       </Text>
                     </View>

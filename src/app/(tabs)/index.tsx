@@ -17,7 +17,6 @@ import { ArticleCard, PastEventCard } from '@/components/news-cards';
 import { SurpriseEntry } from '@/components/surprise-entry';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { FoldingTopBar } from '@/components/ui/frosted-top-bar';
 import { PageScrollView } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
@@ -28,6 +27,7 @@ import { useTabBarClearance } from '@/components/app-tab-bar';
 import { footHeight } from '@/constants/cover-rail';
 import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { TOP_BAR_ROW } from '@/constants/top-bar';
 import { useHeaderHeight } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import { getHomeActivity, getUnreadCount, getUserLogs } from '@/lib/api';
@@ -328,26 +328,40 @@ export default function HomeScreen() {
          scroll-faded. See `ui/ambient-light`. The old glow itself — a far
          stronger `<SoftGlow>` that faded out on scroll — was removed at the
          owner's request: it read as a lit corner rather than as light. */
-      backdrop={<AmbientLight />}
-      /*
-        The app's own bar — SimpMusic's Home, at the owner's direction.
-
-        It floats over the page: clear while the page is at its very top, so
-        the light in the corner is behind the wordmark, and frosted the moment
-        the page has moved. Reading down past the first band it folds away and
-        leaves the frost over the status bar; any move back up brings it down
-        again. `<FoldingTopBar>` is the mechanism and `constants/top-bar` the
-        numbers.
-
-        (For a long while this row was the scroll's first child and went away
-        with the content for good, which made the bell a long flick from the
-        foot of the page.)
-
-        One control: what happened while you were away. Settings moved to the
-        profile's top bar, beside the other things that are about you.
-      */
-      topBar={
-        <FoldingTopBar>
+      backdrop={<AmbientLight />}>
+      <PageScrollView
+        ref={scroller}
+        /*
+         * Bands resolve at different times and some of them are over a thousand
+         * dp tall. Without this, a band landing above the viewport teleports
+         * whoever is reading below it — and the person this app is built for is
+         * one-handed, interrupted, and on whatever connection the sofa gets.
+         * `minIndexForVisible: 1` anchors to the first child rather than the
+         * scroll origin, so a pull-to-refresh still behaves.
+         */
+        maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
+        contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refreshAll}
+            tintColor={theme.primary}
+            /* Otherwise the spinner drops out of the very top of the display,
+               behind the bar, and a pull-to-refresh looks like it did nothing. */
+            progressViewOffset={headerHeight}
+          />
+        }>
+        {/*
+          GameLog, the greeting and the bell — the page's first row, scrolled
+          with it like any card. The owner's direction (2026-10-15): "I don't
+          want the topbar in the home page to follow the user scroll. Remove the
+          topbar as a feature and just make it part of the… screen". It was a
+          bar floating over the page (`<FoldingTopBar>`), fixed at the top while
+          the bands scrolled under it. The status bar's height is room above
+          the row, so it starts where the bar's row did.
+        */}
+        <View style={{ height: headerHeight, paddingTop: headerHeight - TOP_BAR_ROW }}>
           <View style={styles.masthead}>
             <View style={styles.mastheadTitles}>
               {/* `h3`: the reference's app name is `titleMedium`, 18 — a step
@@ -391,36 +405,7 @@ export default function HomeScreen() {
               </PressableScale>
             </View>
           </View>
-        </FoldingTopBar>
-      }>
-      <PageScrollView
-        ref={scroller}
-        /*
-         * Bands resolve at different times and some of them are over a thousand
-         * dp tall. Without this, a band landing above the viewport teleports
-         * whoever is reading below it — and the person this app is built for is
-         * one-handed, interrupted, and on whatever connection the sofa gets.
-         * `minIndexForVisible: 1` anchors to the first child rather than the
-         * scroll origin, so a pull-to-refresh still behaves.
-         */
-        maintainVisibleContentPosition={{ minIndexForVisible: 1 }}
-        contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refreshAll}
-            tintColor={theme.primary}
-            /* Otherwise the spinner drops out of the very top of the display,
-               behind the bar, and a pull-to-refresh looks like it did nothing. */
-            progressViewOffset={headerHeight}
-          />
-        }>
-        {/* The room the floating bar is drawn over, as the scroll's first row —
-            the reference's `Spacer(topAppBarHeight)`. A row and not a padding,
-            so the rows after it keep their places in the list (see
-            `maintainVisibleContentPosition` above). */}
-        <View style={{ height: headerHeight }} />
+        </View>
 
         {/* Who you are, and a way into your own profile. Two lines rather than
             one because "Welcome back, Ada" buries the name inside a sentence —

@@ -12,6 +12,7 @@ import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
 import { useTabBarClearance } from '@/components/app-tab-bar';
+import { ArtRowWindow, CoverGridWindow } from '@/constants/list-window';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -192,6 +193,7 @@ export default function NewsScreen() {
                 : [styles.chartGrid, { paddingBottom: Spacing.x48 + clearance }]
             }
             showsVerticalScrollIndicator={false}
+            {...CoverGridWindow}
             renderItem={({ item }) => (
               <CoverTile game={item.game} width={chartTileWidth} rank={item.rank} />
             )}
@@ -256,12 +258,15 @@ function List<T>({
       data={data}
       keyExtractor={keyOf}
       renderItem={({ item }) => render(item)}
-      ItemSeparatorComponent={() => <View style={{ height: gap }} />}
+      /* The gap between cards is the content's own `gap`, not a separator: an
+         inline `ItemSeparatorComponent` was a new component type every render,
+         which remounted every separator on screen (CLAUDE.md, performance). */
       contentContainerStyle={
         data.length === 0
           ? styles.empty
-          : [styles.content, { paddingBottom: Spacing.x48 + clearance }]
+          : [styles.content, { gap, paddingBottom: Spacing.x48 + clearance }]
       }
+      {...ArtRowWindow}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />

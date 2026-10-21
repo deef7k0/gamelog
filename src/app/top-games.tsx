@@ -108,10 +108,10 @@ export default function TopGamesScreen() {
             <HeroArt uri={lead?.heroUrl ?? lead?.coverUrl} scrim />
 
             <View style={styles.headline}>
-              <Text variant="caption" color="onPrimary">
+              <Text variant="caption" color="white">
                 THIS MONTH
               </Text>
-              <Text variant="display" color="onPrimary">
+              <Text variant="display" color="white">
                 Top 10 Most Popular
               </Text>
             </View>

@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
+import { CARD_INSET, cardShape } from '@/components/ui/card-material';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { PageScrollView } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
@@ -795,7 +796,11 @@ function ReleaseCard({
   const theme = useTheme();
   return (
     <View
-      style={[styles.card, { backgroundColor: theme.surface }]}
+      style={[
+        cardShape,
+        styles.card,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+      ]}
       accessible
       accessibilityLabel={`${title}. ${line}. ${sub}`}>
       <Poster coverUrl={coverUrl} heroUrl={heroUrl} title={title} width={56} rounded="image" />
@@ -852,12 +857,7 @@ const styles = StyleSheet.create({
   resultScroll: { maxHeight: 520 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   claim: { gap: Spacing.x8 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.card,
-  },
+  /* Every card's material (`card-material`). */
+  card: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12, padding: CARD_INSET },
   cardText: { flex: 1, gap: 2 },
 });

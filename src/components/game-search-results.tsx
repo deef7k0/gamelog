@@ -1,6 +1,6 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import type { CollectionLayout } from '@/components/collection-toolbar';
@@ -89,6 +89,8 @@ export type GameSearchResultsProps = {
    * no room for.
    */
   layoutToggle?: boolean;
+  /** Drawn above the toolbar, in every state: the Search tab's facet suggestions. */
+  header?: ReactNode;
 };
 
 /**
@@ -107,6 +109,7 @@ export function GameSearchResults({
   isDisabled,
   prompt,
   layoutToggle = false,
+  header = null,
 }: GameSearchResultsProps) {
   const clearance = useTabBarClearance();
   const [sort, setSort] = useState<GameSort>('default');
@@ -121,6 +124,7 @@ export function GameSearchResults({
   const games = useQuery({
     // Shared key: the picker and the Search tab hit the same cache, so opening
     // the picker for a term you just searched costs nothing.
+    /* Under `search`, so neither is kept on the device (`NEVER_PERSIST`). */
     queryKey: ['search', 'games', query],
     queryFn: ({ signal }) => searchGames(query, signal),
     enabled: isQueryable,
@@ -203,8 +207,21 @@ export function GameSearchResults({
       .map((provider) => provider.label)
       .join(' and ') || 'the catalogue';
 
+  /* The header stands over every state, not only the list, so suggestions do
+     not blink out while the next results load. */
+  const framed = (node: ReactNode) =>
+    header ? (
+      <View style={styles.framed}>
+        {/* Where the list's own padding would have put it. */}
+        <View style={styles.framedHead}>{header}</View>
+        {node}
+      </View>
+    ) : (
+      node
+    );
+
   if (!isQueryable) {
-    return (
+    return framed(
       <EmptyState
         title={prompt?.title ?? 'Find a game'}
         message={
@@ -218,9 +235,9 @@ export function GameSearchResults({
   /* A skeleton, not a spinner (DESIGN.md § 22). The shape of a result row is
      fully known before the response arrives, so the wait can show what is
      coming instead of only that something is. */
-  if (games.isLoading) return <ResultsSkeleton />;
+  if (games.isLoading) return framed(<ResultsSkeleton />);
   if (games.isLoadingError)
-    return <ErrorState error={games.error} onRetry={() => games.refetch()} />;
+    return framed(<ErrorState error={games.error} onRetry={() => games.refetch()} />);
 
   return (
     <PageFlatList
@@ -281,35 +298,40 @@ export function GameSearchResults({
          * results are on more than one platform (`canFilter`).
          */
         resultCount > 1 ? (
-          <View style={styles.toolbar}>
-            <DropdownButton
-              label="Sort by"
-              value={sort}
-              options={SORT_OPTIONS}
-              onChange={setSort}
-            />
-            {canFilter && (
+          <View>
+            {header}
+            <View style={styles.toolbar}>
               <DropdownButton
-                label="Platform"
-                value={activePlatform}
-                options={platformOptions}
-                onChange={setPlatform}
+                label="Sort by"
+                value={sort}
+                options={SORT_OPTIONS}
+                onChange={setSort}
               />
-            )}
-
-            {layoutToggle && (
-              <>
-                <View style={styles.spacer} />
-                {/* Shows the layout you would *get*, not the one you are in. */}
-                <IconButton
-                  icon={layout === 'grid' ? 'list' : 'grid'}
-                  accessibilityLabel={layout === 'grid' ? 'Show as a list' : 'Show as a grid'}
-                  size="small"
-                  onPress={() => setLayout(layout === 'grid' ? 'rows' : 'grid')}
+              {canFilter && (
+                <DropdownButton
+                  label="Platform"
+                  value={activePlatform}
+                  options={platformOptions}
+                  onChange={setPlatform}
                 />
-              </>
-            )}
+              )}
+
+              {layoutToggle && (
+                <>
+                  <View style={styles.spacer} />
+                  {/* Shows the layout you would *get*, not the one you are in. */}
+                  <IconButton
+                    icon={layout === 'grid' ? 'list' : 'grid'}
+                    accessibilityLabel={layout === 'grid' ? 'Show as a list' : 'Show as a grid'}
+                    size="small"
+                    onPress={() => setLayout(layout === 'grid' ? 'rows' : 'grid')}
+                  />
+                </>
+              )}
+            </View>
           </View>
+        ) : header ? (
+          <View>{header}</View>
         ) : null
       }
       ListEmptyComponent={
@@ -376,6 +398,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.x4,
   },
   spacer: { flex: 1 },
+  framed: { flex: 1 },
+  framedHead: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x16 },
   /* The grid sets its own rhythm: covers `GRID_GAP` apart both ways. */
   gridContent: { gap: GRID_GAP },
   gridRow: { gap: GRID_GAP },

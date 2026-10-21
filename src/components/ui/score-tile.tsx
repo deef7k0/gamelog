@@ -2,7 +2,7 @@ import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
-import { Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { readableInk } from '@/lib/color';
 
@@ -19,12 +19,33 @@ export type ScoreTileSize = 'small' | 'medium' | 'large';
 const SIZES: Record<ScoreTileSize, { box: number; number: number; band: boolean }> = {
   small: { box: 44, number: 19, band: false },
   medium: { box: 62, number: 26, band: true },
-  large: { box: 84, number: 38, band: true },
+  /* A touch smaller than the first draw of the review page's verdict (84/38)
+     — the owner's direction (2026-10-17): the square was crowding the quote
+     beside it. The only caller is that page. */
+  large: { box: 72, number: 32, band: true },
 };
+
+/** A tile's side, in dp — for whatever is laid out level with it. */
+export function scoreTileBox(size: ScoreTileSize): number {
+  return SIZES[size].box;
+}
 
 export type ScoreTileProps = {
   score: number;
   size?: ScoreTileSize;
+  /**
+   * The number's and the word's ink, when it is not `readableInk` of the
+   * band. A review's own page sets it black (`shareInkDark`), at the
+   * owner's direction (2026-10-17), whatever the band.
+   */
+  ink?: string;
+  /**
+   * False hides the verdict word, leaving the number alone. The podium share
+   * card draws it this way at the owner's direction (2026-10-17) — a second
+   * card already prints the verdict in its words, so the square need only
+   * say the figure.
+   */
+  showLabel?: boolean;
   style?: ViewStyle;
 };
 
@@ -61,12 +82,18 @@ export type ScoreTileProps = {
  * neither survives a protanopic reader alone — the word does, and `labelFor()`
  * is already the app's name for it.
  */
-export function ScoreTile({ score, size = 'medium', style }: ScoreTileProps) {
+export function ScoreTile({
+  score,
+  size = 'medium',
+  ink: inkOverride,
+  showLabel = true,
+  style,
+}: ScoreTileProps) {
   const theme = useTheme();
   const { box, number, band } = SIZES[size];
 
   const tint = scoreColor(score, theme);
-  const ink = readableInk(tint);
+  const ink = inkOverride ?? readableInk(tint);
 
   return (
     <View
@@ -78,7 +105,7 @@ export function ScoreTile({ score, size = 'medium', style }: ScoreTileProps) {
         style={[styles.number, { color: ink, fontSize: number, lineHeight: number + 2 }]}>
         {score}
       </Text>
-      {band && (
+      {band && showLabel && (
         <Text variant="caption" style={[styles.band, { color: ink }]} numberOfLines={1}>
           {labelFor(score).toUpperCase()}
         </Text>
@@ -156,7 +183,15 @@ const styles = StyleSheet.create({
   /* Tight leading and negative tracking: at display size in a square this small
      the default line box pushes the band label off the bottom. */
   number: { letterSpacing: -0.5 },
-  band: { fontSize: 8, letterSpacing: 0.4, opacity: 0.75, paddingHorizontal: 2 },
+  /* Bold, and at the number's full strength — the owner's direction
+     (2026-10-16). It was regular at 75%. The bold family: Android synthesises
+     no weight for a custom font. */
+  band: {
+    fontSize: 8,
+    letterSpacing: 0.4,
+    fontFamily: FontFamily.bold,
+    paddingHorizontal: 2,
+  },
 });
 
 /**

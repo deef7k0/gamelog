@@ -3,11 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { cardShape } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { GAME_GENRES, type GameGenre } from '@/constants/game-genres';
 import { identityColorFor } from '@/constants/identity';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getGenres } from '@/lib/games';
 
@@ -84,9 +85,13 @@ function GenreTile({ genre, genreId }: { genre: GameGenre; genreId: number | nul
       disabled={genreId === null}
       scaleTo={0.97}
       style={StyleSheet.flatten([
+        cardShape,
         styles.tile,
-        Elevation.card,
-        { backgroundColor: theme.surface, opacity: genreId === null ? 0.5 : 1 },
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          opacity: genreId === null ? 0.5 : 1,
+        },
       ])}>
       {/* The label leads and the glyph trails, which is the reading order of the
           grid this follows: the word is the content and the icon is the mark. */}

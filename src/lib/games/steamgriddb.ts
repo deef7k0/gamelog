@@ -1,5 +1,6 @@
 /**
- * SteamGridDB — square (1:1) cover art, which IGDB does not publish.
+ * SteamGridDB — square (1:1) cover art, which IGDB does not publish, and
+ * animated covers in both shapes (`getAnimatedGrids`, 2026-10-20).
  *
  * IGDB publishes portrait box art (2:3) and landscape key art, and nothing
  * square. Three surfaces want a square: Surprise Me, a review's own page, and
@@ -36,6 +37,13 @@
  * an unconfigured build falls back to the IGDB cover rather than firing a round
  * of 401s.
  */
+
+import {
+  SGDB_CANDIDATES,
+  SGDB_DIMENSIONS,
+  type CoverAspect,
+  type SgdbGrid,
+} from '../animated-cover';
 
 const API = 'https://www.steamgriddb.com/api/v2';
 
@@ -305,4 +313,46 @@ export async function getSquareCover(
   } finally {
     inflight.delete(key);
   }
+}
+
+type AnimatedGridResponse = {
+  success?: boolean;
+  data?: SgdbGrid[];
+};
+
+/**
+ * A game's **animated** grids in one shape, best first — or an empty list.
+ *
+ * The animated covers' first source (`lib/games/animated-covers.ts`). The same
+ * identities as the square, strongest first — a Steam appid, then the title —
+ * and the same throttle and key. `types=animated` with the shape's sizes
+ * (`SGDB_DIMENSIONS`), and nothing flagged NSFW or for epilepsy. Each grid is
+ * the animation as a WebP or an APNG (`url`) with a WebM of it (`thumb`).
+ *
+ * `/api/public/files`, which the request for this named, does not exist (a
+ * 404, checked live 2026-10-20); this is the v2 API's grids endpoint.
+ */
+export async function getAnimatedGrids(
+  { steamAppId, title }: Pick<SquareCoverInput, 'steamAppId' | 'title'>,
+  aspect: CoverAspect,
+  signal?: AbortSignal
+): Promise<SgdbGrid[]> {
+  if (!KEY) return [];
+
+  const query =
+    `types=animated&dimensions=${SGDB_DIMENSIONS[aspect]}` +
+    `&nsfw=false&epilepsy=false&limit=${SGDB_CANDIDATES}`;
+
+  const ask = async (scope: string) =>
+    (await sgdb<AnimatedGridResponse>(`/grids/${scope}?${query}`, signal))?.data ?? [];
+
+  if (steamAppId) {
+    const direct = await ask(`steam/${steamAppId}`);
+    if (direct.length > 0) return direct;
+  }
+  if (title) {
+    const found = await resolveGame(title, signal);
+    if (found) return ask(`game/${found.id}`);
+  }
+  return [];
 }

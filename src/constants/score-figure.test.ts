@@ -91,9 +91,18 @@ describe('where the drawing is drawn', () => {
     ]);
   });
 
-  it('leaves a review card its square with the number in it', () => {
-    const card = readFileSync(new URL('src/components/log-card.tsx', root), 'utf8');
-    assert.match(card, /<ScoreTile score=\{rating\} size="small" \/>/);
+  it('leaves a review card the score as a number and its word', () => {
+    /* The ruling above is about the *drawing*, and it still holds: neither
+       review card names it. What the number itself looks like on them has
+       changed once since — the owner's reference of 2026-10-20 sets the score
+       where a music app sets its stars, so the square (`<ScoreTile>`) gave way
+       to the number and its verdict (`<ScoreLine>`). The square is still what
+       a score in a strip or a metadata row wears. */
+    for (const file of ['log-card.tsx', 'member-review-card.tsx']) {
+      const card = readFileSync(new URL(`src/components/${file}`, root), 'utf8');
+      assert.match(card, /<ScoreLine score=\{rounded\} \/>|<ScoreLine score=\{rating\} \/>/, file);
+      assert.doesNotMatch(card, /\b(ScoreFigure|FiguredScore)\b/, file);
+    }
   });
 });
 

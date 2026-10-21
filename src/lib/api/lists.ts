@@ -581,6 +581,36 @@ export async function searchLists(query: string, signal?: AbortSignal): Promise<
     .slice(0, 30);
 }
 
+/**
+ * The newest collections — authored ones (`SHELF_KINDS`), never a favourites
+ * list or a wishlist — a page at a time: Search's "Latest collections".
+ *
+ * Newest by `created_at`, and only those with a game in them: a collection
+ * made a minute ago and still empty is a draft, not news. `list_items!inner`
+ * is what leaves those out — PostgREST cannot filter on an embedded count,
+ * and an inner embed keeps only the collections that have a row there
+ * (verified against the live project: the empty one is dropped, the rest keep
+ * every item). `before` is the last tile's `created_at`.
+ */
+export async function getLatestCollections({
+  before = null,
+  limit = 20,
+}: {
+  before?: string | null;
+  limit?: number;
+} = {}): Promise<ListSummary[]> {
+  let query = supabase
+    .from('lists')
+    .select(SUMMARY_SELECT.replace('items:list_items(', 'items:list_items!inner('))
+    .in('kind', SHELF_KINDS)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (before) query = query.lt('created_at', before);
+
+  const { data, error } = await query;
+  return unwrap(data as SummaryRow[] | null, error).map(toSummary);
+}
+
 export async function getPublicLists(limit = 30): Promise<ListSummary[]> {
   const { data, error } = await supabase
     .from('lists')

@@ -18,6 +18,7 @@ import { Text } from '@/components/ui/text';
 import { ControlHeight, Elevation, Motion, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
+import { filledRoles } from '@/lib/filled';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -42,6 +43,13 @@ export type DropdownButtonProps<T extends string> = {
    * its neighbours'. It centres itself in the row it is in.
    */
   size?: 'medium' | 'small';
+  /**
+   * Filled with the game's colour, its words, glyph and chevron in the fill's
+   * own `onPrimary` (`filledRoles`) — the game page's platform pill, at the
+   * owner's direction (2026-10-17), so it matches the review button. Every
+   * other dropdown stays outlined: a choice is outlined (DESIGN.md § 9.4).
+   */
+  filled?: boolean;
 };
 
 /**
@@ -135,6 +143,7 @@ export function DropdownButton<T extends string>({
   options,
   onChange,
   size = 'medium',
+  filled = false,
 }: DropdownButtonProps<T>) {
   const theme = useTheme();
   const accent = useAccent();
@@ -177,6 +186,8 @@ export function DropdownButton<T extends string>({
 
   const open = phase === 'open';
   const small = size === 'small';
+  const fill = filled ? filledRoles(accent) : null;
+  const ink = fill ? fill.ink : theme.text;
   const reach = Math.max(0, (TapTarget - (small ? ControlHeight.small : BUTTON_HEIGHT)) / 2);
 
   function openMenu() {
@@ -276,15 +287,17 @@ export function DropdownButton<T extends string>({
           hitSlop={{ top: reach, bottom: reach }}
           onPress={openMenu}
           scaleTo={0.97}
-          pressedColor={selectable(false).pressedColor}
+          pressedColor={fill ? fill.pressed : selectable(false).pressedColor}
           focusRing={accent.ring}
           style={StyleSheet.flatten([
             styles.button,
             small && styles.buttonSmall,
-            { borderColor: open ? accent.edge : theme.outline },
+            fill
+              ? { backgroundColor: fill.fill, borderColor: fill.fill }
+              : { borderColor: open ? accent.edge : theme.outline },
           ])}>
-          {current.icon && <Ionicons name={current.icon} size={16} color={theme.text} />}
-          <Text variant="button" numberOfLines={1} style={{ color: theme.text }}>
+          {current.icon && <Ionicons name={current.icon} size={16} color={ink} />}
+          <Text variant="button" numberOfLines={1} style={{ color: ink }}>
             {current.short ?? current.label}
           </Text>
           {/* A CSS transition, whose target is a React prop: the chevron can
@@ -297,7 +310,7 @@ export function DropdownButton<T extends string>({
                 transitionDuration: reduceMotion ? 0 : Motion.fast,
               },
             ]}>
-            <Ionicons name="chevron-down" size={16} color={accent.quietInk} />
+            <Ionicons name="chevron-down" size={16} color={fill ? fill.ink : accent.quietInk} />
           </Animated.View>
         </PressableScale>
       </View>

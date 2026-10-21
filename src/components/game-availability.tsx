@@ -1,22 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/ui/text';
 import { type PlatformKey } from '@/constants/platform-cases';
 import { Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { useGamePrices } from '@/hooks/use-game-prices';
 import { useTheme } from '@/hooks/use-theme';
-import { getGameStores } from '@/lib/games/igdb';
-import {
-  formatPrice,
-  getBestPriceForPlatform,
-  getStorePrices,
-  lookupItadGame,
-} from '@/lib/games/itad';
-import { parseGameId } from '@/lib/games';
-
-/** IGDB's `external_games.category` for Steam. */
-const STEAM_CATEGORY = 1;
+import { formatPrice, getBestPriceForPlatform } from '@/lib/games/itad';
 
 export type GamePriceProps = {
   /** App-wide game id. */
@@ -25,8 +15,6 @@ export type GamePriceProps = {
   selected: PlatformKey;
   /** Game title for ITAD fallback lookup. */
   title?: string;
-  /** Direct Steam App ID from game metadata if known. */
-  steamAppId?: string | null;
 };
 
 /**
@@ -42,16 +30,12 @@ export type GamePriceProps = {
  * buying is Overview's "Where to buy", which lists every storefront rather than
  * sending the reader to one.
  *
- * Uses IsThereAnyDeal across ~40 storefronts to find the best available price
- * for the selected platform (PC storefronts for PC, PlayStation Store for PS5/PS4,
- * Microsoft Store for Xbox, Nintendo eShop for Switch).
+ * Uses IsThereAnyDeal, which tracks PC shops only: the cheapest of them for
+ * the PC, the Microsoft Store for an Xbox, and nothing for a platform no ITAD
+ * shop sells for — see `PLATFORM_STORE_IDS`. Shares its requests with Where to
+ * buy (`useGamePrices`).
  */
-export function GamePrice({
-  gameId,
-  selected,
-  title,
-  steamAppId: directSteamAppId,
-}: GamePriceProps) {
+export function GamePrice({ gameId, selected, title }: GamePriceProps) {
   const theme = useTheme();
   /* `quietInk` rather than a grey token, throughout. On a tonal accent it
      resolves to M3's `onSurfaceVariant` — the neutral-variant palette at tone
@@ -59,41 +43,10 @@ export function GamePrice({
      That is the role M3 has for secondary type, and it belongs to the page in a
      way `textSecondary` does not. */
   const accent = useAccent();
-  const parsed = parseGameId(gameId);
-  const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
-  const knownSteamAppId = parsed?.source === 'steam' ? parsed.sourceId : (directSteamAppId ?? null);
+  const { prices, loading } = useGamePrices(gameId, title);
 
-  const stores = useQuery({
-    queryKey: ['game-stores', gameId],
-    queryFn: ({ signal }) => getGameStores(igdbId!, signal),
-    enabled: !!igdbId && !knownSteamAppId,
-    staleTime: 30 * 60_000,
-  });
-
-  const steamAppId =
-    knownSteamAppId ??
-    (stores.data ?? []).find((entry) => entry.category === STEAM_CATEGORY)?.uid ??
-    null;
-
-  const itadId = useQuery({
-    queryKey: ['itad-id', gameId, steamAppId, title],
-    queryFn: ({ signal }) => lookupItadGame({ steamAppId, title: title ?? null }, signal),
-    enabled: !!knownSteamAppId || !igdbId || stores.isSuccess,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    retry: false,
-  });
-
-  const prices = useQuery({
-    queryKey: ['itad-prices', itadId.data],
-    queryFn: ({ signal }) => getStorePrices(itadId.data!, signal),
-    enabled: !!itadId.data,
-    staleTime: 15 * 60_000,
-    retry: false,
-  });
-
-  const deal = getBestPriceForPlatform(prices.data, selected);
-  const isLoading = (itadId.isLoading || prices.isLoading) && !deal;
+  const deal = getBestPriceForPlatform(prices, selected);
+  const isLoading = loading && !deal;
 
   return (
     <View style={styles.price}>

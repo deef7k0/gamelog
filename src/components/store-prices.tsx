@@ -1,153 +1,146 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { InfoCard } from '@/components/ui/info-card';
 import { Text } from '@/components/ui/text';
-import { storeBrand, storeInitial } from '@/constants/stores';
+import { OFFICIAL_STORES, storeBrand, storeInitial, type StoreBrand } from '@/constants/stores';
 import { Radius, Spacing, TapTarget, readableInk } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { useGamePrices } from '@/hooks/use-game-prices';
 import { useTheme } from '@/hooks/use-theme';
-import { getGameStores } from '@/lib/games/igdb';
-import { formatPrice, getStorePrices, lookupItadGame, type StorePrice } from '@/lib/games/itad';
-import { parseGameId } from '@/lib/games';
-
-/** IGDB's `external_games.category` for Steam — the appid ITAD looks up by. */
-const STEAM_CATEGORY = 1;
+import { formatPrice, type StorePrice } from '@/lib/games/itad';
+import { ITAD_SHOP_OF_STORE, arrangeOffers } from '@/lib/games/storefronts';
 
 /** The mark's edge length. Fixed dp: it is artwork-adjacent, not chrome. */
 const MARK = 34;
 
-/** Storefronts shown before the rail is cut. The list is cheapest-first. */
-const STORE_LIMIT = 8;
-
 /**
- * Storefronts shown while the card is folded. The cheapest three answer the
- * question nearly every time, and the card sits between About and the reviews,
- * where eight rows pushed everything under it a screen down.
+ * Stores shown while the card is folded — the first three, official stores
+ * first, at the owner's direction (2026-10-16): "display 3 stores only, the
+ * first ones that appear from the official ones, and then a show all with all
+ * the other stores". Unfolded, every store there is.
  */
 const FOLDED_STORES = 3;
 
 export type StorePricesProps = {
   /** App-wide game id. */
   gameId: string;
-  /** Falls back to a title lookup when the game has no Steam listing. */
+  /** For the price lookup when the game has no Steam listing. */
   title: string;
-  /** Steam App ID if already known from game metadata. */
-  steamAppId?: string | null;
 };
 
 /**
- * Where this game is sold and what it costs, as a row of store buttons.
+ * Where to buy the game: every official store it is sold at, and what each
+ * charges where that is known — then the other shops that sell it.
  *
- * Replaces a single Steam number with the question a reader actually has —
- * *where is this cheapest right now* — using IsThereAnyDeal, which aggregates
- * around forty storefronts. The old behaviour was not wrong, it was narrow: it
- * could only ever quote Steam, because Steam is the only storefront with a
- * public price endpoint.
+ * ```text
+ *   Where to buy                                  from $9.99
+ *   ╭──────────────────────────────────────────────────────╮
+ *   │ ▣ Steam                 $49.99                     ↗ │
+ *   │ ▣ GOG                   $9.99  $39.99      −75%    ↗ │
+ *   │ ▣ PlayStation Store     Price on the store         ↗ │
+ *   │ Show all ⌄                                           │
+ *   ╰──────────────────────────────────────────────────────╯
  *
- * ## Two requests, chained
+ *   …and "Show all" adds the rest of the official stores, then
+ *   "Other stores": Humble, Fanatical, … with ITAD's prices.
+ * ```
  *
- * ITAD keys on its own uuid, so the game has to be resolved first: Steam appid
- * (from IGDB's `external_games` or steam: ID) if there is one, the title if there is not.
- * The lookup is cached hard — an identity does not change — and the prices are
- * cached briefly, because being current is the entire point.
+ * ## The owner's rule (2026-10-16)
+ *
+ * The **official stores, and their links, are IGDB's**: every platform shop
+ * IGDB lists the game on is a row, priced or not. **IsThereAnyDeal prices the
+ * ones it can** — Steam, GOG, Epic and the Microsoft Store; it tracks no
+ * console or phone shop — and **the other shops are ITAD's**, with its links.
+ * `arrangeOffers` (`lib/games/storefronts.ts`) is the rule; this draws it.
+ *
+ * It replaced a list of ITAD's prices alone, cheapest first, which could only
+ * ever name PC shops — a PlayStation exclusive had no section at all — and
+ * dropped a store with no price.
  */
-export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: StorePricesProps) {
+export function StorePrices({ gameId, title }: StorePricesProps) {
   const accent = useAccent();
   const [open, setOpen] = useState(false);
-  const parsed = parseGameId(gameId);
-  const igdbId = parsed?.source === 'igdb' ? parsed.sourceId : null;
-  const knownSteamAppId = parsed?.source === 'steam' ? parsed.sourceId : (directSteamAppId ?? null);
+  const { storefronts, prices, loading } = useGamePrices(gameId, title);
 
-  /* Fetched only if we don't already have a steamAppId and have an IGDB id */
-  const stores = useQuery({
-    queryKey: ['game-stores', gameId],
-    queryFn: ({ signal }) => getGameStores(igdbId!, signal),
-    enabled: !!igdbId && !knownSteamAppId,
-    staleTime: 30 * 60_000,
-  });
+  const { official, others } = arrangeOffers(storefronts.stores, prices);
+  if (official.length === 0 && others.length === 0) return null;
 
-  const steamAppId =
-    knownSteamAppId ??
-    (stores.data ?? []).find((entry) => entry.category === STEAM_CATEGORY)?.uid ??
-    null;
+  /* The heading's "from": the best price anywhere on the card. */
+  const best = [...official.flatMap((row) => (row.price ? [row.price] : [])), ...others].sort(
+    (a, b) => a.amount - b.amount
+  )[0];
 
-  const itadId = useQuery({
-    queryKey: ['itad-id', gameId, steamAppId, title],
-    queryFn: ({ signal }) => lookupItadGame({ steamAppId, title }, signal),
-    // Waits for the store list if needed so the appid path gets its chance
-    enabled: !!knownSteamAppId || !igdbId || stores.isSuccess,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    retry: false,
-  });
-
-  const prices = useQuery({
-    queryKey: ['itad-prices', itadId.data],
-    queryFn: ({ signal }) => getStorePrices(itadId.data!, signal),
-    enabled: !!itadId.data,
-    // Short: a sale that ended an hour ago is the one thing this must not show.
-    staleTime: 15 * 60_000,
-    retry: false,
-  });
-
-  const list = prices.data ?? [];
-  if (list.length === 0) return null;
-
-  const best = list[0];
-  /* ITAD tracks ~40 storefronts and `getStorePrices` sorts by price without
-     slicing, so a popular PC title returned fifteen to twenty-five buttons into
-     one horizontal scroller with nothing saying how far it ran. The list is
-     sorted cheapest-first and the heading already states the best price, so
-     everything past the eighth is a scroll nobody finishes for a price nobody
-     wants. The count says what was left out rather than hiding it.
-
-     Folded, it is three, and the toggle names how many more the card opens to.
-     The count beside the price waits until then — "8 of 25" over three rows
-     would describe a list nobody is looking at. Not animated: a list that grows
-     steps, as the additional-information screen's folding lists do. */
-  const capped = list.slice(0, STORE_LIMIT);
-  const hidden = list.length - capped.length;
-  const folds = capped.length > FOLDED_STORES;
-  const shown = folds && !open ? capped.slice(0, FOLDED_STORES) : capped;
-  const more = capped.length - FOLDED_STORES;
+  /* Folded, the first three rows in drawing order — so the official stores
+     fill them first, and another shop only shows when there are fewer than
+     three of those. */
+  const total = official.length + others.length;
+  const folds = total > FOLDED_STORES;
+  const room = folds && !open ? FOLDED_STORES : total;
+  const shownOfficial = official.slice(0, room);
+  const shownOthers = others.slice(0, Math.max(0, room - shownOfficial.length));
 
   return (
     <InfoCard
       title="Where to buy"
       action={
-        <Text variant="bodySmall" color="textMuted">
-          from {formatPrice(best.amount, best.currency)}
-          {open && hidden > 0 ? ` · ${capped.length} of ${list.length}` : ''}
-        </Text>
+        best ? (
+          <Text variant="bodySmall" color="textMuted">
+            from {formatPrice(best.amount, best.currency)}
+          </Text>
+        ) : undefined
       }>
-      {/*
-        A stacked list, not a horizontal rail.
- 
-        The rail existed because each storefront was a card and eight cards do
-        not fit across a phone. With the cards gone they are rows, and rows read
-        down — which is also the shape that lets you compare two prices without
-        scrolling one of them off the screen, the only thing anybody is doing
-        here.
-      */}
       <View style={styles.list}>
-        {shown.map((deal) => (
-          <StoreButton key={`${deal.shopId}:${deal.url}`} deal={deal} />
+        {shownOfficial.map((row) => {
+          const store = OFFICIAL_STORES[row.key];
+          /* Whether ITAD could price this store at all: while it is still
+             being asked, those rows say so rather than "Price on the store". */
+          const priceable = ITAD_SHOP_OF_STORE[row.key] !== undefined;
+          return (
+            <StoreRow
+              key={row.key}
+              name={store.name}
+              brand={store}
+              url={row.url}
+              price={row.price}
+              pending={loading && priceable && !row.price}
+            />
+          );
+        })}
+
+        {shownOthers.length > 0 && (
+          <Text
+            variant="caption"
+            color="textMuted"
+            accessibilityRole="header"
+            style={shownOfficial.length > 0 && styles.othersHead}>
+            Other stores
+          </Text>
+        )}
+
+        {shownOthers.map((deal) => (
+          <StoreRow
+            key={`${deal.shopId}:${deal.url}`}
+            name={deal.shopName}
+            brand={storeBrand(deal.shopId)}
+            url={deal.url}
+            price={deal}
+            pending={false}
+          />
         ))}
 
         {folds && (
           <PressableScale
             accessibilityRole="button"
             accessibilityState={{ expanded: open }}
-            accessibilityLabel={open ? 'Show fewer stores' : `Show ${more} more stores`}
+            accessibilityLabel={open ? 'Show fewer stores' : `Show all ${total} stores`}
             onPress={() => setOpen((value) => !value)}
             scaleTo={0.98}
             style={styles.toggle}>
             <Text variant="h5" style={{ color: accent.onSurface }}>
-              {open ? 'Show less' : `Show ${more} more`}
+              {open ? 'Show less' : 'Show all'}
             </Text>
             <Ionicons
               name={open ? 'chevron-up' : 'chevron-down'}
@@ -162,98 +155,117 @@ export function StorePrices({ gameId, title, steamAppId: directSteamAppId }: Sto
 }
 
 /**
- * One storefront: its mark, its name, its price.
+ * One store: its mark, its name, its price or why there is none — and the way
+ * there.
  *
- * A button rather than a table row because that is what it does — every one of
- * these opens the store. The discount, when there is one, is the only coloured
- * thing on it: a price cut is *meaning* in the sense the design system allows,
- * and it is the reason someone is scanning this row at all.
+ * A button rather than a table row because that is what it does: every one
+ * opens the store, in its own app where the phone has it (Steam, the
+ * PlayStation App). The discount, when there is one, is the only coloured
+ * thing on it: a price cut is *meaning* in the sense the design system
+ * allows, and it is the reason someone is scanning this row at all.
+ *
+ * No fill and no border — a row, not a card. These sit inside the card, and a
+ * surface each would be a card of cards; the brand mark on the left is the
+ * leading edge that separates one row from the next.
  */
-function StoreButton({ deal }: { deal: StorePrice }) {
+function StoreRow({
+  name,
+  brand,
+  url,
+  price,
+  pending,
+}: {
+  name: string;
+  brand: StoreBrand;
+  url: string;
+  price: StorePrice | null;
+  /** The price is still being asked for. */
+  pending: boolean;
+}) {
   const theme = useTheme();
-  const brand = storeBrand(deal.shopId);
   const ink = readableInk(brand.color);
-  const discounted = deal.cut > 0;
+  const discounted = !!price && price.cut > 0;
+
+  const spoken = price
+    ? `${name}, ${formatPrice(price.amount, price.currency)}${
+        discounted ? `, ${price.cut} percent off` : ''
+      }. Opens the store.`
+    : `${name}. Opens the store.`;
 
   return (
     <PressableScale
       accessibilityRole="link"
-      accessibilityLabel={
-        discounted
-          ? `${deal.shopName}, ${formatPrice(deal.amount, deal.currency)}, ${deal.cut} percent off`
-          : `${deal.shopName}, ${formatPrice(deal.amount, deal.currency)}`
-      }
+      accessibilityLabel={spoken}
       onPress={() => {
-        Linking.openURL(deal.url).catch(() => {
+        Linking.openURL(url).catch(() => {
           // No handler for the scheme, or the link is dead. Nothing useful to
-          // say about it on a price button.
+          // say about it on a store row.
         });
       }}
       scaleTo={0.96}
-      /*
-        No fill and no border — a row, not a card.
- 
-        These sit inside the "Where to buy" `<InfoCard>`, and giving each one its
-        own surface made a card of cards: eight nested rectangles inside a ninth,
-        which is the pattern the whole Overview tab was just cleared of. The
-        storefront's own brand mark on the left is already a strong enough
-        leading edge to separate one row from the next, and the card around them
-        is what says they belong together.
-      */
-      style={styles.button}>
+      style={styles.row}>
       <View style={[styles.mark, { backgroundColor: brand.color }]}>
         {brand.icon ? (
           <Ionicons name={brand.icon} size={18} color={ink} />
         ) : (
           <Text variant="h5" style={{ color: ink }}>
-            {storeInitial(deal.shopName)}
+            {storeInitial(name)}
           </Text>
         )}
       </View>
 
       <View style={styles.labels}>
         <Text variant="caption" color="textSecondary" numberOfLines={1}>
-          {deal.shopName}
+          {name}
         </Text>
 
-        <View style={styles.priceLine}>
-          <Text variant="h5" numberOfLines={1}>
-            {formatPrice(deal.amount, deal.currency)}
-          </Text>
-
-          {discounted && (
-            <Text variant="caption" color="textMuted" style={styles.struck} numberOfLines={1}>
-              {formatPrice(deal.regular, deal.currency)}
+        {price ? (
+          <View style={styles.priceLine}>
+            <Text variant="h5" numberOfLines={1}>
+              {formatPrice(price.amount, price.currency)}
             </Text>
-          )}
-        </View>
+            {discounted && (
+              <Text variant="caption" color="textMuted" style={styles.struck} numberOfLines={1}>
+                {formatPrice(price.regular, price.currency)}
+              </Text>
+            )}
+          </View>
+        ) : (
+          /* No number: IsThereAnyDeal does not track this store (every
+             console and phone shop), or does not have this game there. The
+             link is still the answer to "where". */
+          <Text variant="body" color="textMuted" numberOfLines={1}>
+            {pending ? 'Checking the price…' : 'Price on the store'}
+          </Text>
+        )}
       </View>
 
       {discounted && (
         <View style={styles.cutContainer}>
           {/* Opaque, for the same reason as the masthead's copy of this badge:
-              a 15% wash of its own hue has no fixed background on a page lit by
-              the page's gradient, so its contrast was whatever that happened to be
-              doing underneath. */}
+              a 15% wash of its own hue has no fixed background to measure
+              against. */}
           <View style={[styles.cut, { backgroundColor: theme.surface }]}>
             <Text variant="label" style={{ color: theme.success }}>
-              −{deal.cut}%
+              −{price.cut}%
             </Text>
           </View>
-          {deal.isAllTimeLow && (
+          {price.isAllTimeLow && (
             <Text variant="label" style={{ color: theme.identityGold }}>
               LOWEST
             </Text>
           )}
         </View>
       )}
+
+      <Ionicons name="open-outline" size={16} color={theme.textMuted} style={styles.open} />
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   list: { gap: Spacing.x4 },
-  button: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.x12,
@@ -266,9 +278,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  labels: { gap: 1 },
+  /* Takes the row's slack, so the badge and the arrow sit at its far end. */
+  labels: { flex: 1, gap: 1 },
   priceLine: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.x4 },
   struck: { textDecorationLine: 'line-through' },
+  /* A step of air above the second group: it is a different kind of shop. */
+  othersHead: { marginTop: Spacing.x12 },
   /* The folding list's toggle: as wide as its label, tall enough to hit. */
   toggle: {
     flexDirection: 'row',
@@ -280,11 +295,11 @@ const styles = StyleSheet.create({
   cutContainer: {
     alignItems: 'center',
     gap: 2,
-    marginLeft: Spacing.x4,
   },
   cut: {
     paddingHorizontal: Spacing.x8,
     paddingVertical: 1,
     borderRadius: Radius.image,
   },
+  open: { marginLeft: Spacing.x4 },
 });

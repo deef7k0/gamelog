@@ -3,7 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { FiguredScore } from '@/components/ui/score-figure';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { ratingVerdict } from '@/constants/score';
+import { clampScore, ratingVerdict } from '@/constants/score';
+import { SHOW_SCORE_FIGURES } from '@/constants/score-figure';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { RatingBreakdown } from '@/lib/api';
@@ -20,8 +21,9 @@ export type ScoreSummaryProps = {
   /** Hold the summary's shape while the numbers are on their way. */
   loading?: boolean;
   /**
-   * Print "Based on N reviews" under the verdict. Off where the count is
-   * already in the heading beside it.
+   * Print "Based on N reviews" under the verdict. On in both places it is
+   * drawn: the Ratings card's heading carried the count until the owner moved
+   * it here (2026-10-16). Off only where something beside it already says it.
    */
   counted?: boolean;
 };
@@ -53,7 +55,9 @@ export type ScoreSummaryProps = {
  * the two cannot drift; neither restates it. In both it stands under a heading
  * that says whose numbers these are, so it carries no label of its own.
  *
- * Every number is GameLog's own, from scores given here.
+ * Every number is GameLog's own, from scores given here. The score is the
+ * weighted community score (0041, `lib/community-rating`); the bar counts
+ * people — each segment is how many rated the game that way, at one each.
  */
 export function ScoreSummary({ breakdown, loading = false, counted = true }: ScoreSummaryProps) {
   const theme = useTheme();
@@ -65,15 +69,25 @@ export function ScoreSummary({ breakdown, loading = false, counted = true }: Sco
           <Skeleton width="55%" height={13} radius={Radius.sm} />
           <Skeleton width="40%" height={11} radius={Radius.sm} />
         </View>
-        {/* The drawing and the number beside it. */}
-        <Skeleton width={104} height={56} radius={Radius.image} />
+        {/* The drawing and the number beside it — or, with the drawings
+            off for now, the number's own size, so the summary does not
+            shrink when it arrives. */}
+        <Skeleton
+          width={SHOW_SCORE_FIGURES ? 104 : 44}
+          height={SHOW_SCORE_FIGURES ? 56 : 36}
+          radius={Radius.image}
+        />
       </View>
     );
   }
 
   if (!breakdown) return null;
 
-  const verdict = ratingVerdict(breakdown.average, breakdown.total);
+  /* The score is stored unrounded (0041); this is where it is rounded, once,
+     and the word and the drawing are read off the rounded number — so "55"
+     never stands beside the verdict that belongs to 54.6. */
+  const shown = clampScore(breakdown.average);
+  const verdict = ratingVerdict(shown, breakdown.total);
   const counts = SEGMENTS.map((segment) =>
     breakdown.buckets.slice(segment.from, segment.to + 1).reduce((sum, n) => sum + n, 0)
   );
@@ -86,11 +100,12 @@ export function ScoreSummary({ breakdown, loading = false, counted = true }: Sco
           <Text variant="h4">{verdict.label}</Text>
           {counted && (
             <Text variant="caption" color="textMuted">
-              Based on {breakdown.total} {breakdown.total === 1 ? 'review' : 'reviews'}
+              Based on {breakdown.total.toLocaleString()}{' '}
+              {breakdown.total === 1 ? 'review' : 'reviews'}
             </Text>
           )}
         </View>
-        <FiguredScore score={breakdown.average} />
+        <FiguredScore score={shown} />
       </View>
 
       {/* Each segment is a flex weight, so the three always fill the bar exactly

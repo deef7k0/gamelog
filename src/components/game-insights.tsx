@@ -8,16 +8,24 @@ import { Avatar } from '@/components/ui/avatar';
 import { PANEL_GAP, Panel } from '@/components/ui/panel';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Section, useSectionInset } from '@/components/ui/section';
+import { StatsStrip, StatsStripSkeleton, type StatsCell } from '@/components/ui/stats-strip';
 import { Text } from '@/components/ui/text';
-import { ratingVerdict, scoreColor } from '@/constants/score';
+import { clampScore, ratingVerdict, scoreColor } from '@/constants/score';
 import { STATUS_LABEL } from '@/constants/status';
 import { FontFamily, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useReadingLanguages } from '@/hooks/use-reading-languages';
 import { useTheme } from '@/hooks/use-theme';
-import { getGamePlayers, getRatingBreakdown, getTopGameReview, type GamePlayer } from '@/lib/api';
+import {
+  getGameAudience,
+  getGamePlayers,
+  getRatingBreakdown,
+  getTopGameReview,
+  type GamePlayer,
+} from '@/lib/api';
 import { readingKey } from '@/lib/discovery';
 import { displayNameFor } from '@/lib/format';
+import { spokenWords } from '@/lib/review-quote';
 import { useAuth } from '@/store/auth';
 
 // ---------------------------------------------------------------------------
@@ -29,19 +37,25 @@ import { useAuth } from '@/store/auth';
  * the average, and how the scores divide.
  *
  * ```text
- *   ╭ Ratings ──────────────── 128 ratings ╮
+ *   ╭ Ratings ─────────────────────────────╮
  *   │ ──────────────────────────────────── │
- *   │ Great                           ┌──┐ │
- *   │                                 │84│ │
- *   │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▒▒▒▒  ░░    └──┘ │
+ *   │ Very Positive                (o_o)   │
+ *   │ Based on 128 reviews          /|\ 84 │
+ *   │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▒▒▒▒  ░░          │
  *   ╰──────────────────────────────────────╯
  * ```
  *
  * The owner's direction (2026-10-09): the ratings graph "used inside the
  * reviews sheet", on the Overview — in a card titled as the reference's is, a
- * film's page in Letterboxd, with the count at the far end of the title. The
- * graph is `<ScoreSummary>`, the sheet's own, so the two are one thing; the
- * card is a door to that sheet, where the same summary heads every review.
+ * film's page in Letterboxd. The graph is `<ScoreSummary>`, the sheet's own,
+ * so the two are one thing; the card is a door to that sheet, where the same
+ * summary heads every review.
+ *
+ * **The count is under the verdict**, at the owner's direction (2026-10-16):
+ * "display the rating label like 'Very Positive' and below that the amount of
+ * reviews". It was at the far end of the title — "128 ratings" — with the
+ * summary told not to say it twice; it moved, so the card reads as Steam's
+ * does and as the sheet's head already did, and the title stands alone.
  *
  * **The app's own numbers, never IGDB's.** This answers what an outside score
  * cannot: what the people here thought.
@@ -61,8 +75,6 @@ export function RatingsCard({
   /** Open every review of the game. */
   onOpen: () => void;
 }) {
-  const accent = useAccent();
-
   const breakdown = useQuery({
     queryKey: ['rating-breakdown', gameId],
     queryFn: () => getRatingBreakdown(gameId),
@@ -72,21 +84,95 @@ export function RatingsCard({
   const data = breakdown.data;
   if (!data) return null;
 
-  const verdict = ratingVerdict(data.average, data.total);
-  const counted = `${data.total.toLocaleString()} ${data.total === 1 ? 'rating' : 'ratings'}`;
+  const shown = clampScore(data.average);
+  const verdict = ratingVerdict(shown, data.total);
+  /* Said as the card prints it: `<ScoreSummary>`'s "Based on N reviews". */
+  const counted = `${data.total.toLocaleString()} ${data.total === 1 ? 'review' : 'reviews'}`;
 
   return (
     <Panel
       title="Ratings"
-      trailing={
-        <Text variant="bodySmall" style={{ color: accent.quietInk }}>
-          {counted}
-        </Text>
-      }
       onPress={onOpen}
-      accessibilityLabel={`Ratings of ${title} on GameLog: ${verdict.label}, ${data.average} out of 100 from ${counted}. Opens the reviews.`}>
-      {/* The count is in the heading, so the summary does not say it twice. */}
-      <ScoreSummary breakdown={data} counted={false} />
+      accessibilityLabel={`Ratings of ${title} on GameLog: ${verdict.label}, ${shown} out of 100 from ${counted}. Opens the reviews.`}>
+      {/* The verdict, and under it how many reviews it is from. */}
+      <ScoreSummary breakdown={data} />
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// On GameLog — how many want it, are playing it, have played it
+// ---------------------------------------------------------------------------
+
+/**
+ * Three figures about the room: how many people here have the game on their
+ * wishlist, are playing it now, and have played it.
+ *
+ * ```text
+ *   ╭ On GameLog ──────────────────────────╮
+ *   │ ──────────────────────────────────── │
+ *   │    24      │     3       │    58     │
+ *   │ Wishlisted │ Playing now │  Played   │
+ *   ╰──────────────────────────────────────╯
+ * ```
+ *
+ * The owner's request (2026-10-16): "how much people want the game
+ * (wishlist), how many are playing rn, how many already played it". The
+ * numbers are GameLog's own (`getGameAudience` says exactly what each
+ * counts); IGDB has figures with the same names, and they are shares of its
+ * traffic, not people.
+ *
+ * A strip of three in a titled card, as the Ratings card above it is: the
+ * strip is the masthead's, a figure over a quiet line with rules between, so
+ * the page has one way of setting a number. **A zero is printed** — it is a
+ * number the app knows, as the masthead's "0 Collections" is — so the card is
+ * there for every game, once its answer is in. Its shape is held while it
+ * loads so nothing under it moves; a failed request draws nothing.
+ *
+ * Invalidated by anything that writes a status or the wishlist
+ * (`['game-audience', gameId]`): the log form, the progress sheet, the
+ * action row's Wishlist key.
+ */
+export function GameAudienceCard({ gameId, title }: { gameId: string; title: string }) {
+  const audience = useQuery({
+    queryKey: ['game-audience', gameId],
+    queryFn: () => getGameAudience(gameId),
+    enabled: !!gameId,
+    staleTime: 60_000,
+  });
+
+  if (audience.isLoadingError) return null;
+
+  const data = audience.data;
+  const count = (n: number, one: string, many: string) =>
+    `${n.toLocaleString()} ${n === 1 ? one : many}`;
+
+  const cells: StatsCell[] = data
+    ? [
+        {
+          key: 'wishlisted',
+          value: data.wishlisted.toLocaleString(),
+          label: 'Wishlisted',
+          a11y: `${count(data.wishlisted, 'person has', 'people have')} ${title} on their wishlist`,
+        },
+        {
+          key: 'playing',
+          value: data.playing.toLocaleString(),
+          label: 'Playing now',
+          a11y: `${count(data.playing, 'person is', 'people are')} playing it now`,
+        },
+        {
+          key: 'played',
+          value: data.played.toLocaleString(),
+          label: 'Played',
+          a11y: `${count(data.played, 'person has', 'people have')} played it`,
+        },
+      ]
+    : [];
+
+  return (
+    <Panel title="On GameLog">
+      {data ? <StatsStrip cells={cells} /> : <StatsStripSkeleton count={3} />}
     </Panel>
   );
 }
@@ -296,7 +382,7 @@ export function TopReview({
         accessibilityLabel={[
           `${name}’s review, the most liked`,
           log.rating !== null ? `scored it ${Math.round(log.rating)}` : null,
-          log.spoilers ? 'Contains spoilers' : (log.review ?? '').trim(),
+          log.spoilers ? 'Contains spoilers' : spokenWords(log),
           review.likes > 0 ? `${review.likes} ${review.likes === 1 ? 'like' : 'likes'}` : null,
           'Opens the review.',
         ]
@@ -309,6 +395,8 @@ export function TopReview({
           name={name}
           avatarUrl={log.profile?.avatar_url ?? null}
           text={log.review ?? ''}
+          quote={log.review_title}
+          display={log.review_display}
           score={log.rating}
           likes={review.likes}
           comments={review.comments}

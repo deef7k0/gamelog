@@ -17,6 +17,7 @@ export * from './lists';
 export * from './notifications';
 export * from './physical';
 export * from './progress';
+export * from './ratings';
 export * from './reports';
 export * from './similarity';
 export * from './songs';

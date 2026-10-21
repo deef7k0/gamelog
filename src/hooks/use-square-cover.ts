@@ -237,6 +237,27 @@ export function useSquareCover({ gameId, title, enabled = true }: SquareCoverArg
   return { uri: entry.url, resolved: true };
 }
 
+/**
+ * Resolve a game's square ahead of its slot — Surprise Me's next cards. The
+ * lookup only; the image is the caller's to prefetch once it is known.
+ */
+export function prefetchSquareCover(gameId: string, title: string): void {
+  if (!SGDB_ENABLED) return;
+  const parsed = parseGameId(gameId);
+  const steamAppId = parsed?.source === 'steam' ? Number(parsed.sourceId) || undefined : undefined;
+  ensure(gameId, steamAppId, title);
+}
+
+/**
+ * A game's square, without asking: the URL, `null` for none, or `undefined`
+ * when nobody has looked yet.
+ */
+export function peekSquareCover(gameId: string): string | null | undefined {
+  if (!SGDB_ENABLED) return null;
+  const entry = memory.get(gameId);
+  return entry ? entry.url : undefined;
+}
+
 /** Drop the persisted map. For a "clear cache" affordance or a test. */
 export async function clearSquareCoverCache(): Promise<void> {
   memory.clear();

@@ -5,6 +5,7 @@ import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { CARD_INSET, cardShape } from '@/components/ui/card-material';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
@@ -12,7 +13,7 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { copyStateLine, releaseLine } from '@/constants/physical';
-import { Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getCopies, getProfile, type CopyWithRelations } from '@/lib/api';
 import { displayNameFor } from '@/lib/format';
@@ -167,7 +168,11 @@ const CopyRow = memo(function CopyRow({ copy }: { copy: CopyWithRelations }) {
           .filter(Boolean)
           .join(', ')}
         scaleTo={0.98}
-        style={StyleSheet.flatten([styles.row, { backgroundColor: theme.surface }])}>
+        style={StyleSheet.flatten([
+          cardShape,
+          styles.row,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+        ])}>
         <Poster
           coverUrl={copy.game?.cover_url ?? null}
           heroUrl={copy.game?.hero_url ?? null}
@@ -216,13 +221,8 @@ const styles = StyleSheet.create({
     gap: Spacing.x4,
   },
   separator: { height: Spacing.x8 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.card,
-  },
+  /* Every card's material (`card-material`). */
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12, padding: CARD_INSET },
   rowText: { flex: 1, gap: 2 },
   pending: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
 });

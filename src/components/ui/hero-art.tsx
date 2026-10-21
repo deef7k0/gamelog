@@ -115,6 +115,11 @@ export type HeroArtProps = {
    */
   fade?: 'color' | 'mask' | false;
   /**
+   * Whether the art's foot blurs into the fade. On by default; the studio page
+   * turns it off at the owner's direction (2026-10-15).
+   */
+  blur?: boolean;
+  /**
    * The size of the image that actually loaded, once it has. For a caller that
    * has to reject art it cannot use — the studio banner skips a game whose
    * first IGDB "artwork" is a 6:1 wordmark strip, which no crop can show.
@@ -138,6 +143,7 @@ export function HeroArt({
   scrim = false,
   height,
   fade = 'color',
+  blur = true,
   onLoad,
 }: HeroArtProps) {
   const theme = useTheme();
@@ -203,7 +209,7 @@ export function HeroArt({
           MaskedView, and nesting one inside another is unreliable on Android.
           The art is dissolving to transparent there anyway, which does the same
           job of getting it out of the way of the case and the title. */}
-      {uri && blurReady && fade !== 'mask' && (
+      {uri && blur && blurReady && fade !== 'mask' && (
         <MaskedView
           style={StyleSheet.absoluteFill}
           pointerEvents="none"

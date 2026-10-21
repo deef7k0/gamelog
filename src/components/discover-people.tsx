@@ -208,15 +208,10 @@ export function DiscoverPeople() {
           }}
         />
       }>
-      <Section
-        title="Similar taste"
-        hint="Based on games you have both logged, and how closely you scored them."
-        people={similar}
-      />
+      <Section title="Similar taste" people={similar} />
 
       <Section
         title="Popular with friends"
-        hint="Followed, liked or replied to by people you follow — and not by you yet."
         people={friends.data ?? []}
         /* Narrowed by language as the section under it is, so it says so too:
            each statement is true where it stands. */
@@ -225,9 +220,6 @@ export function DiscoverPeople() {
 
       <Section
         title={windowed ? 'Popular' : 'Most liked'}
-        /* "and posts" until now — posts were removed from the app, so the line
-           described a feature that no longer exists. */
-        hint={windowed ? 'Likes, replies and new followers.' : 'Total likes across their reviews.'}
         people={popularPeople}
         settling={popular.isPlaceholderData}
         /* Kept over an empty period: it is the way out of it. */
@@ -247,14 +239,13 @@ export function DiscoverPeople() {
         note={windowed && reading ? <ReadingNote reading={reading} of="people" /> : null}
       />
 
-      <Section title="Most reviews" hint="Who writes the most." people={writers} />
+      <Section title="Most reviews" people={writers} />
     </ScrollView>
   );
 }
 
 function Section({
   title,
-  hint,
   people,
   trailing,
   note,
@@ -263,11 +254,11 @@ function Section({
   settling = false,
 }: {
   title: string;
-  hint: string;
   people: Listed[];
   /** One small control at the far end of the title's line — the period. */
   trailing?: ReactNode;
-  /** A line under the hint: which languages the section is in. */
+  /** A line under the title: which languages the section is in. No line
+      says what the section is — the owner had those removed (2026-10-17). */
   note?: ReactNode;
   /** Draw the heading even with nobody under it, and say `empty` there. */
   keep?: boolean;
@@ -289,9 +280,6 @@ function Section({
           </Text>
           {trailing}
         </View>
-        <Text variant="bodySmall" color="textMuted">
-          {hint}
-        </Text>
         {note}
       </View>
 

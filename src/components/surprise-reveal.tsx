@@ -5,32 +5,31 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
-  interpolate,
+  FadeIn,
+  ReduceMotion,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 
 import { SurpriseBloom, BLOOM_BLEED } from '@/components/surprise-bloom';
-import { SurpriseDeck } from '@/components/surprise-deck';
-import { SurpriseSheen } from '@/components/surprise-sheen';
-import { Poster } from '@/components/ui/poster';
+import { SurpriseCardArt, type CardArtBox } from '@/components/surprise-card-art';
 import { PlatformMarks } from '@/components/ui/platform-chip';
 import { MarqueeText } from '@/components/ui/marquee-text';
-import { ROUND_ACTION, RoundAction } from '@/components/ui/round-action';
+import { KEY_GROUP_GAP, KEY_HEIGHT, TonalKey } from '@/components/ui/tonal-key';
 import { ScoreLine } from '@/components/ui/score';
-import { SQUARE_RADIUS, SQUARE_RATIO, SquareArt } from '@/components/ui/square-art';
+import { SQUARE_RADIUS, SQUARE_RATIO } from '@/components/ui/square-art';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { platformFamilies } from '@/constants/platform-family';
 import { PosterAspectRatio, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
-import { ARRIVAL_CONTROL, ARRIVAL_OBJECT, useArrival } from '@/hooks/use-arrival';
-import { useSquareCover } from '@/hooks/use-square-cover';
 import type { DealDirection } from '@/components/surprise-deal-gesture';
 import type { GameSearchResult } from '@/lib/games/types';
+
+/** One of Backlog and Next: wide enough to read as a key, not a dot. */
+const META_KEY = 56;
 
 /*
  * `DealDirection` is declared once, by the gesture that produces one, and
@@ -41,7 +40,7 @@ import type { GameSearchResult } from '@/lib/games/types';
 export type { DealDirection };
 
 /**
- * How far the card must travel before releasing it deals.
+ * How far a page must travel before releasing it deals.
  *
  * A fraction of the card rather than of the screen: the card is the thing being
  * moved, and the same 30% feels identical whether it is 150dp wide on an SE or
@@ -50,40 +49,16 @@ export type { DealDirection };
  */
 const COMMIT_FRACTION = 0.3;
 
-/** Rotation at full travel, in degrees. A dealt card turns as it leaves the hand. */
-const EXIT_ROTATION = 9;
-
 /**
- * The card lifts off the deck as you pull it, and that costs three numbers.
- *
- * Borrowed from `<GameCaseFlip>`, which is the app's one existing object in
- * depth: `perspective: 900` is its value, and using a second one would make two
- * objects in the same app disagree about how far away the viewer is standing.
- *
- * `TILT_Y` is deliberately small — 7° against the case's 22° of rubber-band —
- * because this is a lean, not a turn. DESIGN.md § 4.2 keeps the case superior on
- * every material axis, and turn is one of them: only the case may be taken all
- * the way over and read from the back.
- *
- * There is **no `rotateX`**. A pitch would be the fourth transform on a subtree
- * containing `overflow: 'hidden'` artwork, and unlike `rotateY` — which
- * `<GameCaseFlip>` already ships over exactly that — it has no precedent here to
- * say how Android handles it. The lift does the same job with a translate, which
- * every platform agrees about.
+ * The new card's words and cards coming in: a short fade, on every deal and
+ * under Reduce Motion too — with the slide flattened, a cut is not a
+ * transition, and a crossfade is what both platform references prescribe.
  */
-const PERSPECTIVE = 900;
-const TILT_Y = 7;
-const LIFT = 6;
+const TEXT_IN = FadeIn.duration(180)
+  .easing(Easing.out(Easing.quad))
+  .reduceMotion(ReduceMotion.Never);
 
-/* The two beats behind the case. Controls follow the object; the object never
-   waits for them. Capped far under the 500ms where an entrance starts to read as
-   latency. */
-const TITLE_DELAY = 70;
-const SUPPORT_DELAY = 130;
-
-/** How far the type and controls travel relative to the card in front of them. */
-const FOLLOW_RATIO = 0.22;
-
+/** How the reveal is sized on this display. */
 export type RevealLayout = {
   /**
    * Width of the **portrait fallback**, for a game with no square art.
@@ -105,14 +80,14 @@ export type RevealLayout = {
   /**
    * Travel at which releasing deals, in dp.
    *
-   * Derived here rather than exported as a fraction, because six call sites were
-   * each restating `artWidth * 0.3` — the screen's two gestures, its two edge
-   * lights, and the reveal's own. A fraction that travels is a fraction that gets
-   * out of step; the *number* lives in the one object every consumer already
-   * reads.
+   * Derived here rather than exported as a fraction, because several call
+   * sites would otherwise restate `artWidth * 0.3` — the screen's two
+   * gestures and its two edge lights. A fraction that travels is a fraction
+   * that gets out of step; the *number* lives in the one object every
+   * consumer already reads.
    */
   commitAt: number;
-  /** How far a dealt card travels before it is let go. */
+  /** How far the room dims over as a page is dragged (`<SurpriseBloom>`). */
   exitDistance: number;
   /** Too short for the standing hint and the metadata row. */
   compact: boolean;
@@ -190,81 +165,40 @@ export function revealLayout(width: number, height: number): RevealLayout {
   };
 }
 
-/**
- * An opacity beat that runs whatever the motion setting says.
- *
- * `useArrival` resolves to 1 immediately under Reduce Motion, which is right for
- * movement and wrong for continuity: with every spring flattened there would be
- * no transition between one game and the next at all, just a cut. Both platform
- * references ask for a crossfade in exactly this case, so this is driven
- * separately and is never switched off.
- */
-function useCrossfade(duration = 180): SharedValue<number> {
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    progress.set(withTiming(1, { duration, easing: Easing.out(Easing.quad) }));
-  }, [duration, progress]);
-
-  return progress;
-}
-
-/**
- * Type and controls trailing the card by a fraction of its travel.
- *
- * Not a ratio picked for effect: it is what makes the block read as one object
- * with a card in front of it rather than as a card sliding across a static page.
- * They also clear faster than the case, so the words are gone before the artwork
- * is — which is what stops the old title being legible under the new one.
- */
-function useFollowStyle(
-  dealX: SharedValue<number>,
-  fade: SharedValue<number>,
-  arrival: SharedValue<number>,
-  lift: number,
-  clearAt: number
-) {
-  return useAnimatedStyle(() => {
-    const offset = dealX.get();
-    const arrived = arrival.get();
-
-    return {
-      opacity: fade.get() * arrived * interpolate(Math.abs(offset), [0, clearAt], [1, 0], 'clamp'),
-      transform: [
-        { translateX: offset * FOLLOW_RATIO },
-        { translateY: interpolate(arrived, [0, 1], [lift, 0]) },
-      ],
-    };
-  });
-}
-
 export type SurpriseRevealProps = {
-  game: GameSearchResult;
+  /** The batch, and which card of it is in front. */
+  games: readonly GameSearchResult[];
+  cursor: number;
   /**
-   * Which way the deck last moved, so the incoming card enters from the side it
-   * came from. Continuity is the whole reason the direction is carried this far.
+   * Where this batch's first card stands in the deck: every card of every
+   * earlier batch came before it. The deck never jumps back to zero when a new
+   * batch arrives — the next batch's first card is laid out exactly where the
+   * last one's page was going.
    */
-  from: DealDirection;
+  base: number;
+  /** Where the deck stands, in dp — the card at index n is centred at n × `pageWidth`. */
+  pageX: SharedValue<number>;
+  /** One page: the display's width. */
+  pageWidth: number;
   /** False at the start of the deck: swiping back rubber-bands instead. */
   canGoBack: boolean;
   onDeal: (direction: DealDirection) => void;
-  /**
-   * Live card offset, owned by the screen.
-   *
-   * Hoisted out of this component because the swipe lights are mounted at screen
-   * level and read the same value — and because this component is keyed on the
-   * game, so a value living here would be destroyed by the very deal it is
-   * animating. The screen resets it as part of `deal()`.
-   */
+  /** The finger's travel, owned by the screen: the edge lights read it too. */
   dealX: SharedValue<number>;
   /**
    * Springs to 1 while the swipe is past the point where releasing deals.
-   *
-   * Owned by the screen for the same reason `dealX` is — the edge lights read it
-   * too — and passed down so the room can swell on the same threshold the haptic
-   * ticks on. Three signals on one detent.
+   * Owned by the screen for the same reason `dealX` is, and passed down so the
+   * room can swell on the same threshold the haptic ticks on.
    */
   bloom: SharedValue<number>;
+  /**
+   * The card in front has been in place for `SETTLE_MS`
+   * (`lib/surprise-prefetch.ts`): its animation may load. A card swiped past
+   * on the way to another never starts its download.
+   */
+  settled: boolean;
+  /** A finger is on the deck: the animation in front holds its frame. */
+  dragging: boolean;
   onOpenGame: () => void;
   /**
    * Banish this game from every future roll. Double tap on the cover.
@@ -279,11 +213,10 @@ export type SurpriseRevealProps = {
   /**
    * Whether the "you have hidden this game" panel is showing over the cover.
    *
-   * Owned by the screen, which also owns the ten-second timer — this component
-   * is keyed on the game and would lose any timer of its own to the next deal.
-   * Note it does **not** mean "this game is hidden": it means the panel is up.
-   * A game stays hidden forever; the panel is a ten-second announcement, and the
-   * card underneath is fully usable throughout.
+   * Owned by the screen, which also owns the ten-second timer. Note it does
+   * **not** mean "this game is hidden": it means the panel is up. A game stays
+   * hidden forever; the panel is a ten-second announcement, and the card
+   * underneath is fully usable throughout.
    */
   hidden: boolean;
   /**
@@ -304,14 +237,8 @@ export type SurpriseRevealProps = {
   /** The soundtrack row, mounted by the screen so this file owns no data. */
   soundtrack: ReactNode;
   /**
-   * Put this game on the backlog. The bookmark beside the title.
-   *
-   * A round icon button rather than the full-width `Add to backlog` bar this
-   * replaced. The bar and its twin took a whole row at the bottom of a screen
-   * that must not scroll, to carry two words each — and the pair of them sat
-   * below the review and the soundtrack, which is under the fold on a short
-   * display. Beside the title they are where the eye already is, and the two
-   * icons are the conventional ones: a bookmark saves, a skip arrow advances.
+   * Put this game on the backlog. The bookmark beside the title — the game
+   * page's own key, where the eye already is.
    */
   onBacklog: () => void;
   /** Drives the bookmark's glyph and its disabled state. */
@@ -320,39 +247,50 @@ export type SurpriseRevealProps = {
 };
 
 /**
- * One dealt game.
+ * The dealt game: its art on a strip that slides, and under it what the card
+ * says and what can be done with it.
  *
- * ## The motion thesis
+ * ## A simple slide
  *
- * The card is dealt. The entry deck on Discover is cut, and this is what came
- * off it — so the object you swiped toward is the object you swipe away. Left
- * deals the next game, right puts the last one back, and the case travels under
- * the finger the whole way rather than waiting for a release to animate.
+ * The owner's direction (2026-10-21): "Remove the way the artwork moves as a
+ * card out of the screen, just make it a simple slide like SimpMusic when
+ * sliding to the next song inside the now playing screen." So the art is a
+ * pager — SimpMusic's `HorizontalPager` round its artwork — and nothing else
+ * about it moves: the cards either side are already laid out a display's
+ * width away, the strip follows the finger one for one, and a release springs
+ * to the next page or back (`useDealGesture`). The card no longer lifts,
+ * leans, turns, flies off or springs in, and the face-down deck behind it and
+ * the light that caught its surface are gone with that.
  *
- * That is the feature's one authored moment. Everything else is quiet supporting
- * state: the case lands on `ARRIVAL_OBJECT`, the title and the controls follow on
- * `ARRIVAL_CONTROL` in two short beats, and nothing loops.
+ * What stays is what is not the artwork moving: the room's light behind it
+ * (`<SurpriseBloom>`) and the screen's edge lights, which say what letting go
+ * will do. The words under the art change when the deck moves on, with a
+ * short fade.
  *
- * ## Why the gesture survives Reduce Motion and the fly-off does not
+ * Three cards are mounted — the one in front and one either side — each keyed
+ * by its place in the deck, so the card that slides in is the one that was
+ * already there, still and looked up. Only the card in front may load its
+ * animation (`settled`), and it holds its frame while a finger is on the deck.
  *
- * A swipe is an *input*. Removing it would answer an accessibility preference by
- * deleting an accessibility affordance — the same reasoning `<PressableScale>`
- * records for dimming instead of switching off. So the drag still tracks the
- * finger; what changes is the *reply*. The card crossfades instead of flying,
- * per both platform references, and the arrival springs collapse to the opacity
- * beat alone.
+ * ## Reduce Motion
  *
- * The visible `Roll again` control is not this gesture's fallback, it is the
- * primary path — a gesture is never the only way to reach an action here — and
- * `accessibilityActions` puts both directions in the VoiceOver rotor besides.
+ * A swipe is an *input*, so the strip still follows the finger; the release
+ * lands at once rather than springing, and the words crossfade. The visible
+ * `Another game` key is not the gesture's fallback, it is a primary path —
+ * and `accessibilityActions` puts both directions in the rotor besides.
  */
 export function SurpriseReveal({
-  game,
-  from,
+  games,
+  cursor,
+  base,
+  pageX,
+  pageWidth,
   canGoBack,
   onDeal,
   dealX,
   bloom,
+  settled,
+  dragging,
   onOpenGame,
   onHide,
   hidden,
@@ -364,132 +302,14 @@ export function SurpriseReveal({
   layout,
 }: SurpriseRevealProps) {
   const accent = useAccent();
-  const reduceMotion = useReducedMotion();
-
-  /*
-   * The square cover, and **nothing is drawn until it has an answer**.
-   *
-   * `resolved` is the fix for the flicker this screen had: it painted the IGDB
-   * portrait the moment the game arrived and replaced it with the square a beat
-   * later, so every deal was two different covers. Holding the skeleton through
-   * the lookup means one cover per game — and the answer is on disk afterwards,
-   * so a game you have seen before resolves before its first paint. See
-   * `useSquareCover`.
-   */
-  const square = useSquareCover({ gameId: game.id, title: game.title });
-
-  /*
-   * The card's footprint, resolved once and shared by the well, the deck and the
-   * sheen.
-   *
-   * Two shapes: a square cover, or the 2:3 portrait when SteamGridDB has no 1:1
-   * art. **The height is the same either way** — `revealLayout` derives
-   * `artWidth` from `squareWidth` for exactly that reason — so the well and
-   * everything below it are unaffected by which one a game gets. Only the width
-   * and the corner change, and the deck takes both so its cards never sit a
-   * different shape from the one on top of them.
-   */
-  const usingSquare = square.resolved && !!square.uri;
-  const cardWidth = usingSquare ? layout.squareWidth : layout.artWidth;
+  const game = games[cursor];
   const cardHeight = layout.squareWidth;
-  const cardRadius = usingSquare ? SQUARE_RADIUS : Radius.image;
 
-  const caseArrival = useArrival(0, ARRIVAL_OBJECT);
-  const titleArrival = useArrival(TITLE_DELAY, ARRIVAL_CONTROL);
-  const supportArrival = useArrival(SUPPORT_DELAY, ARRIVAL_CONTROL);
-  const fade = useCrossfade();
-
-  const caseStyle = useAnimatedStyle(() => {
-    const offset = dealX.get();
-    const arrived = caseArrival.get();
-    /* Enters from the side the deck moved, so a card dealt forward arrives from
-       the right and a card put back arrives from the left. */
-    const entering = interpolate(arrived, [0, 1], [from * 44, 0]);
-
-    /* One switch kills every new term and leaves the translate, the scale and the
-       exit rotation exactly as they shipped. A lean under a perspective is the
-       pseudo-parallax motion sensitivity is actually about; a card following your
-       finger is not, which is why the drag itself survives Reduce Motion. */
-    const depth = reduceMotion ? 0 : 1;
-    const pull = interpolate(Math.abs(offset), [0, layout.commitAt], [0, 1], 'clamp');
-
-    return {
-      opacity:
-        fade.get() * interpolate(Math.abs(offset), [0, layout.exitDistance], [1, 0.2], 'clamp'),
-      transform: [
-        /* First in the list, and it has to be: every rotation after it is read
-           through this projection. */
-        { perspective: PERSPECTIVE },
-        { translateX: offset + entering },
-        /* Rises off the stack as it is pulled — the translate that stands in for
-           a pitch. See `PERSPECTIVE`. */
-        { translateY: -pull * LIFT * depth },
-        /* Dragging left carries `offset` negative and should lift the card's
-           leading edge toward the viewer, which is a positive `rotateY`. */
-        {
-          rotateY: `${
-            interpolate(
-              offset,
-              [-layout.commitAt, 0, layout.commitAt],
-              [TILT_Y, 0, -TILT_Y],
-              'clamp'
-            ) * depth
-          }deg`,
-        },
-        { scale: interpolate(arrived, [0, 1], [0.94, 1]) },
-        {
-          rotate: `${interpolate(
-            offset,
-            [-layout.exitDistance, 0, layout.exitDistance],
-            [-EXIT_ROTATION, 0, EXIT_ROTATION]
-          )}deg`,
-        },
-      ],
-    };
-  });
-
-  const titleStyle = useFollowStyle(dealX, fade, titleArrival, 14, layout.commitAt * 2);
-  const supportStyle = useFollowStyle(dealX, fade, supportArrival, 10, layout.commitAt * 2);
+  /* The room is lit from the first frame: nothing lands any more. */
+  const lit = useSharedValue(1);
+  const stripStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -pageX.get() }] }));
 
   const families = platformFamilies(game.platforms);
-
-  /*
-   * Two taps on the same artwork, and the order between them is the whole trick.
-   *
-   * `Gesture.Exclusive` makes the double tap the favoured one: the single tap is
-   * held until the double has had its chance to fail, so one tap still opens the
-   * game page and two never do it on the way past. Written as gesture handlers
-   * rather than as a `<Pressable>` because a Pressable claims the touch through
-   * React Native's own responder system and would race the recogniser — the same
-   * fight this file's own note records between the old card-drag and the
-   * Pressable that replaced it.
-   *
-   * `.runOnJS(true)` on both: these call straight into a mutation and a router
-   * push, so there is nothing to gain from a worklet and `runOnJS` wrapping at
-   * every call site to lose.
-   */
-  const openGame = Gesture.Tap()
-    .runOnJS(true)
-    .onEnd((_event, success) => {
-      if (success) onOpenGame();
-    });
-
-  const hideGame = Gesture.Tap()
-    .runOnJS(true)
-    .numberOfTaps(2)
-    .onEnd((_event, success) => {
-      if (!success) return;
-      /* The one moment in this feature that removes something permanently, so it
-         gets the heavier tick — `selectionAsync` is what the deck and the swipe
-         threshold use, and this is not a selection. iOS only, for the reason
-         `<SurpriseEntry>` records: Android's generic buzz reads as an error. */
-      if (Platform.OS === 'ios') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      }
-      onHide();
-    });
-
-  const artTaps = Gesture.Exclusive(hideGame, openGame);
 
   return (
     <View style={styles.root}>
@@ -498,170 +318,96 @@ export function SurpriseReveal({
       <View style={styles.spacer} />
 
       {/*
-        The well: the light, the deck and the card, in one box.
+        The well: the light and the strip of cards, in one box.
 
         Its height is `card + BLOOM_BLEED * 2` with `-BLOOM_BLEED` of vertical
         margin, so the glow has room to fall off to nothing while the block's
         *layout* footprint stays exactly the card's — nothing below it moves, on
-        either shape. `revealLayout` derives `artWidth` so a poster is the same
-        height as a square precisely so this is one number rather than two.
-
-        It also settles an Android question before it is asked: the glow lives
-        inside the well's bounds rather than hanging outside them, so no ancestor
-        has to be told not to clip its children.
+        either shape.
       */}
       <View
         style={[
           styles.well,
           { height: cardHeight + BLOOM_BLEED * 2, marginVertical: -BLOOM_BLEED },
         ]}>
-        {/* The room, first, so everything else is lit by it rather than over it.
-            Outside the card's own transform on purpose: the light stays in the
-            room while the card moves through it. */}
         <SurpriseBloom
           cardEdge={cardHeight}
           dealX={dealX}
           bloom={bloom}
-          arrival={caseArrival}
+          arrival={lit}
           exitDistance={layout.exitDistance}
         />
 
-        {/* What the card comes off. Face down — see the component. */}
-        <SurpriseDeck
-          width={cardWidth}
-          height={cardHeight}
-          radius={cardRadius}
-          dealX={dealX}
-          commitAt={layout.commitAt}
-        />
-
-        {/*
-        The card, and the only thing the gesture moves.
-
-        `accessibilityActions` is what makes the swipe reachable without one:
-        VoiceOver lists both directions in the rotor, so the deck can be walked
-        forward and back by somebody who cannot perform a drag at all.
-      */}
         <Animated.View
-          style={[styles.card, caseStyle]}
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel={`${game.title}. Open game page.`}
-          accessibilityHint="Swipe left anywhere for another game, right to go back. Double tap the cover to hide this game from future rolls."
-          accessibilityActions={ACTIONS}
-          onAccessibilityAction={(event) => {
-            if (event.nativeEvent.actionName === 'activate') onOpenGame();
-            /* Straight to `onDeal`, not through the gesture's `commit`: the
-               rotor is not a drag, so there is no card in flight to animate out
-               and no haptic to acknowledge a threshold nobody crossed. */
-            if (event.nativeEvent.actionName === 'next') onDeal(1);
-            if (event.nativeEvent.actionName === 'previous' && canGoBack) onDeal(-1);
-            /* A double tap is not performable by somebody driving the screen from
-             the rotor, so hiding is in the rotor as an action of its own. A
-             gesture is never the only way to reach something here. */
-            if (event.nativeEvent.actionName === 'hide') onHide();
-          }}>
-          {/* No accessibility props of its own: the wrapper above is `accessible`,
-            so it is the single focusable element and this would be announced
-            inside it as a second button with the same name. */}
-          <GestureDetector gesture={artTaps}>
-            <View importantForAccessibility="no">
-              {/*
-              Square when the game has square art, portrait when it does not.
-
-              Not a crop either way. A 2:3 cover forced into a square loses a
-              third of itself, and this screen deals one game at a time — the
-              artwork is the entire content of the view, so it is the last thing
-              that should be cut. A game SteamGridDB has never heard of shows its
-              IGDB box art at 2:3, whole, which is what this screen always did.
-
-              The size difference between the two is real and deliberate: see
-              `RevealLayout.squareWidth`. The card has no fixed height and the
-              spacer below it flexes, so the two shapes cost nothing to swap
-              between.
-            */}
-              {!square.resolved ? (
-                /* The answer is not in yet. A skeleton in the square's own shape,
-                 never the IGDB cover — drawing that and then replacing it is the
-                 exact flicker `resolved` exists to prevent. */
-                <Skeleton
-                  width={layout.squareWidth}
-                  height={layout.squareWidth}
-                  radius={SQUARE_RADIUS}
+          style={[
+            styles.strip,
+            /* As wide as every card on it, from the deck's first to the one
+               after the card in front: Android hands a touch only to a child
+               inside its parent's bounds, so the strip must contain the card
+               being pressed. Its left edge never moves, so growing it moves
+               nothing. */
+            { top: BLOOM_BLEED, height: cardHeight, width: (base + cursor + 2) * pageWidth },
+            stripStyle,
+          ]}>
+          {[cursor - 1, cursor, cursor + 1].map((index) => {
+            const place = base + index;
+            const slot = [styles.slot, { left: place * pageWidth, width: pageWidth }];
+            /* Past the batch's last card: the next batch, on its way. */
+            if (index === games.length) {
+              return (
+                <View key={`slot-${place}-next`} style={slot} importantForAccessibility="no">
+                  <Skeleton width={cardHeight} height={cardHeight} radius={SQUARE_RADIUS} />
+                </View>
+              );
+            }
+            const slotGame = games[index];
+            if (!slotGame) return null;
+            const current = index === cursor;
+            return (
+              <View
+                key={`slot-${place}-${slotGame.id}`}
+                style={slot}
+                importantForAccessibility={current ? 'auto' : 'no-hide-descendants'}
+                accessibilityElementsHidden={!current}>
+                <CardSlot
+                  game={slotGame}
+                  current={current}
+                  layout={layout}
+                  load={current && settled}
+                  paused={dragging}
+                  hidden={current && hidden}
+                  canGoBack={canGoBack}
+                  onDeal={onDeal}
+                  onOpenGame={onOpenGame}
+                  onHide={onHide}
                 />
-              ) : square.uri ? (
-                <SquareArt uri={square.uri} size={layout.squareWidth} title={game.title} />
-              ) : (
-                <Poster
-                  coverUrl={game.coverUrl}
-                  heroUrl={game.heroUrl}
-                  title={game.title}
-                  width={layout.artWidth}
-                  steamAppId={game.steamAppId}
-                  edition={game.edition}
-                  elevated
-                />
-              )}
-              {/* Over the art and *under* the notice: a highlight on a card you
-                have just banished is the wrong emotional note, and the notice's
-                own scrim is what kills it. */}
-              <SurpriseSheen
-                width={cardWidth}
-                height={cardHeight}
-                radius={cardRadius}
-                dealX={dealX}
-                commitAt={layout.commitAt}
-                arrival={caseArrival}
-              />
-
-              <HiddenNotice
-                showing={hidden}
-                width={square.uri ? layout.squareWidth : layout.artWidth}
-              />
-            </View>
-          </GestureDetector>
+              </View>
+            );
+          })}
         </Animated.View>
       </View>
 
       {/*
         Everything the card says about the game, and the two things you can do
-        to it — in the artwork's own column.
+        to it — in the artwork's own column, keyed by the game so it fades in
+        when the deck moves on.
 
         Two rows, and they align differently on purpose. The facts pill is
         **centred on the cover**, because a score is a verdict on the object above
         it and belongs on its axis. The title, the credit line and the two
         controls are a **row ranged to the cover's edges**: left is what this is,
         right is what you can do with it, which is how a now-playing bar reads.
-
-        Everything centred — which is what this was — makes a poster, and a
-        poster is a thing you look at rather than a thing you act on. Everything
-        ranged left loses the score's relationship to the art. One of each is the
-        composition.
-
-        The buttons are vertically centred against the two-line text column
-        rather than pinned to its first line: they belong to the block, not to
-        the line they happen to sit beside.
       */}
-      <Animated.View style={[styles.meta, { width: layout.squareWidth }, titleStyle]}>
+      <Animated.View
+        key={`meta-${game.id}`}
+        entering={TEXT_IN}
+        style={[styles.meta, { width: layout.squareWidth }]}>
         {/*
-            The facts, on an opaque tinted fill, and that is not decoration.
-
-            `<ScoreLine>` draws in the score ramp and `<PlatformMarks>` draws each
-            platform's brand colour, both as bare glyphs with nothing behind them.
-            Measured against the vibrant ambience stop across all ten hues that is
-            1.98:1 for `scoreLow` and 1.24:1 for Xbox green — brand colours picked
-            against a near-black page, asked to hold up on a lit one.
-            `accent.elevated` is `tint(surfaceElevated, hue, 0.3)`, which restores
-            the original luminance rather than lightening it, so the block reads
-            as the same surface step it would be on any other screen and every
-            mark clears.
-
-            The pool tag that used to sit above this is gone. "Popular" described
-            the *query* rather than the game, on the one screen whose whole
-            content is a single game — and it was the first line of the block, so
-            the first thing read under the artwork was a piece of app plumbing.
-            The pool is still chosen in Settings, which is where that fact lives.
-          */}
+          The facts, on an opaque tinted fill, and that is not decoration:
+          `<ScoreLine>` and `<PlatformMarks>` draw in the score ramp and brand
+          colours, and `accent.elevated` is the surface step every one of them
+          was measured against.
+        */}
         <View style={[styles.facts, { backgroundColor: accent.elevated }]}>
           <PlatformMarks families={families} />
           {game.score !== null && <ScoreLine score={game.score} />}
@@ -669,19 +415,7 @@ export function SurpriseReveal({
 
         <View style={styles.titleRow}>
           <View style={styles.titleText}>
-            {/*
-            `h3`, down from `h1`, and bold is what it keeps.
-
-            23px over a 12px credit line made the title the second-largest object
-            on a screen whose largest is the artwork — two things competing to be
-            the subject. At 16 it sits a step above the copy around it and lets
-            the cover be the picture. Weight rather than size is what makes it
-            stand out now, which is how the reference does it too.
-
-            One line, and it scrolls when it does not fit — see `<MarqueeText>`.
-            The old block wrapped to two, which moved everything under it by a
-            line depending on how long the game's name happened to be.
-          */}
+            {/* One line, and it scrolls when it does not fit — see `<MarqueeText>`. */}
             <MarqueeText
               text={game.title}
               variant="h3"
@@ -697,19 +431,15 @@ export function SurpriseReveal({
             </Text>
           </View>
 
-          {/*
-          Bookmark and skip, replacing the two full-width buttons that used to
-          close the screen.
-
-          Both were below the review and the soundtrack — the bottom of a screen
-          that must not scroll — to carry two words each. The glyphs are the
-          conventional pair and need no words: a bookmark saves a thing for
-          later, a skip arrow moves to the next one. Each keeps its spoken label,
-          so nothing is lost to a screen reader.
-        */}
           <View style={styles.metaActions}>
-            <RoundAction
-              icon={backlog.done ? 'bookmark' : backlog.failed ? 'refresh' : 'bookmark-outline'}
+            {/* The game page's own keys (`<TonalKey>`), as one connected pair:
+                the owner's "the same button style as the game page"
+                (2026-10-16). Backlog is a state and lights; Next is an act. */}
+            <TonalKey
+              icon={backlog.failed ? 'refresh' : 'bookmark'}
+              outline={backlog.failed ? 'refresh' : 'bookmark-outline'}
+              active={backlog.done}
+              busy={backlog.busy}
               label={
                 backlog.done
                   ? `${game.title} is in your backlog`
@@ -717,19 +447,26 @@ export function SurpriseReveal({
                     ? 'Could not add to your backlog. Try again.'
                     : `Add ${game.title} to your backlog`
               }
-              selected={backlog.done}
-              busy={backlog.busy}
               onPress={onBacklog}
+              position="start"
+              style={styles.metaKey}
             />
-            <RoundAction icon="play-skip-forward" label="Another game" onPress={() => onDeal(1)} />
+            <TonalKey
+              icon="play-skip-forward"
+              label="Another game"
+              onPress={() => onDeal(1)}
+              position="end"
+              style={styles.metaKey}
+            />
           </View>
         </View>
       </Animated.View>
 
-      {/* One fixed step from the title block to the cards, not a flex hole. See
-          `styles.spacer`. */}
+      {/* One fixed step from the title block to the cards, not a flex hole. */}
       <Animated.View
-        style={[styles.support, styles.supportGap, { width: layout.squareWidth }, supportStyle]}>
+        key={`support-${game.id}`}
+        entering={TEXT_IN}
+        style={[styles.support, styles.supportGap, { width: layout.squareWidth }]}>
         {review}
         {soundtrack}
       </Animated.View>
@@ -739,22 +476,111 @@ export function SurpriseReveal({
           twin is above the artwork. */}
       <View style={styles.spacer} />
 
-      {/* A standing instruction, not a coach mark: it does not appear on a timer,
-          cannot be dismissed into never being seen again, and stops mattering the
-          moment the gesture is learned. Hidden from screen readers, which are
-          told the same thing by the case's own hint. */}
+      {/* A standing instruction, not a coach mark. Hidden from screen readers,
+          which are told the same thing by the card's own hint. */}
       {!layout.compact && (
         <Text
           variant="caption"
           style={[styles.hint, { color: accent.quietInk }]}
           importantForAccessibility="no"
           accessibilityElementsHidden>
-          {/* Both gestures, in one line. The hide is worth naming here more than
-              the swipe is: a swipe is the thing a card invites anyway, and a
-              double tap on artwork is invisible until somebody says it exists. */}
           Swipe for another game · double tap the cover to hide it
         </Text>
       )}
+    </View>
+  );
+}
+
+/**
+ * One card on the strip: its art, and — for the card in front — the two taps
+ * on it and everything a screen reader is told.
+ *
+ * The same tree whether or not it is in front, so a card that slides in is
+ * not remounted on arrival: its taps are switched on (`enabled`), not added.
+ *
+ * Two taps on the same artwork, and the order between them is the trick:
+ * `Gesture.Exclusive` holds the single tap until the double has had its
+ * chance to fail, so one tap opens the game page and two never do it on the
+ * way past. Gesture handlers rather than a `<Pressable>`, which would race
+ * the recogniser through React Native's own responder system.
+ */
+function CardSlot({
+  game,
+  current,
+  layout,
+  load,
+  paused,
+  hidden,
+  canGoBack,
+  onDeal,
+  onOpenGame,
+  onHide,
+}: {
+  game: GameSearchResult;
+  current: boolean;
+  layout: RevealLayout;
+  load: boolean;
+  paused: boolean;
+  hidden: boolean;
+  canGoBack: boolean;
+  onDeal: (direction: DealDirection) => void;
+  onOpenGame: () => void;
+  onHide: () => void;
+}) {
+  const openGame = Gesture.Tap()
+    .runOnJS(true)
+    .enabled(current)
+    .onEnd((_event, success) => {
+      if (success) onOpenGame();
+    });
+
+  const hideGame = Gesture.Tap()
+    .runOnJS(true)
+    .enabled(current)
+    .numberOfTaps(2)
+    .onEnd((_event, success) => {
+      if (!success) return;
+      /* The one moment in this feature that removes something permanently, so
+         it gets the heavier tick. iOS only: Android's generic buzz reads as an
+         error. */
+      if (Platform.OS === 'ios') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      }
+      onHide();
+    });
+
+  return (
+    <View
+      style={styles.card}
+      accessible={current}
+      accessibilityRole={current ? 'button' : undefined}
+      accessibilityLabel={current ? `${game.title}. Open game page.` : undefined}
+      accessibilityHint={
+        current
+          ? 'Swipe left anywhere for another game, right to go back. Double tap the cover to hide this game from future rolls.'
+          : undefined
+      }
+      accessibilityActions={current ? ACTIONS : undefined}
+      onAccessibilityAction={(event) => {
+        if (!current) return;
+        if (event.nativeEvent.actionName === 'activate') onOpenGame();
+        if (event.nativeEvent.actionName === 'next') onDeal(1);
+        if (event.nativeEvent.actionName === 'previous' && canGoBack) onDeal(-1);
+        /* A double tap is not performable from the rotor, so hiding is in it as
+           an action of its own. A gesture is never the only way here. */
+        if (event.nativeEvent.actionName === 'hide') onHide();
+      }}>
+      <GestureDetector gesture={Gesture.Exclusive(hideGame, openGame)}>
+        <View importantForAccessibility="no">
+          <SurpriseCardArt
+            game={game}
+            layout={layout}
+            load={load}
+            paused={paused}
+            overlay={current ? (box) => <HiddenNotice showing={hidden} box={box} /> : undefined}
+          />
+        </View>
+      </GestureDetector>
     </View>
   );
 }
@@ -787,10 +613,10 @@ const ACTIONS = [
  * because hiding an already-hidden game is a legal thing to do and simply
  * restarts the ten seconds.
  *
- * The opacity beat runs under Reduce Motion for the reason `useCrossfade`
- * records: with every spring flattened, a cut is not a transition.
+ * The opacity beat runs under Reduce Motion: with every spring flattened, a
+ * cut is not a transition.
  */
-function HiddenNotice({ showing, width }: { showing: boolean; width: number }) {
+function HiddenNotice({ showing, box }: { showing: boolean; box: CardArtBox }) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
@@ -801,7 +627,7 @@ function HiddenNotice({ showing, width }: { showing: boolean; width: number }) {
 
   return (
     <Animated.View
-      style={[styles.notice, style]}
+      style={[styles.notice, { borderRadius: box.radius }, style]}
       /* Never a touch target. The card underneath keeps every one of its
          gestures while this is up — that is the whole point of not advancing. */
       pointerEvents="none"
@@ -813,7 +639,7 @@ function HiddenNotice({ showing, width }: { showing: boolean; width: number }) {
       accessibilityElementsHidden>
       {/* Sized off the cover so the glyph scales with the art rather than
           swamping it on a small display. */}
-      <Ionicons name="eye-off" size={Math.round(width * 0.26)} color="#FFFFFF" />
+      <Ionicons name="eye-off" size={Math.round(box.width * 0.26)} color="#FFFFFF" />
       <Text variant="h5" style={styles.noticeTitle}>
         You have hidden this game
       </Text>
@@ -867,8 +693,11 @@ export function SurpriseRevealSkeleton({ layout }: { layout: RevealLayout }) {
             <Skeleton width={124} height={12} radius={Radius.sm} />
           </View>
           <View style={styles.metaActions}>
-            <Skeleton width={ROUND_ACTION} height={ROUND_ACTION} radius={Radius.pill} />
-            <Skeleton width={ROUND_ACTION} height={ROUND_ACTION} radius={Radius.pill} />
+            <Skeleton
+              width={META_KEY * 2 + KEY_GROUP_GAP}
+              height={KEY_HEIGHT}
+              radius={Radius.pill}
+            />
           </View>
         </View>
       </View>
@@ -894,6 +723,14 @@ const styles = StyleSheet.create({
      is deliberately *not* hidden: the glow's whole job is to reach past the card,
      and the bleed is what gives it somewhere to reach into. */
   well: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
+  /*
+   * The strip the cards are laid out on: its origin at the display's left
+   * edge, each card at its place in the deck times the display's width — so
+   * moving the strip by `-pageX` is the whole slide, and the cards either side
+   * are a page away, off the screen until dragged in.
+   */
+  strip: { position: 'absolute', left: 0 },
+  slot: { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   card: { alignItems: 'center' },
   /*
    * **Exactly as wide as the artwork**, set inline from `layout.squareWidth`.
@@ -918,7 +755,9 @@ const styles = StyleSheet.create({
      actually clip: without it a long title measures its natural width and pushes
      the buttons off the row instead of being cut by it. */
   titleText: { flex: 1, minWidth: 0, gap: Spacing.x4 },
-  metaActions: { flexDirection: 'row', gap: Spacing.x8 },
+  /* The game page's connected group: its 4dp seam, keys 56 wide. */
+  metaActions: { flexDirection: 'row', gap: KEY_GROUP_GAP },
+  metaKey: { width: META_KEY },
   skeletonMeta: { gap: Spacing.x8 },
   /* The facts pill is centred on the artwork; its placeholder is too. */
   skeletonFacts: { alignSelf: 'center' },
@@ -943,8 +782,9 @@ const styles = StyleSheet.create({
    * The four offsets written out rather than `StyleSheet.absoluteFillObject` —
    * that is gone from the RN types on SDK 57 (see CLAUDE.md).
    *
-   * `Radius.caseImage` so the scrim ends exactly where the artwork does; a
-   * square overlay on a rounded poster leaves four lit corners. The fill is a
+   * The art's own corner, set inline from its box, so the scrim ends exactly
+   * where the artwork does; a square overlay on a rounded poster leaves four
+   * lit corners. The fill is a
    * plain black alpha rather than a theme token on purpose: it sits on *artwork*,
    * which is the one surface in the app whose colour is unknown at build time,
    * and 0.82 is what carries white type over a bright cover as well as a dark one.
@@ -959,7 +799,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.x8,
     paddingHorizontal: Spacing.x12,
-    borderRadius: SQUARE_RADIUS,
     backgroundColor: 'rgba(0, 0, 0, 0.82)',
   },
   noticeTitle: { textAlign: 'center' },

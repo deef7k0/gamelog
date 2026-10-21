@@ -7,6 +7,7 @@ import { LogCard } from '@/components/log-card';
 import { ReviewChartHead } from '@/components/review-chart-head';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
+import { TallCardWindow } from '@/constants/list-window';
 import { Spacing } from '@/constants/theme';
 import { useReviewChart } from '@/hooks/use-review-chart';
 import { getPopularCollections } from '@/lib/api';
@@ -54,8 +55,13 @@ function usePopularCollectionsData() {
  * No likes are fetched for these: the review card carries no like row (see
  * `<LogCard>`); liking happens on the review's own page.
  */
-export function DiscoverReviews() {
-  const [period, setPeriod] = useState<ChartPeriod>(DEFAULT_CHART_PERIOD);
+export function DiscoverReviews({
+  initialPeriod = DEFAULT_CHART_PERIOD,
+}: {
+  /** The period the chart opens on — Search's, when its "See all" led here. */
+  initialPeriod?: ChartPeriod;
+}) {
+  const [period, setPeriod] = useState<ChartPeriod>(initialPeriod);
   const { chart: reviews, reading } = useReviewChart(period);
   const windowed = reviews.data?.windowed ?? true;
 
@@ -178,6 +184,7 @@ export function DiscoverCollections() {
       keyboardDismissMode="on-drag"
       refreshing={collections.isRefetching}
       onRefresh={() => collections.refetch()}
+      {...TallCardWindow}
       renderItem={renderTile}
       ListEmptyComponent={
         <EmptyState

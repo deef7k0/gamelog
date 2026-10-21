@@ -6,7 +6,8 @@ import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { GameCoverRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
 import { LOGO_WIDTH_RATIO, StudioIdentity } from '@/components/studio-identity';
-import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
+import { TrailerBackdrop } from '@/components/trailer-backdrop';
+import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { HeroArt } from '@/components/ui/hero-art';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
@@ -22,6 +23,7 @@ import { useImmersiveBackground } from '@/hooks/use-immersive-background';
 import { useStudioBanner } from '@/hooks/use-studio-banner';
 import { BANNER_MAX_ASPECT, useStudioCatalogue } from '@/hooks/use-studio-catalogue';
 import { useStudioLogo } from '@/hooks/use-studio-logo';
+import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
 import { useTheme } from '@/hooks/use-theme';
 import { gameSortOptions, sortGames, type GameSearchResult, type GameSort } from '@/lib/games';
 
@@ -197,8 +199,10 @@ function yearsOf(games: readonly GameSearchResult[]): string | null {
  * ## The page takes the banner's colour; the controls do not
  *
  * The header is SimpMusic's artist page, read from `ArtistScreen.kt`: the
- * artwork square and full width, melting into a page filled with the
- * artwork's own darkened tone (`useImmersiveBackground`), and the studio's name
+ * artwork square and full width, melting into a page that is near black
+ * with the artwork's hue as a trace (`useImmersiveBackground`, `depth:
+ * 'black'` — the owner's, 2026-10-17, so a trailer's letterbox bars meet it
+ * without an edge; it was the art's darkened tone), and the studio's name
  * set over the bottom — as its logo, when Wikimedia Commons has a public-domain
  * one (`useStudioLogo`, `<StudioIdentity>`).
  *
@@ -253,9 +257,17 @@ export default function StudioScreen() {
      opened before is never waiting on IGDB for its banner or its colour. */
   const bannerUrl = useStudioBanner(companyId, games.data ? (banner?.heroUrl ?? null) : undefined);
 
-  /* The page's colour, from the banner it melts out of — null until there is
-     a banner and its colour is read, when the page stays the app's own. */
-  const pageColor = useImmersiveBackground(bannerUrl);
+  /* The trailer behind the banner: the banner game's own, so the video is of
+     the picture it replaces — and only once that picture is the catalogue's
+     choice, never the art remembered from last time. */
+  const trailer = useGameTrailer(banner && banner.heroUrl === bannerUrl ? banner.id : null);
+  const trailers = useTrailerSetting();
+
+  /* The page's colour, from the banner it melts out of — near black with the
+     banner game's hue as a trace, so a trailer's black bars meet the page
+     without an edge (the owner's, 2026-10-17). Null until there is a banner
+     and its colour is read, when the page stays the app's own. */
+  const pageColor = useImmersiveBackground(bannerUrl, { depth: 'black' });
   const page = pageColor ?? theme.background;
 
   /* The logo, when Commons has a free one. The name is on screen from the
@@ -282,7 +294,24 @@ export default function StudioScreen() {
     <Screen
       edges={['bottom']}
       background={pageColor ?? undefined}
-      topBar={<FrostedTopBar back title={name} header={bannerHeight} />}>
+      topBar={
+        <FrostedTopBar
+          back
+          title={name}
+          header={bannerHeight}
+          /* The trailer on and off — SimpMusic's video ⇄ picture key, opposite
+             the back disc — shown only when there is a trailer to switch. */
+          right={
+            trailer ? (
+              <TopBarDisc
+                icon={trailers.on ? 'videocam-off-outline' : 'videocam-outline'}
+                label={trailers.on ? 'Stop the trailer' : 'Play the trailer'}
+                onPress={() => trailers.setOn(!trailers.on)}
+              />
+            ) : undefined
+          }
+        />
+      }>
       <PageFlatList
         data={ordered}
         key={`grid-${COLUMNS}`}
@@ -339,22 +368,28 @@ export default function StudioScreen() {
                   was read from. The strip check is a backstop now — the
                   catalogue already passes over art it knows the size of — and
                   only judges the catalogue's own choice, never remembered art. */}
-              <HeroArt
-                uri={bannerUrl}
-                height={bannerHeight}
-                onLoad={({ width: artWidth, height: artHeight }) => {
-                  if (
-                    banner &&
-                    banner.heroUrl === bannerUrl &&
-                    artHeight > 0 &&
-                    artWidth / artHeight > BANNER_MAX_ASPECT
-                  ) {
-                    setStrips((previous) => [...previous, banner.id]);
-                  }
-                }}
-                scrim
-                fade={false}
-              />
+              <TrailerBackdrop
+                url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
+                height={bannerHeight}>
+                <HeroArt
+                  uri={bannerUrl}
+                  height={bannerHeight}
+                  onLoad={({ width: artWidth, height: artHeight }) => {
+                    if (
+                      banner &&
+                      banner.heroUrl === bannerUrl &&
+                      artHeight > 0 &&
+                      artWidth / artHeight > BANNER_MAX_ASPECT
+                    ) {
+                      setStrips((previous) => [...previous, banner.id]);
+                    }
+                  }}
+                  scrim
+                  fade={false}
+                  /* No blur on this page — the owner's direction (2026-10-15). */
+                  blur={false}
+                />
+              </TrailerBackdrop>
               <View
                 style={[styles.fill, { backgroundColor: withAlpha(Palette.shadowInk, VEIL) }]}
                 pointerEvents="none"
@@ -447,7 +482,7 @@ export default function StudioScreen() {
               rail that failed to lay out.
             */}
             {catalogue.length > 0 && (
-              <HomeSection title="All games" subtitle="Everything in the catalogue, your order.">
+              <HomeSection title="All games">
                 {/* Hidden until there is a catalogue to reorder — sorting one
                     game is theatre, and the pills would show during the
                     skeleton. */}

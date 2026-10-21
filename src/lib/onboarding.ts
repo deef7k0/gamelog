@@ -56,27 +56,9 @@ export const MIN_PASSWORD_LENGTH = 6;
  * The typing
  * ---------------------------------------------------------------------- */
 
-/**
- * One letter every 20ms — fifty a second. The owner asked for it fast and
- * letter by letter (2026-10-15); the longest intro line is done in about a
- * second and a half. Constant, with no pauses at punctuation and no jitter:
- * those were what made the first build read as word by word.
- */
-export const TYPE_MS = 20;
-
-/**
- * How many letters are on screen `elapsedMs` after a line began. The first
- * one is there at once; the rest arrive one per `TYPE_MS`.
- */
-export function lettersShown(text: string, elapsedMs: number): number {
-  if (elapsedMs < 0) return 0;
-  return Math.min(text.length, 1 + Math.floor(elapsedMs / TYPE_MS));
-}
-
-/** The whole line's typing time, for a caller that waits for it. */
-export function typingDuration(text: string): number {
-  return Math.max(0, text.length - 1) * TYPE_MS;
-}
+/* The clock lives in `lib/typing.ts` now — a review's quote types too — and
+   is re-exported here so onboarding keeps reading it from its own rules. */
+export { TYPE_MS, lettersShown, typingDuration } from './typing';
 
 /* -------------------------------------------------------------------------
  * The pitch, signed out
@@ -108,6 +90,8 @@ export type OnboardingStep =
   | 'genres'
   | 'company'
   | 'favourites'
+  | 'colours'
+  | 'animated'
   | 'notify'
   | 'steam'
   | 'photo'
@@ -122,6 +106,8 @@ const ALL_STEPS: readonly OnboardingStep[] = [
   'genres',
   'company',
   'favourites',
+  'colours',
+  'animated',
   'notify',
   'steam',
   'photo',
@@ -226,6 +212,44 @@ const SHOWABLE = 'version_parent = null & cover != null & game_type = (0,8,9)';
  */
 export function pickingGridClause(): string {
   return `${SHOWABLE} & total_rating_count > 400`;
+}
+
+/* -------------------------------------------------------------------------
+ * How the app looks — two questions, with examples
+ * ---------------------------------------------------------------------- */
+
+/**
+ * The games a new account is shown its two choices on — the owner's
+ * (2026-10-21): "show examples of the game page and ask if they want the
+ * expressive material color or no color, with a button to switch on/off in
+ * real time. Same with animated artwork, show an example of 2-3 games that
+ * are in SteamGridDB, preferably most known games, and show it as a Surprise
+ * Me screen example."
+ *
+ * Colours: three of the best-known games there are, chosen for three covers
+ * of three different colours — Hollow Knight's blue, Hades' red, Elden Ring's
+ * gold — so the switch visibly changes something on each.
+ *
+ * Animation: three as well known whose animated covers on SteamGridDB are
+ * full size and light, so a first run does not spend much data (checked live,
+ * 2026-10-21, by the app's own rule): Hollow Knight's square (1.0 MB), Portal
+ * 2's portrait (1.3 MB) and Cyberpunk 2077's (3.8 MB). Only the one in view
+ * loads. IGDB ids, in the order shown.
+ */
+export const COLOUR_EXAMPLES: readonly number[] = [14593, 113112, 119133];
+export const ANIMATED_EXAMPLES: readonly number[] = [14593, 72, 1877];
+
+/** The `where` that fetches example games by IGDB id. */
+export function examplesClause(ids: readonly number[]): string {
+  return `id = (${ids.join(',')})`;
+}
+
+/** Put fetched games back in the order asked for; IGDB sorts as it likes. */
+export function inExampleOrder<T extends { sourceId: string }>(
+  ids: readonly number[],
+  games: readonly T[]
+): T[] {
+  return ids.flatMap((id) => games.filter((game) => game.sourceId === String(id)));
 }
 
 /**

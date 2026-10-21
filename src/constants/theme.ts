@@ -50,7 +50,7 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-import { ensureContrast, mix, readableInk, tint, withAlpha } from '@/lib/color';
+import { ensureContrast, mix, readableInk, tint, toHsl, withAlpha } from '@/lib/color';
 import { generateDynamicTheme, type DynamicThemeColors } from '@/theme/dynamic-color';
 
 export { ensureContrast, readableInk, tint, withAlpha } from '@/lib/color';
@@ -92,25 +92,35 @@ export const Colors = {
      * The page. Never true black: #000 on OLED smears on scroll and kills the
      * sense of depth the surface steps are built on.
      *
-     * A near-black with a faint cool trace — darker than the #14171b it
-     * replaced (luminance 0.0032 against 0.0084) and without that one's
-     * blue-grey cast, at the owner's request: darker, not bluer, and not black.
-     * The trace (hue 260°, 13% saturation at 4.5% lightness) is too faint to
-     * read as a colour; it only keeps the room cool rather than warm-neutral.
+     * **The owner's colour** (2026-10-20), and it is measured out of their own
+     * reference rather than named: the page in that screenshot is this hex
+     * exactly, and the card on it is `surface`'s. It is where the room was
+     * before the near-black experiment — the retired #14171b, one blue level
+     * up — so the floor is lighter than it was (luminance 0.0084 against
+     * 0.0032) and everything above it moved with it. Every ink still clears AA
+     * on both this and a card; `review-card.test.ts` holds that.
      */
-    background: '#050609',
+    background: '#14171C',
     /**
      * Home's page fill, and only Home's — an experiment with the room's floor,
      * kept to one screen so the rest of the app is unaffected. Change it here.
      *
-     * True black for now, which the note above warns against on OLED; that is
-     * the thing being tried. The surface ladder was tuned against `background`,
-     * so cards on Home separate a little more strongly than elsewhere.
+     * The same as `background` again: the owner gave one colour for the app's
+     * page and Home is the app. While the two agree, a card measures the same
+     * step on Home as everywhere else — which is what the review card's test
+     * checks against both.
      */
-    homeBackground: '#050609',
+    homeBackground: '#14171C',
     /**
-     * Cards and the tab bar. One perceptible step off the page: 1.076:1 on
-     * `background` (#14171c). The owner's colour.
+     * **Cards** — every one in the app, the review card and the collection
+     * card included, and the tab bar. One perceptible step off the page:
+     * 1.089:1 on `background`. The owner's colour (2026-10-20), measured from
+     * the same reference as the page.
+     *
+     * A card is *above* the page now. It was below it for one pass — the
+     * review card was its own near-black `reviewCard`, a shade under the room
+     * — and that token is gone: the owner gave one card colour for all of
+     * them, and both cards were already drawing with this one.
      *
      * **Solid, and it has to be.** It was tried at 62% opacity (`#1b1e249f`),
      * which broke three things quietly: `tint()` and `withAlpha()` read only a
@@ -123,14 +133,23 @@ export const Colors = {
      * it for their surfaces: those run on `accentRoles`, which derives them from
      * the artwork. See CLAUDE.md, "The room is dark".
      */
-    surface: '#1b1e24',
+    surface: '#1B1F28',
     /**
      * Nested surfaces, and the resting fill of a control — a secondary button,
      * an icon button, an unselected chip. The reference's "interactive surface".
+     *
+     * It moved up with the page and the card (2026-10-20): a control inside a
+     * card has to stay visible against it, and at its old #15171D it would
+     * have been *darker* than the card it sits on. 1.063:1 over `surface`,
+     * which is the step it has always kept.
      */
-    surfaceElevated: '#1B1A20',
-    /** Pressed and neutral-selected fill: one step above a resting control. */
-    surfaceSelected: '#24222A',
+    surfaceElevated: '#1F2430',
+    /**
+     * Pressed and neutral-selected fill: one step above a resting control.
+     * 1.111:1 over `surfaceElevated`, as before — the whole ladder shifted,
+     * none of its intervals did.
+     */
+    surfaceSelected: '#262C3A',
     /**
      * The well of a text field, a select field and the search bar — the owner's
      * reference, SimpMusic's name field: its `onSurfaceVariant` at 8%, which
@@ -195,9 +214,11 @@ export const Colors = {
      * and focus states (`accentRoles`), because a 14% wash of *this* blue over
      * near-black comes out darker than the resting control surface.
      */
-    primary: '#0070CC',
+    primary: '#FFFFFF',
     /** White on the blue fill, 5.01:1. */
-    onPrimary: '#FFFFFF',
+    onPrimary: '#0E0E0E',
+    /** Pure white, for type and glyphs over artwork or a dark scrim. */
+    white: '#FFFFFF',
     /**
      * The same blue, lifted so it can carry a label: 6.07:1 on the page, 5.31 on
      * `surfaceElevated`, 4.83 on `surfaceSelected`.
@@ -207,14 +228,22 @@ export const Colors = {
      * anywhere it is a *fill* keeps `primary`. It is also the base the house
      * `wash`, `edge` and `ring` are built from.
      */
-    primaryText: '#2E93E8',
+    primaryText: '#FFFFFF',
     /**
      * A wash of the accent — the house `wash`: `primaryText` at 16%. Lighter
      * than the resting control fill it replaces, which is what lets it mark a
      * selected control by brightness as well as by hue.
      */
-    primaryMuted: 'rgba(46, 147, 232, 0.16)',
-    accent: '#0070CC',
+    primaryMuted: 'rgba(255, 255, 255, 0.16)',
+    /**
+     * The accent on a game's screens with game colours off (Settings → Game
+     * colours) — the owner's #CACACA (2026-10-20). A soft grey rather than
+     * the house white, so a game's page reads as that page, not as the feed:
+     * the review button, the lit keys, the selected tab. 10.96:1 on the page;
+     * near-black type on it (`readableInk`).
+     */
+    gameNeutral: '#CACACA',
+    accent: '#FFFFFF',
 
     /*
      * ---------------------------------------------------------------------
@@ -266,7 +295,10 @@ export const Colors = {
      * was the wrong of the two: neutral is *mixed*, and rendering it in the
      * house accent made a middling game look endorsed. Amber, everywhere.
      */
-    scoreHigh: '#4ADE80',
+    /* #4ADE80 taken 8% towards black at the owner's direction (2026-10-16):
+       "make the green… slightly darker". Same hue; it is the score box's fill
+       and every high score's numeral, so it moved everywhere at once. */
+    scoreHigh: '#44CC76',
     scoreMid: '#F5A524',
     /* Lifted from #EF4444, which measured 4.13:1 on `surfaceElevated` — under
        AA for the 13px inline numeral that a feed row renders it at. #F35555 is
@@ -322,18 +354,20 @@ export const Colors = {
     platinum: '#A9B6CC',
 
     /**
-     * The Must Play label's disc (0034): a moderator's pick, drawn as a badge on
-     * a cover and in the game page's stats strip.
+     * The Must Play label (0034): a moderator's pick — the wedge in a cover's
+     * top-right corner, and the star alone elsewhere.
      *
      * An alias of `identityJade`, not a new hex — a meaning joins the ramp, as
      * `statusPaused` did. Green at the owner's direction (it was ember): the
-     * badge is the one thing in this app that sits *on* box art in a colour,
-     * and it has to hold on any cover — at 10.6:1 against the dark ring drawn
-     * round it, the disc reads on a white box and a black one alike. The face
-     * on it takes `readableInk` — near-black — so the mark is never a second
-     * hue, and its teeth take the opposite ink.
+     * mark is the one thing in this app that sits *on* box art in a colour.
      */
     mustPlay: '#43D98C',
+    /**
+     * The star inside the wedge: `mustPlay` taken 60% toward black — the same
+     * green, darker, "completely filled in a darker green" (2026-10-17) —
+     * 4.7:1 on the wedge.
+     */
+    mustPlayStar: '#1B5738',
 
     /**
      * Review prose, and only review prose.
@@ -395,29 +429,8 @@ export const Colors = {
      * it. It stays violet beside the blue house accent, as it always had: the
      * light is atmosphere, not chrome, and does not have to match the controls.
      */
-    glowCore: '#6B4C9A',
-    glowEdge: '#3A2050',
-
-    /**
-     * The fill of a review card in a list (`log-card.tsx`), and nothing else's.
-     *
-     * **Almost the page**: `background` three levels darker in each channel,
-     * 1.03:1 against it. The owner's direction — "closer to the background
-     * color, almost the same but ever so slightly different" — and then "only
-     * a solid background color". So the card is a flat piece of the page's own
-     * colour, a shade under it, and what separates it from the page is that
-     * shade and its shadow.
-     *
-     * It is not `surface`, which is a step *above* the page (1.08:1) and is
-     * what every other card in the app is filled with. This sits a step below.
-     *
-     * **It follows the page.** The card is on Home (`homeBackground`, the
-     * colour the owner tries things on) and on every other list of reviews
-     * (`background`); the two are the same hex today. Move either and this
-     * moves with it, the same three levels under — `review-card.test.ts` fails
-     * if the card drifts from either page or meets it.
-     */
-    reviewCard: '#020306',
+    glowCore: '#FFFFFF',
+    glowEdge: '#8E9099',
 
     /**
      * The light ground under somebody else's logo — a platform's, a studio's —
@@ -434,8 +447,8 @@ export const Colors = {
 
     /** Scrim over hero artwork so text stays legible on any cover. */
     scrim: 'rgba(0, 0, 0, 0.6)',
-    /** Skeleton placeholder fill. */
-    skeleton: '#1B1A20',
+    /** Skeleton placeholder fill: a control's resting step, so it reads on a card. */
+    skeleton: '#1F2430',
 
     /**
      * Ink for gradient ramps over artwork, and the palette's only true black.
@@ -510,6 +523,25 @@ export const Colors = {
     onboardingPage: '#050506',
     onboardingField: '#161419',
     onboardingEdge: '#2C2A30',
+
+    /*
+     * A review shared as an image — SimpMusic's lyrics card, read from
+     * `ShareLyricsSheet.kt` (`ShareLyricsPalette`), its four fixed swatches
+     * exactly. The first swatch on the sheet is the game's own colour, read
+     * off its cover; these are there for when that colour is grey.
+     *
+     * **An image, not the interface.** These fill a picture somebody posts
+     * elsewhere and are drawn nowhere in the app but its preview. Type on
+     * them is `shareInkDark` or white, by luminance (`constants/share-card.ts`,
+     * which `share-card.test.ts` holds at AA).
+     */
+    shareCharcoal: '#1F1F1F',
+    shareForest: '#2F5D50',
+    shareBrick: '#7A3B3B',
+    sharePaper: '#E8E2D4',
+    /** Type on a light swatch — SimpMusic's #141414 — and on a dark one, white. */
+    shareInkDark: '#141414',
+    shareInkLight: '#FFFFFF',
 
     /** Legacy aliases kept so older call sites keep compiling. */
     backgroundElement: '#202020',
@@ -670,6 +702,15 @@ export type AccentRoles = {
    * read it unconditionally.
    */
   m3: DynamicThemeColors;
+  /**
+   * Whether these roles were built from a game's artwork (`tonal: true`) —
+   * a game's own page — or are the house accent, the app's own room.
+   *
+   * What a card reads to choose its fill (`useCardMaterial`): the game's dark
+   * tone on a game's page, the app's `surface` everywhere else — including a
+   * game's page when the reader has switched game colours off.
+   */
+  tonal: boolean;
 };
 
 /**
@@ -740,6 +781,36 @@ export function accentRoles(hue: string, { tonal = false }: { tonal?: boolean } 
 const accentCache = new Map<string, AccentRoles>();
 const ACCENT_CACHE_SIZE = 64;
 
+/** Material 3's roles for an achromatic house colour, from the room's own ladder. */
+function neutralM3(hue: string, ink: string): DynamicThemeColors {
+  const c = Colors.dark;
+  return {
+    primary: hue,
+    onPrimary: ink,
+    primaryContainer: c.surfaceSelected,
+    onPrimaryContainer: c.text,
+    secondary: c.textSecondary,
+    onSecondary: ink,
+    secondaryContainer: c.surfaceElevated,
+    onSecondaryContainer: c.text,
+    tertiary: c.textSecondary,
+    onTertiary: ink,
+    tertiaryContainer: c.surfaceElevated,
+    onTertiaryContainer: c.text,
+    background: c.background,
+    onBackground: c.text,
+    surface: c.background,
+    onSurface: c.text,
+    surfaceVariant: c.surfaceElevated,
+    onSurfaceVariant: c.textSecondary,
+    surfaceContainer: c.surface,
+    surfaceContainerHigh: c.surfaceElevated,
+    surfaceContainerHighest: c.surfaceSelected,
+    outline: c.textMuted,
+    outlineVariant: '#2C2E36',
+  };
+}
+
 function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
   if (!tonal) {
     /* The house blue. `primary` is a chosen brand colour sitting on a fixed
@@ -754,11 +825,15 @@ function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
       hue === Colors.dark.primary
         ? Colors.dark.primaryText
         : ensureContrast(hue, Colors.dark.surfaceElevated, 4.5);
+    /* A white (or grey) house colour has no hue for Material to build a
+       palette from — it falls back to cyan — so its M3 roles are the room's
+       own neutrals instead. */
+    const neutral = (toHsl(hue)?.s ?? 0) < 0.05;
     return {
       color: hue,
       onSurface: type,
       ink,
-      quietInk: mix('#FFFFFF', hue, 0.24),
+      quietInk: neutral ? Colors.dark.textSecondary : mix('#FFFFFF', hue, 0.24),
       wash: withAlpha(type, HOUSE_STATES.wash),
       edge: withAlpha(type, HOUSE_STATES.edge),
       pressed: mix(hue, Colors.dark.shadowInk, PRESSED_DEPTH),
@@ -768,7 +843,8 @@ function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
       elevated: tint(Colors.dark.surfaceElevated, hue, SURFACE_TINT),
       card: tint(Colors.dark.surfaceSelected, hue, SURFACE_TINT),
       glow: withAlpha(hue, 0.42),
-      m3: generateDynamicTheme(hue, true),
+      m3: neutral ? neutralM3(hue, ink) : generateDynamicTheme(hue, true),
+      tonal: false,
     };
   }
 
@@ -828,14 +904,15 @@ function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
     card: m3.surfaceContainer,
     glow: withAlpha(m3.primary, 0.42),
     m3,
+    tonal: true,
   };
 }
 
 /**
- * Inter, in four weights, and nothing else.
+ * Poppins, in four weights, and nothing else.
  *
  * **Weight is a family here, not a `fontWeight`.** React Native on Android will
- * not synthesise a bold from a custom font: `fontFamily: 'Inter_400Regular'`
+ * not synthesise a bold from a custom font: `fontFamily: 'Poppins_400Regular'`
  * plus `fontWeight: '700'` renders regular, silently, and the bug only shows on
  * one platform. Every weight is therefore a separate loaded family, and nothing
  * in the app should set `fontWeight` on text again — reach for one of these.
@@ -848,8 +925,9 @@ function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
  *
  * Exactly the same trap as weight, and it caught this app once already: an
  * empty-state line on the review screen carried `fontStyle: 'italic'` over
- * `Inter_400Regular` and rendered upright on Android, because a custom family
- * has no oblique to synthesise from either. Italic is a *family* here too.
+ * `Inter_400Regular` (Poppins' predecessor here) and rendered upright on
+ * Android, because a custom family has no oblique to synthesise from either.
+ * Italic is a *family* here too.
  *
  * They exist for **user-written emphasis and nothing else** — `*italic*` and
  * `**bold**` in a collection's description, via `<RichText>`. No token on the
@@ -859,41 +937,41 @@ function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
  * only place they appear, and body copy is regular or bold.
  */
 /**
- * The app's one family: Inter, for everything.
+ * The app's one family: Poppins, for everything — SimpMusic's own font, at
+ * the owner's direction (2026-10-17).
  *
- * **There were two, and the owner took the second out.** Source Serif 4 set
- * reviews and nothing else — a review's title, its prose, the pull quote on a
- * card — on the argument that a serif is what makes a review read as something
- * a person wrote. The owner's direction: "remove the specific font for reviews
- * and just use the normal one". A review is told apart now by its ink
- * (`proseInk`), its measure and its leading — the `review*` steps in `Type` —
- * and by where it is, not by a second typeface. Do not bring a serif back for
- * "editorial" surfaces; three font files left the build with it.
+ * **It replaced Inter, which had replaced a second family before it.** Source
+ * Serif 4 set reviews and nothing else until the owner had it removed
+ * ("remove the specific font for reviews and just use the normal one"), and
+ * Inter was that normal one from then on. SimpMusic's `Typo.kt` wires its
+ * whole type scale to one bundled file, `poppins_medium`, and leans on
+ * Android's fake-bold for every heavier weight it asks for — this app brings
+ * in Poppins' own weight files instead, the way Inter's were, so `fontWeight`
+ * keeps meaning something rather than silently flattening to medium.
  *
  * **Every weight is its own family name.** Android will not synthesise a bold or
- * an oblique from a custom font, so `fontWeight: '700'` on Inter silently
+ * an oblique from a custom font, so `fontWeight: '700'` on Poppins silently
  * renders regular. Reach for a family, never a weight.
  *
  * `light` exists for one thing: the release year beside a review's title, where
  * a year has to recede from a bold title without getting smaller.
  */
 export const FontFamily = {
-  light: 'Inter_300Light',
-  regular: 'Inter_400Regular',
-  medium: 'Inter_500Medium',
-  semibold: 'Inter_600SemiBold',
-  bold: 'Inter_700Bold',
-  italic: 'Inter_400Regular_Italic',
-  boldItalic: 'Inter_600SemiBold_Italic',
+  light: 'Poppins_300Light',
+  regular: 'Poppins_400Regular',
+  medium: 'Poppins_500Medium',
+  semibold: 'Poppins_600SemiBold',
+  bold: 'Poppins_700Bold',
+  italic: 'Poppins_400Regular_Italic',
+  boldItalic: 'Poppins_600SemiBold_Italic',
   /**
    * Onboarding's two, and nothing else's (the owner's reference, 2026-10-15).
    * ExtraBold sets its headlines — lowercase, very large, tracked tight; the
    * mono sets the small instruction over them ("choose one"). Each is one
-   * weight, imported by its own path in the root layout. "Inter for
-   * everything" was a ruling against the review serif, and the rest of the app
-   * still holds it.
+   * weight, imported by its own path in the root layout. Geist Mono is its
+   * own reference, not SimpMusic's, and stayed through the Poppins switch.
    */
-  extraBold: 'Inter_800ExtraBold',
+  extraBold: 'Poppins_800ExtraBold',
   mono: 'GeistMono_400Regular',
 } as const;
 
@@ -963,7 +1041,7 @@ export const Spacing = {
  * Radii. See DESIGN.md § 5.
  *
  * **Two regimes.** *Interface* is large and soft — the music-app language:
- * controls at 20, fields at 16, cards at 16, sheets at 24, and a pill for
+ * controls at 20, fields at 16, cards at 12, sheets at 24, and a pill for
  * anything that filters or tags. *Artwork* keeps its small, square-ish corners
  * (`image`, the case's own radii), because a box is a box: rounding a cover to
  * match the buttons beside it would make it look like one of them.
@@ -998,23 +1076,31 @@ export const Radius = {
    * Icon buttons are circles and take no token: `size / 2`.
    */
   control: 20,
-  /** Cards and modular surfaces — a review card, a notice, a list tile. */
-  card: 16,
   /**
-   * The game page's content cards — `<InfoCard>` and nothing else yet.
+   * **Every card in the app** — a notice, a panel, a row in a list, a game
+   * page's section card — and the review card's own corner (`review`).
    *
-   * A second card radius, and its argument was made when `card` was 6: the
-   * Overview tab is not a list but a page of self-contained panels, each about
-   * a different subject, and Material 3's own card scale puts that shape at
-   * 12-20. 18 is where a 340dp-wide panel reads as an object with edges instead
-   * of a paragraph with rounded corners.
-   *
-   * **Preserved at 18 through the control migration.** The game page is the
-   * one screen that keeps its Material 3 treatment. `card` has since risen to
-   * 16 and sits beside it rather than far from it; what separates a panel from
-   * the buttons inside it now is the fill step, not the corner.
+   * One corner since the owner's direction of 2026-10-20: "make all the cards
+   * in the app with that style of the review ones, with the same size and
+   * corner ratio… even the ones in the game page". It was 16 for the app's
+   * cards, 8 (scaled) for the game page's section cards and 18 for the `Card`
+   * panel variant (`cardLarge`, deleted with that). The material that goes with
+   * it — the fill, the hairline edge, the inset — is `useCardMaterial`.
    */
-  cardLarge: 18,
+  card: 12,
+  /**
+   * A **review card**'s corner, and since 2026-10-20 every card's: `card` is
+   * the same number. Kept as its own name because the review card is the
+   * reference the rest were brought to, and a reader of `<LogCard>` should see
+   * which shape it is.
+   *
+   * Measured off the owner's two references (2026-10-20), where the corner is
+   * about 3% of the card's width in both — 16.5px on a 523px-wide card in one
+   * and ~5px on a 200px one in the other, which on a full-width card here is
+   * 9–11dp. It was `lg` (8), and the owner asked for the reference's ratio:
+   * "look at the round corner ratio of the card".
+   */
+  review: 12,
   /**
    * Every field — text, text area, select, search: the reference's 18dp.
    * Squarer than a button's full pill, so a field and the button that submits

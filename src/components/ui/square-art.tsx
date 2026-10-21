@@ -1,7 +1,8 @@
-import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
+import { AnimatedCoverImage } from '@/components/ui/animated-cover-image';
 import { Elevation } from '@/constants/theme';
+import type { AnimatedCover } from '@/hooks/use-animated-cover';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
@@ -47,34 +48,58 @@ export const SQUARE_RADIUS = 18;
  * is named directly underneath.
  *
  * Moved out of Surprise Me when the review page took the same composition;
- * the two draw the identical object.
+ * the two draw the identical object. The review page now draws it small, at
+ * its reference's barely-rounded corner (`radius`).
+ *
+ * **It can move** (2026-10-20): handed `animation` — `useAnimatedCover` for the
+ * square — it crossfades to the game's animated square once one is found
+ * (`<AnimatedCoverImage>`), and stays still otherwise. Surprise Me does.
  */
 export function SquareArt({
   uri,
   size,
   title,
+  radius = SQUARE_RADIUS,
+  animation,
+  load = true,
+  paused = false,
 }: {
   uri: string;
   size: number;
   title: string | null;
+  /** The corner, when it is not `SQUARE_RADIUS`. */
+  radius?: number;
+  /** The game's animated square, to crossfade to once found. */
+  animation?: AnimatedCover;
+  /** Whether the animation may be fetched and drawn now (`<AnimatedCoverImage load>`). */
+  load?: boolean;
+  /** Hold the animation on its frame (`<AnimatedCoverImage paused>`). */
+  paused?: boolean;
 }) {
   const theme = useTheme();
 
   return (
     <View
       style={[
-        styles.frame,
-        { width: size, height: size, backgroundColor: theme.surfaceElevated },
+        { width: size, height: size, borderRadius: radius, backgroundColor: theme.surfaceElevated },
         Elevation.raised,
       ]}>
-      <View style={styles.clip}>
-        <Image
-          source={{ uri, cacheKey: `square-${uri}` }}
+      <View style={[styles.clip, { borderRadius: radius }]}>
+        <AnimatedCoverImage
+          /* Cached under its own address, no key of its own: Surprise Me
+             prefetches the next cards' squares by address
+             (`lib/surprise-prefetch.ts`), and a prefetch can only land where
+             the slot will look. */
+          staticUrl={uri}
+          animatedUrl={animation?.animatedUrl ?? null}
+          format={animation?.format}
+          status={animation?.status ?? 'idle'}
+          onFailed={animation?.reportFailure}
+          load={load}
+          paused={paused}
+          aspect="square"
           style={styles.image}
-          cachePolicy="memory-disk"
-          contentFit="cover"
-          transition={220}
-          accessibilityIgnoresInvertColors
+          backdrop={theme.surfaceElevated}
           accessibilityLabel={title ? `Cover art for ${title}` : undefined}
         />
       </View>
@@ -83,9 +108,8 @@ export function SquareArt({
 }
 
 const styles = StyleSheet.create({
-  /* Fill and shadow out here, clip on the child — Android drops `elevation`
-     under `overflow: 'hidden'`. Same split `<Poster>` documents. */
-  frame: { borderRadius: SQUARE_RADIUS },
-  clip: { width: '100%', height: '100%', borderRadius: SQUARE_RADIUS, overflow: 'hidden' },
+  /* Fill and shadow on the frame, clip on the child — Android drops
+     `elevation` under `overflow: 'hidden'`. Same split `<Poster>` documents. */
+  clip: { width: '100%', height: '100%', overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
 });

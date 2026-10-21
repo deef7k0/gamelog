@@ -1,0 +1,957 @@
+{
+  "_note": "Real answers from IGDB (games: websites.type/url, external_games.external_game_source/uid/url), fetched 2026-10-16 through the deployed igdb function. Unedited apart from dropping each row’s own id.",
+  "games": [
+    {
+      "id": 1942,
+      "name": "The Witcher 3: Wild Hunt",
+      "websites": [
+        {
+          "type": 4,
+          "url": "https://www.facebook.com/CDPROJEKTRED"
+        },
+        {
+          "type": 16,
+          "url": "https://www.epicgames.com/store/en-US/product/the-witcher-3-wild-hunt/home"
+        },
+        {
+          "type": 22,
+          "url": "https://www.xbox.com/en-us/games/store/the-witcher-3-wild-hunt/BR765873CQJD"
+        },
+        {
+          "type": 23,
+          "url": "https://store.playstation.com/en-us/concept/204794"
+        },
+        {
+          "type": 24,
+          "url": "https://www.nintendo.com/games/detail/the-witcher-3-wild-hunt-switch/"
+        },
+        {
+          "type": 3,
+          "url": "https://en.wikipedia.org/wiki/The_Witcher_3:_Wild_Hunt"
+        },
+        {
+          "type": 13,
+          "url": "https://store.steampowered.com/app/292030"
+        },
+        {
+          "type": 1,
+          "url": "http://www.thewitcher.com"
+        },
+        {
+          "type": 17,
+          "url": "https://www.gog.com/game/the_witcher_3_wild_hunt"
+        },
+        {
+          "type": 2,
+          "url": "http://witcher.wikia.com/wiki/The_Witcher_3:_Wild_Hunt"
+        },
+        {
+          "type": 5,
+          "url": "https://twitter.com/witchergame"
+        },
+        {
+          "type": 14,
+          "url": "https://www.reddit.com/r/witcher"
+        },
+        {
+          "type": 8,
+          "url": "https://www.instagram.com/cdpred"
+        },
+        {
+          "type": 9,
+          "url": "https://www.youtube.com/user/WitcherGame"
+        },
+        {
+          "type": 6,
+          "url": "https://www.twitch.tv/directory/game/The%20Witcher%203:%20Wild%20Hunt"
+        },
+        {
+          "type": 18,
+          "url": "https://discord.gg/thewitcher"
+        }
+      ],
+      "external_games": [
+        {
+          "external_game_source": 20,
+          "uid": "B00T3SPV36"
+        },
+        {
+          "external_game_source": 1,
+          "uid": "292030",
+          "url": "https://store.steampowered.com/app/292030"
+        },
+        {
+          "external_game_source": 10,
+          "uid": "UCprFOIVpCqQLUMsWBNwt0PQ",
+          "url": "https://gaming.youtube.com/game/UCprFOIVpCqQLUMsWBNwt0PQ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00WTI2HV6"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00WTI3SGO"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00R119Y44"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00KNZNVLM"
+        },
+        {
+          "external_game_source": 3,
+          "uid": "41484",
+          "url": "https://www.giantbomb.com/games/3030-41484/"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07SH3D6HT",
+          "url": "https://amazon.com/dp/B07SH3D6HT"
+        },
+        {
+          "external_game_source": 11,
+          "uid": "BR765873CQJD",
+          "url": "https://www.xbox.com/en-us/games/store/the-witcher-3-wild-hunt/BR765873CQJD"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B078JDW2XH"
+        },
+        {
+          "external_game_source": 5,
+          "uid": "1207664663",
+          "url": "https://www.gog.com/en/game/the_witcher_3_wild_hunt"
+        },
+        {
+          "external_game_source": 5,
+          "uid": "1207664643",
+          "url": "https://www.gog.com/en/game/the_witcher_3_wild_hunt"
+        },
+        {
+          "external_game_source": 14,
+          "uid": "115977",
+          "url": "https://www.twitch.tv/directory/game/The Witcher 3: Wild Hunt"
+        },
+        {
+          "external_game_source": 36,
+          "uid": "204794",
+          "url": "https://store.playstation.com/en-us/concept/204794"
+        }
+      ]
+    },
+    {
+      "id": 7346,
+      "name": "The Legend of Zelda: Breath of the Wild",
+      "websites": [
+        {
+          "type": 5,
+          "url": "https://twitter.com/NintendoAmerica"
+        },
+        {
+          "type": 24,
+          "url": "https://www.nintendo.com/games/detail/the-legend-of-zelda-breath-of-the-wild-switch/"
+        },
+        {
+          "type": 3,
+          "url": "https://en.wikipedia.org/wiki/The_Legend_of_Zelda:_Breath_of_the_Wild"
+        },
+        {
+          "type": 1,
+          "url": "http://www.zelda.com/breath-of-the-wild/"
+        },
+        {
+          "type": 4,
+          "url": "https://www.facebook.com/Nintendo"
+        },
+        {
+          "type": 8,
+          "url": "https://www.instagram.com/nintendo"
+        },
+        {
+          "type": 9,
+          "url": "https://www.youtube.com/nintendo"
+        },
+        {
+          "type": 6,
+          "url": "https://www.twitch.tv/directory/game/The%20Legend%20of%20Zelda:%20Breath%20of%20the%20Wild"
+        },
+        {
+          "type": 14,
+          "url": "https://www.reddit.com/r/Breath_of_the_Wild"
+        },
+        {
+          "type": 2,
+          "url": "https://zeldawiki.wiki/wiki/The_Legend_of_Zelda:_Breath_of_the_Wild"
+        }
+      ],
+      "external_games": [
+        {
+          "external_game_source": 20,
+          "uid": "B01MT8ERQW"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01MUAFFPA"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01N1083WZ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07TQ3B76Q"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B06WLJ24VT"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00KX9TVRG"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B06XWL72KM"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B06WLLHXC9",
+          "url": "https://amazon.com/dp/B06WLLHXC9"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B078JXVGS7",
+          "url": "https://amazon.com/dp/B078JXVGS7"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00LCHZRIK",
+          "url": "https://amazon.com/dp/B00LCHZRIK"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0774PZ6YG",
+          "url": "https://amazon.co.jp/dp/B0774PZ6YG"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B078KRT4XT"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07GVX4TFH"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00KL32AJA"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B06WW6168L"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01MZ977QM"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01N12HJHQ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01N7QUSQ3"
+        },
+        {
+          "external_game_source": 10,
+          "uid": "UCkJYMMysqaLjH1Xn50uDleQ",
+          "url": "https://gaming.youtube.com/game/UCkJYMMysqaLjH1Xn50uDleQ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01MS6MO77",
+          "url": "https://amazon.co.uk/dp/B01MS6MO77"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07JXKVJSC"
+        },
+        {
+          "external_game_source": 3,
+          "uid": "41355",
+          "url": "https://www.giantbomb.com/games/3030-41355/"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B00KX8DQIM"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07DZH8D2R"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01MY9UTEA"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B01MZBJ3N0"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07V6X1W5R",
+          "url": "https://amazon.co.jp/dp/B07V6X1W5R"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B084329DMK"
+        },
+        {
+          "external_game_source": 14,
+          "uid": "110758",
+          "url": "https://www.twitch.tv/directory/game/The Legend of Zelda: Breath of the Wild"
+        }
+      ]
+    },
+    {
+      "id": 26472,
+      "name": "Disco Elysium",
+      "websites": [
+        {
+          "type": 8,
+          "url": "https://www.instagram.com/zaumstudio"
+        },
+        {
+          "type": 16,
+          "url": "https://www.epicgames.com/store/product/disco-elysium"
+        },
+        {
+          "type": 2,
+          "url": "https://discoelysium.gamepedia.com/Disco_Elysium_Wiki"
+        },
+        {
+          "type": 9,
+          "url": "https://www.youtube.com/channel/UCj14g6rLgQtyXpoop2JKU7w"
+        },
+        {
+          "type": 3,
+          "url": "https://en.wikipedia.org/wiki/Disco_Elysium"
+        },
+        {
+          "type": 13,
+          "url": "https://store.steampowered.com/app/632470"
+        },
+        {
+          "type": 1,
+          "url": "http://www.zaumstudio.com"
+        },
+        {
+          "type": 14,
+          "url": "https://www.reddit.com/r/DiscoElysium"
+        },
+        {
+          "type": 17,
+          "url": "https://www.gog.com/game/disco_elysium"
+        },
+        {
+          "type": 18,
+          "url": "https://discord.gg/discoelysium"
+        },
+        {
+          "type": 4,
+          "url": "https://www.facebook.com/zaumstudio"
+        },
+        {
+          "type": 6,
+          "url": "https://www.twitch.tv/directory/game/Disco%20Elysium"
+        },
+        {
+          "type": 5,
+          "url": "https://twitter.com/studioZAUM"
+        }
+      ],
+      "external_games": [
+        {
+          "external_game_source": 3,
+          "uid": "54174",
+          "url": "https://www.giantbomb.com/games/3030-54174/"
+        },
+        {
+          "external_game_source": 5,
+          "uid": "1497779763",
+          "url": "https://www.gog.com/en/game/disco_elysium_underrail"
+        },
+        {
+          "external_game_source": 1,
+          "uid": "632470",
+          "url": "https://store.steampowered.com/app/632470"
+        },
+        {
+          "external_game_source": 26,
+          "uid": "1112adb4b6af47238cbc563ae2b1c6ab",
+          "url": "https://store.epicgames.com/en-US/p/disco-elysium"
+        },
+        {
+          "external_game_source": 14,
+          "uid": "504508",
+          "url": "https://www.twitch.tv/directory/game/Disco Elysium"
+        }
+      ]
+    },
+    {
+      "id": 113112,
+      "name": "Hades",
+      "websites": [
+        {
+          "type": 6,
+          "url": "https://www.twitch.tv/directory/game/Hades"
+        },
+        {
+          "type": 22,
+          "url": "https://www.xbox.com/en-us/games/store/hades/9P8DL6W0JBB8"
+        },
+        {
+          "type": 24,
+          "url": "https://www.nintendo.com/games/detail/hades-switch/"
+        },
+        {
+          "type": 23,
+          "url": "https://store.playstation.com/en-us/concept/10002648"
+        },
+        {
+          "type": 1,
+          "url": "https://www.supergiantgames.com/games/hades"
+        },
+        {
+          "type": 3,
+          "url": "https://en.wikipedia.org/wiki/Hades_(video_game)"
+        },
+        {
+          "type": 13,
+          "url": "https://store.steampowered.com/app/1145360"
+        },
+        {
+          "type": 16,
+          "url": "https://www.epicgames.com/store/en-US/product/hades/home"
+        },
+        {
+          "type": 8,
+          "url": "https://www.instagram.com/SupergiantGames"
+        },
+        {
+          "type": 14,
+          "url": "https://www.reddit.com/r/HadesTheGame"
+        },
+        {
+          "type": 9,
+          "url": "https://www.youtube.com/user/supergiantgames"
+        },
+        {
+          "type": 5,
+          "url": "https://twitter.com/SupergiantGames"
+        },
+        {
+          "type": 11,
+          "url": "https://apps.apple.com/app/hades-netflix/id6450063142"
+        },
+        {
+          "type": 10,
+          "url": "https://apps.apple.com/app/hades-netflix/id6450063142"
+        },
+        {
+          "type": 4,
+          "url": "http://www.facebook.com/SupergiantGames"
+        },
+        {
+          "type": 2,
+          "url": "https://hades.fandom.com/wiki/Hades_Wiki"
+        },
+        {
+          "type": 18,
+          "url": "http://www.discord.gg/Supergiant"
+        }
+      ],
+      "external_games": [
+        {
+          "external_game_source": 20,
+          "uid": "B09BNLT4BT",
+          "url": "https://amazon.jp/dp/B09BNLT4BT"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097JBFNCV"
+        },
+        {
+          "external_game_source": 54,
+          "uid": "9P8DL6W0JBB8",
+          "url": "https://www.microsoft.com/en-us/p/-1-/9P8DL6W0JBB8"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0978XR29N",
+          "url": "https://amazon.co.uk/dp/B0978XR29N"
+        },
+        {
+          "external_game_source": 3,
+          "uid": "71297",
+          "url": "https://www.giantbomb.com/games/3030-71297/"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B096C3295Z",
+          "url": "https://amazon.jp/dp/B096C3295Z"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0983N4QJP",
+          "url": "https://amazon.co.uk/dp/B0983N4QJP"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B096C4TK3J",
+          "url": "https://amazon.com/dp/B096C4TK3J"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B08WWC6GBX",
+          "url": "https://amazon.com/dp/B08WWC6GBX"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0978XDDMD",
+          "url": "https://amazon.co.uk/dp/B0978XDDMD"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0978WFK2B",
+          "url": "https://amazon.co.uk/dp/B0978WFK2B"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097FN1GYK",
+          "url": "https://amazon.es/dp/B097FN1GYK"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0978XR29N",
+          "url": "https://amazon.de/dp/B0978XR29N"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097J96Y29"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B08WWC6GBX",
+          "url": "https://amazon.de/dp/B08WWC6GBX"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B08WY6WVTL",
+          "url": "https://amazon.es/dp/B08WY6WVTL"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097FJDYRT",
+          "url": "https://amazon.es/dp/B097FJDYRT"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B096C3295Z",
+          "url": "https://amazon.jp/dp/B096C3295Z"
+        },
+        {
+          "external_game_source": 26,
+          "uid": "2ae6edb2223c4f8c97e9839b5b6497bb",
+          "url": "https://store.epicgames.com/en-US/p/hades"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B096C4TK3J",
+          "url": "https://amazon.jp/dp/B096C4TK3J"
+        },
+        {
+          "external_game_source": 11,
+          "uid": "9P8DL6W0JBB8",
+          "url": "https://www.xbox.com/en-us/games/store/hades/9P8DL6W0JBB8"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B08WWC6GBX",
+          "url": "https://amazon.jp/dp/B08WWC6GBX"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B096C4TK3J",
+          "url": "https://amazon.jp/dp/B096C4TK3J"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09BNKGGFN",
+          "url": "https://amazon.jp/dp/B09BNKGGFN"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B08WWC6GBX",
+          "url": "https://amazon.com/dp/B08WWC6GBX"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097FM6WLH",
+          "url": "https://amazon.es/dp/B097FM6WLH"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B08WY6CRHL",
+          "url": "https://amazon.de/dp/B08WY6CRHL"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B08WWC6GBX",
+          "url": "https://amazon.com/dp/B08WWC6GBX"
+        },
+        {
+          "external_game_source": 26,
+          "uid": "54fb014e-a694-4a6c-b945-0c132e1e2d6a",
+          "url": "https://www.epicgames.com/store/p/hades"
+        },
+        {
+          "external_game_source": 36,
+          "uid": "10002648",
+          "url": "https://store.playstation.com/en-us/concept/10002648"
+        },
+        {
+          "external_game_source": 1,
+          "uid": "1145360",
+          "url": "https://store.steampowered.com/app/1145360"
+        },
+        {
+          "external_game_source": 14,
+          "uid": "510590",
+          "url": "https://www.twitch.tv/directory/game/Hades"
+        }
+      ]
+    },
+    {
+      "id": 119133,
+      "name": "Elden Ring",
+      "websites": [
+        {
+          "type": 6,
+          "url": "https://www.twitch.tv/directory/game/Elden%20Ring"
+        },
+        {
+          "type": 9,
+          "url": "https://www.youtube.com/c/BandaiNamcoEntertainmentAmerica"
+        },
+        {
+          "type": 23,
+          "url": "https://store.playstation.com/en-us/concept/10000333"
+        },
+        {
+          "type": 22,
+          "url": "https://www.xbox.com/en-us/games/store/elden-ring/9P3J32CTXLRZ"
+        },
+        {
+          "type": 13,
+          "url": "https://store.steampowered.com/app/1245620"
+        },
+        {
+          "type": 4,
+          "url": "https://www.facebook.com/ELDENRINGEU"
+        },
+        {
+          "type": 5,
+          "url": "https://twitter.com/ELDENRING"
+        },
+        {
+          "type": 18,
+          "url": "https://discord.gg/invite/eldenring"
+        },
+        {
+          "type": 1,
+          "url": "https://www.bandainamcoent.com/games/elden-ring"
+        },
+        {
+          "type": 14,
+          "url": "https://reddit.com/r/EldenRing"
+        },
+        {
+          "type": 8,
+          "url": "https://www.instagram.com/eldenring?hl=en"
+        },
+        {
+          "type": 2,
+          "url": "https://eldenring.wiki.gg/"
+        },
+        {
+          "type": 3,
+          "url": "https://en.wikipedia.org/wiki/Elden_Ring"
+        }
+      ],
+      "external_games": [
+        {
+          "external_game_source": 20,
+          "uid": "B09MG5LQ18"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09743F8P6",
+          "url": "https://amazon.com/dp/B09743F8P6"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0977MY2WM",
+          "url": "https://amazon.fr/dp/B0977MY2WM"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0977QP5L6",
+          "url": "https://amazon.fr/dp/B0977QP5L6"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07SPYK271",
+          "url": "https://amazon.com/dp/B07SPYK271"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07SMBNTSJ"
+        },
+        {
+          "external_game_source": 3,
+          "uid": "73745",
+          "url": "https://www.giantbomb.com/games/3030-73745/"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B07T8J15JQ"
+        },
+        {
+          "external_game_source": 11,
+          "uid": "9P3J32CTXLRZ",
+          "url": "https://www.xbox.com/en-us/games/store/elden-ring/9P3J32CTXLRZ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPYZ6R2",
+          "url": "https://amazon.fr/dp/B09QPYZ6R2"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPZHJH9",
+          "url": "https://amazon.fr/dp/B09QPZHJH9"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QQYB8D9",
+          "url": "https://amazon.com/dp/B09QQYB8D9"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097M66Y91",
+          "url": "https://amazon.fr/dp/B097M66Y91"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09D4KSL1B",
+          "url": "https://amazon.co.uk/dp/B09D4KSL1B"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPYZ6R2",
+          "url": "https://amazon.fr/dp/B09QPYZ6R2"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09SMC6J15",
+          "url": "https://amazon.co.uk/dp/B09SMC6J15"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09SQ6VGTB",
+          "url": "https://amazon.es/dp/B09SQ6VGTB"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09P1LTGH5",
+          "url": "https://amazon.fr/dp/B09P1LTGH5"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09R3BZHXX",
+          "url": "https://amazon.de/dp/B09R3BZHXX"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPYY5HJ",
+          "url": "https://amazon.fr/dp/B09QPYY5HJ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0B7RSBXFT",
+          "url": "https://amazon.it/dp/B0B7RSBXFT"
+        },
+        {
+          "external_game_source": 1,
+          "uid": "1245620",
+          "url": "https://store.steampowered.com/app/1245620"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPYY5HJ",
+          "url": "https://amazon.fr/dp/B09QPYY5HJ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0B7RSBXFT",
+          "url": "https://amazon.fr/dp/B0B7RSBXFT"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09R3C1QHH",
+          "url": "https://amazon.fr/dp/B09R3C1QHH"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097M66Y91",
+          "url": "https://amazon.es/dp/B097M66Y91"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0977PVNYX",
+          "url": "https://amazon.fr/dp/B0977PVNYX"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QQT2NWG",
+          "url": "https://amazon.es/dp/B09QQT2NWG"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09P1LBC7K",
+          "url": "https://amazon.co.uk/dp/B09P1LBC7K"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPZHJH9",
+          "url": "https://amazon.fr/dp/B09QPZHJH9"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09R3HR7NY",
+          "url": "https://amazon.de/dp/B09R3HR7NY"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09SMC6J15",
+          "url": "https://amazon.it/dp/B09SMC6J15"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09L1C64SN",
+          "url": "https://amazon.jp/dp/B09L1C64SN"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0B7RSBXFT",
+          "url": "https://amazon.es/dp/B0B7RSBXFT"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPYY5HJ",
+          "url": "https://amazon.fr/dp/B09QPYY5HJ"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09R3DSJMS",
+          "url": "https://amazon.de/dp/B09R3DSJMS"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09R3HR7NY",
+          "url": "https://amazon.fr/dp/B09R3HR7NY"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09SMC6J15",
+          "url": "https://amazon.es/dp/B09SMC6J15"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09R3C1QHH",
+          "url": "https://amazon.de/dp/B09R3C1QHH"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09P1MVC4J",
+          "url": "https://amazon.de/dp/B09P1MVC4J"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0977LKSQ6",
+          "url": "https://amazon.fr/dp/B0977LKSQ6"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPYZ6R2",
+          "url": "https://amazon.fr/dp/B09QPYZ6R2"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0H7Q922M5"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B0979YW1Z9",
+          "url": "https://amazon.es/dp/B0979YW1Z9"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097M66Y91",
+          "url": "https://amazon.co.uk/dp/B097M66Y91"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09SMC6J15",
+          "url": "https://amazon.fr/dp/B09SMC6J15"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09QPZHJH9",
+          "url": "https://amazon.fr/dp/B09QPZHJH9"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B097B15N2T",
+          "url": "https://amazon.es/dp/B097B15N2T"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09L19LT8Q",
+          "url": "https://amazon.jp/dp/B09L19LT8Q"
+        },
+        {
+          "external_game_source": 14,
+          "uid": "512953",
+          "url": "https://www.twitch.tv/directory/game/ELDEN%20RING"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09W9WGSVL"
+        },
+        {
+          "external_game_source": 20,
+          "uid": "B09MG3FTNC"
+        },
+        {
+          "external_game_source": 36,
+          "uid": "10000333",
+          "url": "https://store.playstation.com/en-us/concept/10000333"
+        }
+      ]
+    }
+  ]
+}

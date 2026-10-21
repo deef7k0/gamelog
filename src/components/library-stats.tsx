@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { cardShape } from '@/components/ui/card-material';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScoreBadge, Skeleton } from '@/components/ui/surface';
@@ -138,7 +139,11 @@ function End({ label, game }: { label: string; game: StatGame }) {
         accessibilityRole="link"
         accessibilityLabel={`${label}: ${game.title}, scored ${game.rating}`}
         scaleTo={0.97}
-        style={StyleSheet.flatten([styles.end, { backgroundColor: theme.surface }])}>
+        style={StyleSheet.flatten([
+          cardShape,
+          styles.end,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+        ])}>
         <Poster
           coverUrl={game.cover_url}
           heroUrl={game.hero_url}

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="140" viewBox="0 0 420 140">
+  <!--
+    A review's quotation marks: an opening “ (66) and a closing ” (99), each
+    cropped exactly to its ink, 200 x 140. Drawn rather than set because
+    Inter's own marks are slanted bars that read the same either way round,
+    and the owner asked for "the upside and upside-down ones" — then, on seeing
+    round teardrops, for blocky ones "like the image I showed you" (2026-10-16):
+    heavy slabs with a short wedge, as a word processor's 35pt marks are.
+
+    One "9" — a slab with a wedge cut down to the left — used four times. The
+    closing pair is two of it; the opening pair is the same turned half a
+    circle. White on nothing: each PNG is tinted at draw time.
+
+    The app ships the PNGs (it has no SVG renderer). To remake them after a
+    change here: `node scripts/quote-marks.mjs` (needs rsvg-convert).
+  -->
+  <defs>
+    <path id="nine" d="M 12 0 H 78 Q 90 0 90 12 V 78 L 44 140 L 20 128 L 50 84 H 12 Q 0 84 0 72 V 12 Q 0 0 12 0 Z" />
+  </defs>
+  <g id="open" fill="#FFFFFF" transform="rotate(180 100 70)">
+    <use href="#nine" />
+    <use href="#nine" x="110" />
+  </g>
+  <g id="close" fill="#FFFFFF" transform="translate(220 0)">
+    <use href="#nine" />
+    <use href="#nine" x="110" />
+  </g>
+</svg>

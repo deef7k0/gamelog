@@ -54,7 +54,17 @@ type LookupResponse = {
  * When both fail the game simply has no prices, which is the honest outcome for
  * something that is not sold anywhere ITAD tracks.
  *
- * @param steamAppId From IGDB's `external_games` or Steam game sourceId.
+ * **The appid is sent alone.** Sent with the title, the function falls back to
+ * ITAD's fuzzy title search when the appid is unknown, and answers "found" with
+ * whatever came first — another game's prices, printed under this one's
+ * stores. And **a title match must be the title**: the same fuzzy search is the
+ * function's fallback for a title too, so its answer is checked here
+ * (`sameTitle`). A game whose title ITAD spells differently goes without a
+ * price, which is the right side to fail on now that the prices sit beside the
+ * official stores' own links.
+ *
+ * @param steamAppId From IGDB's `external_games` (`storefronts.ts`) or a Steam
+ *   game's own id.
  */
 export async function lookupItadGame(
   input: { steamAppId?: string | null; title?: string | null },
@@ -63,10 +73,7 @@ export async function lookupItadGame(
   const appid = input.steamAppId ? Number(input.steamAppId) : NaN;
 
   if (Number.isFinite(appid) && appid > 0) {
-    const byAppId = await itadCall<LookupResponse>(
-      { action: 'lookup', appid, title: input.title?.trim() || undefined },
-      signal
-    );
+    const byAppId = await itadCall<LookupResponse>({ action: 'lookup', appid }, signal);
     if (byAppId?.found && byAppId.game?.id) return byAppId.game.id;
   }
 
@@ -74,7 +81,26 @@ export async function lookupItadGame(
   if (!title) return null;
 
   const byTitle = await itadCall<LookupResponse>({ action: 'lookup', title }, signal);
-  return byTitle?.found && byTitle.game?.id ? byTitle.game.id : null;
+  if (!byTitle?.found || !byTitle.game?.id) return null;
+  return sameTitle(byTitle.game.title, title) ? byTitle.game.id : null;
+}
+
+/**
+ * Whether two titles name the same game: case, trademark signs, punctuation
+ * and "&" / "and" aside. "Grand Theft Auto V" is "Grand Theft Auto V™";
+ * "Mafia" is not "Mafia II".
+ */
+export function sameTitle(a: string | undefined | null, b: string | undefined | null): boolean {
+  const key = (value: string | undefined | null) =>
+    (value ?? '')
+      .toLowerCase()
+      .replace(/[™®©]/g, '')
+      .replace(/&/g, ' and ')
+      /* Punctuation and spaces out, letters of any script kept — by code
+         point ranges, not `\p{…}`, which Hermes may not parse (CLAUDE.md). */
+      .replace(/[\s!-/:-@[-`{-~\u2018\u2019\u201C\u201D\u2013\u2014\u2026\u00B7]+/g, '');
+  const left = key(a);
+  return left.length > 0 && left === key(b);
 }
 
 type ItadMoney = { amount?: number; currency?: string };
@@ -198,8 +224,8 @@ function mapDeals(deals: ItadDeal[]): StorePrice[] {
 /**
  * Find the best price / deal available for a specific platform.
  *
- * If a game is selected for PC, returns the cheapest offer across PC storefronts.
- * For Xbox/PlayStation/Switch, returns the price at their respective store if tracked.
+ * For the PC, the cheapest offer anywhere ITAD looks; for an Xbox, the
+ * Microsoft Store's; for anything else, nothing — see `PLATFORM_STORE_IDS`.
  */
 export function getBestPriceForPlatform(
   prices: StorePrice[] | undefined | null,
@@ -208,10 +234,12 @@ export function getBestPriceForPlatform(
   if (!prices || prices.length === 0) return null;
 
   const validShopIds = shopsForPlatform(platform);
-  if (validShopIds.length === 0) {
-    // If platform has no specific storefront mapping (e.g. mobile), return null
-    return null;
-  }
+  /* ITAD's shops are all PC shops, so the PC is priced by any of them — the
+     list is cheapest first. */
+  if (validShopIds === 'any') return prices[0];
+  /* A platform no ITAD shop sells for (PlayStation, Switch, phones): no price,
+     rather than another platform's. */
+  if (validShopIds.length === 0) return null;
 
   const shopSet = new Set(validShopIds);
   const matching = prices.filter((price) => shopSet.has(price.shopId));

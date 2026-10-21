@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ScoreFigure } from '@/components/ui/score-figure';
 import { Text } from '@/components/ui/text';
 import { MAX_SCORE, MIN_SCORE, clampScore, labelFor, scoreColor } from '@/constants/score';
+import { SHOW_SCORE_FIGURES } from '@/constants/score-figure';
 import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { useTheme } from '@/hooks/use-theme';
@@ -213,7 +214,11 @@ export function ScoreMeter({ score }: { score: number }) {
   return (
     <View style={styles.meter}>
       {/* The readout under it says the score to a screen reader. */}
-      <ScoreFigure score={score} size={METER_FIGURE} labelled={false} style={styles.figure} />
+      {/* Off for now (`SHOW_SCORE_FIGURES`): the readout is then the top of
+          the meter, and the meter's gap closes round it. */}
+      {SHOW_SCORE_FIGURES && (
+        <ScoreFigure score={score} size={METER_FIGURE} labelled={false} style={styles.figure} />
+      )}
       <ScoreReadout score={score} align="center" />
       {/* Hidden from assistive tech: the readout already said the number, and
           a bar reads out as nothing more than a second copy of it. */}

@@ -8,7 +8,6 @@ import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
-import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { AccentProvider } from '@/hooks/use-accent';
 import { gameSortOptions, searchGamesFiltered, sortGames, type GameSort } from '@/lib/games';
@@ -60,12 +59,6 @@ export default function GenreScreen() {
   return (
     <AccentProvider genres={[title]}>
       <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title={title} />}>
-        <View style={styles.head}>
-          <Text variant="bodySmall" color="textMuted">
-            Well-reviewed {title.toLowerCase()} games from the whole catalogue.
-          </Text>
-        </View>
-
         {games.isLoading ? (
           <LoadingState />
         ) : games.isLoadingError ? (
@@ -106,7 +99,6 @@ export default function GenreScreen() {
 }
 
 const styles = StyleSheet.create({
-  head: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x12, gap: Spacing.x4 },
   content: { padding: Spacing.x16, gap: Spacing.x8, paddingBottom: Spacing.x48, flexGrow: 1 },
   sorts: { paddingBottom: Spacing.x4 },
 });

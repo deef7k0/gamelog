@@ -137,7 +137,7 @@ export function TrailerCard({ trailer }: { trailer: Trailer }) {
             accessibilityIgnoresInvertColors
           />
           <View style={[styles.playBadge, { backgroundColor: theme.scrim }]}>
-            <Ionicons name="play" size={22} color={theme.onPrimary} />
+            <Ionicons name="play" size={22} color={theme.white} />
           </View>
         </View>
 

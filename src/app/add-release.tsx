@@ -9,6 +9,7 @@ import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-n
 import { ChoiceChips } from '@/components/choice-chips';
 import { GamePicker } from '@/components/game-picker';
 import { Button } from '@/components/ui/button';
+import { CARD_INSET, cardShape } from '@/components/ui/card-material';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
 import { PageScrollView } from '@/components/ui/page-scroll';
@@ -332,7 +333,12 @@ function ReleaseForm({
           </Text>
         </View>
 
-        <View style={[styles.gameRow, { backgroundColor: theme.surface }]}>
+        <View
+          style={[
+            cardShape,
+            styles.gameRow,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}>
           <Poster
             coverUrl={game.coverUrl}
             heroUrl={game.heroUrl}
@@ -649,7 +655,12 @@ function ResultView({
       message = 'Someone added it while you were filling this in. This is the release it finds:';
       actions = release.data ? (
         <>
-          <View style={[styles.gameRow, { backgroundColor: theme.surface }]}>
+          <View
+            style={[
+              cardShape,
+              styles.gameRow,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}>
             <Poster
               coverUrl={release.data.game?.cover_url ?? null}
               heroUrl={release.data.game?.hero_url ?? null}
@@ -724,13 +735,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: Spacing.x16, gap: Spacing.x24, paddingBottom: Spacing.x48 },
   head: { gap: Spacing.x4 },
-  gameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x12,
-    padding: Spacing.x12,
-    borderRadius: Radius.card,
-  },
+  /* Every card's material (`card-material`). */
+  gameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12, padding: CARD_INSET },
   row: { flexDirection: 'row', gap: Spacing.x8 },
   moreToggle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, minHeight: TapTarget },
   more: { gap: Spacing.x16 },

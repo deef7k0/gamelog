@@ -36,6 +36,7 @@ supabase functions deploy itad        --project-ref <ref> --use-api
 supabase functions deploy scandex     --project-ref <ref> --use-api
 supabase functions deploy opencritic  --project-ref <ref> --use-api
 supabase functions deploy soundcloud  --project-ref <ref> --use-api
+supabase functions deploy steam-store --project-ref <ref> --use-api
 supabase functions deploy steam-sync  --project-ref <ref> --use-api
 supabase functions deploy steam-auth  --project-ref <ref> --use-api --no-verify-jwt
 ```
@@ -188,6 +189,35 @@ curl -s -X POST "$SUPABASE_URL/functions/v1/igdb" \
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
 by the platform — do **not** set them as secrets.
+
+### `steam-store`: a game's Steam page, with no secrets
+
+The game page's Awards card and its Events & announcements rail. It reads
+Steam's public store page (the `#awardsTable` block) and the endpoint the page
+fills its own events list from, for a numeric appid only, and caches both in
+migration `0039` (a week for awards, an hour for events). Run `0039` before or
+after deploying; without it every request reaches Steam.
+
+It refuses the anon key, like `opencritic` and `scandex`, so check it with a
+signed-in user's access token as the bearer:
+
+```bash
+curl -s -X POST "$SUPABASE_URL/functions/v1/steam-store" \
+  -H "Authorization: Bearer $USER_ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{"action":"awards","appid":632470}'
+# {"status":"found","appId":632470,"pageUrl":"…","section":true,
+#  "awardsImages":[{"url":"https://shared.fastly.steamstatic.com/…/632470/extras/a44c…avif?t=…",…}],…}
+# With the anon key: {"error":"Sign in to read Steam pages."}
+```
+
+Three things to know, all verified against the live pages on 2026-10-16:
+
+- A mature game's page redirects to Steam's age check. The function sends the
+  cookies a browser keeps once a birth date has been given there; without them
+  Elden Ring, Baldur's Gate 3 and The Witcher 3 have no awards.
+- An app that is gone answers 302 to the store's front page. The function
+  reads that as `"unavailable"`, keeps it six hours, and the card is absent.
+- `"status":"none"` is a page with no Awards section — most of the catalogue.
 
 ### `--no-verify-jwt` on `steam-auth` is required, not a shortcut
 

@@ -94,20 +94,48 @@ export function CollapsingField({ pinned, children }: { pinned: boolean; childre
     [duration]
   );
 
+  /* Bumped every render and read by the style, so a re-render re-sends it —
+     the top bar's remedy (`usePulse` in ui/frosted-top-bar). The transform is
+     what makes each send differ from the last. */
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    pulse.set(pulse.get() + 1);
+  });
+
   const fold = useAnimatedStyle(() => {
     const full = height.get();
     const amount = progress.get();
+    const nudge = pulse.get() % 2 === 0 ? 0 : 0.001;
     /* Unmeasured, it is simply as tall as it is. */
-    return full > 0 ? { height: full * amount, opacity: amount } : { opacity: amount };
+    return full > 0
+      ? { height: full * amount, opacity: amount, transform: [{ translateY: nudge }] }
+      : { opacity: amount, transform: [{ translateY: nudge }] };
   });
 
   return (
     <Animated.View style={[styles.clip, fold]}>
-      <View onLayout={(event) => height.set(event.nativeEvent.layout.height)}>{children}</View>
+      {/*
+        The field's full height, measured once it is laid out — and only ever
+        raised. It used to take every measurement, and one taken while the
+        clip was closing (a child giving up height to the shrinking box)
+        recorded a few dp as "full": the field then unfolded to those few dp
+        and never came back — the likeliest reading of what the owner saw (not
+        seen on a device). The content cannot
+        shrink (`flexShrink: 0`), and a smaller reading is ignored.
+      */}
+      <View
+        style={styles.content}
+        onLayout={(event) => {
+          const measured = event.nativeEvent.layout.height;
+          if (measured > height.get()) height.set(measured);
+        }}>
+        {children}
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   clip: { overflow: 'hidden' },
+  content: { flexShrink: 0 },
 });

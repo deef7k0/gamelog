@@ -13,11 +13,10 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
+import { CARD_GAP, CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Elevation, MaxContentWidth, Palette, TapTarget, Type } from '@/constants/theme';
-import { useAccent } from '@/hooks/use-accent';
-import { mix } from '@/lib/color';
+import { MaxContentWidth, TapTarget, Type } from '@/constants/theme';
 
 /**
  * The width SimpMusic's artist page was measured at: the owner's phone, 360dp
@@ -63,10 +62,10 @@ function metricsFor(windowWidth: number) {
      * another reference (`constants/cover-rail`).
      */
     wide: { width: at(284.5), height: at(160) },
-    /** The description card: 8 of corner, 16 of padding. */
-    cardRadius: at(8),
-    cardPadding: at(16),
-    /** Between the blocks inside a card, and from a card's text to its More. */
+    /**
+     * From a card's text to its More (`<ExpandableText>`). A card's own corner,
+     * inset and gaps are the review card's now, fixed dp (`card-material`).
+     */
     cardGap: at(8),
     /** Between one section and the next heading. */
     sectionGap: at(10),
@@ -182,15 +181,18 @@ export function SectionHeader({
 }
 
 /**
- * The reference's description card: an `ElevatedCard` 8 in the corner and 16
- * in, filled with the artwork's own dark vivid tone at half brightness.
+ * A section's card: what the heading over it names, in the review card's
+ * material (`useCardMaterial`) — the corner, the hairline, fifteen in and
+ * twelve between its parts.
  *
- * SimpMusic takes Palette's dark-vibrant swatch and halves its RGB
- * (`rgbFactor(0.5f)`); the game's dynamic scheme already holds that tone —
- * `primaryContainer`, the seed's hue at tone 32 — so this halves that. On a
- * game's page the card is that game's colour, dark; on the house accent it is
- * the house blue's. Every ink on it clears AA with room: `textSecondary` 6.4:1
- * and `controlInk` 10.5:1, measured across eight seeds.
+ * It was the reference's description card for a while — SimpMusic's
+ * `ElevatedCard`, 8 in the corner and 16 in, scaled with the display — and the
+ * owner had every card in the app made the review card (2026-10-20), "even
+ * the ones in the game page". On a game's page the fill is still the game's
+ * own dark tone, its `primaryContainer` at half brightness, which is what
+ * SimpMusic's halved dark-vibrant swatch came to; every ink on it clears AA
+ * with room (`textSecondary` 6.4:1, `controlInk` 10.5:1, across eight seeds).
+ * With game colours off it is `surface`, as everywhere else.
  *
  * `onPress` makes the whole card the way onward, for a card that summarises
  * where its heading's More goes.
@@ -209,20 +211,18 @@ export function SectionCard({
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 }) {
-  const accent = useAccent();
-  const metrics = useSectionMetrics();
   const inset = useSectionInset();
-  const fill = useMemo(() => mix(accent.m3.primaryContainer, Palette.shadowInk, 0.5), [accent]);
+  const material = useCardMaterial();
 
   const card = StyleSheet.flatten([
-    Elevation.card,
+    cardShape,
     {
       marginHorizontal: inset,
-      borderRadius: metrics.cardRadius,
-      backgroundColor: fill,
-      gap: metrics.cardGap,
+      backgroundColor: material.fill,
+      borderColor: material.edge,
+      gap: CARD_GAP,
     },
-    padded && { padding: metrics.cardPadding },
+    padded && { padding: CARD_INSET },
     style,
   ]);
 

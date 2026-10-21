@@ -1,14 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { Link, useRouter } from 'expo-router';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { FlatList, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
 import { CriticReviews } from '@/components/critic-reviews';
 import { MemberReviewCard } from '@/components/member-review-card';
 import { ReviewBreakdown } from '@/components/review-breakdown';
+import { ScoreMethodNote } from '@/components/score-method-note';
 import { ScoreSummary } from '@/components/score-summary';
 import { Button } from '@/components/ui/button';
+import { Pager } from '@/components/ui/pager';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { useSelectable } from '@/components/ui/selectable';
@@ -16,10 +18,19 @@ import { SortBar, type SortOption } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { PLATFORM_FAMILIES, familyForStored } from '@/constants/platform-family';
 import { ArtRowWindow } from '@/constants/list-window';
-import { ControlHeight, Radius, SmallControlSlop, Spacing } from '@/constants/theme';
+import {
+  ControlHeight,
+  Radius,
+  SmallControlSlop,
+  Spacing,
+  TapTarget,
+  Type,
+} from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
-  getGameReviewList,
+  REVIEW_PAGE_SIZE,
+  getGameReviewPage,
+  getGameReviewRanking,
   getRatingBreakdown,
   getReviewLanguages,
   getReviewStats,
@@ -28,6 +39,7 @@ import {
 } from '@/lib/api';
 import { languageFacets } from '@/lib/discovery';
 import { displayNameFor } from '@/lib/format';
+import { clampPage, pageCountFor } from '@/lib/games/paging';
 import {
   PLAY_FILTERS,
   PROGRESS_FILTERS,
@@ -81,6 +93,22 @@ const SCORES: readonly { key: string; label: string; min: number | null; max: nu
 
 const ANY = { key: 'any', label: 'Any' } as const;
 
+/** Between the two quiet links under the score. */
+const LINKS_GAP = Spacing.x24;
+
+/**
+ * A line of `bodySmall` as a link, reached at the tap floor through slop —
+ * except underneath, where it stops at the note's own slop
+ * (`<ScoreMethodNote>`'s), so the two touch boxes meet and do not overlap.
+ */
+const LINK_REACH = Math.ceil(Math.max(0, TapTarget - Type.bodySmall.lineHeight) / 2);
+const RATERS_SLOP = {
+  top: LINK_REACH,
+  bottom: Math.max(0, LINKS_GAP - LINK_REACH),
+  left: Spacing.x8,
+  right: Spacing.x8,
+};
+
 const PROGRESS_OPTIONS: readonly SortOption<ReviewProgressFilter | 'any'>[] = [
   ANY,
   ...PROGRESS_FILTERS,
@@ -102,7 +130,18 @@ export type GameReviewsSheetProps = {
 
 /**
  * Everything written about one game: what the critics made of it, then every
- * review the people here wrote, sorted and filtered.
+ * review the people here wrote, sorted, filtered and in pages of fifteen.
+ *
+ * **Pages, like the rest of the app's long lists** — the owner's direction
+ * (2026-10-20): "The review sheet should have the reviews be categorized in
+ * pages, like the other search stuff in the app. Show 15 reviews per page."
+ * The same `<Pager>` as a platform's games and a facet's: the numbers around
+ * the page you are on, the arrows, a field for any page — over the list and,
+ * plainly, under it. Sorting or filtering starts again at page one: page 5 of
+ * a different list is nowhere. The pages are slices of one ranking of ids
+ * (`getGameReviewRanking`), so the count is exact and a page turn fetches
+ * fifteen reviews and nothing else; the last fifteen stay on screen, dimmed,
+ * while the next arrive.
  *
  * **Critics first, members under them** — the owner's direction (2026-10-09).
  * The critics' quotes were a rail on the game page's Overview; they are the
@@ -135,6 +174,14 @@ export function GameReviewsSheet({
   /** One `logs.review_lang` code — "es" — or null for every language. */
   const [language, setLanguage] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /* The page, tagged with the list it is a page of — so a new sort or filter
+     is page one without an effect resetting it. */
+  const [paging, setPaging] = useState<{ list: string; page: number }>({ list: '', page: 1 });
+  const listRef = useRef<FlatList<ReviewListItem>>(null);
+  /* Where the pager over the list starts, inside the sheet's scroll: the
+     members' block's place in the header, and the pager's in that block. */
+  const [membersY, setMembersY] = useState(0);
+  const [pagerY, setPagerY] = useState(0);
 
   /* Gamelog's own numbers for this game (0026), and the platforms the list can
      be narrowed to. Independent of the filters, like the histogram below: the
@@ -205,11 +252,43 @@ export function GameReviewsSheet({
     setLanguage(null);
   }
 
-  const reviews = useQuery({
-    queryKey: ['game-review-list', gameId, sort, filters, viewerId],
-    queryFn: () => getGameReviewList(gameId, sort, filters, viewerId),
+  /* Every review the sort and filters admit, as ids, in order. Under the key
+     the log form, the progress sheet and a moderator's removal invalidate. */
+  const ranking = useQuery({
+    queryKey: ['game-review-list', gameId, sort, filters],
+    queryFn: () => getGameReviewRanking(gameId, sort, filters),
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
+
+  const list = JSON.stringify([sort, filters]);
+  const ids = ranking.data ?? null;
+  const total = ids?.length ?? null;
+  const pageCount = total === null ? null : pageCountFor(total, REVIEW_PAGE_SIZE);
+  const page = clampPage(paging.list === list ? paging.page : 1, pageCount ?? 1);
+  const pageIds = useMemo(
+    () => ids?.slice((page - 1) * REVIEW_PAGE_SIZE, page * REVIEW_PAGE_SIZE) ?? null,
+    [ids, page]
+  );
+
+  const reviews = useQuery({
+    queryKey: ['game-review-list', gameId, 'page', pageIds, viewerId],
+    queryFn: () => getGameReviewPage(pageIds ?? [], viewerId),
+    enabled: pageIds !== null,
+    staleTime: 60_000,
+    /* The last fifteen stand, dimmed, while the next arrive. */
+    placeholderData: keepPreviousData,
+  });
+
+  function turnTo(next: number) {
+    setPaging({ list, page: next });
+    /* Back to the head of the list — the pager over it — not of the sheet. */
+    listRef.current?.scrollToOffset({ offset: membersY + pagerY, animated: false });
+  }
+
+  const turning = ranking.isPlaceholderData || reviews.isPlaceholderData;
+  const summary =
+    total === null ? null : `${total.toLocaleString()} ${total === 1 ? 'review' : 'reviews'}`;
 
   /* The distribution is every rated log, not just the written ones, and it is
      deliberately independent of the filters above — the graph is what the game
@@ -242,7 +321,9 @@ export function GameReviewsSheet({
         igdbScore={criticScore}
       />
 
-      <View style={styles.header}>
+      <View
+        style={styles.header}
+        onLayout={(event: LayoutChangeEvent) => setMembersY(event.nativeEvent.layout.y)}>
         {/* The app's own, headed as a section so it reads as the second of
             two — and so a sheet with no critics still says whose these are. */}
         <Text variant="h4" accessibilityRole="header" style={styles.members}>
@@ -252,6 +333,31 @@ export function GameReviewsSheet({
         {/* The same summary the Ratings card on the Overview draws
             (`<ScoreSummary>`). No "GAMELOG" label over it: the heading says it. */}
         <ScoreSummary breakdown={breakdown.data ?? null} loading={breakdown.isPending} />
+        {/* Everybody the score is made of, written or not — and the score's
+            method, one tap away wherever the score itself is explained. */}
+        {breakdown.data && (
+          <View style={styles.links}>
+            <Link
+              href={{ pathname: '/ratings/[id]', params: { id: gameId, title: gameTitle } }}
+              asChild>
+              <PressableScale
+                accessibilityRole="link"
+                accessibilityLabel={`Everyone who rated ${gameTitle}: ${breakdown.data.total.toLocaleString()} ${
+                  breakdown.data.total === 1 ? 'rating' : 'ratings'
+                }`}
+                hitSlop={RATERS_SLOP}
+                scaleTo={0.98}
+                style={StyleSheet.flatten(styles.raters)}>
+                <Ionicons name="people-outline" size={14} color={theme.textSecondary} />
+                <Text variant="bodySmall" color="textSecondary">
+                  {`Everyone who rated it · ${breakdown.data.total.toLocaleString()}`}
+                </Text>
+                <Ionicons name="chevron-forward" size={12} color={theme.textMuted} />
+              </PressableScale>
+            </Link>
+            <ScoreMethodNote />
+          </View>
+        )}
 
         <ReviewBreakdown
           sections={sections}
@@ -359,12 +465,22 @@ export function GameReviewsSheet({
             )}
           </View>
         )}
+
+        {/* The pages, once there is more than one. */}
+        {pageCount !== null && pageCount > 1 && (
+          <View
+            style={styles.pager}
+            onLayout={(event: LayoutChangeEvent) => setPagerY(event.nativeEvent.layout.y)}>
+            <Pager page={page} pageCount={pageCount} onChange={turnTo} summary={summary} />
+          </View>
+        )}
       </View>
     </View>
   );
 
   return (
     <FlatList
+      ref={listRef}
       data={reviews.data ?? []}
       keyExtractor={(item) => item.log.id}
       {...ArtRowWindow}
@@ -372,11 +488,23 @@ export function GameReviewsSheet({
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       renderItem={renderReviewRow}
+      /* Only the rows dim while a page turns: the header holds the controls. */
+      CellRendererComponent={turning ? DimmedCell : undefined}
+      ListFooterComponent={
+        pageCount !== null && pageCount > 1 && (reviews.data?.length ?? 0) > 0 ? (
+          <View style={styles.foot}>
+            <Pager page={page} pageCount={pageCount} onChange={turnTo} detail={false} />
+          </View>
+        ) : null
+      }
       ListEmptyComponent={
-        reviews.isPending ? (
+        ranking.isPending || (ids !== null && ids.length > 0 && reviews.isPending) ? (
           <LoadingState label="Loading reviews…" />
-        ) : reviews.isLoadingError ? (
-          <ErrorState error={reviews.error} onRetry={() => reviews.refetch()} />
+        ) : ranking.isLoadingError || reviews.isLoadingError ? (
+          <ErrorState
+            error={ranking.error ?? reviews.error}
+            onRetry={() => void (ranking.isLoadingError ? ranking.refetch() : reviews.refetch())}
+          />
         ) : (
           <EmptyState
             title={activeFilters > 0 ? 'Nothing matches those filters' : 'No reviews yet'}
@@ -410,20 +538,19 @@ function FilterGroup({ label, children }: { label: string; children: React.React
 }
 
 /**
- * One review, as the reference draws one on a film's page: the writer's face,
- * their name with the score and the replies at the far end of its line, the
- * words, and how many people liked it.
+ * One review, as the owner's reference draws one (2026-10-20): the words
+ * first, a rule under them, and the writer along the foot — face, name, and
+ * the score as GameLog says it, with the likes and replies at the far end.
  *
- *     ◍   username                    84  ◔ 3
- *         the first line of the review…
- *         the second line…
- *         ♥ 12 likes
+ *     the first line of the review…
+ *     the second line…
+ *     ──────────────────────────────
+ *     ◍  username   84 GREAT   ♥ 12  ◔ 3
  *
  * The card is `<MemberReviewCard>` — the one the game page's Overview shows
  * the most liked review in, so a row here and that card are the same object
- * (the owner's direction, 2026-10-09). It was `<ReviewQuote>`: words, a name
- * and a score. The likes and replies it prints are already in this list's
- * query; nothing more is asked for.
+ * (the owner's direction, 2026-10-09). The likes and replies it prints are
+ * already in this list's query; nothing more is asked for.
  *
  * **Neutral, not the game's colour.** On the game page the card takes the
  * game's dark tone; this sheet is raised over that page and keeps the app's
@@ -470,6 +597,8 @@ const ReviewRow = memo(function ReviewRow({ item }: { item: ReviewListItem }) {
           name={name}
           avatarUrl={log.profile?.avatar_url ?? null}
           text={log.review ?? ''}
+          quote={log.review_title}
+          display={log.review_display}
           score={log.rating}
           likes={item.likes}
           comments={item.comments}
@@ -484,6 +613,23 @@ const ReviewRow = memo(function ReviewRow({ item }: { item: ReviewListItem }) {
 });
 
 const renderReviewRow = ({ item }: { item: ReviewListItem }) => <ReviewRow item={item} />;
+
+/**
+ * A row of the last page, while the next is on its way. Only what a cell
+ * needs is passed on: the list hands its cells its item and keys as well,
+ * which a native view has no use for.
+ */
+function DimmedCell({
+  style,
+  onLayout,
+  children,
+}: Pick<React.ComponentProps<typeof View>, 'style' | 'onLayout' | 'children'>) {
+  return (
+    <View style={[style, styles.turning]} onLayout={onLayout}>
+      {children}
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
@@ -511,4 +657,11 @@ const styles = StyleSheet.create({
   filterGroup: { gap: Spacing.x8 },
   clear: { alignItems: 'flex-start' },
   rowWrap: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12 },
+  pager: { marginTop: Spacing.x16 },
+  /* Two quiet links, their touch boxes meeting and not overlapping. */
+  links: { gap: LINKS_GAP, marginTop: Spacing.x4 },
+  /* As wide as its words, so the sheet beside it is not a target. */
+  raters: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: Spacing.x4 },
+  foot: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x24 },
+  turning: { opacity: 0.45 },
 });

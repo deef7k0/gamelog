@@ -5,11 +5,12 @@ import { memo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { cardShape } from '@/components/ui/card-material';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { setItemCaption, type ListItem } from '@/lib/api';
 
@@ -140,8 +141,8 @@ function CaptionedTile({
   return (
     <View
       style={[
+        cardShape,
         styles.tile,
-        Elevation.card,
         { width, backgroundColor: theme.surface, borderColor: theme.border },
       ]}>
       <Link href={{ pathname: '/game/[id]', params: { id: item.game_id } }} asChild>
@@ -272,12 +273,7 @@ const styles = StyleSheet.create({
   /* A hairline *and* a card shadow. On a wall of nine, the shadow alone left
      adjacent tiles merging into one block — the edge is what makes each one a
      separate statement, which is the whole reason the container exists. */
-  tile: {
-    padding: Spacing.x8,
-    borderRadius: Radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: Spacing.x8,
-  },
+  tile: { padding: Spacing.x8, gap: Spacing.x8 },
   /* `minHeight` so a one-line caption and a two-line caption produce tiles of
      the same height — a ragged bottom edge across a three-column board reads as
      a layout fault rather than as varying content. */

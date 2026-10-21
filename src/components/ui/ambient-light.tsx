@@ -40,7 +40,7 @@ const RADIUS_Y = 0.5;
  * 11.55:1. Anything muted placed in Home's top-left corner later needs the
  * same step.
  */
-const PEAK = 0.42;
+const PEAK = 0.2;
 
 /**
  * The falloff: `(1 - t²)³`, sampled at eleven stops.

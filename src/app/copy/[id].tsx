@@ -69,6 +69,7 @@ import {
 } from '@/lib/api';
 import { recallCopy } from '@/lib/api/seen-copies';
 import { displayNameFor } from '@/lib/format';
+import { cardShows } from '@/lib/review-quote';
 import { useAuth } from '@/store/auth';
 
 /** Lines of the review its card prints — the reviews sheet's own measure. */
@@ -283,7 +284,8 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
     queryKey: ['my-log', copy.user_id, copy.game_id, 'with-relations'],
     queryFn: () => getLogOf(copy.user_id, copy.game_id),
   });
-  const review = log.data?.review?.trim() ? log.data : null;
+  /* Anything written — the review, or only its one sentence (0040). */
+  const review = log.data && cardShows(log.data) !== null ? log.data : null;
 
   const remove = useMutation({
     mutationFn: () => deleteCopy(copy.id),
@@ -446,6 +448,7 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
                     and the app's neutral surface rather than the game's tone. */}
                 <ReviewQuote
                   text={review.review ?? ''}
+                  pullQuote={cardShows(review) === 'quote' ? review.review_title : null}
                   byline={displayNameFor(review.profile)}
                   avatarUrl={review.profile?.avatar_url ?? null}
                   score={review.rating}

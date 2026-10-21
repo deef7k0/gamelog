@@ -1,12 +1,14 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useRef, useState } from 'react';
 import {
   RefreshControl,
   StyleSheet,
   View,
   useWindowDimensions,
+  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollView,
 } from 'react-native';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
@@ -14,12 +16,13 @@ import { CoverRailSkeleton, GameCoverRail, useRailLayout } from '@/components/ga
 import { GenreGrid } from '@/components/genre-grid';
 import { HomeSection } from '@/components/home-section';
 import { SpotlightSlider } from '@/components/search/spotlight-slider';
+import { TopChart } from '@/components/search/top-chart';
 import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
 import { PageScrollView } from '@/components/ui/page-scroll';
 import { Text } from '@/components/ui/text';
 import { footHeight } from '@/constants/cover-rail';
 import type { EditionKind } from '@/constants/game-editions';
-import { scoreColor } from '@/constants/score';
+import { clampScore, scoreColor } from '@/constants/score';
 import { slideHeight } from '@/constants/search-spotlight';
 import { FontFamily, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -67,8 +70,19 @@ const PERIOD_WORDS: Record<BelovedPeriod, string> = {
  *   ▯▯▯ ▯▯▯ ▯▯▯ ▯▯
  *   Highly rated
  *   ▯▯▯ ▯▯▯ ▯▯▯ ▯▯
+ *   Top 1000                  ( GameLog )( Critics )
+ *    1 ▯ …                                       98
+ *   ‹ 1 2 3 … 50 ›
  *   Browse by genre
  * ```
+ *
+ * ## The Top 1000
+ *
+ * The owner's request (2026-10-20): a ranking of the best-reviewed games on
+ * GameLog, a toggle to rank them by the critics instead, twenty to a page
+ * (`<TopChart>`). After the rows of covers, before the genres: it is the one
+ * band here that is a list to read down, and turning its page brings its
+ * heading back to the top of the screen (`chartY`).
  *
  * ## The slider leads
  *
@@ -124,6 +138,10 @@ export function DiscoverFeed() {
   const [now] = useState(() => Math.floor(Date.now() / 1000));
   const [period, setPeriod] = useState<BelovedPeriod>('month');
   const [sliderAway, setSliderAway] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const queryClient = useQueryClient();
+  /* Where the Top 1000 starts, so a turned page opens on its heading. */
+  const [chartY, setChartY] = useState(0);
 
   const spotlight = useQuery({
     queryKey: ['spotlight', Math.floor(now / 86_400)],
@@ -194,7 +212,9 @@ export function DiscoverFeed() {
         heroUrl: game.hero_url,
         edition: (game.edition_kind as EditionKind | null) ?? null,
         releaseYear: game.release_year,
-        average: game.average,
+        /* Rounded where it is drawn: the period's weighted average keeps its
+           decimals until here (0041). */
+        average: clampScore(game.average),
         ratings: game.ratings,
       })),
     [beloved.data]
@@ -217,6 +237,7 @@ export function DiscoverFeed() {
     /* The page's scroller, so Search's field folds away as it is read
        (`<CollapsingField>`); one event a frame for the same reason. */
     <PageScrollView
+      ref={scrollRef}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -236,6 +257,8 @@ export function DiscoverFeed() {
             topTen.refetch();
             beloved.refetch();
             if (seed) similar.refetch();
+            void queryClient.invalidateQueries({ queryKey: ['top-chart'] });
+            void queryClient.invalidateQueries({ queryKey: ['critic-chart'] });
           }}
           tintColor={theme.primary}
         />
@@ -332,10 +355,14 @@ export function DiscoverFeed() {
         )}
       </HomeSection>
 
+      <View onLayout={(event: LayoutChangeEvent) => setChartY(event.nativeEvent.layout.y)}>
+        <TopChart onTurn={() => scrollRef.current?.scrollTo({ y: chartY, animated: false })} />
+      </View>
+
       {/* The one way in that works for someone with no particular game in
             mind. It led the page; the slider leads it now, and this follows
             the rows it used to stand above. */}
-      <HomeSection title="Browse by genre" subtitle="Ten ways into the catalogue.">
+      <HomeSection title="Browse by genre">
         <GenreGrid />
       </HomeSection>
     </PageScrollView>

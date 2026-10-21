@@ -1,0 +1,102 @@
+{
+  "_note": "Real response from store.steampowered.com/events/ajaxgetpartnereventspageable/?appid=1245620&count=8&l=english, fetched 2026-10-16. Trimmed: first 6 events, the fields the parser reads, jsondata to its four localized fields, bodies to 600 characters.",
+  "success": 1,
+  "events": [
+    {
+      "gid": "681888927386173643",
+      "clan_steamid": "103582791470526475",
+      "event_name": "STARSCOURGE RADAHN JOINS THE ELDEN RING FIGUARTS MINI SERIES",
+      "event_type": 28,
+      "appid": 1245620,
+      "rtime32_start_time": 1791194400,
+      "rtime32_end_time": 1791201540,
+      "jsondata": "{\"localized_capsule_image\":[\"e4eb4adc4aa0664bc67bb0da995c6cfd734844ec.jpg\"],\"localized_title_image\":[\"1100aa30f2100243b14d07457e35f289f9373353.jpg\"],\"localized_summary\":[\"The roar of the Red Lion echoes to the heavens. He built his might out of love and loyalty, an unstoppable force that bade the stars to halt at the cry of a true champion.\"],\"localized_subtitle\":[null]}",
+      "announcement_body": {
+        "gid": "681888927386173644",
+        "headline": "STARSCOURGE RADAHN JOINS THE ELDEN RING FIGUARTS MINI SERIES",
+        "posttime": 1791194424,
+        "body": "[h2]The roar of the Red Lion echoes to the heavens.[/h2]\n\nHe built his might out of love and loyalty, an unstoppable force that bade the stars to halt at the cry of a true champion. And in the Wailing Dunes, the loyalty he shared with others freed him from a fate worse than death.\n\nNow, the power of this greatest of Carian generals can rest in the palm of your hand. Standing [b]12 cm (4.7 in) tall[/b], [i]Starscourge Radahn[/i] is stylized figure that features simple articulation, interchangeable left- and right-hand parts that hold his Starscourge Greatsword, his detachable scrawny steed, and"
+      }
+    },
+    {
+      "gid": "680760490643685549",
+      "clan_steamid": "103582791470526475",
+      "event_name": "New Elden Ring Mini Replicas Arrive: Malenia, Messmer & Wylder",
+      "event_type": 28,
+      "appid": 1245620,
+      "rtime32_start_time": 1788765900,
+      "rtime32_end_time": 1788769500,
+      "jsondata": "{\"localized_capsule_image\":[\"c3ae34144ac7d1268fcff99b0232440687610e4e.png\"],\"localized_title_image\":[\"15d6320fa0a469f19c7ce5bdec805815e958d1ce.jpg\"],\"localized_summary\":[\"Tarnished, collectors, and champions of the Lands Between, we're excited to unveil a new lineup of premium 1/3 Scale Mini Replicas.\"],\"localized_subtitle\":[null]}",
+      "announcement_body": {
+        "gid": "680760490643685550",
+        "headline": "New Elden Ring Mini Replicas Arrive: Malenia, Messmer & Wylder",
+        "posttime": 1788765952,
+        "body": "[h3]Tarnished, collectors, and champions of the Lands Between, we're excited to unveil [url=https://bnent.eu/ER_TrioHelmets][b]a new lineup of premium 1/3 Scale Mini Replicas[/b][/url] inspired by some of the most iconic designs from the Elden Ring universe and crafted by Pure Arts.\n\nFrom the legendary [b]Blade of Miquella[/b], to the fearsome [b]Messmer the Impaler[/b], and the indominable warriors of Nightreign, these finely crafted collectibles capture the artistry and atmosphere that have made the Elden Ring universe unforgettable.[/h3]\n\n[h3]Elden Ring - Arm of Malenia Mini Replica (1/3 Sc"
+      }
+    },
+    {
+      "gid": "680760490643685469",
+      "clan_steamid": "103582791470526475",
+      "event_name": "ELDEN RING - Community Quests",
+      "event_type": 25,
+      "appid": 1245620,
+      "rtime32_start_time": 1788358200,
+      "rtime32_end_time": 1798455600,
+      "jsondata": "{\"localized_capsule_image\":[\"4a67aebb0bd12f21d787fef8aa3dd430fe232bc1.png\"],\"localized_title_image\":[null],\"localized_summary\":[\"A journey of many paths awaits, Tarnished. Walk this long road together, conquer the challenges ahead… ye may yet reap a tally.\"],\"localized_subtitle\":[\"A journey of many paths awaits, Tarnished.\"]}",
+      "announcement_body": {
+        "gid": "680760490643685470",
+        "headline": "ELDEN RING - Community Quests",
+        "posttime": 1788358231,
+        "body": "[h2]In celebration of the recently released [b]ELDEN RING Tarnished Edition[/b] for Nintendo Switch and the [b]Tarnished Pack[/b] available, we encourage all Tarnished to return to the lands between and rise together in shared quests to unlock new artwork commemorating each challenge.[/h2]\n\n[img]{STEAM_CLAN_IMAGE}/41005067/b95536317f443b30a2e0e3af3c674c7faf8c2705.png[/img]\n\n[h3][u][b]Questline 1: Path of the Tarnished[/b][/u][/h3]\n[i]Time Period: September 1 - September 28[/i]\n[list]\n[*] Summon Sorcerer Rogier 300,000 times\n[*] Obtain 2,000,000 Stonesword Keys\n[*] Obtain 1,500,000 Cookbooks\n[*"
+      }
+    },
+    {
+      "gid": "680759856779493856",
+      "clan_steamid": "103582791470526475",
+      "event_name": "ELDEN RING - Tarnished Pack DLC is available now",
+      "event_type": 15,
+      "appid": 1245620,
+      "rtime32_start_time": 1787931540,
+      "rtime32_end_time": 1787936401,
+      "jsondata": "{\"localized_capsule_image\":[\"02bedc20f248964f57a8c9d3231e47d57c96963e.png\"],\"localized_title_image\":[null],\"localized_summary\":[null],\"localized_subtitle\":[null]}",
+      "announcement_body": {
+        "gid": "680759856779493857",
+        "headline": "ELDEN RING - Tarnished Pack DLC is available now",
+        "posttime": 1787931582,
+        "body": "[h1]Go forth, Tarnished, and claim the Elden Throne.[/h1][p][/p][p][img src=\"{STEAM_CLAN_IMAGE}/41005067/90a21214447d1b028fa907c3bf3fe3bdb19511bd.png\"][/img][/p][h3]The ELDEN RING Tarnished Pack grants additional content including [b]2 new starting classes, new armor, and a new Torrent appearance customization feature[/b] which are usable in the base game and the Shadow of the Erdtree Expansion.[/h3][p][/p][p][dynamiclink href=\"https://store.steampowered.com/app/3655690/ELDEN_RING_Tarnished_Pack/\"][/dynamiclink][/p]"
+      }
+    },
+    {
+      "gid": "667248424192575311",
+      "clan_steamid": "103582791470526475",
+      "event_name": "Patch Notes Version 1.17",
+      "event_type": 13,
+      "appid": 1245620,
+      "rtime32_start_time": 1787839200,
+      "rtime32_end_time": 1787844601,
+      "jsondata": "{\"localized_capsule_image\":[\"67fa9cac71edb1b063f97995287e336afc276268.jpg\"],\"localized_title_image\":[null],\"localized_summary\":[\"This update brings support for the Tarnished Pack DLC as well as balance changes and bug fixes.\"],\"localized_subtitle\":[null]}",
+      "announcement_body": {
+        "gid": "667248424192575312",
+        "headline": "Patch Notes Version 1.17",
+        "posttime": 1787839222,
+        "body": "[h2][b]Patch 1.17[/b] has been released for [b]ELDEN RING[/b]. This patch aims to bring support the [b]Tarnished Pack DLC[/b], scheduled for release on [b]Friday, August 28, 2026[/b], and to implement gameplay balance adjustments.\n\nPlease apply the latest update before playing.[/h2][p]\n[/p][h2]MAIN UPDATE ADDITIONS[/h2][p]\n[/p][h2][u]Tarnished Pack Additional Content[/u][/h2][p]\nThe following elements will be added upon purchase of the \"Tarnished Pack\" DLC. \n\n[/p][list][*][p] Added Idus Knight and Heavy Knight as new starting classes, selectable during character creation. \n\n[i]Note: The equipm"
+      }
+    },
+    {
+      "gid": "681875609236801306",
+      "clan_steamid": "103582791470526475",
+      "event_name": "ELDEN RING - RAGING WOLF 1/6 SCALE STATUE",
+      "event_type": 28,
+      "appid": 1245620,
+      "rtime32_start_time": 1778682000,
+      "rtime32_end_time": 1778684040,
+      "jsondata": "{\"localized_capsule_image\":[\"f2fe8210d032c78c7036448acf5c1ad64e5a4194.jpg\"],\"localized_title_image\":[\"391e1f6532b4215562ecad985f5a212d2844627b.jpg\"],\"localized_summary\":[\"Standing at 33 cm/13 inches, it’s one of the largest character statues ever produced for ELDEN RING. Pre-orders can be placed on the official Bandai Namco website.\"],\"localized_subtitle\":[\"“The wolf is cunning, steadfast, and deadly, facing down death with unmatched vigor and pride.” \"]}",
+      "announcement_body": {
+        "gid": "681875609236801307",
+        "headline": "ELDEN RING - RAGING WOLF 1/6 SCALE STATUE",
+        "posttime": 1778682038,
+        "body": "[h2]Who is the Raging Wolf?[/h2][p]\nAmong the first Tarnished to join the Roundtable Hold was Vargram, a warrior of great skill and ferocity. He acquired the title of the Raging Wolf from the white wolf pelt that flowed from his helm.\nVargram sought to become the shadow of one of the Empyreans and built his strength relentlessly as he traveled through fallow Limgrave to the golden city of Leyndell. And yet in spite of all his strength, his armor is now worn by another…\nAn unnamed Tarnished now walks the Lands Between in the skin of the wolf. Does this warrior seek the same fate as Vargram, for"
+      }
+    }
+  ]
+}

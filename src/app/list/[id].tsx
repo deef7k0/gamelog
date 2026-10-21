@@ -942,7 +942,7 @@ const GridTile = memo(function GridTile({
       />
       {rank !== null && mode === 'open' && (
         <View style={[styles.rankPill, { backgroundColor: theme.scrim }]}>
-          <Text variant="caption" color="onPrimary">
+          <Text variant="caption" color="white">
             {rank}
           </Text>
         </View>

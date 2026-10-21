@@ -1,0 +1,134 @@
+{
+  "_note": "Real response from store.steampowered.com/events/ajaxgetpartnereventspageable/?appid=632470&count=8&l=english, fetched 2026-10-16. Trimmed: first 8 events, the fields the parser reads, jsondata to its four localized fields, bodies to 600 characters.",
+  "success": 1,
+  "events": [
+    {
+      "gid": "675132259300278523",
+      "clan_steamid": "103582791458434291",
+      "event_name": "ZERO PARADES: Director’s Cut | Arriving October 1st",
+      "event_type": 34,
+      "appid": 632470,
+      "rtime32_start_time": 1789650960,
+      "rtime32_end_time": 1790874000,
+      "jsondata": "{\"localized_capsule_image\":[\"be6fe1beeff5fab87d1cabcc9e862a329c4f3e0c.jpg\"],\"localized_title_image\":[\"0662a8035b5d572e64f0beefc2566621e9124aea.jpg\"],\"localized_summary\":[null],\"localized_subtitle\":[\"There’s more to your mission, operant. \"]}",
+      "announcement_body": {
+        "gid": "675132259300278524",
+        "headline": "ZERO PARADES: Director’s Cut | Arriving October 1st",
+        "posttime": 1789650991,
+        "body": "[p]We’re excited to announce that [i]ZERO PARADES: Director’s Cut[/i] comes to PC on October 1st, available as a free update for all owners of [i]ZERO PARADES: For Dead Spies.[/i][/p][p][/p][previewyoutube=\"C_acH7Wx1Ew;full\"][/previewyoutube][p][/p][p][i]ZERO PARADES: Director’s Cut[/i] is the definitive edition of our espionage RPG, bringing more story, scenery and mind-fuckery to discover during your bid to reunite The Whole Sick Crew.[/p][p][/p][p][i]And yes, we heard you: that includes more Melita.[/i][/p][p][/p][p]At a glance, [i]ZERO PARADES: Director’s Cut [/i]contains: [/p][list][*][p]"
+      }
+    },
+    {
+      "gid": "714531147199024329",
+      "clan_steamid": "103582791458434291",
+      "event_name": "Steam Summer Sale: Save on Disco Elysium & ZERO PARADES",
+      "event_type": 34,
+      "appid": 632470,
+      "rtime32_start_time": 1782908100,
+      "rtime32_end_time": 1783616400,
+      "jsondata": "{\"localized_capsule_image\":[\"a2af313eaafeba6cdb730e7f8ccd99b1b1025b3f.png\"],\"localized_title_image\":[\"cd06b960ac6f1d982dea4e2ff1da90a96bd702df.png\"],\"localized_summary\":[null],\"localized_subtitle\":[\"Get up to 20% off our espionage RPG, ZERO PARADES: For Dead Spies, with extra savings for Disco Elysium owners.\"]}",
+      "announcement_body": {
+        "gid": "714531147199024330",
+        "headline": "Steam Summer Sale: Save on Disco Elysium & ZERO PARADES",
+        "posttime": 1782908144,
+        "body": "[p][dynamiclink href=\"https://store.steampowered.com/app/2863680/ZERO_PARADES_For_Dead_Spies/\"][/dynamiclink][/p][p]It's Steam Summer Sale time! [b]Get 10% off our espionage RPG[/b], [url=\"https://store.steampowered.com/app/2863680/ZERO_PARADES_For_Dead_Spies/\"]ZERO PARADES: For Dead Spies[/url][b],[/b] with an [b]additional 10% discount for owners of [i]Disco Elysium[/i][/b] through the [url=\"https://store.steampowered.com/bundle/76235/Disgraced_State_Agents_Bundle/?snr=1_2108_9__2107\"]Disgraced State Agents Bundle[/url] on Steam, bringing the total discount to 20% off! Duty calls.[/p][p][/p]"
+      }
+    },
+    {
+      "gid": "684128677863096932",
+      "clan_steamid": "103582791458434291",
+      "event_name": "ZERO PARADES: For Dead Spies is Now Available",
+      "event_type": 34,
+      "appid": 632470,
+      "rtime32_start_time": 1779486180,
+      "rtime32_end_time": 1782457140,
+      "jsondata": "{\"localized_capsule_image\":[\"8840ef068a75c8ac53468fb2c717a764eb7f1541.png\"],\"localized_title_image\":[\"094962594777abd63c5c907eec060f42d3fa5de7.png\"],\"localized_summary\":[\"From the studio that brought you Disco Elysium comes ZERO PARADES. A brand new CRPG in the world of espionage.\"],\"localized_subtitle\":[\"Play the newest CRPG from ZA/UM Studio\"]}",
+      "announcement_body": {
+        "gid": "684128677863096933",
+        "headline": "ZERO PARADES: For Dead Spies is Now Available",
+        "posttime": 1779486225,
+        "body": "[h2][i]ZERO PARADES: For Dead Spies [/i]is now available to play on PC.[/h2][p][/p][p][dynamiclink href=\"https://store.steampowered.com/app/2863680/ZERO_PARADES_For_Dead_Spies/\"][/dynamiclink][/p][p align=\"center\"][/p][previewyoutube=\"iZG4Oc54BUg;full\"][/previewyoutube][p][/p][p]In [i]ZERO PARADES: For Dead Spies[/i], play as Hershel Wilk, a brilliant but burnt out operant (cryptonym: CASCADE), who’s recalled to the city of Portofiro five years after the greatest failure of her life - the disintegration of her [url=\"https://store.steampowered.com/news/app/2863680/view/514115255398302385?l=engl"
+      }
+    },
+    {
+      "gid": "684128677863096437",
+      "clan_steamid": "103582791458434291",
+      "event_name": "ICYMI: Watch the ZERO PARADES Showcase Now",
+      "event_type": 34,
+      "appid": 632470,
+      "rtime32_start_time": 1779278220,
+      "rtime32_end_time": 1779282001,
+      "jsondata": "{\"localized_capsule_image\":[\"5a48922e7d5cf9c05690d91237b94d207dd6340c.jpg\"],\"localized_title_image\":[\"2cc6c530439a18192643174fc96a3c380680c697.jpg\"],\"localized_summary\":[null],\"localized_subtitle\":[\"Catch-up on the ZERO PARADES: For Dead Spies Showcase now.\"]}",
+      "announcement_body": {
+        "gid": "684128677863096438",
+        "headline": "ICYMI: Watch the ZERO PARADES Showcase Now",
+        "posttime": 1779278274,
+        "body": "[p]Our upcoming espionage RPG, [i]ZERO PARADES: For Dead Spies[/i],[i] [/i]launches across PC [b]tomorrow! [/b][/p][p][/p][p]To prepare you for your time in Portofiro, the full video from our [i]ZERO PARADES: For Dead Spies [/i]Showcase is now available to watch on YouTube: [/p][p][/p][previewyoutube=\"FynVunoMLHA;full\"][/previewyoutube][p][/p][p]The Showcase revealed a gameplay deep-dive with developers, the music video of Ultra Violeta’s “Cover the Moon”, and announcements of a [i]ZERO PARADES[/i]-inspired fashion collection from ZA/UM Atelier and a Pen & Paper one-shot adventure by our voice"
+      }
+    },
+    {
+      "gid": "532127297744930030",
+      "clan_steamid": "103582791458434291",
+      "event_name": "ZERO PARADES: For Dead Spies launches on PC May 21st!",
+      "event_type": 34,
+      "appid": 632470,
+      "rtime32_start_time": 1774974720,
+      "rtime32_end_time": 1810911600,
+      "jsondata": "{\"localized_capsule_image\":[\"3bccad8855ddbb8eb600f242ae33c1c47a1b8437.png\"],\"localized_title_image\":[\"e6bc576a910672c03e7f9513531f2d877569d4d5.png\"],\"localized_summary\":[\"ZERO PARADES: For Dead Spies arrives on May 21, 2026 for $39.99 on Steam, Epic Games Store, and GOG, and will release on PlayStation®5 (PS5®) later this year. \"],\"localized_subtitle\":[\"Our upcoming espionage RPG, ZERO PARADES, will be available from May 21st on Steam, GOG & Epic Games Store.\"]}",
+      "announcement_body": {
+        "gid": "532127297744930031",
+        "headline": "ZERO PARADES: For Dead Spies launches on PC May 21st!",
+        "posttime": 1774974723,
+        "body": "[p]Our upcoming espionage RPG, [i]ZERO PARADES: For Dead Spies[/i], arrives May 21st on Steam, Epic Games Store and GOG for $39.99. A PlayStation®5 (PS5®) will come later this year. [/p][p][/p][previewyoutube=\"p540bCD_Hac;full\"][/previewyoutube][p][/p][p]The game releases with full English voice-over and text localisation in four languages:[/p][list][*][p]German[/p][/*][*][p]Spanish (Latin America)[/p][/*][*][p]Chinese (Simplified)[/p][/*][*][p]Russian[/p][/*][/list][p]With eight more to be released later in the year as free updates. [/p][p][/p][p]In [i]ZERO PARADES: For Dead Spies, [/i]assume"
+      }
+    },
+    {
+      "gid": "530998049864943824",
+      "clan_steamid": "103582791458434291",
+      "event_name": "75% off Disco Elysium for Steam Next Fest",
+      "event_type": 20,
+      "appid": 632470,
+      "rtime32_start_time": 1771866240,
+      "rtime32_end_time": 1773075600,
+      "jsondata": "{\"localized_capsule_image\":[\"2caffab71a3b18ce0d3433b3824f112260b69538.png\"],\"localized_title_image\":[\"1b49d19f34526258f322c21c6e316e83fdd4081c.png\"],\"localized_summary\":[\"Celebrating the release of the ZERO PARADES: For Dead Spies demo, now available in Steam Next Fest. \"],\"localized_subtitle\":[\"Celebrating the release of the ZERO PARADES: For Dead Spies demo. \"]}",
+      "announcement_body": {
+        "gid": "530998049864943825",
+        "headline": "75% off Disco Elysium for Steam Next Fest",
+        "posttime": 1771866258,
+        "body": "[p]Steam Next Fest is upon us, and with it comes the first demo of our upcoming espionage RPG [i]ZERO PARADES: For Dead Spies. [/i] [/p][p][/p][p]Experience the first few hours of gameplay, with two main quests to complete, various side activities to explore and an array of curious characters to interact with. [/p][p]\n[dynamiclink href=\"https://store.steampowered.com/app/2863680/ZERO_PARADES_For_Dead_Spies/\"][/dynamiclink][/p][p]To celebrate the occasion, [i]Disco Elysium - The Final Cut [/i]is 75% off until March 9th, giving you two weird and wonderful city-states to explore:[/p][p][/p][p][dy"
+      }
+    },
+    {
+      "gid": "511857117305503903",
+      "clan_steamid": "103582791458434291",
+      "event_name": "Play our upcoming espionage RPG at Steam Next Fest!",
+      "event_type": 28,
+      "appid": 632470,
+      "rtime32_start_time": 1770911160,
+      "rtime32_end_time": 1770914760,
+      "jsondata": "{\"localized_capsule_image\":[\"6b809cfc547d51420f0937917293e4db068033be.png\"],\"localized_title_image\":[\"27d2a475476575002dde5420eb7b75d6e0944bc0.png\"],\"localized_summary\":[null],\"localized_subtitle\":[\"Get hands on with ZERO PARADES: For Dead Spies in this free, time-limited demo. \"]}",
+      "announcement_body": {
+        "gid": "511857117305503904",
+        "headline": "Play our upcoming espionage RPG at Steam Next Fest!",
+        "posttime": 1770907164,
+        "body": "[p][i]This News post covers our new, upcoming project [/i][url=\"https://store.steampowered.com/app/2863680/ZERO_PARADES_For_Dead_Spies/\"]ZERO PARADES: For Dead Spies[/url][i].[/i][/p][p][/p][previewyoutube=\"CLeyAX3euTE;full\"][/previewyoutube][p][/p][p]ZERO PARADES: For Dead Spies, our upcoming espionage RPG, debuts at Steam Next Fest this month with a free, time-limited demo. [/p][p][/p][p]Step into the shoes of Hershel Wilk, our brilliant but tormented operant, and explore the city-state of Portofiro in a tailored version of the game’s opening.[/p][p][/p][p]Play through two quests, unravel va"
+      }
+    },
+    {
+      "gid": "510726144262144513",
+      "clan_steamid": "103582791458434291",
+      "event_name": "Patch Notes [17/12/25]",
+      "event_type": 13,
+      "appid": 632470,
+      "rtime32_start_time": 1765973640,
+      "rtime32_end_time": 1765978201,
+      "jsondata": "{\"localized_capsule_image\":[\"303e06082732ba9bea00eb11ec17a2ae75fce716.jpg\"],\"localized_title_image\":[\"041d7ff76c8e59ebec5f09bc328f20dd2992b823.jpg\"],\"localized_summary\":[null],\"localized_subtitle\":[\"This update addresses a small number of issues for Disco Elysium on PC.\"]}",
+      "announcement_body": {
+        "gid": "510726144262144514",
+        "headline": "Patch Notes [17/12/25]",
+        "posttime": 1765973644,
+        "body": "[p][img src=\"{STEAM_CLAN_IMAGE}/28912883/d2cba8353db874c6ef09de96645882f73d3f034c.jpg\"][/img]\n[/p][p]Our latest update to Disco Elysium includes the following:  [/p][list][*][p]Unity vulnerability patch.[/p][/*][*][p]A link to the [i]ZERO PARADES: For Dead Spies[/i] in the game storefront.[/p][/*][/list][p]If you encounter any issues when running the game, please reach out to support@zaumstudio.com so we can investigate.  [/p][p][/p]"
+      }
+    }
+  ]
+}

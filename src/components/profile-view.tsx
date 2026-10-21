@@ -2,12 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useRouter, type Href } from 'expo-router';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { Alert, RefreshControl, StyleSheet, View, useWindowDimensions } from 'react-native';
+import * as Linking from 'expo-linking';
+import { Alert, RefreshControl, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { ConnectAccountCard } from '@/components/gaming/connect-card';
 import { SteamSection } from '@/components/gaming/steam-section';
 import { ListTile } from '@/components/list-tile';
+import { ProfileActionRow, ProfileButton, ProfileKey } from '@/components/profile-actions';
 import { LogCard } from '@/components/log-card';
 import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
 import { FavoritesWidget } from '@/components/profile-widgets';
@@ -20,11 +22,15 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import {
+  ACTIONS_TOP,
+  BIO_TOP,
+  COUNTS,
   HEADER_GAP,
-  IDENTITY_GAP,
+  NAME_TOP,
   PROFILE_MARGIN,
   avatarSize as avatarSizeFor,
 } from '@/constants/profile-layout';
+import { ArtRowWindow } from '@/constants/list-window';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ActivityRow, WallComposer, WallPostRow } from '@/components/wall';
@@ -49,6 +55,7 @@ import {
 } from '@/lib/api';
 import { displayNameFor, withDateGroups } from '@/lib/format';
 import { buildShelf } from '@/lib/games/shelf';
+import { hasWriting } from '@/lib/review-quote';
 import { useGamingSync, useLinkedAccount } from '@/hooks/use-gaming';
 import { useAuth } from '@/store/auth';
 
@@ -142,14 +149,15 @@ export type ProfileViewProps = {
 };
 
 /**
- * Profile, laid out the way Instagram does it.
+ * Profile: a centred head, then the widgets, then the tabs.
  *
  * ```
- * (face)  Name
- *         128      12        9
- *         Logged   Followers Following
- * The bio, set tight under the face.
- * [ Edit profile            ][ share ]
+ *                 (face)
+ *                  Name
+ *        The bio, quiet, centred.
+ *      12      │    128    │     9
+ *   Followers  │  Logged   │ Following
+ *     [   ⊕ Follow   ]  ⊕   ⇪
  * ─────────────────────────────────────
  * ★ Favourites                    Edit
  * [▮▮▮]  [▮▮▮]  [▮▮▮]  [▮▮▮]
@@ -161,12 +169,20 @@ export type ProfileViewProps = {
  *    ▤        ▥        ◌        ◍           the tabs, then the chosen tab's rows
  * ```
  *
- * Order is: avatar beside name-over-counts → bio → meta → full-width actions →
- * widgets → icon tab bar → tab content. One list: its header is all of that,
- * its rows the chosen tab's, so pressing a tab changes the rows and leaves the
- * page where it is.
+ * One list: its header is all of that, its rows the chosen tab's, so pressing
+ * a tab changes the rows and leaves the page where it is.
  *
- * ## This is the old layout, and it was gone for a week
+ * ## The head is the owner's reference, centred (2026-10-17)
+ *
+ * "Pfp, username, follow count bio, etc, centered in the screen. Add a big
+ * white filled rounded button for follow" — after a music app's profile. Only
+ * the head changed: it was Instagram's, the face beside the name over the
+ * counts, the bio under them and two half-width buttons. The widgets and the
+ * tabs under it are as they were. Follow is the white pill, the friend
+ * control a glyph beside it where the reference has its info mark, and share
+ * the reference's own glyph (`profile-actions`).
+ *
+ * ## This is the old layout under the head, and it was gone for a week
  *
  * A Letterboxd-style profile replaced it for about a week (a 20pt margin, the
  * widgets as cards forty apart, a larger name, the counts centred, the bio set
@@ -314,9 +330,10 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
    * compute against an empty query, which is what makes hoisting them free.
    */
 
-  // Reviews are logs that carry an actual article, not just a score.
+  // Reviews are logs that carry writing — an article, its one sentence, or
+  // both (0040) — not just a score.
   const reviews = useMemo(
-    () => (logs.data ?? []).filter((log) => log.review),
+    () => (logs.data ?? []).filter(hasWriting),
     // Keyed on the query's own data, not on a `?? []` expression: that fallback
     // is a fresh array on every render while the query is pending, which would
     // make the memo re-run every time and cost more than it saves.
@@ -448,6 +465,12 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
     ]);
   }
 
+  /** Their profile's link, through the system's share sheet. */
+  function shareProfile() {
+    const url = Linking.createURL(`/profile/${profileId}`);
+    Share.share({ message: `${ownerName} on GameLog\n${url}` }).catch(() => undefined);
+  }
+
   /*
    * The profile, as the head of the list on every tab: who it is, what they
    * hold, and — last — the row of tabs that chooses the rows under it.
@@ -455,139 +478,146 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
   const overview = (
     <View style={styles.header}>
       {/*
-        Face on the left; name over reach on the right.
-
-        The name is the first thing in the column beside the face, and the
-        counts are twelve under it, the pair centred on the face. Name and face
-        are read together, which is what Instagram's profile does with the same
-        two things. The handle is in the bar above, so this line is the name
-        alone, a long one cut at the edge.
+        The head, centred on the screen — the owner's reference (2026-10-17):
+        the face, the name, the bio, three counts with faint rules between
+        them, then one big white button with two glyphs beside it. The handle
+        is in the bar above, so the line under the face is the name alone.
+        Every interval is in `constants/profile-layout`.
       */}
-      <View style={styles.identity}>
-        <Avatar uri={person.avatar_url} name={displayNameFor(person)} size={avatarSize} />
+      <View style={styles.head}>
+        <Avatar uri={person.avatar_url} name={ownerName} size={avatarSize} />
 
-        <View style={[styles.identityColumn, { minHeight: avatarSize }]}>
-          <Text variant="h4" numberOfLines={1} accessibilityRole="header" style={styles.name}>
-            {displayNameFor(person)}
-          </Text>
-
-          {/* Three, not four: Friends is a tab of the screen these two open
-              (`people/[id]`), and no longer a count here — the owner's
-              direction. */}
-          <View style={styles.counts}>
-            <Count value={stats.data?.logged} label="Logged" />
-            <Count
-              value={stats.data?.followers}
-              label="Followers"
-              href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'followers' } }}
-            />
-            <Count
-              value={stats.data?.following}
-              label="Following"
-              href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'following' } }}
-            />
-          </View>
-        </View>
-      </View>
-
-      {/*
-        Directly under the controls it is about.
-
-        It covers two different failures. A **mutation** that failed is the
-        louder one and keeps `danger`. A **query** that failed is quieter but
-        matters as much: the Friend and Follow buttons hide themselves when they
-        cannot read their own state, so without this line their absence would
-        have no explanation at all.
-      */}
-      {(toggleFollow.isError || friendAction.isError) && (
-        <Text variant="bodySmall" color="danger">
-          {(toggleFollow.error ?? friendAction.error) instanceof Error
-            ? (toggleFollow.error ?? friendAction.error)!.message
-            : 'Could not update. Check your connection and try again.'}
+        <Text
+          variant="h2"
+          numberOfLines={1}
+          accessibilityRole="header"
+          style={[styles.centred, styles.name]}>
+          {ownerName}
         </Text>
-      )}
 
-      {!isSelf && (stats.isLoadingError || friendState.isLoadingError) && (
-        <Text variant="bodySmall" color="textMuted">
-          Could not load your connection to {ownerName}. Pull down to retry.
-        </Text>
-      )}
+        {/*
+          The bio and its facts as one block, quieter than the name as the
+          reference sets it. Clamped: `bio` is 300 characters, and four lines
+          is enough to read someone's description without pushing the
+          favourites, the shelf and the tabs down by nine.
+        */}
+        {(person.bio || person.favorite_platform || person.location) && (
+          <View style={styles.bio}>
+            {person.bio && (
+              <Text variant="body" color="textMuted" numberOfLines={4} style={styles.centred}>
+                {person.bio}
+              </Text>
+            )}
 
-      {/*
-        The bio and its facts as one block, set tight under the face, the way
-        Instagram sets a bio: the words in full ink, the place and the platform
-        in a quieter line under them.
-
-        Clamped. `bio` is 300 characters, so a full one pushed the favourites,
-        the shelf and the tab bar down by roughly nine lines. Four is enough to
-        read someone's description.
-      */}
-      {(person.bio || person.favorite_platform || person.location) && (
-        <View style={styles.bio}>
-          {person.bio && (
-            <Text variant="body" numberOfLines={4}>
-              {person.bio}
-            </Text>
-          )}
-
-          {(person.favorite_platform || person.location) && (
-            <View style={styles.metaRow}>
-              {person.location && <Meta icon="location-outline" label={person.location} />}
-              {person.favorite_platform && (
-                <Meta icon="game-controller-outline" label={person.favorite_platform} />
-              )}
-            </View>
-          )}
-        </View>
-      )}
-
-      {/*
-        The actions, full width and under everything they are about: "Follow"
-        is the single most likely tap on a stranger's page, and it shares its
-        line with nothing but the other relationship.
-      */}
-      <View style={styles.actionRow}>
-        {isSelf ? (
-          headerAction
-        ) : (
-          <>
-            {/* Friendship and following are separate relationships:
-                friending needs consent and unlocks the wall, following is
-                one-way and only shapes the feed.
-
-                `state` is passed through undefined rather than coerced with
-                `?? 'none'`. That fallback made a failed or in-flight fetch
-                render **"Add friend" to someone who already is one** — and, on
-                the wall, "Become friends with X to post on their wall" at the
-                same time. Unknown is its own state and says nothing. */}
-            <View style={styles.actionSlot}>
-              <FriendButton
-                state={friendState.data}
-                pending={friendAction.isPending}
-                failed={friendState.isLoadingError}
-                onPress={(action) => friendAction.mutate(action)}
-              />
-            </View>
-            {/* Same rule for following. This was `{stats.data && …}`, so a
-                failed stats fetch made the Follow button *cease to exist* with
-                nothing said — the control vanished rather than reporting it
-                could not read its own state. */}
-            {!stats.isLoadingError && (
-              <View style={styles.actionSlot}>
-                <Button
-                  title={stats.data?.isFollowing ? 'Following' : 'Follow'}
-                  variant={stats.data?.isFollowing ? 'secondary' : 'primary'}
-                  size="small"
-                  disabled={!stats.data}
-                  fullWidth
-                  onPress={() =>
-                    stats.data?.isFollowing ? confirmUnfollow() : toggleFollow.mutate()
-                  }
-                  loading={toggleFollow.isPending || stats.isLoading}
-                />
+            {(person.favorite_platform || person.location) && (
+              <View style={styles.metaRow}>
+                {person.location && <Meta icon="location-outline" label={person.location} />}
+                {person.favorite_platform && (
+                  <Meta icon="game-controller-outline" label={person.favorite_platform} />
+                )}
               </View>
             )}
-          </>
+          </View>
+        )}
+
+        {/* Three, not four: Friends is a tab of the screen these two open
+            (`people/[id]`), and no longer a count here — the owner's
+            direction. In the reference's order: the two relationships either
+            side of the person's own count. */}
+        <View style={styles.counts}>
+          <Count
+            value={stats.data?.followers}
+            label="Followers"
+            href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'followers' } }}
+          />
+          <CountRule />
+          <Count value={stats.data?.logged} label="Logged" />
+          <CountRule />
+          <Count
+            value={stats.data?.following}
+            label="Following"
+            href={{ pathname: '/people/[id]', params: { id: profileId, tab: 'following' } }}
+          />
+        </View>
+
+        <View style={styles.actions}>
+          {isSelf ? (
+            headerAction
+          ) : (
+            <ProfileActionRow
+              button={
+                /* This was `{stats.data && …}` once, so a failed stats fetch
+                   made Follow *cease to exist* with nothing said; the line
+                   under the row says why it is absent now. */
+                !stats.isLoadingError && (
+                  <ProfileButton
+                    title={stats.data?.isFollowing ? 'Following' : 'Follow'}
+                    icon={stats.data?.isFollowing ? 'checkmark' : 'person-add'}
+                    filled={!stats.data?.isFollowing}
+                    accessibilityLabel={
+                      stats.data?.isFollowing ? `Following ${ownerName}` : `Follow ${ownerName}`
+                    }
+                    accessibilityHint={
+                      stats.data?.isFollowing ? 'Asks before unfollowing' : undefined
+                    }
+                    disabled={!stats.data}
+                    loading={toggleFollow.isPending || stats.isLoading}
+                    onPress={() =>
+                      stats.data?.isFollowing ? confirmUnfollow() : toggleFollow.mutate()
+                    }
+                  />
+                )
+              }
+              keys={
+                <>
+                  {/* Friendship and following are separate relationships:
+                      friending needs consent and unlocks the wall, following
+                      is one-way and only shapes the feed.
+
+                      `state` is passed through undefined rather than coerced
+                      with `?? 'none'`. That fallback made a failed or
+                      in-flight fetch offer **"Add friend" to someone who
+                      already is one**. Unknown is its own state and says
+                      nothing. */}
+                  <FriendKey
+                    state={friendState.data}
+                    name={ownerName}
+                    pending={friendAction.isPending}
+                    failed={friendState.isLoadingError}
+                    onPress={(action) => friendAction.mutate(action)}
+                  />
+                  <ProfileKey
+                    icon="share-outline"
+                    label={`Share ${ownerName}’s profile`}
+                    onPress={shareProfile}
+                  />
+                </>
+              }
+            />
+          )}
+        </View>
+
+        {/*
+          Directly under the controls it is about.
+
+          It covers two different failures. A **mutation** that failed is the
+          louder one and keeps `danger`. A **query** that failed is quieter but
+          matters as much: Follow and the friend key hide themselves when they
+          cannot read their own state, so without this line their absence would
+          have no explanation at all.
+        */}
+        {(toggleFollow.isError || friendAction.isError) && (
+          <Text variant="bodySmall" color="danger" style={[styles.centred, styles.notice]}>
+            {(toggleFollow.error ?? friendAction.error) instanceof Error
+              ? (toggleFollow.error ?? friendAction.error)!.message
+              : 'Could not update. Check your connection and try again.'}
+          </Text>
+        )}
+
+        {!isSelf && (stats.isLoadingError || friendState.isLoadingError) && (
+          <Text variant="bodySmall" color="textMuted" style={[styles.centred, styles.notice]}>
+            Could not load your connection to {ownerName}. Pull down to retry.
+          </Text>
         )}
       </View>
 
@@ -704,6 +734,9 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
       keyExtractor={rowKey}
       renderItem={renderRow}
       ItemSeparatorComponent={RowSeparator}
+      /* Review cards, collection tiles, wall posts: tall rows with art in
+         them. The defaults mounted every one of them. */
+      {...ArtRowWindow}
       contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
       showsVerticalScrollIndicator={false}
       /*
@@ -779,54 +812,48 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
 }
 
 /**
- * The friend control, which is a four-state affair rather than a toggle:
- * not friends, you asked, they asked, or friends.
+ * The friend control — a glyph beside Follow, where the reference has its
+ * info mark — and a four-state affair rather than a toggle: not friends, you
+ * asked, they asked, or friends. Each state is its own glyph and says itself
+ * in full to a screen reader; a request waiting on the reader carries a dot.
  *
  * Five, counting *unknown*. `state` is deliberately optional: until the query
  * resolves there is no relationship to report, and the old `?? 'none'` turned
  * that silence into "Add friend" — an invitation to befriend someone you are
- * already friends with. Unknown renders the control disabled and in place, so
- * nothing is claimed and nothing jumps when the answer arrives.
+ * already friends with. Unknown holds the slot with a spinner, so nothing is
+ * claimed and nothing jumps when the answer arrives.
  */
-function FriendButton({
+function FriendKey({
   state,
+  name,
   pending,
   failed,
   onPress,
 }: {
   state: FriendState | undefined;
+  name: string;
   pending: boolean;
   /** The lookup failed. Distinct from "still loading" — no spinner, no promise. */
   failed?: boolean;
   onPress: (action: 'request' | 'accept' | 'remove') => void;
 }) {
   if (state === undefined) {
-    /* A failed lookup claims nothing. `loading` is what hides a `<Button>`'s
-       label, so falling through here with `loading={false}` would have shown a
-       disabled button reading "Friends" to someone who may not be one — the
-       same false claim this component was rewritten to stop, relocated into the
-       error branch. The message under the action row is what explains it. */
+    /* A failed lookup claims nothing; the line under the row explains it. */
     if (failed) return null;
-
-    /* Still loading: hold the slot so the row does not jump when the answer
-       lands. The title is invisible behind the spinner and is only here to give
-       the button its usual width. */
-    return <Button title="Friends" variant="secondary" size="small" disabled loading />;
+    return <ProfileKey icon="person-add-outline" label="Loading your friendship" loading />;
   }
 
   switch (state) {
     case 'friends':
       return (
-        <Button
-          title="Friends"
-          variant="secondary"
-          size="small"
+        <ProfileKey
+          icon="people"
+          label={`Friends with ${name}`}
+          hint="Asks before removing them as a friend"
           loading={pending}
-          /* Confirms first. The label states a *status*, and tapping it used to
-             silently destroy that status — the one shape where a button's word
-             and its effect are opposites. The label stays (it is the honest
-             answer to "are we friends?"); the alert is where the action is
-             named. Same pattern as `game-actions.tsx`. */
+          /* Confirms first: the glyph states a *status*, and tapping it
+             destroys that status. The alert is where the action is named.
+             Same pattern as `game-actions.tsx`. */
           onPress={() =>
             Alert.alert('Remove friend?', 'You will both lose access to each other’s wall.', [
               { text: 'Cancel', style: 'cancel' },
@@ -837,20 +864,21 @@ function FriendButton({
       );
     case 'outgoing':
       return (
-        <Button
-          title="Requested"
-          variant="ghost"
-          size="small"
+        <ProfileKey
+          icon="hourglass-outline"
+          label={`Friend request sent to ${name}`}
+          hint="Cancels the request"
           loading={pending}
           onPress={() => onPress('remove')}
         />
       );
     case 'incoming':
       return (
-        <Button
-          title="Accept"
-          variant="primary"
-          size="small"
+        <ProfileKey
+          icon="person-add"
+          label={`${name} asked to be friends`}
+          hint="Accepts the request"
+          alert
           loading={pending}
           onPress={() => onPress('accept')}
         />
@@ -859,10 +887,9 @@ function FriendButton({
       return null;
     default:
       return (
-        <Button
-          title="Add friend"
-          variant="secondary"
-          size="small"
+        <ProfileKey
+          icon="person-add-outline"
+          label={`Add ${name} as a friend`}
           loading={pending}
           onPress={() => onPress('request')}
         />
@@ -921,15 +948,15 @@ function Meta({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: st
 function Count({ value, label, href }: { value?: number; label: string; href?: Href }) {
   const shown = value == null ? '—' : value.toLocaleString();
 
-  /* Figure over word, flush left: the figure bold at 14, the word at 11 in the
-     quieter ink — a step under the name above them, so the name stays the
-     first thing read. */
+  /* Figure over word, centred in its column: the figure bold at 14, the word
+     at 11 under it, both quieter than the name — the reference's counts are
+     grey, so the name is the one white line in the head. */
   const body = (
     <>
-      <Text variant="h5" numberOfLines={1}>
+      <Text variant="h5" color="textSecondary" numberOfLines={1}>
         {shown}
       </Text>
-      <Text variant="bodySmall" color="textSecondary" numberOfLines={1}>
+      <Text variant="bodySmall" color="textMuted" numberOfLines={1}>
         {label}
       </Text>
     </>
@@ -960,6 +987,12 @@ function Count({ value, label, href }: { value?: number; label: string; href?: H
   );
 }
 
+/** The faint rule between two counts, as the reference draws it. */
+function CountRule() {
+  const theme = useTheme();
+  return <View style={[styles.countRule, { backgroundColor: theme.border }]} />;
+}
+
 const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.x48 },
   rowWrap: { paddingHorizontal: PROFILE_MARGIN },
@@ -967,52 +1000,38 @@ const styles = StyleSheet.create({
      tab's button — and the space before the first of them. */
   tabHead: { paddingHorizontal: PROFILE_MARGIN, paddingBottom: Spacing.x16 },
   /*
-   * Instagram's rhythm: twelve between the face, the bio, the buttons, each
-   * widget and the tabs — compact, so the head reads as one thing about one
-   * person rather than as a column of separate sections. Under the screen's
-   * bar by the distance Home's greeting sits under its masthead.
+   * Twelve between the head, each widget and the tabs — compact, so the page
+   * reads as one thing about one person. Under the screen's bar by the
+   * distance Home's greeting sits under its masthead.
    */
   header: {
     paddingHorizontal: PROFILE_MARGIN,
     paddingTop: Spacing.x16,
     gap: HEADER_GAP,
   },
-  /* One row: the face, and the column beside it, centred on the face. */
-  identity: { flexDirection: 'row', alignItems: 'center', gap: IDENTITY_GAP },
-  /*
-   * The name, then the counts twelve under it, as one block centred on the
-   * face.
-   *
-   * `minHeight` (the face, inline) rather than a height, so the OS text-size
-   * setting can grow the column instead of clipping the counts. `minWidth: 0`
-   * so a long name truncates rather than widening the column past the screen.
-   */
-  identityColumn: {
-    flex: 1,
-    minWidth: 0,
-    justifyContent: 'center',
-    gap: Spacing.x12,
-  },
-  name: { flexShrink: 1 },
-  /*
-   * The three counts in a row from the name's left edge, a step apart — not
-   * spread to the page's far edge. With four they were shared out across the
-   * column; three spread that way leave the middle one stranded between two
-   * gaps wider than any word in the row.
-   */
-  counts: { flexDirection: 'row', gap: Spacing.x24 },
-  /* Number over label, flush left. Shrinks rather than overflowing at a large
-     OS text size. */
-  count: { alignItems: 'flex-start', flexShrink: 1 },
+  /* The face, the name, the bio, the counts and the actions, on one axis. */
+  head: { alignItems: 'center' },
+  centred: { textAlign: 'center', alignSelf: 'stretch' },
+  name: { marginTop: NAME_TOP },
   /* The bio and its facts, close together: one block, not two. */
-  bio: { gap: Spacing.x4 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.x16, rowGap: Spacing.x4 },
+  bio: { alignSelf: 'stretch', alignItems: 'center', gap: Spacing.x4, marginTop: BIO_TOP },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    columnGap: Spacing.x16,
+    rowGap: Spacing.x4,
+  },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4, flexShrink: 1 },
   metaLabel: { flexShrink: 1 },
-  /* Full width, and its children share the width evenly. `alignItems` stretch
-     (the default) so both buttons are the same height whatever is in them. */
-  actionRow: { flexDirection: 'row', gap: Spacing.x8 },
-  actionSlot: { flex: 1 },
+  /* Three columns of the reference's width, a rule between each two. */
+  counts: { flexDirection: 'row', alignItems: 'center', marginTop: HEADER_GAP },
+  /* Number over label, centred in its column. Shrinks rather than
+     overflowing at a large OS text size. */
+  count: { width: COUNTS.column, flexShrink: 1, alignItems: 'center' },
+  countRule: { width: StyleSheet.hairlineWidth, height: COUNTS.rule },
+  actions: { alignSelf: 'stretch', marginTop: ACTIONS_TOP },
+  notice: { marginTop: Spacing.x8 },
   steamStack: { gap: Spacing.x16 },
   groupHeader: {
     flexDirection: 'row',

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { ActivityIndicator, BackHandler } from 'react-native';
 
 import {
+  AnimatedStep,
+  ColoursStep,
   CompanyStep,
   FavouritesStep,
   GenresStep,
@@ -64,9 +66,11 @@ type Flow = {
 /**
  * Onboarding, signed in — the owner's reference (2026-10-15).
  *
- * Twelve steps at most (`onboardingSteps`): a name, a welcome, four questions
- * about how somebody plays, their favourite games, notifications, Steam, a
- * photo, a handle, and six games to start with. The root layout routes here
+ * Fourteen steps at most (`onboardingSteps`): a name, a welcome, four
+ * questions about how somebody plays, their favourite games, how the app
+ * should look — game colours and animated covers, each shown on real games
+ * before it is asked — notifications, Steam, a photo, a handle, and six games
+ * to start with. The root layout routes here
  * and nowhere else until `store/onboarding` says the account is done, so there
  * is no way past it but through it — every step but the handle can be skipped.
  *
@@ -226,6 +230,10 @@ function OnboardingFlow({ userId }: { userId: string }) {
             }
           />
         );
+      case 'colours':
+        return <ColoursStep onNext={() => next()} />;
+      case 'animated':
+        return <AnimatedStep onNext={() => next()} />;
       case 'notify':
         return <NotifyStep onNext={() => next()} />;
       case 'steam':

@@ -156,13 +156,9 @@ export function GamePlatforms({
               value={selected}
               options={options}
               onChange={onSelect}
+              filled
             />
-            <GamePrice
-              gameId={game.id}
-              selected={selected}
-              title={game.title}
-              steamAppId={game.steamAppId}
-            />
+            <GamePrice gameId={game.id} selected={selected} title={game.title} />
           </View>
         </View>
       </View>

@@ -10,7 +10,8 @@ import type {
   CoverAspect,
   CoverStatus,
 } from '@/lib/animated-cover';
-import { findAnimatedCover } from '@/lib/games/animated-covers';
+import { pickPlayable } from '@/lib/animated-cover';
+import { findAnimatedCovers } from '@/lib/games/animated-covers';
 
 /**
  * A game's animated cover in one shape — `status`, the file, and `retry` —
@@ -42,26 +43,36 @@ import { findAnimatedCover } from '@/lib/games/animated-covers';
  *   say "none" before anybody presses it.
  * - **A known answer**, on disk from any earlier visit.
  *
- * A file that fails to play (`reportFailure`) is "none" for the rest of the
- * session and logged — but not written to disk: a dropped connection is not
- * evidence the game has no animated cover.
+ * **A file that fails to play gives way to the next** (`reportFailure`,
+ * `pickPlayable`): an answer is a short list — the file to play and what to
+ * fall back on, a small preview last — and a failure passes over that file,
+ * and every full-size one at least as heavy, for the rest of the session, then
+ * plays the next. Only when none is left is it "none". Logged, never written
+ * to disk: a dropped connection is not evidence the game has no animated
+ * cover.
  */
 
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /* 2: answers stored before 2026-10-21 named SteamGridDB's 267×400 WebM
    preview where the full animation is now preferred (`sgdbCandidates`), and
-   none carried its weight. Every game is asked again, once. */
-const CACHE_VERSION = 2;
+   none carried its weight. 3: an answer is a list to fall back through, with
+   joke grids left out (`rankGrids`). Every game is asked again, once. */
+const CACHE_VERSION = 3;
 const CACHE_KEY = `animated-cover:v${CACHE_VERSION}`;
 
-/** `asset: null` is a real, cached answer: no animated cover in this shape. */
-type Entry = { asset: AnimatedAsset | null; storedAt: number };
+/** `assets: []` is a real, cached answer: no animated cover in this shape. */
+type Entry = { assets: AnimatedAsset[]; storedAt: number };
 
 const memory = new Map<string, Entry>();
-/** Failed to play this session; shown as none, never persisted. */
-const failed = new Set<string>();
-const FAILED = Object.freeze({ failed: true });
+/** Files that would not play on this phone this session; never persisted. */
+const failedUrls = new Set<string>();
+/**
+ * The lightest full-size animation that would not play this session: every
+ * one at least as heavy is passed over too (`pickPlayable`).
+ */
+let failedAtBytes = Number.POSITIVE_INFINITY;
+
 const inflight = new Set<string>();
 const subscribers = new Set<() => void>();
 
@@ -84,7 +95,7 @@ async function readCache(): Promise<void> {
     const parsed = JSON.parse(raw) as Record<string, Entry>;
     const now = Date.now();
     for (const [key, entry] of Object.entries(parsed)) {
-      if (!entry || now - entry.storedAt > TTL_MS) continue;
+      if (!entry || !Array.isArray(entry.assets) || now - entry.storedAt > TTL_MS) continue;
       memory.set(key, entry);
     }
   } catch {
@@ -110,7 +121,7 @@ function keyOf(gameId: string, aspect: CoverAspect): string {
 
 /** Look one game and shape up, unless it is known or already being asked. */
 function ensure(key: string, gameId: string, title: string | null, aspect: CoverAspect): void {
-  if (memory.has(key) || inflight.has(key) || failed.has(key)) return;
+  if (memory.has(key) || inflight.has(key)) return;
   inflight.add(key);
   notify();
 
@@ -118,8 +129,8 @@ function ensure(key: string, gameId: string, title: string | null, aspect: Cover
     try {
       await hydrate();
       if (memory.has(key)) return;
-      const asset = await findAnimatedCover({ gameId, title, aspect });
-      memory.set(key, { asset, storedAt: Date.now() });
+      const assets = await findAnimatedCovers({ gameId, title, aspect });
+      memory.set(key, { assets, storedAt: Date.now() });
       schedulePersist();
     } finally {
       inflight.delete(key);
@@ -195,9 +206,12 @@ export function useAnimatedCover({
   const allowed = explicit || (artwork.ready && artwork.on);
   const key = gameId && allowed && !reduceMotion ? keyOf(gameId, aspect) : null;
 
-  const entry = useSyncExternalStore(
+  /* The file to play, `NONE`, or null for not known — each a stable value,
+     as `useSyncExternalStore` needs: an asset is an element of its stored
+     list, so it is the same object until a failure moves the pick on. */
+  const picked = useSyncExternalStore(
     subscribe,
-    () => (key ? (failed.has(key) ? FAILED : (memory.get(key) ?? null)) : null),
+    () => (key ? pickedFor(key) : null),
     () => null
   );
 
@@ -210,39 +224,55 @@ export function useAnimatedCover({
 
   const retry = () => {
     if (!key || !gameId) return;
+    const entry = memory.get(key);
+    for (const asset of entry?.assets ?? []) failedUrls.delete(asset.url);
     memory.delete(key);
-    failed.delete(key);
     schedulePersist();
     ensure(key, gameId, title ?? null, aspect);
   };
 
   const reportFailure = (error?: unknown) => {
-    if (!key || failed.has(key)) return;
-    failed.add(key);
-    console.warn(`[animated-cover] ${key} would not play; showing the still cover.`, error);
+    if (!picked || picked === NONE || failedUrls.has(picked.url)) return;
+    failedUrls.add(picked.url);
+    if (picked.quality === 'full' && typeof picked.bytes === 'number') {
+      failedAtBytes = Math.min(failedAtBytes, picked.bytes);
+    }
+    const next = key ? pickedFor(key) : null;
+    console.warn(
+      `[animated-cover] ${key} would not play ${picked.url}` +
+        (typeof picked.bytes === 'number' ? ` (${(picked.bytes / 1e6).toFixed(1)} MB)` : '') +
+        (next && next !== NONE ? `; trying ${next.url}` : '; showing the still cover') +
+        '.',
+      error
+    );
     notify();
   };
 
   if (!key) return { ...IDLE, retry, reportFailure };
-  if (entry === FAILED) {
-    return { ...IDLE, status: 'not_found', retry, reportFailure };
-  }
-  if (!entry) {
+  if (!picked) {
     return { ...IDLE, status: enabled ? 'loading' : 'idle', retry, reportFailure };
   }
+  if (picked === NONE) return { ...IDLE, status: 'not_found', retry, reportFailure };
 
-  const { asset } = entry as Entry;
-  return asset
-    ? {
-        status: 'found',
-        animatedUrl: asset.url,
-        format: asset.format,
-        bytes: asset.bytes ?? null,
-        quality: asset.quality ?? null,
-        retry,
-        reportFailure,
-      }
-    : { ...IDLE, status: 'not_found', retry, reportFailure };
+  return {
+    status: 'found',
+    animatedUrl: picked.url,
+    format: picked.format,
+    bytes: picked.bytes ?? null,
+    quality: picked.quality ?? null,
+    retry,
+    reportFailure,
+  };
+}
+
+/** A known answer with nothing playable left in it. */
+const NONE = 'none';
+
+/** What a stored answer says to play now, after this session's failures. */
+function pickedFor(key: string): AnimatedAsset | typeof NONE | null {
+  const entry = memory.get(key);
+  if (!entry) return null;
+  return pickPlayable(entry.assets, failedUrls, failedAtBytes) ?? NONE;
 }
 
 /**
@@ -263,10 +293,8 @@ export function peekAnimatedCover(
   gameId: string,
   aspect: CoverAspect
 ): AnimatedAsset | null | undefined {
-  const key = keyOf(gameId, aspect);
-  if (failed.has(key)) return null;
-  const entry = memory.get(key);
-  return entry ? entry.asset : undefined;
+  const picked = pickedFor(keyOf(gameId, aspect));
+  return picked === null ? undefined : picked === NONE ? null : picked;
 }
 
 // ---------------------------------------------------------------------------

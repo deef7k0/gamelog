@@ -1,22 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 
+import { RatingDistribution } from '@/components/rating-distribution';
 import { FiguredScore } from '@/components/ui/score-figure';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { clampScore, ratingVerdict } from '@/constants/score';
 import { SHOW_SCORE_FIGURES } from '@/constants/score-figure';
 import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import type { RatingBreakdown } from '@/lib/api';
 
-/** The bar's three segments, in the order they are drawn. */
-const SEGMENTS = [
-  { key: 'low', tone: 'scoreLow' as const, from: 0, to: 4 },
-  { key: 'mid', tone: 'scoreMid' as const, from: 5, to: 6 },
-  { key: 'high', tone: 'scoreHigh' as const, from: 7, to: 9 },
-];
-
 export type ScoreSummaryProps = {
+  /** The game whose scores the graph divides. */
+  gameId: string;
   breakdown: RatingBreakdown | null;
   /** Hold the summary's shape while the numbers are on their way. */
   loading?: boolean;
@@ -26,18 +21,25 @@ export type ScoreSummaryProps = {
    * it here (2026-10-16). Off only where something beside it already says it.
    */
   counted?: boolean;
+  /**
+   * Draw the graph in a card of its own (How ratings work's). Off where the
+   * summary already stands in one — the Ratings card on a game's Overview.
+   */
+  graphCard?: boolean;
 };
 
 /**
  * GameLog's own verdict on a game: the word, the average as its drawing and
- * its number, and how the scores divide — positive, mixed, negative — as one
- * bar.
+ * its number, and how the scores divide — a row for 100 and for each ten
+ * below it, the owner's reference (2026-10-21, `<RatingDistribution>`).
  *
  * ```text
  *   Great                     (o_o)
  *   Based on 128 reviews       /|\  84
  *
- *   ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▒▒▒▒  ░░
+ *     100   4 │▇▇
+ *   90-99  21 │▇▇▇▇▇▇▇▇▇
+ *     …
  * ```
  *
  * The average was a number in a coloured square. It is the score's drawing
@@ -45,9 +47,10 @@ export type ScoreSummaryProps = {
  * rating", the owner's. This graph — here and in the reviews sheet — and a
  * review's own page are the only places the drawing is; see `<ScoreFigure>`.
  *
- * Three segments, sized by how many scores fall in each band — so a game with
- * eighty positives and two negatives shows a sliver of red, which is the
- * honest picture and the thing an average alone cannot say.
+ * It was three segments in one bar — positive, mixed, negative. The graph says
+ * the same in eleven rows, in the same three colours, and says where in the
+ * green a game's scores sit, which the bar could not: the profile draws the
+ * same graph for a person's own scores.
  *
  * **One component, two places**, at the owner's direction (2026-10-09): it
  * was the head of the reviews sheet, and is now also the Ratings card on a
@@ -56,12 +59,16 @@ export type ScoreSummaryProps = {
  * that says whose numbers these are, so it carries no label of its own.
  *
  * Every number is GameLog's own, from scores given here. The score is the
- * weighted community score (0041, `lib/community-rating`); the bar counts
- * people — each segment is how many rated the game that way, at one each.
+ * weighted community score (0041, `lib/community-rating`); the graph counts
+ * people — each row is how many rated the game that way, at one each.
  */
-export function ScoreSummary({ breakdown, loading = false, counted = true }: ScoreSummaryProps) {
-  const theme = useTheme();
-
+export function ScoreSummary({
+  gameId,
+  breakdown,
+  loading = false,
+  counted = true,
+  graphCard = true,
+}: ScoreSummaryProps) {
   if (loading) {
     return (
       <View style={styles.summary}>
@@ -88,10 +95,6 @@ export function ScoreSummary({ breakdown, loading = false, counted = true }: Sco
      never stands beside the verdict that belongs to 54.6. */
   const shown = clampScore(breakdown.average);
   const verdict = ratingVerdict(shown, breakdown.total);
-  const counts = SEGMENTS.map((segment) =>
-    breakdown.buckets.slice(segment.from, segment.to + 1).reduce((sum, n) => sum + n, 0)
-  );
-  const total = counts.reduce((sum, n) => sum + n, 0) || 1;
 
   return (
     <View style={styles.block}>
@@ -108,49 +111,13 @@ export function ScoreSummary({ breakdown, loading = false, counted = true }: Sco
         <FiguredScore score={shown} />
       </View>
 
-      {/* Each segment is a flex weight, so the three always fill the bar exactly
-          and no rounding gap opens between them. A band with no reviews renders
-          nothing at all rather than a 1px sliver claiming one. */}
-      <View
-        style={styles.bar}
-        accessible
-        accessibilityLabel={`${counts[2]} positive, ${counts[1]} mixed, ${counts[0]} negative`}>
-        {SEGMENTS.map((segment, index) =>
-          counts[index] > 0 ? (
-            <View
-              key={segment.key}
-              style={{
-                flex: counts[index] / total,
-                backgroundColor: theme[segment.tone],
-                borderRadius: Radius.pill,
-              }}
-            />
-          ) : null
-        )}
-      </View>
+      <RatingDistribution scope={{ gameId }} card={graphCard} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  block: { gap: Spacing.x8 },
+  block: { gap: Spacing.x16 },
   summary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
   text: { flex: 1, gap: 2 },
-  /*
-   * `gap`, and it is not decoration.
-   *
-   * Adjacent segments measure 1.17:1 against each other (amber against green) —
-   * a boundary a protanopic reader cannot see at all, so the bar would read as
-   * one undivided block and say nothing. Two points of page colour between them
-   * is the second carrier, and the only one available to somebody looking rather
-   * than listening; the accessible label carries the three counts for everyone
-   * else.
-   */
-  bar: {
-    flexDirection: 'row',
-    gap: 2,
-    height: 8,
-    borderRadius: Radius.pill,
-    overflow: 'hidden',
-  },
 });

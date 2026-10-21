@@ -326,7 +326,8 @@ type AnimatedGridResponse = {
  * The animated covers' first source (`lib/games/animated-covers.ts`). The same
  * identities as the square, strongest first — a Steam appid, then the title —
  * and the same throttle and key. `types=animated` with the shape's sizes
- * (`SGDB_DIMENSIONS`), and nothing flagged NSFW or for epilepsy. Each grid is
+ * (`SGDB_DIMENSIONS`), and nothing flagged NSFW, for epilepsy or as a joke
+ * (`humor`, the owner's, 2026-10-21). Each grid is
  * the animation as a WebP or an APNG (`url`) with a WebM of it (`thumb`).
  *
  * `/api/public/files`, which the request for this named, does not exist (a
@@ -341,7 +342,7 @@ export async function getAnimatedGrids(
 
   const query =
     `types=animated&dimensions=${SGDB_DIMENSIONS[aspect]}` +
-    `&nsfw=false&epilepsy=false&limit=${SGDB_CANDIDATES}`;
+    `&nsfw=false&epilepsy=false&humor=false&limit=${SGDB_CANDIDATES}`;
 
   const ask = async (scope: string) =>
     (await sgdb<AnimatedGridResponse>(`/grids/${scope}?${query}`, signal))?.data ?? [];

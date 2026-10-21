@@ -5,7 +5,6 @@ import {
   StyleSheet,
   View,
   useWindowDimensions,
-  type LayoutChangeEvent,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type ScrollView,
@@ -16,7 +15,7 @@ import { CoverRailSkeleton, GameCoverRail, useRailLayout } from '@/components/ga
 import { GenreGrid } from '@/components/genre-grid';
 import { HomeSection } from '@/components/home-section';
 import { SpotlightSlider } from '@/components/search/spotlight-slider';
-import { TopChart } from '@/components/search/top-chart';
+import { TopChartEntry } from '@/components/search/top-chart-entry';
 import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
 import { PageScrollView } from '@/components/ui/page-scroll';
 import { Text } from '@/components/ui/text';
@@ -70,9 +69,7 @@ const PERIOD_WORDS: Record<BelovedPeriod, string> = {
  *   ▯▯▯ ▯▯▯ ▯▯▯ ▯▯
  *   Highly rated
  *   ▯▯▯ ▯▯▯ ▯▯▯ ▯▯
- *   Top 1000                  ( GameLog )( Critics )
- *    1 ▯ …                                       98
- *   ‹ 1 2 3 … 50 ›
+ *   ▯▯▯  Top 1000 — the top three, fanned; a button
  *   Browse by genre
  * ```
  *
@@ -80,9 +77,10 @@ const PERIOD_WORDS: Record<BelovedPeriod, string> = {
  *
  * The owner's request (2026-10-20): a ranking of the best-reviewed games on
  * GameLog, a toggle to rank them by the critics instead, twenty to a page
- * (`<TopChart>`). After the rows of covers, before the genres: it is the one
- * band here that is a list to read down, and turning its page brings its
- * heading back to the top of the screen (`chartY`).
+ * (`<TopChart>`). It stood here, after the rows of covers, until the owner
+ * moved it to a screen of its own (2026-10-21, `app/top-chart.tsx`): what is
+ * here is its button (`<TopChartEntry>`), the top three fanned as Surprise
+ * Me's cards are.
  *
  * ## The slider leads
  *
@@ -140,8 +138,6 @@ export function DiscoverFeed() {
   const [sliderAway, setSliderAway] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const queryClient = useQueryClient();
-  /* Where the Top 1000 starts, so a turned page opens on its heading. */
-  const [chartY, setChartY] = useState(0);
 
   const spotlight = useQuery({
     queryKey: ['spotlight', Math.floor(now / 86_400)],
@@ -355,9 +351,9 @@ export function DiscoverFeed() {
         )}
       </HomeSection>
 
-      <View onLayout={(event: LayoutChangeEvent) => setChartY(event.nativeEvent.layout.y)}>
-        <TopChart onTurn={() => scrollRef.current?.scrollTo({ y: chartY, animated: false })} />
-      </View>
+      {/* The Top 1000 is a screen of its own now (2026-10-21); this is the
+          way in — its top three, fanned as Surprise Me's cards are. */}
+      <TopChartEntry />
 
       {/* The one way in that works for someone with no particular game in
             mind. It led the page; the slider leads it now, and this follows

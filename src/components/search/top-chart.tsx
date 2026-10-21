@@ -65,15 +65,30 @@ const SKELETON_ROWS = 5;
  * - **Critics** is IGDB's average of critics' scores, for games with at least
  *   `CRITIC_FLOOR` of them, best first (`getCriticChartPage`).
  *
- * **A widget, as the profile's are: a heading on the page and its rows under
- * it — not a card.** Discover's rows stand on the page by the owner's ruling;
+ * **Its own screen since 2026-10-21** (`app/top-chart.tsx`, `standalone`):
+ * the owner, "Move the top games chart into its own screen. Make a widget,
+ * like a button for opening the chart" — Discover shows `<TopChartEntry>`,
+ * the top three fanned as Surprise Me's cards are, and the chart is a tap
+ * away.
+ *
+ * **A heading on the page and its rows under it — not a card.** Discover's rows stand on the page by the owner's ruling;
  * a ranked list is drawn as a list, rows divided by hairlines, as Search's
  * results are. The pager is the app's one (`<Pager>`), under the rows, and
  * turning a page brings the chart's heading back to the top of the screen
  * (`onTurn`) — a page turned from the pager at its foot would otherwise open
  * on its twentieth row. Each ranking keeps its own page.
  */
-export function TopChart({ onTurn }: { onTurn: () => void }) {
+export function TopChart({
+  onTurn,
+  standalone = false,
+}: {
+  onTurn: () => void;
+  /**
+   * On its own screen (`top-chart`), whose top bar carries the name: no
+   * heading of its own, the line under it standing first.
+   */
+  standalone?: boolean;
+}) {
   const [basis, setBasis] = useState<ChartBasis>('gamelog');
   const [pages, setPages] = useState<Record<ChartBasis, number>>({ gamelog: 1, critics: 1 });
   const page = pages[basis];
@@ -151,8 +166,8 @@ export function TopChart({ onTurn }: { onTurn: () => void }) {
     else void gamelogPage.refetch();
   }
 
-  return (
-    <HomeSection title="Top 1000" subtitle={note}>
+  const body = (
+    <>
       <View style={styles.toggle}>
         <SortBar
           options={CHART_BASES}
@@ -197,6 +212,19 @@ export function TopChart({ onTurn }: { onTurn: () => void }) {
           )}
         </>
       )}
+    </>
+  );
+
+  return standalone ? (
+    <View style={styles.standalone}>
+      <Text variant="body" color="textSecondary" style={styles.inset}>
+        {note}
+      </Text>
+      {body}
+    </View>
+  ) : (
+    <HomeSection title="Top 1000" subtitle={note}>
+      {body}
     </HomeSection>
   );
 }
@@ -288,6 +316,7 @@ function ChartSkeleton() {
 
 const styles = StyleSheet.create({
   toggle: { paddingHorizontal: Spacing.x16 },
+  standalone: { gap: Spacing.x16 },
   inset: { paddingHorizontal: Spacing.x16 },
   rows: { paddingHorizontal: Spacing.x16 },
   /* The last page, while the next one is on its way. */

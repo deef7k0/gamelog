@@ -1,11 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { ScoreBadge } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
-import { clampScore } from '@/constants/score';
-import { Spacing } from '@/constants/theme';
+import { clampScore, labelFor, scoreColor } from '@/constants/score';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import type { BreakdownSection } from '@/lib/review-facets';
+
+/** The group's column: "PlayStation" and its count, before the bar. */
+const LABEL_WIDTH = 104;
+/** The score's column: "100" in the bold figure. */
+const SCORE_WIDTH = 30;
+const BAR_HEIGHT = 8;
 
 export type ReviewBreakdownProps = {
   sections: BreakdownSection[];
@@ -18,29 +24,42 @@ export type ReviewBreakdownProps = {
  * Gamelog's own average, split by how people played: how far they got, on what,
  * and alone or together — "Finished 87 · Dropped 64".
  *
- * ## Why it sits under the headline and not behind a control
+ * ## Why it sits under the graph and not behind a control
  *
  * The one average above it cannot say the most useful thing a ratings database
  * knows: whether the people who stuck with a game liked it more than the people
  * who did not. That is a reason to open the sheet, so it is on the sheet, at a
- * glance — and it is small because it is the second thing, not the first.
+ * glance.
  *
- * ## The shape
+ * ## The shape — made to be read (2026-10-21)
  *
- * Two columns of `label count … score`. One full-width column put the score a
- * whole screen-width from the word it belonged to; two keep each pair together
- * and halve the height. The count sits beside the label, neutral and inline like
- * a tab's count, because an average of one rating is a different claim from an
- * average of forty and the reader should see which this is. The screen reader
- * hears the whole sentence.
+ * The owner: "make the filters and information of specific review things better
+ * to read". It was two columns of an 11sp label, a 10sp count and a small score
+ * badge under an upper-case tag. Now each group is a row on its own:
+ *
+ * ```text
+ *   How far they got
+ *   Finished     ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇░░░   87
+ *   12 people
+ *   Dropped      ▇▇▇▇▇▇▇▇▇▇▇▇░░░░░░░░░░   64
+ *   3 people
+ * ```
+ *
+ * The heading in sentence case and the body's size; the group in the page's
+ * ink with how many people under it — an average of one rating is a different
+ * claim from one of forty; and the average as a bar as long as the score out
+ * of 100, in the score ramp's colour, with the figure at its end. The bars
+ * share one scale, so groups are compared by eye before the numbers are read.
  *
  * Every number is Gamelog's own. Nothing here is a third party's score.
  */
 export function ReviewBreakdown({ sections, failed, onRetry }: ReviewBreakdownProps) {
+  const theme = useTheme();
+
   if (failed) {
     return (
       <View style={styles.failed}>
-        <Text variant="caption" color="textMuted">
+        <Text variant="bodySmall" color="textMuted">
           The breakdown didn’t load.
         </Text>
         <PressableScale
@@ -49,7 +68,7 @@ export function ReviewBreakdown({ sections, failed, onRetry }: ReviewBreakdownPr
           onPress={onRetry}
           hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}
           scaleTo={0.94}>
-          <Text variant="caption" color="primaryText">
+          <Text variant="bodySmall" color="primaryText">
             Try again
           </Text>
         </PressableScale>
@@ -63,33 +82,38 @@ export function ReviewBreakdown({ sections, failed, onRetry }: ReviewBreakdownPr
     <View style={styles.block}>
       {sections.map((section) => (
         <View key={section.key} style={styles.section}>
-          <Text variant="label" color="textMuted" accessibilityRole="header">
-            {section.title.toUpperCase()}
+          <Text variant="h5" accessibilityRole="header">
+            {section.title}
           </Text>
-          <View style={styles.grid}>
-            {section.rows.map((row) => (
+          {section.rows.map((row) => {
+            const score = clampScore(row.average);
+            const ink = scoreColor(score, theme);
+            const people = `${row.count.toLocaleString()} ${row.count === 1 ? 'person' : 'people'}`;
+            return (
               <View
                 key={row.key}
-                style={styles.cell}
+                style={styles.row}
                 accessible
-                accessibilityLabel={`${row.label}: ${clampScore(row.average)} from ${row.count} ${
-                  row.count === 1 ? 'rating' : 'ratings'
-                }`}>
-                <Text
-                  variant="bodySmall"
-                  color="textSecondary"
-                  numberOfLines={1}
-                  style={styles.label}>
-                  {row.label}
+                accessibilityLabel={`${row.label}: ${score}, ${labelFor(score)}, from ${people}`}>
+                <View style={styles.label}>
+                  <Text variant="body" numberOfLines={1}>
+                    {row.label}
+                  </Text>
+                  <Text variant="caption" color="textMuted" numberOfLines={1}>
+                    {people}
+                  </Text>
+                </View>
+                <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
+                  <View
+                    style={[styles.fill, { width: `${Math.max(2, score)}%`, backgroundColor: ink }]}
+                  />
+                </View>
+                <Text variant="h5" style={[styles.score, { color: ink }]}>
+                  {score}
                 </Text>
-                <Text variant="caption" color="textMuted">
-                  {row.count}
-                </Text>
-                <View style={styles.spacer} />
-                <ScoreBadge score={row.average} size="small" />
               </View>
-            ))}
-          </View>
+            );
+          })}
         </View>
       ))}
     </View>
@@ -97,22 +121,18 @@ export function ReviewBreakdown({ sections, failed, onRetry }: ReviewBreakdownPr
 }
 
 const styles = StyleSheet.create({
-  block: { gap: Spacing.x12, marginTop: Spacing.x8 },
-  section: { gap: Spacing.x4 },
-  /* The negative margin takes back the last column's trailing padding, so the
-     right-hand scores end on the sheet's own edge like everything above them. */
-  grid: { flexDirection: 'row', flexWrap: 'wrap', marginRight: -Spacing.x16 },
-  cell: {
-    width: '50%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.x8,
-    paddingRight: Spacing.x16,
-    paddingVertical: 2,
+  block: { gap: Spacing.x20, marginTop: Spacing.x16 },
+  section: { gap: Spacing.x12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  label: { width: LABEL_WIDTH },
+  track: { flex: 1, height: BAR_HEIGHT, borderRadius: Radius.pill, overflow: 'hidden' },
+  fill: { height: BAR_HEIGHT, borderRadius: Radius.pill },
+  /* The bold family, tabular: Android synthesises no weight for a custom font. */
+  score: {
+    width: SCORE_WIDTH,
+    textAlign: 'right',
+    fontFamily: FontFamily.bold,
+    fontVariant: ['tabular-nums'],
   },
-  /* Shrinks and truncates before the score does — "PlayStation" is the longest
-     label this can hold, and the number is the one thing it must not lose. */
-  label: { flexShrink: 1 },
-  spacer: { flex: 1 },
   failed: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8, marginTop: Spacing.x8 },
 });

@@ -7,6 +7,7 @@ import {
   type RatingInfluence,
 } from '../community-rating';
 import type { CommunityRatingReport, LogStatus, Profile, RaterStatsRow } from '../database.types';
+import { distributionOf } from '../rating-distribution';
 import { hasWriting } from '../review-quote';
 import { supabase } from '../supabase';
 
@@ -213,10 +214,12 @@ export async function recalculateCommunityRatings(): Promise<void> {
  * prefix refetches what is on screen now and marks the rest stale for its
  * next mount, so no list or page can keep showing an average from before.
  *
- * `game-ratings` is a game's raters, page by page (`ratings/[id]`), and
- * `top-chart` Search's Top 1000 — whose GameLog order is these averages.
+ * `game-ratings` is a game's raters, page by page (`ratings/[id]`),
+ * `top-chart` Search's Top 1000 — whose GameLog order is these averages — and
+ * `rating-distribution` the graph of a game's or a person's scores.
  */
 export const COMMUNITY_RATING_QUERY_ROOTS = [
+  'rating-distribution',
   'rating-breakdown',
   'review-stats',
   'beloved-games',
@@ -230,6 +233,32 @@ export function invalidateCommunityRatings(queryClient: QueryClient): void {
   for (const root of COMMUNITY_RATING_QUERY_ROOTS) {
     void queryClient.invalidateQueries({ queryKey: [root] });
   }
+}
+
+// ---------------------------------------------------------------------------
+// The distribution graph
+// ---------------------------------------------------------------------------
+
+/** The most scores one graph is drawn from — far past anything here today. */
+const DISTRIBUTION_LIMIT = 5000;
+
+/**
+ * Every score given to a game, or by a person — the graph's rows
+ * (`lib/rating-distribution`). Counted from the ratings themselves rather
+ * than from 0041's `histogram`: that one's top band is 91–100, and the graph
+ * keeps 100 apart from the 90s, as the owner's reference does. One column a
+ * row, so it stays cheap; `logs` is public, as every review is.
+ */
+export async function getRatingDistribution(
+  scope: { gameId: string } | { userId: string }
+): Promise<number[]> {
+  let query = supabase.from('logs').select('rating').not('rating', 'is', null);
+  query = 'gameId' in scope ? query.eq('game_id', scope.gameId) : query.eq('user_id', scope.userId);
+  const { data, error } = await query.range(0, DISTRIBUTION_LIMIT - 1);
+  if (error) throw new Error(error.message);
+  return distributionOf(
+    (data ?? []).map((row) => row.rating).filter((rating): rating is number => rating !== null)
+  );
 }
 
 // ---------------------------------------------------------------------------

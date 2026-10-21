@@ -95,7 +95,7 @@ export function RatingsCard({
       onPress={onOpen}
       accessibilityLabel={`Ratings of ${title} on GameLog: ${verdict.label}, ${shown} out of 100 from ${counted}. Opens the reviews.`}>
       {/* The verdict, and under it how many reviews it is from. */}
-      <ScoreSummary breakdown={data} />
+      <ScoreSummary gameId={gameId} breakdown={data} graphCard={false} />
     </Panel>
   );
 }

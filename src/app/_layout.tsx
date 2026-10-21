@@ -234,6 +234,7 @@ export default function RootLayout() {
                 <Stack.Screen name="moderation" />
                 <Stack.Screen name="studio/[id]" />
                 <Stack.Screen name="top-games" />
+                <Stack.Screen name="top-chart" />
                 <Stack.Screen name="releases" />
                 <Stack.Screen name="upcoming" />
                 <Stack.Screen name="surprise" />

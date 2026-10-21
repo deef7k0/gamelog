@@ -244,6 +244,19 @@ export function GameReviewsSheet({
     (language ? 1 : 0);
   const filterLook = selectable(activeFilters > 0);
 
+  /* What the list is narrowed to, in words — said under the Filters button
+     whether the panel is open or not, so a narrowed list never looks like
+     the whole of it. */
+  const narrowedTo = [
+    score !== 'any' ? `scored ${band.label}` : null,
+    family ? `on ${facets.find((facet) => facet.key === family)?.label ?? family}` : null,
+    progress ? PROGRESS_OPTIONS.find((option) => option.key === progress)?.label : null,
+    play ? PLAY_OPTIONS.find((option) => option.key === play)?.label : null,
+    language
+      ? `in ${languageOptions.find((option) => option.key === language)?.label ?? language}`
+      : null,
+  ].filter((part): part is string => !!part);
+
   function clearFilters() {
     setFamily(null);
     setScore('any');
@@ -332,7 +345,11 @@ export function GameReviewsSheet({
 
         {/* The same summary the Ratings card on the Overview draws
             (`<ScoreSummary>`). No "GAMELOG" label over it: the heading says it. */}
-        <ScoreSummary breakdown={breakdown.data ?? null} loading={breakdown.isPending} />
+        <ScoreSummary
+          gameId={gameId}
+          breakdown={breakdown.data ?? null}
+          loading={breakdown.isPending}
+        />
         {/* Everybody the score is made of, written or not — and the score's
             method, one tap away wherever the score itself is explained. */}
         {breakdown.data && (
@@ -401,6 +418,12 @@ export function GameReviewsSheet({
           </PressableScale>
         </View>
 
+        {narrowedTo.length > 0 && (
+          <Text variant="bodySmall" color="textSecondary" accessibilityLiveRegion="polite">
+            {`Showing reviews ${narrowedTo.join(' · ')}`}
+          </Text>
+        )}
+
         {/* Five questions, each one choice, and they compose: PC + Finished +
           Co-op is three clauses on one request (`lib/review-facets.ts`). The
           platforms offered are only the families somebody has reviewed this
@@ -408,8 +431,9 @@ export function GameReviewsSheet({
           the other three are fixed vocabularies, and one that finds nothing
           says so in the list below. */}
         {filtersOpen && (
-          <View style={styles.filters}>
-            <FilterGroup label="SCORE">
+          <View
+            style={[styles.filters, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <FilterGroup label="Score" hint="What the reviewer gave it">
               <SortBar
                 options={SCORES.map(({ key, label }) => ({ key, label }))}
                 value={score}
@@ -419,7 +443,7 @@ export function GameReviewsSheet({
             </FilterGroup>
 
             {facets.length > 0 && (
-              <FilterGroup label="PLATFORM">
+              <FilterGroup label="Played on" hint="The platform the review is about" divided>
                 <SortBar
                   options={[ANY, ...facets.map(({ key, label }) => ({ key, label }))]}
                   value={family ?? 'any'}
@@ -429,7 +453,7 @@ export function GameReviewsSheet({
               </FilterGroup>
             )}
 
-            <FilterGroup label="PROGRESS">
+            <FilterGroup label="How far they got" divided>
               <SortBar
                 options={PROGRESS_OPTIONS}
                 value={progress ?? 'any'}
@@ -438,7 +462,7 @@ export function GameReviewsSheet({
               />
             </FilterGroup>
 
-            <FilterGroup label="SOLO OR CO-OP">
+            <FilterGroup label="Solo or co-op" divided>
               <SortBar
                 options={PLAY_OPTIONS}
                 value={play ?? 'any'}
@@ -448,7 +472,7 @@ export function GameReviewsSheet({
             </FilterGroup>
 
             {languages.length > 0 && (
-              <FilterGroup label="LANGUAGE">
+              <FilterGroup label="Written in" divided>
                 <SortBar
                   options={languageOptions}
                   value={language ?? 'any'}
@@ -525,13 +549,45 @@ export function GameReviewsSheet({
   );
 }
 
-/** One labelled filter question. */
-function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * One filter question: its name in sentence case at the body's weight, a
+ * quiet line saying what it asks where the name alone does not, and its
+ * choices. Questions are divided by a hairline inside the panel's card. They
+ * were upper-case micro-labels — "SOLO OR CO-OP" — the owner: "make the
+ * filters… better to read" (2026-10-21).
+ */
+function FilterGroup({
+  label,
+  hint,
+  divided = false,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  divided?: boolean;
+  children: React.ReactNode;
+}) {
+  const theme = useTheme();
   return (
-    <View style={styles.filterGroup}>
-      <Text variant="label" color="textMuted" accessibilityRole="header">
-        {label}
-      </Text>
+    <View
+      style={[
+        styles.filterGroup,
+        divided && {
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: theme.border,
+          paddingTop: Spacing.x16,
+        },
+      ]}>
+      <View style={styles.filterHead}>
+        <Text variant="h5" accessibilityRole="header">
+          {label}
+        </Text>
+        {hint && (
+          <Text variant="caption" color="textMuted">
+            {hint}
+          </Text>
+        )}
+      </View>
       {children}
     </View>
   );
@@ -653,8 +709,16 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: 1,
   },
-  filters: { gap: Spacing.x16, marginTop: Spacing.x8 },
-  filterGroup: { gap: Spacing.x8 },
+  /* The panel: one card — the sheet's own surface — holding the questions. */
+  filters: {
+    gap: Spacing.x16,
+    marginTop: Spacing.x8,
+    padding: Spacing.x16,
+    borderRadius: Radius.card,
+    borderWidth: 1,
+  },
+  filterGroup: { gap: Spacing.x12 },
+  filterHead: { gap: 2 },
   clear: { alignItems: 'flex-start' },
   rowWrap: { paddingHorizontal: Spacing.x16, paddingTop: Spacing.x12 },
   pager: { marginTop: Spacing.x16 },

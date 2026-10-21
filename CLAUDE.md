@@ -137,7 +137,11 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # animated covers — which file of a SteamGridDB grid each
                    # platform plays (the full animation before the preview),
                    # the size cap, IGDB's shapes and its WebP
-                   # (lib/animated-cover); SimpMusic's Apple Music page under
+                   # (lib/animated-cover) — no joke grids, the most liked
+                   # first, and which file a phone falls back to when one will
+                   # not play (pickPlayable); the rating graph's eleven rows
+                   # and their colours (lib/rating-distribution); SimpMusic's
+                   # Apple Music page under
                    # the game page's cover — the mesh, its blur, the BMP it is
                    # drawn as, the top wash and whether white holds on it
                    # (lib/artwork-mesh); Surprise Me's card — its shape, still
@@ -353,6 +357,8 @@ src/
                      watching in bigger type, the faces, and the games shown
                      — only once it is over. Its one action is pinned to the
                      foot. Opened from News's Events. See § The poster screens
+    top-chart        the Top 1000 (GameLog's or the critics'), twenty to a
+                     page — from Discover's button. See § Search
     calendar         a year of releases, a month at a time: five rows of
                      numbered days, then the month's games as covers — or a
                      chosen day's as a list. Top releases behind today, most
@@ -412,8 +418,19 @@ src/
                                         announcements, as a rail
                      score-summary      GameLog's verdict on a game: the word,
                                         the score as its drawing and number,
-                                        the three-part bar. The Ratings card's
+                                        the rating graph. The Ratings card's
                                         and the reviews sheet's, one component
+                     rating-distribution  the rating graph: a row for 100 and
+                                        each ten below it, a bar as long as
+                                        its count, in the score ramp — a
+                                        game's (the summary) and a person's
+                                        (ratings-widget, on their profile)
+                     review-breakdown   the sheet's averages by how people
+                                        played, as rows of score bars
+                     ui/cover-fan       three covers fanned — Surprise Me's
+                                        way in, and the Top 1000's
+                     search/top-chart-entry  Discover's button to the Top
+                                        1000: its top three, fanned
                      score-method-note  "How the GameLog score works ›", under
                                         the sheet's summary
                      ui/score-figure    a score as a drawing: a little man and
@@ -1327,16 +1344,29 @@ once it has a frame.
   WebM). Measured over twenty well-known games' portraits, the walk finds a
   full file for nineteen. The HEAD's size rides on the answer (`bytes`), and
   whether it is `full` or a `preview`. IGDB's is its **`.webp`** at `t_720p`:
-  its `.png` is the first frame only. The cache is `animated-cover:v2` — v1's
-  answers named previews.
+  its `.png` is the first frame only.
+- **No joke covers, the most liked first** (2026-10-21, the owner: "Remove
+  humorous animated ones… or maybe get the most liked one"): `humor=false` in
+  the request, and `rankGrids` drops a `humor` grid and orders the rest by
+  upvotes less downvotes, then SteamGridDB's score, then its own order.
+- **An answer is a short list, and a file that will not play gives way**
+  (`MAX_ALTERNATES` 4, `pickPlayable`). Red Dead Redemption 2's first file —
+  a valid 8 MB, 95-frame 600×900 animated WebP — failed on the owner's phone
+  with Glide's generic "Failed to load resource"; the cause cannot be read
+  from that message. So the lookup keeps up to four playable files, the
+  first preview among them, and a failure passes over that file **and every
+  full-size one at least as heavy** for the session (likelier the phone's
+  limit than the file's, and each attempt is a whole download), then plays
+  the next; previews are never skipped for weight. The log names the file,
+  its size and what it tries next. The cache is `animated-cover:v3`.
 - **No new dependencies.** expo-image already decodes APNG, animated WebP and
   GIF on both platforms and expo-video is linked for trailers (§ APK size).
   expo-video is imported through `React.lazy` only (`ui/animated-cover-video`).
 - **Asked once per game and shape, and remembered** — the owner's rule: "If
   the user has already seen that no animated cover exists for this game… the
   animated query is not done every time." `use-animated-cover` is a module
-  store kept in AsyncStorage for a month, **"none" included**. A file that
-  will not play is "none" for the session and logged, never written to disk.
+  store kept in AsyncStorage for a month, **"none" included**. What would
+  not play is the session's alone, never written to disk.
   `enabled: false` holds the lookup but still reads a known answer.
 - **Animated artwork is a setting** (`useAnimatedArtwork`, Settings and
   onboarding; on by default, kept per account on the device). Off, Surprise
@@ -1357,8 +1387,10 @@ once it has a frame.
   fetch animated when the user taps on the animated button… text alone, in
   bold. Not inside a pill or a container. Static above and Animated below."
   - **The cover runs edge to edge from the top of the display**, at its own
-    proportions; a display too short to leave room for the two words under
-    it takes width off the cover instead.
+    2:3, always the display's full width; a display too short to leave room
+    for the two words under it trims the cover's height, never its width
+    (the owner, 2026-10-21: covers "leave small gaps at the edges"). Its
+    shape is the poster's 2:3, not the masthead cover's measured box.
   - **Under it, SimpMusic's Apple Music page, ported from its source**
     (`AppleMusicMeshBackdrop.kt` → `lib/artwork-mesh.ts`,
     `<ArtworkMeshPage>`): the cover's 90×128 thumbnail averaged to a 6×6
@@ -1496,8 +1528,15 @@ list.
 - **The Top 1000** (`<TopChart>`, `lib/top-chart`, pure and tested) — the
   owner's request (2026-10-20): "a chart widget on the search home screen and
   show a ranking of best reviewed games on gamelog and a toggle for critic
-  review sorting. Use pages and show 20 per page. It's a top 1000 games." A
-  heading, a line saying what ranks it, two pills (GameLog / Critics), twenty
+  review sorting. Use pages and show 20 per page. It's a top 1000 games."
+  **It is a screen of its own since 2026-10-21** (`app/top-chart.tsx`,
+  `<TopChart standalone>`): "Move the top games chart into its own screen.
+  Make a widget, like a button for opening the chart. Add the top 3 games in
+  the button as cards, similar to the Surprise Me graphic." Discover shows
+  `<TopChartEntry>` where the chart was — Surprise Me's button with the top
+  three in the fan (`<CoverFan>`), ranks on them; GameLog's three, the
+  critics' while GameLog has fewer than three rated. On the screen: a line
+  saying what ranks it, two pills (GameLog / Critics), twenty
   ranked rows — rank, box, title, developer · year, the score in the ramp's
   colour over "3 ratings" / "27 critics" — and `<Pager>` under them; a page
   turn brings the heading back to the top of the screen. Each ranking keeps
@@ -1992,7 +2031,7 @@ What is easy to break:
   on the full path, 23 ms on the per-game path — which is where 5,000 came
   from.
 - **The client caches every score as one family**: a rating write calls
-  `invalidateCommunityRatings` (the seven roots under § Conventions, query
+  `invalidateCommunityRatings` (the eight roots under § Conventions, query
   keys). The progress sheet's delete did not refresh the score at all before.
 - **Who sees what.** `game_ratings` is public except `weight_sum` and
   `effective_raters` (column grants: on a one-rater game the weight sum *is*
@@ -3066,8 +3105,9 @@ and the event page's foot bar are all for a device.
   Ratings card, the sheet and the masthead share it), `['review-stats',
   gameId]`, `['beloved-games', period]`, `['rating-influence', userId]` and
   `['rating-report']`, a game's raters `['game-ratings', gameId, sort, page]`
-  (`ratings/[id]`) and GameLog's Top 1000 `['top-chart', 'gamelog', …]` —
-  **a rating write invalidates all seven by their first part**
+  (`ratings/[id]`), GameLog's Top 1000 `['top-chart', 'gamelog', …]` and the
+  rating graph `['rating-distribution', 'game' | 'user', id]` —
+  **a rating write invalidates all eight by their first part**
   (`invalidateCommunityRatings`), not the one game's: a rating changes its
   rater's weight, and with it every other game they rated. The critics' Top
   1000 is `['critic-chart', page]` and `['critic-chart', 'length']` — its own
@@ -3553,7 +3593,15 @@ and the event page's foot bar are all for a device.
   **It is in the sheet, not on the game page**: it was a rail on the Overview
   until the owner moved it — "a section at the top for critic's reviews, and
   then below is the app's user reviews". The sheet's two sections are headed
-  "Critic reviews" and "GameLog reviews". **GameLog's reviews are in pages of
+  "Critic reviews" and "GameLog reviews". **Its filters and its breakdown
+  are made to be read** (2026-10-21, "make the filters and information of
+  specific review things better to read"): the breakdown is rows — the
+  group, how many people, a bar as long as their average in the score
+  ramp, the figure — under sentence-case headings ("How far they got",
+  "Played on", "Solo or co-op"); the filters are one card of sentence-case
+  questions divided by hairlines, and a line under the Filters button says
+  what the list is narrowed to ("Showing reviews scored 80+ · on PC"), open
+  or folded. No upper-case micro-labels there again. **GameLog's reviews are in pages of
   fifteen** (2026-10-20, "like the other search stuff in the app"): the same
   `<Pager>`, over the list with its count and under it plainly; a sort or a
   filter starts again at page one. The pages are slices of one ranking of ids
@@ -3618,8 +3666,10 @@ and the event page's foot bar are all for a device.
      pill, and share. It was Instagram's — the face beside the name over the
      counts, two half-width buttons — until 2026-10-17. Twelve between the
      head, each widget and the tabs (`HEADER_GAP`).
-  2. **The widgets are not cards.** The favourites, the games and the pinned
-     song are each `<ProfileWidget>` (`components/profile-section`): a
+  2. **The widgets are not cards.** The favourites, the games, the pinned
+     song and — last before the tabs, the owner's (2026-10-21) — the
+     person's rating graph (`<RatingsWidget>`, absent until they have scored
+     a game) are each `<ProfileWidget>` (`components/profile-section`): a
      hairline, a small heading (`itemTitle`, the star glyph on Favourites and
      the song), then the content, spanning the page. `<ProfileBox>` is
      deleted. **Do not box them again.** The games' heading is the way into
@@ -4019,13 +4069,24 @@ and the event page's foot bar are all for a device.
     film's page in Letterboxd — are each absent when they have nothing to show:
     1. **Ratings** (`<RatingsCard>`): a card titled inside, a hairline, then
        `<ScoreSummary>` — the verdict ("Very Positive"), **under it "Based on
-       N reviews"**, the score as its drawing and number, and the three-part
-       bar. The count was at the far end of the title until the owner had it
+       N reviews"**, the score as its drawing and number, and **the rating
+       graph** (`<RatingDistribution>`): a row for 100 and for each ten below
+       it, the count, a bar as long as it, in the score ramp's three colours.
+       The count was at the far end of the title until the owner had it
        put under the verdict (2026-10-16). **The reviews sheet's own
-       summary, one component in both places**: the owner was offered a
-       ten-bar histogram like the reference's and chose "the sheet's
-       three-part bar, as it is". The card is a door to the sheet. Do not put
-       a histogram here; the unused one (`RatingBreakdownGraph`) was deleted.
+       summary, one component in both places.** On 2026-10-09 the owner was
+       offered a ten-bar histogram and kept a three-part bar; on 2026-10-21
+       they asked for this graph, from a reference, for the game page —
+       "both in the overview tab and sheet" — and for a person's profile.
+       The rows are counted from the ratings (`getRatingDistribution`), not
+       0041's histogram, whose top band holds 91–100 and cannot keep 100
+       apart. **It is drawn as How ratings work's "Your ratings" spread**
+       (2026-10-21, "inside a card… exactly like the one that appears in
+       the how ratings work screen"): in a card of its own, a quiet band
+       label, a thin pill track with the bar in it, the count at the far
+       end — in the sheet and on the profile; here, already in the Ratings
+       card, without a second card (`graphCard={false}`). The card is a
+       door to the sheet.
     2. **Played by / From your friends** (`<PlayedBy>`, `getGamePlayers`): two
        equal squares, two faces each, each face over the score that person
        gave — or the word for where they are with it. Played is playing,

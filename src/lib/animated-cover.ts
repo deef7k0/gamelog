@@ -65,8 +65,18 @@ export const SGDB_DIMENSIONS: Record<CoverAspect, string> = {
   portrait: '600x900,660x930,342x482',
 };
 
-/** Grids asked for at once: the first few, in SteamGridDB's own order. */
-export const SGDB_CANDIDATES = 5;
+/**
+ * Grids asked for at once. Ten, up from five, because some are now passed
+ * over before anything is weighed — the humorous ones (`rankGrids`).
+ */
+export const SGDB_CANDIDATES = 10;
+
+/**
+ * How many playable files a game's answer keeps: the one to play, and the
+ * ones to fall back on, in order, should it not play on this phone
+ * (`pickPlayable`). Each costs a HEAD request when the game is looked up.
+ */
+export const MAX_ALTERNATES = 4;
 
 /**
  * The most an animated file may weigh, in bytes.
@@ -97,7 +107,36 @@ export type SgdbGrid = {
   nsfw?: boolean;
   /** Flashing that could set off a seizure: never shown. */
   epilepsy?: boolean;
+  /** A joke version of the cover: never shown (the owner's, 2026-10-21). */
+  humor?: boolean;
+  upvotes?: number;
+  downvotes?: number;
+  score?: number;
 };
+
+/**
+ * The grids worth showing, the most liked first.
+ *
+ * The owner (2026-10-21): "Remove humorous animated ones. Ones that are tagged
+ * with humor, or maybe get the most liked one." Both: a grid flagged `humor`
+ * is dropped (and asked away in the request too), as are NSFW and
+ * epilepsy-flagged ones; the rest are ordered by their votes, upvotes less
+ * downvotes, then SteamGridDB's own score, and its own order where those tie —
+ * which, for most games, is every grid at nought.
+ */
+export function rankGrids(grids: readonly SgdbGrid[]): SgdbGrid[] {
+  const liked = (grid: SgdbGrid) => (grid.upvotes ?? 0) - (grid.downvotes ?? 0);
+  return grids
+    .map((grid, index) => ({ grid, index }))
+    .filter(({ grid }) => !grid.epilepsy && !grid.nsfw && !grid.humor)
+    .sort(
+      (a, b) =>
+        liked(b.grid) - liked(a.grid) ||
+        (b.grid.score ?? 0) - (a.grid.score ?? 0) ||
+        a.index - b.index
+    )
+    .map(({ grid }) => grid);
+}
 
 /** Which platform is drawing: iOS's AVPlayer cannot open a WebM. */
 export type CoverPlatform = 'ios' | 'android' | 'web';
@@ -135,7 +174,7 @@ export function sgdbCandidates(
   grids: readonly SgdbGrid[],
   platform: CoverPlatform
 ): AnimatedAsset[] {
-  const safe = grids.filter((grid) => !grid.epilepsy && !grid.nsfw);
+  const safe = rankGrids(grids);
   const full = safe.flatMap((grid): AnimatedAsset[] =>
     grid.url && animatedFormatOf(grid.url) === 'image'
       ? [
@@ -156,6 +195,35 @@ export function sgdbCandidates(
       : []
   );
   return [...full, ...previews];
+}
+
+/**
+ * Which of a game's playable files to show, given what has failed on this
+ * phone this session — or null when none is left.
+ *
+ * A file that would not play is passed over, and so is **every full-size
+ * animation at least as heavy as one that failed**: an animated image that
+ * will not decode here (Red Dead Redemption 2's 8 MB WebP gave Glide's
+ * "Failed to load resource", 2026-10-21) is likelier to be the phone's limit
+ * than the file's, and each attempt is a whole download. The previews are
+ * never skipped for it — they are a different decoder (a video) and small.
+ */
+export function pickPlayable(
+  assets: readonly AnimatedAsset[],
+  failedUrls: ReadonlySet<string>,
+  failedAtBytes: number
+): AnimatedAsset | null {
+  return (
+    assets.find(
+      (asset) =>
+        !failedUrls.has(asset.url) &&
+        !(
+          asset.quality === 'full' &&
+          typeof asset.bytes === 'number' &&
+          asset.bytes >= failedAtBytes
+        )
+    ) ?? null
+  );
 }
 
 /** Whether an IGDB cover of this size is the shape asked for. */

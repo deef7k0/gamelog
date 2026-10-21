@@ -7,6 +7,8 @@ import {
   igdbAnimatedCoverUrl,
   lightEnough,
   matchesAspect,
+  pickPlayable,
+  rankGrids,
   sgdbCandidates,
   type SgdbGrid,
 } from './animated-cover.ts';
@@ -96,6 +98,67 @@ describe('sgdbCandidates', () => {
 
   it('offers nothing iOS cannot play', () => {
     assert.deepEqual(sgdbCandidates([{ ...WEBP, url: 'https://x.test/a.jpg' }], 'ios'), []);
+  });
+});
+
+describe('rankGrids', () => {
+  it('drops a joke grid, as the owner asked', () => {
+    assert.deepEqual(rankGrids([{ ...WEBP, humor: true }, APNG]), [APNG]);
+    assert.deepEqual(sgdbCandidates([{ ...WEBP, humor: true }], 'android'), []);
+  });
+
+  it('puts the most liked first, then SteamGridDB’s own order', () => {
+    const liked = { ...APNG, upvotes: 12, downvotes: 2 };
+    const disliked = { ...WEBP, url: 'https://x.test/b.webp', upvotes: 0, downvotes: 3 };
+    assert.deepEqual(rankGrids([WEBP, disliked, liked]), [liked, WEBP, disliked]);
+    assert.deepEqual(rankGrids([APNG, WEBP]), [APNG, WEBP]);
+  });
+});
+
+describe('pickPlayable', () => {
+  /* Red Dead Redemption 2's files, as the lookup keeps them (2026-10-21). */
+  const heavy = {
+    url: 'https://x.test/rdr.webp',
+    format: 'image' as const,
+    quality: 'full' as const,
+    bytes: 8_078_338,
+  };
+  const lighter = {
+    url: 'https://x.test/b.webp',
+    format: 'image' as const,
+    quality: 'full' as const,
+    bytes: 4_100_000,
+  };
+  const heavier = {
+    url: 'https://x.test/c.png',
+    format: 'image' as const,
+    quality: 'full' as const,
+    bytes: 9_000_000,
+  };
+  const preview = {
+    url: 'https://x.test/rdr.webm',
+    format: 'video' as const,
+    quality: 'preview' as const,
+    bytes: 1_200_000,
+  };
+
+  it('plays the first while nothing has failed', () => {
+    assert.equal(pickPlayable([heavy, lighter, preview], new Set(), Infinity), heavy);
+  });
+
+  it('moves past a file that would not play, and every full one as heavy', () => {
+    const failed = new Set([heavy.url]);
+    assert.equal(pickPlayable([heavy, heavier, lighter, preview], failed, heavy.bytes), lighter);
+  });
+
+  it('never passes over a preview for a full file’s weight', () => {
+    const failed = new Set([heavy.url, lighter.url]);
+    assert.equal(pickPlayable([heavy, lighter, preview], failed, lighter.bytes), preview);
+  });
+
+  it('is none when everything has failed', () => {
+    assert.equal(pickPlayable([heavy], new Set([heavy.url]), heavy.bytes), null);
+    assert.equal(pickPlayable([], new Set(), Infinity), null);
   });
 });
 

@@ -10,7 +10,14 @@ import { AnimatedCoverImage } from '@/components/ui/animated-cover-image';
 import { ArtworkMeshPage } from '@/components/ui/artwork-mesh-page';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
+import {
+  Palette,
+  PosterAspectRatio,
+  Radius,
+  Spacing,
+  TapTarget,
+  withAlpha,
+} from '@/constants/theme';
 import { useAnimatedCover } from '@/hooks/use-animated-cover';
 import { useArtworkMesh } from '@/hooks/use-artwork-mesh';
 import { useTheme } from '@/hooks/use-theme';
@@ -37,7 +44,7 @@ const DISSOLVE_SHARE = 0.12;
  * Kept under the cover however short the display: the two keys and the line
  * under them, with air. On a phone the cover is full width and leaves far
  * more — a 2:3 cover on a 360×780 display stands 540 tall and leaves 240 —
- * and only on a short one does the cover give up width to keep this.
+ * and only on a short one is the cover's height trimmed to keep this.
  */
 const ROOM_BELOW = TapTarget * 2 + Spacing.x48 + Spacing.x24;
 
@@ -95,8 +102,8 @@ type Shown = 'static' | 'animated';
  * Animated below."
  *
  * - **The cover runs edge to edge from the top of the display**, under the
- *   status bar, at its own proportions. A display too short to leave
- *   `ROOM_BELOW` under it takes width off the cover instead, and centres it.
+ *   status bar, at 2:3. A display too short to leave `ROOM_BELOW` under it
+ *   trims the cover's height, never its width.
  * - **Under it is SimpMusic's Apple Music page** (`<ArtworkMeshPage>`, a port
  *   of `AppleMusicMeshBackdrop.kt`): the cover's colours as a blurred mesh
  *   hung from its foot, the first row of which is the foot itself. The page
@@ -177,22 +184,33 @@ export function CoverViewer({ game, origin, page, onClosed }: CoverViewerProps) 
     timer.current = setTimeout(onClosed, duration);
   }
 
-  const ratio = origin.width > 0 ? origin.height / origin.width : 1.5;
+  /* Always the display's full width (the owner, 2026-10-21: covers were
+     leaving "small gaps at the edges, left and right"). The cover's own 2:3,
+     never the masthead's measured box: that is measured mid-press or
+     mid-landing, scaled and turned, and a ratio read off it a hair too tall
+     took width off the cover. A display too short to keep `ROOM_BELOW` under
+     a whole 2:3 trims the cover's height instead — `cover` crops it — so the
+     sides are never given up. */
   const target = room
     ? (() => {
-        const width = Math.min(room.width, (room.height - insets.bottom - ROOM_BELOW) / ratio);
-        const height = width * ratio;
-        return { width, height, left: (room.width - width) / 2, top: 0 };
+        const width = room.width;
+        const height = Math.min(
+          width / PosterAspectRatio,
+          room.height - insets.bottom - ROOM_BELOW
+        );
+        return { width, height, left: 0, top: 0 };
       })()
     : null;
 
   /* Where the copy starts: laid out at full size, moved and scaled onto the
-     masthead's cover. */
+     masthead's cover — each side by its own factor, since a trimmed cover is
+     not quite the masthead's shape. */
   const from = target
     ? {
         x: origin.x + origin.width / 2 - (target.left + target.width / 2),
         y: origin.y + origin.height / 2 - (target.top + target.height / 2),
-        scale: origin.width / target.width,
+        scaleX: origin.width / target.width,
+        scaleY: origin.height / target.height,
       }
     : null;
 
@@ -259,11 +277,16 @@ export function CoverViewer({ game, origin, page, onClosed }: CoverViewerProps) 
                 height: target.height,
                 /* The masthead's corner where it starts — in proportion, at
                    the size the copy is drawn — and none edge to edge. */
-                borderRadius: open ? 0 : Radius.image / from.scale,
+                borderRadius: open ? 0 : Radius.image / from.scaleX,
                 backgroundColor: theme.surfaceElevated,
                 transform: open
-                  ? [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }]
-                  : [{ translateX: from.x }, { translateY: from.y }, { scale: from.scale }],
+                  ? [{ translateX: 0 }, { translateY: 0 }, { scaleX: 1 }, { scaleY: 1 }]
+                  : [
+                      { translateX: from.x },
+                      { translateY: from.y },
+                      { scaleX: from.scaleX },
+                      { scaleY: from.scaleY },
+                    ],
               },
             ]}>
             <AnimatedCoverImage
@@ -275,7 +298,8 @@ export function CoverViewer({ game, origin, page, onClosed }: CoverViewerProps) 
               onFailed={animated.reportFailure}
               onAnimationShown={() => setDrawn(true)}
               aspect="portrait"
-              style={StyleSheet.absoluteFill}
+              /* The box's size, not the shape's 2:3: a trimmed cover is shorter. */
+              style={[StyleSheet.absoluteFill, { aspectRatio: undefined }]}
               contentFit="cover"
               accessibilityLabel={
                 shown === 'animated'

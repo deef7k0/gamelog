@@ -81,8 +81,13 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "340c2363-9916-4b47-ab5d-233071a78502"
+        "projectId": "dc84d5b0-359a-4909-b6ed-074a73b88a55"
+      },
+      "expo-navigation-bar": {
+        "enforceContrast": false,
+        "style": "light"
       }
-    }
+    },
+    "owner": "pepedoblas"
   }
 }

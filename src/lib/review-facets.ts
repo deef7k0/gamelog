@@ -272,8 +272,8 @@ export function reviewBreakdown(
 
   const present = (entry: BreakdownRow | null): entry is BreakdownRow => entry !== null;
   const sections: BreakdownSection[] = [
-    { key: 'progress', title: 'Progress', rows: progress.filter(present) },
-    { key: 'platform', title: 'Platform', rows: platforms.filter(present) },
+    { key: 'progress', title: 'How far they got', rows: progress.filter(present) },
+    { key: 'platform', title: 'Played on', rows: platforms.filter(present) },
     { key: 'play', title: 'Solo or co-op', rows: play.filter(present) },
   ];
   return sections.filter((section) => section.rows.length > 0);

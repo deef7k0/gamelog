@@ -13,6 +13,7 @@ import { ProfileActionRow, ProfileButton, ProfileKey } from '@/components/profil
 import { LogCard } from '@/components/log-card';
 import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
 import { FavoritesWidget } from '@/components/profile-widgets';
+import { RatingsWidget } from '@/components/ratings-widget';
 import { StarredSongWidget } from '@/components/starred-song-widget';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -646,6 +647,10 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
       {/* Renders nothing until someone pins a track, so it costs no vertical
           space on a profile that has not used the feature. */}
       <StarredSongWidget profileId={profileId} />
+
+      {/* How their scores divide — the last widget before the tabs, the
+          owner's (2026-10-21). Nothing until they have scored a game. */}
+      <RatingsWidget profileId={profileId} />
 
       {/*
         The tabs, under everything the profile holds and directly over what

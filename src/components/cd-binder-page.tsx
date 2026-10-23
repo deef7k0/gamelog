@@ -4,8 +4,9 @@ import { StyleSheet, View } from 'react-native';
 import { CdDisc } from '@/components/cd-disc';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
-import { CONDITION_LABEL, releaseLine } from '@/constants/physical';
+import { CONDITION_LABEL, mediumFor, releaseLine } from '@/constants/physical';
 import { platformKeyForStored } from '@/constants/platform-family';
+import { useCopyArt } from '@/hooks/use-copy-art';
 import { withAlpha } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { CopyWithRelations } from '@/lib/api';
@@ -100,6 +101,11 @@ function Sleeve({
 }) {
   const theme = useTheme();
   const edge = withAlpha(theme.text, 0.09);
+  const platform = platformKeyForStored(copy?.platform);
+  /* The real disc's label when it has been found (`useCopyArt`); the art
+     printed on a disc until then, and for a cartridge always. */
+  const art = useCopyArt(copy);
+  const label = mediumFor(platform) === 'disc' ? (art.disc?.url ?? null) : null;
   /* The pocket's lip: from a little under the disc's middle to the bottom. */
   const lipTop = SLEEVE_PAD + disc * 0.62;
 
@@ -110,9 +116,10 @@ function Sleeve({
           coverUrl={copy.game?.cover_url}
           heroUrl={copy.game?.hero_url}
           title={copy.game?.title ?? '?'}
-          platform={platformKeyForStored(copy.platform)}
+          platform={platform}
           size={disc}
           holeColor={film}
+          labelUrl={label}
           style={styles.disc}
         />
       )}

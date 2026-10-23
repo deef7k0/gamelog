@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
+import * as Linking from 'expo-linking';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { memo, useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Share, StyleSheet, View, useWindowDimensions, type ScrollView } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 
 import { ExternalLink } from '@/components/external-link';
@@ -40,6 +41,7 @@ import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/sc
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { InfoCard, InfoCardButton } from '@/components/ui/info-card';
 import { PageScrollView } from '@/components/ui/page-scroll';
+import { PinnedTabBar } from '@/components/ui/pinned-tab-bar';
 import { Section, SectionInsetProvider, useSectionMetrics } from '@/components/ui/section';
 import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
@@ -58,6 +60,7 @@ import { platformKeyForStored } from '@/constants/platform-family';
 import { FontFamily, PosterAspectRatio, Spacing } from '@/constants/theme';
 import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
 import { useLandingArrival } from '@/hooks/use-arrival';
+import { useHeaderHeight } from '@/hooks/use-header-height';
 import { useGameStorefronts } from '@/hooks/use-game-prices';
 import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
 import { useTheme } from '@/hooks/use-theme';
@@ -291,6 +294,11 @@ export default function GameDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = useAuth((state) => state.session?.user.id);
   const [tab, setTab] = useState<GameTab>('overview');
+  /* Where the tabs sit in the page, for their pinned copy; and the page's
+     scroller, which a tab chosen there scrolls back to them. */
+  const [tabsAt, setTabsAt] = useState<number | null>(null);
+  const scroller = useRef<ScrollView>(null);
+  const headerHeight = useHeaderHeight();
   /*
    * The sheets keep their own open / closed state, in `<GameSheets>`.
    *
@@ -684,8 +692,11 @@ export default function GameDetailScreen() {
         <View style={styles.billing}>
           {/* Pure white (`white`). `text` is a step under it, and the
               reference's title is not. */}
+          {/* The page's heading for a screen reader: the bar's title is not
+              there until it comes in. */}
           <Text
             variant="display"
+            accessibilityRole="header"
             numberOfLines={4}
             style={[styles.billingTitle, { color: theme.white }]}>
             {data.title}
@@ -766,14 +777,17 @@ export default function GameDetailScreen() {
             <View style={styles.scoreRow}>
               <Text
                 variant="h4"
-                accessibilityLabel={`${Math.round(data.score)} out of 100 — ${labelFor(Math.round(data.score))}`}
+                accessibilityLabel={`IGDB: ${Math.round(data.score)} out of 100 — ${labelFor(Math.round(data.score))}`}
                 style={{ color: scoreColor(data.score, theme) }}>
                 {Math.round(data.score)}
               </Text>
               {/* A quiet sentence-case label beside a bold figure — the owner's
-                  reference sets numbers that way, and keeps caps for nothing. */}
+                  reference sets numbers that way, and keeps caps for nothing.
+                  Named for whose number it is: "Community" read as GameLog's
+                  own, one line above the strip saying nobody here has rated
+                  it (critique, 2026-10-21). */}
               <Text variant="body" style={{ color: accent.quietInk }}>
-                Community
+                IGDB
               </Text>
             </View>
           )}
@@ -1102,7 +1116,7 @@ export default function GameDetailScreen() {
                 own, so nothing that could be reached from here was lost in the
                 move. Absent for a game that is not IGDB's, which has no record.
               */}
-              <GameDetailsCard gameId={data.id} />
+              <GameDetailsCard gameId={data.id} title={data.title} year={data.releaseYear} />
 
               {/* What the critics and the shows gave it, as the publisher
                   shows it on Steam — the graphic from the store page's Awards
@@ -1215,9 +1229,19 @@ export default function GameDetailScreen() {
                   it cannot be rendered from a number the app never received. */}
               {achievements.isLoadingError ? (
                 <InfoCard title="Achievements">
-                  <Text variant="body" color="textSecondary">
-                    Could not load achievements. Pull to refresh, or try again later.
-                  </Text>
+                  {/* The page has no pull-to-refresh; this said there was. */}
+                  <View style={styles.retry}>
+                    <Text variant="body" color="textSecondary">
+                      Achievements couldn’t be loaded.
+                    </Text>
+                    <Button
+                      title="Try again"
+                      size="small"
+                      variant="secondary"
+                      loading={achievements.isFetching}
+                      onPress={() => void achievements.refetch()}
+                    />
+                  </View>
                 </InfoCard>
               ) : (
                 achievementTotal > 0 && (
@@ -1300,13 +1324,23 @@ export default function GameDetailScreen() {
               /* The trailer on and off, opposite the back disc — the studio
                  page's key — shown only when there is a trailer to switch. */
               right={
-                trailer ? (
+                <>
+                  {trailer && (
+                    <TopBarDisc
+                      icon={trailers.on ? 'videocam-off-outline' : 'videocam-outline'}
+                      label={trailers.on ? 'Stop the trailer' : 'Play the trailer'}
+                      onPress={() => trailers.setOn(!trailers.on)}
+                    />
+                  )}
+                  {/* Share, at the top right as on every other page that has
+                      it — the action row gave its slot to Collect, and the
+                      page had none until the owner put it here (2026-10-21). */}
                   <TopBarDisc
-                    icon={trailers.on ? 'videocam-off-outline' : 'videocam-outline'}
-                    label={trailers.on ? 'Stop the trailer' : 'Play the trailer'}
-                    onPress={() => trailers.setOn(!trailers.on)}
+                    icon="share-outline"
+                    label={`Share ${data.title}`}
+                    onPress={() => shareGame(data)}
                   />
-                ) : undefined
+                </>
               }
             />
           }>
@@ -1323,16 +1357,33 @@ export default function GameDetailScreen() {
             which nests inside a ScrollView without complaint.
           */}
           <PageScrollView
+            ref={scroller}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.content}>
             {header}
-            {/* `center`: three pills do not reach the edges of a phone, and
-                left-aligned under a full-width masthead they read as a row
-                that lost a tab — which is exactly what happened when Reviews
-                became a sheet. See `TabBarProps.align`. */}
-            <TabBar tabs={TABS} value={tab} onChange={setTab} align="spread" />
+            {/* `spread`: three equal tabs across the column, barely touching —
+                the owner's, over two passes (see `TabBarProps.align`). Measured,
+                so the pinned copy below knows where it takes over. */}
+            <View onLayout={(event) => setTabsAt(event.nativeEvent.layout.y)}>
+              <TabBar tabs={TABS} value={tab} onChange={setTab} align="spread" />
+            </View>
             {renderTab()}
           </PageScrollView>
+          {/* The same tabs, held under the bar once the page has scrolled them
+              up to it (critique, 2026-10-21). Switching there starts the new
+              tab at its top, under the tabs, rather than mid-way down it. */}
+          <PinnedTabBar
+            at={tabsAt}
+            background={accent.page}
+            tabs={TABS}
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              if (tabsAt !== null)
+                scroller.current?.scrollTo({ y: tabsAt - headerHeight, animated: false });
+            }}
+            align="spread"
+          />
         </Screen>
 
         {/* A sibling of `<Screen>`, not a child: the floating back disc is
@@ -1447,7 +1498,16 @@ function GameSheets({ store, game, log }: { store: SheetStore; game: Game; log: 
   );
 }
 
+/** The OS share sheet for a game: its name, its year, and a link into the app. */
+function shareGame(game: Game) {
+  const year = game.releaseDate ? ` (${new Date(game.releaseDate).getUTCFullYear()})` : '';
+  const url = Linking.createURL(`/game/${game.id}`);
+  Share.share({ message: `${game.title}${year} on GameLog\n${url}` }).catch(() => undefined);
+}
+
 const styles = StyleSheet.create({
+  /* The achievements card's failure: the sentence, then its way out. */
+  retry: { gap: Spacing.x12, alignItems: 'flex-start' },
   content: { paddingBottom: Spacing.x48 },
   /* A list inside one card, so the interval is a list's rather than a card's. */
   /*

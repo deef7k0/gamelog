@@ -54,7 +54,7 @@ export function resolvePreview(row: SummaryRow): ListCover | null {
   return (chosen ?? items[0]).game ?? null;
 }
 
-/** How many covers a tile's stack shows: `STACK_SIZE` in `constants/cover-stack`. */
+/** How many covers a summary carries: five, of which a collection's row shows four (`<ListTile>`). */
 const STACK_COVERS = 5;
 
 /**

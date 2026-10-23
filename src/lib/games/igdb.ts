@@ -58,6 +58,10 @@ type IgdbGame = {
   }[];
   /** 0-100 already. */
   total_rating?: number;
+  /** How many ratings `total_rating` is made of — the studio page's "Most popular". */
+  total_rating_count?: number;
+  /** Asked only by `STUDIO_FIELDS`. */
+  franchises?: { id: number; name?: string }[];
   url?: string;
 
   /*
@@ -503,19 +507,22 @@ export async function searchWholeGames(term: string, signal?: AbortSignal): Prom
 }
 
 /**
- * Whole games matching a `where` clause, the most-rated first.
+ * Whole games matching a `where` clause, the most-rated first — or in `sort`'s
+ * order (Home's Quick picks ask for the best-scored).
  *
- * The clause is built by `lib/onboarding.ts` (`picksClause`, `pickingGridClause`),
- * which is pure and tested; this only sends it.
+ * The clause is built by a pure, tested module — `lib/onboarding.ts`
+ * (`picksClause`, `pickingGridClause`), `lib/games/moods.ts` — and this only
+ * sends it.
  */
 export async function getGamesWhere(
   where: string,
   limit: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  sort = 'total_rating_count desc'
 ): Promise<Game[]> {
   const raw = await igdbQuery<IgdbGame[]>(
     'games',
-    `${GAME_FIELDS} where ${where}; sort total_rating_count desc; limit ${limit};`,
+    `${GAME_FIELDS} where ${where}; sort ${sort}; limit ${limit};`,
     signal
   );
   return (raw ?? []).map(toFullGame);
@@ -777,10 +784,22 @@ export async function getStudioCompany(
  * that is a wordmark strip is passed over before anything downloads it.
  */
 const STUDIO_FIELDS = `
-  fields name, total_rating, first_release_date, cover.image_id,
+  fields name, total_rating, total_rating_count, first_release_date, cover.image_id,
          artworks.image_id, artworks.width, artworks.height, screenshots.image_id,
-         game_type, parent_game, version_parent, version_title;
+         game_type, parent_game, version_parent, version_title,
+         franchises.id, franchises.name, genres.name;
 `;
+
+/**
+ * A game on the studio page: a search result, and what its sections are drawn
+ * from — how many ratings it has ("Most popular") and its franchises (a rail
+ * each). Optional, because a catalogue saved on the device before they were
+ * asked for has neither.
+ */
+export type StudioGame = GameSearchResult & {
+  ratingCount?: number | null;
+  franchises?: { id: number; name: string }[];
+};
 
 /**
  * Past this many ids the query is asked by involvement instead. Nintendo's
@@ -820,7 +839,7 @@ export async function getStudioGames(
   gameIds: readonly number[],
   { maxHeroAspect }: { maxHeroAspect: number },
   signal?: AbortSignal
-): Promise<GameSearchResult[]> {
+): Promise<StudioGame[]> {
   const byId = gameIds.length > 0 && gameIds.length <= MAX_ID_FILTER;
   const raw = await igdbQuery<IgdbGame[]>(
     'games',
@@ -831,9 +850,13 @@ export async function getStudioGames(
      limit 200;`,
     signal
   );
-  return (raw ?? []).map((game) =>
-    toSearchResult({ ...toGame(game), heroUrl: bannerArtOf(game, maxHeroAspect) })
-  );
+  return (raw ?? []).map((game) => ({
+    ...toSearchResult({ ...toGame(game), heroUrl: bannerArtOf(game, maxHeroAspect) }),
+    ratingCount: game.total_rating_count ?? null,
+    franchises: (game.franchises ?? [])
+      .filter((franchise): franchise is { id: number; name: string } => !!franchise.name)
+      .map((franchise) => ({ id: franchise.id, name: franchise.name })),
+  }));
 }
 
 /** The first artwork no wider than `maxAspect`, else the first screenshot, at 1080p. */
@@ -1042,6 +1065,12 @@ export type SurprisePoolFilters = {
   match?: 'all' | 'any';
   /** IGDB language ids: a game with any support in any of them. */
   languageIds?: readonly number[];
+  /**
+   * RAWG tag ids. Not a clause of IGDB's: with any set, the batch is drawn
+   * from RAWG's games with them and this query's clause narrows those
+   * (`getSurpriseBatch` → `getTagSurprisePool`).
+   */
+  tagIds?: readonly number[];
   /** Released in or after this year, in or before that one. Null for no bound. */
   fromYear?: number | null;
   toYear?: number | null;
@@ -1158,7 +1187,7 @@ function pickOne<T>(values: readonly T[]): T {
  * clause is worse than no count at all: it would confidently report a number for
  * a query nobody runs, and the two would drift the first time either changed.
  */
-function surprisePoolQuery(
+export function surprisePoolQuery(
   pool: SurprisePool,
   filters: SurprisePoolFilters
 ): { clause: string; sort: string; filtered: boolean } {

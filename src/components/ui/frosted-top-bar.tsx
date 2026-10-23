@@ -263,7 +263,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
  * the blur's strength, is moved by a hundredth on alternate renders instead
  * (`<Frost>`).
  */
-function usePulse(): SharedValue<number> {
+export function usePulse(): SharedValue<number> {
   const pulse = useSharedValue(0);
   useEffect(() => {
     pulse.set(pulse.get() + 1);
@@ -459,10 +459,18 @@ function ArtBar({
  * should not move with the scroll." The name is kept so its one caller did not
  * change.
  *
- * The row is the caller's: a wordmark and a bell, in Home's case. It is 64
- * high and the page keeps `useHeaderHeight()` clear at its top.
+ * The row is the caller's — Home's is SimpMusic's own header (`<HomeHeader>`):
+ * the avatar, the chips and Create. It is `height` high, 64 unless the caller
+ * says otherwise (Home's is the reference's 56), and the page keeps the inset
+ * and that row clear at its top.
  */
-export function FoldingTopBar({ children }: { children: ReactNode }) {
+export function FoldingTopBar({
+  children,
+  height = TOP_BAR_ROW,
+}: {
+  children: ReactNode;
+  height?: number;
+}) {
   const theme = useTheme();
   const chrome = useScreenChrome();
   const inset = useTopBarInset();
@@ -480,9 +488,11 @@ export function FoldingTopBar({ children }: { children: ReactNode }) {
   );
 
   return (
-    <View style={[styles.layer, { height: inset + TOP_BAR_ROW }]} pointerEvents="box-none">
+    <View style={[styles.layer, { height: inset + height }]} pointerEvents="box-none">
       <Frost progress={frost} pulse={pulse} tint={chrome?.background ?? theme.background} />
-      <View style={[styles.foldRow, { marginTop: inset }]}>{children}</View>
+      <View style={[styles.foldRow, { marginTop: inset, height }]} pointerEvents="box-none">
+        {children}
+      </View>
     </View>
   );
 }

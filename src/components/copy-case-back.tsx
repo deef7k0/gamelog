@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 
@@ -13,6 +14,7 @@ import {
 import { formatPartialDate } from '@/constants/progress';
 import { FontFamily, readableInk } from '@/constants/theme';
 import type { CopyWithRelations } from '@/lib/api';
+import type { CopyArtImage } from '@/lib/api/copy-art';
 import { maskBarcode } from '@/lib/barcode';
 
 /**
@@ -57,6 +59,11 @@ export type CopyCaseBackProps = {
    * as the art in front of it.
    */
   height?: number;
+  /**
+   * A scan of the real back cover (`useCopyArt`, GameTDB or ScreenScraper),
+   * drawn in place of the printed record when there is one.
+   */
+  scan?: CopyArtImage | null;
 };
 
 /**
@@ -75,8 +82,16 @@ export type CopyCaseBackProps = {
  * list of the same facts under the case; the owner removed it — "the
  * information for the physical edition should only be displayed at the back of
  * the case" — so the case is drawn larger than it was, to be read here.
+ *
+ * **Unless the real back has been found** (`scan`, 2026-10-22: "fetch… a back
+ * cover and CD disc to display. The front stays app-default"). Then the face
+ * is the scan — the publisher's own back, under the same plastic sheen — and
+ * the record is said under the stage while the back faces the reader
+ * (`copyRecordLine`), so it is still shown, and still only once. A scan of a
+ * whole sleeve (GameTDB's Wii and GameCube) is cropped to its back: the image
+ * is drawn as tall as the face and slid so only `crop` shows.
  */
-export function CopyCaseBack({ copy, platform, width, height: given }: CopyCaseBackProps) {
+export function CopyCaseBack({ copy, platform, width, height: given, scan }: CopyCaseBackProps) {
   /* The front's own height: each platform's case is drawn at its template's
      proportions, and the two faces must be one rectangle. */
   const size = hasCase(platform) ? CASE_TEMPLATES[platform].templateSize : CASE_TEMPLATE_SIZE;
@@ -127,6 +142,43 @@ export function CopyCaseBack({ copy, platform, width, height: given }: CopyCaseB
       : []),
     ...(barcode ? ([['Barcode', maskBarcode(barcode)]] as [string, string][]) : []),
   ];
+
+  if (scan) {
+    /* The shown part of the scan fills the face's height; its width follows
+       the scan's own shape, and the face clips the rest. */
+    const part = scan.crop ? scan.crop.right - scan.crop.left : 1;
+    const drawnHeight = height;
+    const drawnWidth = (drawnHeight * scan.width) / Math.max(1, scan.height);
+    const shownWidth = drawnWidth * part;
+    /* Centred when the shown part is not the face's own shape. */
+    const left = -(scan.crop?.left ?? 0) * drawnWidth + (width - shownWidth) / 2;
+    return (
+      <View style={[styles.shell, { width, height, borderRadius: SIZES.radius(width) }]}>
+        <LinearGradient
+          colors={[PLASTIC.top, PLASTIC.bottom]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <Image
+          source={{ uri: scan.url }}
+          recyclingKey={scan.url}
+          cachePolicy="memory-disk"
+          contentFit="fill"
+          transition={200}
+          style={{ position: 'absolute', top: 0, left, width: drawnWidth, height: drawnHeight }}
+          accessibilityIgnoresInvertColors
+        />
+        <LinearGradient
+          colors={['rgba(255,255,255,0.20)', 'rgba(255,255,255,0.04)', 'rgba(255,255,255,0)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.9, y: 0.55 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.shell, { width, height, borderRadius: SIZES.radius(width) }]}>
@@ -190,6 +242,22 @@ export function CopyCaseBack({ copy, platform, width, height: given }: CopyCaseB
       />
     </View>
   );
+}
+
+/**
+ * The copy's record in one line — release, region and edition, what is in
+ * the box, its condition — said under the stage while a scanned back is
+ * toward the reader, since the scan covers the printed one.
+ */
+export function copyRecordLine(copy: CopyWithRelations, platform: PlatformKey): string {
+  return [
+    copy.region ? REGION_LABEL[copy.region] : null,
+    copy.edition?.trim() || 'Standard',
+    copy.completeness ? completenessLabel(copy.completeness, mediumFor(platform)) : null,
+    copy.condition ? CONDITION_LABEL[copy.condition] : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 const styles = StyleSheet.create({

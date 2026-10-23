@@ -207,12 +207,15 @@ export const GameStatsStrip = memo(function GameStatsStrip({
           key: 'score',
           /* Still a door. There are no ratings to read, and the sheet it opens is
              where a reader writes the first one — which is the single most useful
-             thing this cell can offer on a game nobody has scored. */
-          value: EMPTY,
-          label: 'No ratings found',
+             thing this cell can offer on a game nobody has scored, so its label
+             says that instead of "No ratings found" (critique, 2026-10-21).
+             "Unrated", not "N/A": this one is a fact the app knows, and a word
+             that fits a quarter of the strip at `h4`. */
+          value: 'Unrated',
+          label: 'Be the first',
           empty: true,
           onPress: onOpenReviews,
-          a11y: 'Not yet rated by anybody here. Opens the reviews.',
+          a11y: 'Nobody here has rated it yet. Opens the reviews, where you can be the first.',
         },
 
     listCount > 0

@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import { MemberReviewCard } from '@/components/member-review-card';
 import { ScoreSummary } from '@/components/score-summary';
 import { Avatar } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { PANEL_GAP, Panel } from '@/components/ui/panel';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Section, useSectionInset } from '@/components/ui/section';
@@ -40,7 +41,7 @@ import { useAuth } from '@/store/auth';
  *   ╭ Ratings ─────────────────────────────╮
  *   │ ──────────────────────────────────── │
  *   │ Very Positive                (o_o)   │
- *   │ Based on 128 reviews          /|\ 84 │
+ *   │ Based on 128 ratings          /|\ 84 │
  *   │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  ▒▒▒▒  ░░          │
  *   ╰──────────────────────────────────────╯
  * ```
@@ -86,8 +87,8 @@ export function RatingsCard({
 
   const shown = clampScore(data.average);
   const verdict = ratingVerdict(shown, data.total);
-  /* Said as the card prints it: `<ScoreSummary>`'s "Based on N reviews". */
-  const counted = `${data.total.toLocaleString()} ${data.total === 1 ? 'review' : 'reviews'}`;
+  /* Said as the card prints it: `<ScoreSummary>`'s "Based on N ratings". */
+  const counted = `${data.total.toLocaleString()} ${data.total === 1 ? 'rating' : 'ratings'}`;
 
   return (
     <Panel
@@ -127,7 +128,9 @@ export function RatingsCard({
  * the page has one way of setting a number. **A zero is printed** — it is a
  * number the app knows, as the masthead's "0 Collections" is — so the card is
  * there for every game, once its answer is in. Its shape is held while it
- * loads so nothing under it moves; a failed request draws nothing.
+ * loads so nothing under it moves; a failed request says so in the card and
+ * offers a retry — it vanished, so a game whose counts would not load looked
+ * like one that had no card (critique, 2026-10-21).
  *
  * Invalidated by anything that writes a status or the wishlist
  * (`['game-audience', gameId]`): the log form, the progress sheet, the
@@ -141,7 +144,24 @@ export function GameAudienceCard({ gameId, title }: { gameId: string; title: str
     staleTime: 60_000,
   });
 
-  if (audience.isLoadingError) return null;
+  if (audience.isLoadingError) {
+    return (
+      <Panel title="On GameLog">
+        <View style={styles.failed}>
+          <Text variant="body" color="textSecondary">
+            These counts couldn’t be loaded.
+          </Text>
+          <Button
+            title="Try again"
+            size="small"
+            variant="secondary"
+            loading={audience.isFetching}
+            onPress={() => void audience.refetch()}
+          />
+        </View>
+      </Panel>
+    );
+  }
 
   const data = audience.data;
   const count = (n: number, one: string, many: string) =>
@@ -412,6 +432,8 @@ export function TopReview({
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
+  /* A failed card: the sentence, then its way out. */
+  failed: { gap: Spacing.x12, alignItems: 'flex-start' },
   /* Two equal squares, a panel's gap apart; `stretch` (the default) keeps them
      one height whichever holds more. */
   squares: { flexDirection: 'row', gap: PANEL_GAP },

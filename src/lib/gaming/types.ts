@@ -278,8 +278,12 @@ export interface GamingAccountProvider {
   /** False when the deployment has not configured this provider's credentials. */
   isConfigured(): boolean;
 
-  /** Run the provider's interactive link flow. Resolves when the user returns. */
-  link(options: { userId: string }): Promise<LinkOutcome>;
+  /**
+   * Run the provider's link flow. Resolves when the user returns. `handle` is
+   * the public name a username-linked provider imports from (PSN, Xbox, GOG —
+   * `username-provider.ts`); a sign-in provider ignores it.
+   */
+  link(options: { userId: string; handle?: string }): Promise<LinkOutcome>;
 
   /** Forget the account and every row synced from it. */
   unlink(options: { userId: string }): Promise<void>;

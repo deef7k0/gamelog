@@ -74,6 +74,42 @@ export async function getLinkedAccount(
   };
 }
 
+/**
+ * Every account a person has linked, each as its service and the public name
+ * it is linked as — the badges beside a profile's name. Profiles are public,
+ * and so is this.
+ */
+export async function getLinkedAccountHandles(
+  userId: string
+): Promise<{ provider: GamingProvider; handle: string | null; linkedBy: string }[]> {
+  const { data, error } = await supabase
+    .from('gaming_accounts')
+    .select('provider, handle, display_name, external_id, linked_by')
+    .eq('user_id', userId);
+
+  if (error) {
+    /* A database before 0044 has no `linked_by`: ask again without it. */
+    if (error.code === '42703' || error.code === 'PGRST204') {
+      const retry = await supabase
+        .from('gaming_accounts')
+        .select('provider, handle, display_name, external_id')
+        .eq('user_id', userId);
+      if (retry.error) throw new Error(retry.error.message);
+      return (retry.data ?? []).map((row) => ({
+        provider: row.provider,
+        handle: row.handle ?? row.display_name ?? null,
+        linkedBy: 'sign-in',
+      }));
+    }
+    throw new Error(error.message);
+  }
+  return (data ?? []).map((row) => ({
+    provider: row.provider,
+    handle: row.handle ?? row.display_name ?? null,
+    linkedBy: (row as { linked_by?: string }).linked_by ?? 'sign-in',
+  }));
+}
+
 export async function getSyncState(
   userId: string,
   provider: GamingProvider = DEFAULT_PROVIDER

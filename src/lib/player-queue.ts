@@ -174,6 +174,7 @@ export const MINI_PLAYER_HIDDEN_ROUTES: ReadonlySet<string> = new Set([
   'edit-list',
   'add-to-list',
   'label-games',
+  'pin-game',
   'quick-log',
   'edit-profile',
   'welcome',

@@ -126,6 +126,12 @@ export type SurprisePrefs = {
   platforms: PlatformGroupKey[];
   /** IGDB language ids (`LANGUAGES`): games with any support in one of them. */
   languageIds: number[];
+  /**
+   * RAWG tag ids (2026-10-22): a roll drawn from RAWG's games with them, as
+   * IGDB's games, narrowed by everything else here (`getTagSurprisePool`).
+   * Ids, as genres are; the names are RAWG's vocabulary, read at render.
+   */
+  tagIds: number[];
   /** When it came out. */
   era: ReleaseEra;
   /**
@@ -148,6 +154,7 @@ export const DEFAULT_SURPRISE_PREFS: SurprisePrefs = {
   modeIds: [],
   platforms: [],
   languageIds: [],
+  tagIds: [],
   era: 'any',
   match: 'any',
 };
@@ -173,6 +180,7 @@ export function poolFiltersFor(
     ),
     match: prefs.match,
     languageIds: prefs.languageIds,
+    tagIds: prefs.tagIds,
     ...eraYears(prefs.era, thisYear),
   };
 }
@@ -186,6 +194,7 @@ export function activeFilterCount(prefs: SurprisePrefs): number {
     prefs.modeIds.length +
     prefs.platforms.length +
     prefs.languageIds.length +
+    prefs.tagIds.length +
     (prefs.minRating > 0 ? 1 : 0) +
     (prefs.era !== 'any' ? 1 : 0)
   );
@@ -202,6 +211,7 @@ export function withoutFilters(prefs: SurprisePrefs): SurprisePrefs {
     modeIds: [],
     platforms: [],
     languageIds: [],
+    tagIds: [],
     era: 'any',
   };
 }
@@ -222,6 +232,7 @@ export function poolKey(prefs: SurprisePrefs): string {
     prefs.modeIds,
     prefs.platforms,
     prefs.languageIds,
+    prefs.tagIds,
     prefs.era,
     prefs.match,
   ]);
@@ -296,6 +307,8 @@ export async function loadSurprisePrefs(userId: string): Promise<SurprisePrefs> 
           )
         : [],
       languageIds: knownIds(parsed?.languageIds, LANGUAGES),
+      /* RAWG's vocabulary is fetched, so only the shape is checked, as genres. */
+      tagIds: validIds(parsed?.tagIds),
       era: RELEASE_ERAS.includes(parsed?.era as ReleaseEra)
         ? (parsed.era as ReleaseEra)
         : DEFAULT_SURPRISE_PREFS.era,

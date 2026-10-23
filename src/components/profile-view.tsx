@@ -5,10 +5,11 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import * as Linking from 'expo-linking';
 import { Alert, RefreshControl, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { PlatformBadges } from '@/components/gaming/platform-badges';
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { ConnectAccountCard } from '@/components/gaming/connect-card';
 import { SteamSection } from '@/components/gaming/steam-section';
-import { ListTile } from '@/components/list-tile';
+import { CollectionSeparator, ListTile } from '@/components/list-tile';
 import { ProfileActionRow, ProfileButton, ProfileKey } from '@/components/profile-actions';
 import { LogCard } from '@/components/log-card';
 import { GamesWidget, SHELF_LIMIT } from '@/components/games-widget';
@@ -32,7 +33,7 @@ import {
   avatarSize as avatarSizeFor,
 } from '@/constants/profile-layout';
 import { ArtRowWindow } from '@/constants/list-window';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ActivityRow, WallComposer, WallPostRow } from '@/components/wall';
 import {
@@ -131,8 +132,8 @@ const rowKey = (row: ProfileRow) => `${row.kind}:${row.id}`;
  * It needs no tab prop: the row it follows says which list this is. Wall rows
  * are split by a hairline, which makes a dense timeline scannable, except
  * directly above a date heading, where a rule would read as underlining the
- * previous group; the other lists are cards, and cards stack twelve apart —
- * reviews and collections alike.
+ * previous group; collections are rows under a hairline, as they are in every
+ * list; reviews are cards, and cards stack twelve apart.
  */
 function RowSeparator({ leadingItem }: { leadingItem?: ProfileRow }) {
   const theme = useTheme();
@@ -140,6 +141,8 @@ function RowSeparator({ leadingItem }: { leadingItem?: ProfileRow }) {
   if (leadingItem?.kind === 'wall') {
     return <View style={[styles.wallDivider, { backgroundColor: theme.border }]} />;
   }
+  /* Collections are rows with a hairline between, as everywhere (`<ListTile>`). */
+  if (leadingItem?.kind === 'list') return <CollectionSeparator />;
   return <View style={{ height: Spacing.x12 }} />;
 }
 
@@ -217,10 +220,6 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
   const clearance = useTabBarClearance();
   const { width } = useWindowDimensions();
   const avatarSize = avatarSizeFor(width);
-  /* A collection's card is told its width here, so its stack is the right size
-     on its first frame: it would otherwise start from the app's margin. The
-     page's column stops at `MaxContentWidth`, so the card's does too. */
-  const tileWidth = Math.min(width, MaxContentWidth) - PROFILE_MARGIN * 2;
   const router = useRouter();
   const queryClient = useQueryClient();
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
@@ -380,7 +379,7 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
                had the Home card replace the rest. */
             <LogCard log={item.log} />
           ) : item.kind === 'list' ? (
-            <ListTile list={item.list} width={tileWidth} />
+            <ListTile list={item.list} />
           ) : item.item.type === 'post' ? (
             <WallPostRow post={item.item.post} />
           ) : (
@@ -388,7 +387,7 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
           )}
         </View>
       ),
-    [ownerName, tileWidth]
+    [ownerName]
   );
 
   if (profile.isLoading) return <LoadingState />;
@@ -488,13 +487,18 @@ export function ProfileView({ profileId, headerAction }: ProfileViewProps) {
       <View style={styles.head}>
         <Avatar uri={person.avatar_url} name={ownerName} size={avatarSize} />
 
-        <Text
-          variant="h2"
-          numberOfLines={1}
-          accessibilityRole="header"
-          style={[styles.centred, styles.name]}>
-          {ownerName}
-        </Text>
+        {/* The name, and beside it a badge per linked platform — tapping one
+            shows the name that account goes by (`<PlatformBadges>`). */}
+        <View style={styles.nameRow}>
+          <Text
+            variant="h2"
+            numberOfLines={1}
+            accessibilityRole="header"
+            style={[styles.centred, styles.nameText]}>
+            {ownerName}
+          </Text>
+          <PlatformBadges userId={profileId} />
+        </View>
 
         {/*
           The bio and its facts as one block, quieter than the name as the
@@ -1017,7 +1021,16 @@ const styles = StyleSheet.create({
   /* The face, the name, the bio, the counts and the actions, on one axis. */
   head: { alignItems: 'center' },
   centred: { textAlign: 'center', alignSelf: 'stretch' },
-  name: { marginTop: NAME_TOP },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.x8,
+    marginTop: NAME_TOP,
+    maxWidth: '100%',
+    zIndex: 1,
+  },
+  nameText: { flexShrink: 1 },
   /* The bio and its facts, close together: one block, not two. */
   bio: { alignSelf: 'stretch', alignItems: 'center', gap: Spacing.x4, marginTop: BIO_TOP },
   metaRow: {

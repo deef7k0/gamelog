@@ -57,6 +57,7 @@ import { formatPartialDate } from '@/constants/progress';
 import { PosterAspectRatio } from '@/constants/theme';
 import { ARRIVAL_OBJECT, useLandingArrival } from '@/hooks/use-arrival';
 import type { CopyWithRelations } from '@/lib/api';
+import { NO_COPY_ART, type CopyArt } from '@/lib/api/copy-art';
 import {
   HIDDEN_FACE,
   STAGE_CAMERA,
@@ -185,6 +186,12 @@ export function copyStage(
 
 export type CopyShowcaseProps = {
   copy: CopyWithRelations;
+  /**
+   * The real back cover and disc label, when found (`useCopyArt`, 2026-10-22):
+   * the back face shows the scan, the disc its label. The front stays the
+   * app's own. A cartridge's label is not drawn — the stage draws no cartridge.
+   */
+  art?: CopyArt;
   /** The display's width: the stage runs edge to edge. */
   width: number;
   stage: CopyStage;
@@ -275,6 +282,7 @@ export type CopyShowcaseProps = {
  */
 export const CopyShowcase = memo(function CopyShowcase({
   copy,
+  art = NO_COPY_ART,
   width,
   stage,
   pageColor,
@@ -893,6 +901,8 @@ export const CopyShowcase = memo(function CopyShowcase({
   const title = copy.game?.title ?? 'A copy';
   const coverUrl = copy.game?.cover_url;
   const heroUrl = copy.game?.hero_url;
+  /* A disc's real label; a cartridge's is never drawn on a disc. */
+  const discLabel = mediumFor(platform) === 'disc' ? (art.disc?.url ?? null) : null;
   const contents = caseContents(copy.completeness);
   const edition = copy.edition?.trim() && copy.edition.trim() !== 'Standard' ? copy.edition : null;
   /* A sealed copy's film is glossier than the plastic under it. */
@@ -951,7 +961,13 @@ export const CopyShowcase = memo(function CopyShowcase({
                 is over the tray it shuts on, and the disc over all of it once
                 it is out. */}
             <StageFace pose={backPose} width={caseWidth} height={caseHeight} {...stood}>
-              <CopyCaseBack copy={copy} platform={platform} width={caseWidth} height={caseHeight} />
+              <CopyCaseBack
+                copy={copy}
+                platform={platform}
+                width={caseWidth}
+                height={caseHeight}
+                scan={art.back}
+              />
               <StageLight
                 width={caseWidth}
                 height={caseHeight}
@@ -992,6 +1008,7 @@ export const CopyShowcase = memo(function CopyShowcase({
                   width={caseWidth}
                   height={caseHeight}
                   disc={disc}
+                  discLabelUrl={discLabel}
                   seatStyle={seat}
                 />
                 <StageLight
@@ -1053,6 +1070,7 @@ export const CopyShowcase = memo(function CopyShowcase({
                     platform={platform}
                     size={disc}
                     holeColor={pageColor}
+                    labelUrl={discLabel}
                   />
                   <View style={[StyleSheet.absoluteFill, styles.round]}>
                     <StageLight

@@ -34,6 +34,8 @@ import {
   type FacetValue,
 } from '@/lib/games/facets';
 import { searchFacetValues } from '@/lib/games/igdb';
+import { rawgTagsAvailable } from '@/lib/games/rawg-tags';
+import { useRawgTags } from '@/hooks/use-rawg-tags';
 
 /** What a remote lookup needs before it asks: two letters, as a title search does. */
 const MIN_LOOKUP = 2;
@@ -57,9 +59,13 @@ function useGenres(enabled = true) {
 
 type SearchByValue = 'game' | FacetKind;
 
+/* Tags are RAWG's: offered only in a build with a RAWG key. */
 const SEARCH_BY_CHOICES = [
   { value: 'game' as const, label: 'Game' },
-  ...LOOKUP_KINDS.map((kind) => ({ value: kind, label: FACET_INFO[kind].label })),
+  ...LOOKUP_KINDS.filter((kind) => kind !== 'tag' || rawgTagsAvailable()).map((kind) => ({
+    value: kind,
+    label: FACET_INFO[kind].label,
+  })),
 ];
 
 /**
@@ -123,6 +129,7 @@ export function FacetPicker({
   const info = FACET_INFO[kind];
 
   const genres = useGenres(info.lookup === 'fetched');
+  const tags = useRawgTags(info.lookup === 'tags');
   const remote = useQuery({
     /* Under `search`: an answer to something typed is not kept (`NEVER_PERSIST`). */
     queryKey: ['search', 'facet-values', kind, settled],
@@ -148,9 +155,15 @@ export function FacetPicker({
           ? `No ${info.label.toLowerCase()} called “${settled}”.`
           : `${info.plural[0].toUpperCase()}${info.plural.slice(1)} matching “${settled}”`;
   } else {
-    const all = info.lookup === 'fetched' ? (genres.data ?? []) : (FIXED_VALUES[kind] ?? []);
+    const all =
+      info.lookup === 'fetched'
+        ? (genres.data ?? [])
+        : info.lookup === 'tags'
+          ? (tags.data ?? [])
+          : (FIXED_VALUES[kind] ?? []);
     values = matchValues(all, typed);
-    busy = info.lookup === 'fetched' && genres.isLoading;
+    busy =
+      (info.lookup === 'fetched' && genres.isLoading) || (info.lookup === 'tags' && tags.isLoading);
     note = typed.trim()
       ? values.length === 0 && !busy
         ? `No ${info.label.toLowerCase()} called “${typed.trim()}”.`
@@ -316,11 +329,12 @@ const CLEAR_SLOP = { top: 18, bottom: 18, left: 16, right: 16 };
 // ---------------------------------------------------------------------------
 
 /**
- * The genres, themes, perspectives and modes whose names match what is typed
- * as a game's title — "thri" offers Theme · Thriller — above the games. The
- * owner's "the user types the genre and the app gives the options", without
- * choosing a kind first. Only the vocabularies the phone already has, so it
- * costs no request; engines and the rest are under "Search by".
+ * The genres, themes, perspectives, modes and RAWG tags whose names match
+ * what is typed as a game's title — "thri" offers Theme · Thriller — above the
+ * games. The owner's "the user types the genre and the app gives the
+ * options", without choosing a kind first. Only vocabularies the phone
+ * already has or keeps for a week, so it costs no request as you type;
+ * engines and the rest are under "Search by".
  */
 export function FacetSuggestions({
   query,
@@ -330,6 +344,7 @@ export function FacetSuggestions({
   onPick: (facet: Facet) => void;
 }) {
   const genres = useGenres();
+  const tags = useRawgTags();
   const look = useSelectable()(false);
 
   const pools: [FacetKind, readonly FacetValue[]][] = [
@@ -337,6 +352,7 @@ export function FacetSuggestions({
     ['theme', FIXED_VALUES.theme ?? []],
     ['perspective', FIXED_VALUES.perspective ?? []],
     ['mode', FIXED_VALUES.mode ?? []],
+    ['tag', tags.data ?? []],
   ];
 
   /* Two of each kind at most, so one vocabulary cannot fill the row. */

@@ -1,4 +1,5 @@
-import { getSurprisePool, type SurprisePoolFilters } from '@/lib/games/igdb';
+import { getSurprisePool, surprisePoolQuery, type SurprisePoolFilters } from '@/lib/games/igdb';
+import { getTagSurprisePool } from '@/lib/games/rawg-tags';
 import { recommendFromLogs } from '@/lib/games/recommend';
 import type { GameSearchResult } from '@/lib/games/types';
 import type { SurpriseGameMode } from '@/lib/surprise-prefs';
@@ -191,6 +192,22 @@ export async function getSurpriseBatch({
     return shuffle(excludeHidden(games, hidden));
   }
 
-  const games = await getSurprisePool(mode, filters, signal);
+  /* RAWG tags draw from RAWG's games with them; the rest of the settings
+     narrow those on IGDB, as the clause they make. */
+  const tagIds = filters?.tagIds ?? [];
+  const games =
+    tagIds.length > 0
+      ? await getTagSurprisePool(
+          {
+            tagIds,
+            match: filters?.match ?? 'any',
+            where: surprisePoolQuery(mode, filters)
+              .clause.replace(/^where /, '')
+              .replace(/;$/, ''),
+            random: Math.random(),
+          },
+          signal
+        )
+      : await getSurprisePool(mode, filters, signal);
   return shuffle(excludeHidden(excludeLogged(games, logs, excludePlayed), hidden));
 }

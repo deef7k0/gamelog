@@ -328,6 +328,18 @@ export function towardBlack(color: string, fraction: number): string {
 }
 
 /**
+ * `lerp(from, to, fraction)` between two colours, as Compose computes it: in
+ * Oklab. Home's glow eases its tone into the page this way (`lib/home-glow`).
+ */
+export function mixOklab(from: string, to: string, fraction: number): string {
+  const a = toOklab(from);
+  const b = toOklab(to);
+  if (!a || !b) return fraction < 0.5 ? from : to;
+  const t = Math.min(1, Math.max(0, fraction));
+  return fromOklab([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
+}
+
+/**
  * SimpMusic's `toImmersiveBackground`: the dominant colour, darkened by
  * 0.35 + 0.45 × its perceived lightness (0.299R + 0.587G + 0.114B), so a white
  * cover lands near #161616 and a mid purple on a deep one.

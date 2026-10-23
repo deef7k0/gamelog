@@ -19,7 +19,7 @@
  * one in the home page… like a neon light above a door" under the slider, saw
  * it on a phone twice — hung from the slider's top, then lying along its foot
  * — and then had it taken off: "Remove the glow from the search screen." Home
- * keeps its own (`ui/ambient-light`). Do not add one here.
+ * keeps its own (`home/home-glow`, SimpMusic's). Do not add one here.
  */
 
 /** Past this the composition stops growing — `MaxContentWidth`, restated. */

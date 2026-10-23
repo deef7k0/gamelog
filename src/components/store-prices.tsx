@@ -250,9 +250,11 @@ function StoreRow({
               −{price.cut}%
             </Text>
           </View>
+          {/* Sentence case, as every label is (DESIGN.md § 2.4): `h6`, the
+              same 10 bold without `label`'s capitals. */}
           {price.isAllTimeLow && (
-            <Text variant="label" style={{ color: theme.identityGold }}>
-              LOWEST
+            <Text variant="h6" style={{ color: theme.identityGold }}>
+              Lowest
             </Text>
           )}
         </View>

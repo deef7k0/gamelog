@@ -403,8 +403,9 @@ export const Colors = {
     success: '#4ADE80',
 
     /*
-     * Home's ambient light in its top-left corner (`ui/ambient-light.tsx`), and
-     * `<SoftGlow>`'s default colours.
+     * `<SoftGlow>`'s default colours — and, until 2026-10-22, Home's corner
+     * light, which SimpMusic's glow replaced (`home/home-glow`, coloured from a
+     * cover rather than from these).
      *
      * These were drawn for an earlier, much stronger corner glow — a `<SoftGlow>`
      * in the same corner — which was replaced by the soft ambient light because
@@ -449,6 +450,18 @@ export const Colors = {
     scrim: 'rgba(0, 0, 0, 0.6)',
     /** Skeleton placeholder fill: a control's resting step, so it reads on a card. */
     skeleton: '#1F2430',
+    /**
+     * The light that sweeps a skeleton — SimpMusic's `shimmerLine` over its
+     * `shimmerBackground` (`ui/shimmer`, `Modifier.shimmer()`).
+     *
+     * Measured, not picked. The reference's background is `0x7E383737`, which
+     * over its own `#121212` panel composites to a relative luminance of
+     * 0.0178 — and `skeleton` here is 0.0177, which is luck worth keeping. Its
+     * line, `#4D4848`, stands at 1.72:1 on that; this is the colour at the
+     * same ratio on `skeleton`, so the sweep reads exactly as strongly as the
+     * reference's does. Any brighter and a loading list glitters.
+     */
+    skeletonSweep: '#40495E',
 
     /**
      * Ink for gradient ramps over artwork, and the palette's only true black.

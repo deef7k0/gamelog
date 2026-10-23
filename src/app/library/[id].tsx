@@ -10,7 +10,7 @@ import {
   gridItemWidth,
   steamHeaderUrl,
 } from '@/components/gaming/game-tile';
-import { LibraryStats } from '@/components/library-stats';
+import { LibraryHome, type LibraryRow } from '@/components/library-home';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageFlatList, PageScrollView } from '@/components/ui/page-scroll';
@@ -19,7 +19,6 @@ import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
 import { SortBar } from '@/components/ui/sort-bar';
 import { ScoreBadge, Skeleton } from '@/components/ui/surface';
-import { TabBar } from '@/components/ui/tab-bar';
 import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { STATUS_LABEL } from '@/constants/status';
@@ -32,6 +31,7 @@ import {
   getFavorites,
   getLibraryStatistics,
   getOwnedGames,
+  getUserBacklog,
   getUserGameStats,
   getUserLogs,
 } from '@/lib/api';
@@ -60,28 +60,56 @@ const GAP = SHELF_GAP;
 /** How many placeholder covers stand in for a grid that is loading: four rows. */
 const SKELETON_TILES = COLUMNS * 4;
 
-type LibraryTab = 'all' | 'physical' | 'logged' | 'favourites' | 'steam';
+type LibraryTab =
+  'logged' | 'favourites' | 'backlog' | 'physical' | 'steam' | 'playstation' | 'xbox' | 'gog';
+
+/** The lists that are a linked account's games (`gaming_owned_games`). */
+type OwnedTab = Extract<LibraryTab, 'steam' | 'playstation' | 'xbox' | 'gog'>;
+const OWNED_TABS: readonly OwnedTab[] = ['steam', 'playstation', 'xbox', 'gog'];
+const isOwnedTab = (tab: LibraryTab | null): tab is OwnedTab =>
+  !!tab && (OWNED_TABS as readonly string[]).includes(tab);
 
 /**
- * Everything a person's games can be filtered down to.
+ * The lists a library opens onto — the rows of its head (`<LibraryHome>`),
+ * Apple Music's Playlists / Artists / Albums / Songs (the owner's, 2026-10-22).
  *
- * `all` leads because it is the honest default — this screen is about a
- * *person's games*, not about one storefront — and it opens on what they add up
- * to (`<LibraryStats>`) above the games themselves.
- *
+ * `logged` is every log but the backlog; `backlog` is what they want to play.
  * `physical` is the binder: the boxes on the shelf, as discs in sleeves.
- * `steam` is the linked library, with Steam's own figures at its head — they
- * used to be a Statistics tab of their own, which made the one tab about
- * everything someone owns be about one storefront.
+ * `steam` is the linked library, with Steam's own figures at its head;
+ * `playstation`, `xbox` and `gog` the games imported from a public username
+ * (`game-accounts`, RAWG's way). Each is a row only when that account is linked.
  */
-const TAB_ORDER: LibraryTab[] = ['all', 'physical', 'logged', 'favourites', 'steam'];
+const TAB_ORDER: LibraryTab[] = [
+  'logged',
+  'favourites',
+  'backlog',
+  'physical',
+  'steam',
+  'playstation',
+  'xbox',
+  'gog',
+];
 
 const TAB_LABELS: Record<LibraryTab, string> = {
-  all: 'All games',
-  physical: 'Physical',
   logged: 'Logged',
   favourites: 'Favourites',
+  backlog: 'Backlog',
+  physical: 'Physical',
   steam: 'Steam',
+  playstation: 'PlayStation',
+  xbox: 'Xbox',
+  gog: 'GOG',
+};
+
+const TAB_ICONS: Record<LibraryTab, LibraryRow['icon']> = {
+  logged: 'game-controller-outline',
+  favourites: 'star-outline',
+  backlog: 'bookmark-outline',
+  physical: 'disc-outline',
+  steam: 'logo-steam',
+  playstation: 'logo-playstation',
+  xbox: 'logo-xbox',
+  gog: 'game-controller-outline',
 };
 
 function isLibraryTab(value: string | undefined): value is LibraryTab {
@@ -90,6 +118,11 @@ function isLibraryTab(value: string | undefined): value is LibraryTab {
 
 /**
  * A person's games.
+ *
+ * Without `?tab=` it is the library's head (`<LibraryHome>`): pinned games, a
+ * row per list, the newest games. A row pushes this screen again with its
+ * `tab`, which is one list on a page of its own — no tab bar, as Apple Music
+ * pushes Albums. The profile's "14 physical" opens straight onto the binder.
  *
  * Was Steam-only, and gated behind a linked account — so for anyone who had
  * never connected Steam it was a screen that existed and always said "no
@@ -110,21 +143,35 @@ export default function LibraryScreen() {
   const viewerId = useAuth((state) => state.session?.user.id) ?? null;
   const isSelf = viewerId === id;
 
-  /* The profile's "14 physical" opens straight onto the binder. */
-  const [tab, setTab] = useState<LibraryTab>(isLibraryTab(params.tab) ? params.tab : 'all');
-  const [sort, setSort] = useState<LibrarySort>('most-played');
+  /* Null is the library's head; a list is pushed as its own page. */
+  const tab: LibraryTab | null = isLibraryTab(params.tab) ? params.tab : null;
+  const ownedProvider: OwnedTab = isOwnedTab(tab) ? tab : 'steam';
+  /* PlayStation's trophy list and Xbox's title history carry no playtime, so
+     their lists open on the most recent. */
+  const playtime = ownedProvider === 'steam' || ownedProvider === 'gog';
+  const [sort, setSort] = useState<LibrarySort>(playtime ? 'most-played' : 'recently-played');
   const [search, setSearch] = useState('');
 
-  const provider = requireProvider('steam');
+  const provider = requireProvider(ownedProvider);
   const account = useLinkedAccount(id ?? null);
+  const playstation = useLinkedAccount(id ?? null, 'playstation');
+  const xbox = useLinkedAccount(id ?? null, 'xbox');
+  const gog = useLinkedAccount(id ?? null, 'gog');
+  const linked: Record<OwnedTab, boolean> = {
+    steam: !!account.data,
+    playstation: !!playstation.data,
+    xbox: !!xbox.data,
+    gog: !!gog.data,
+  };
 
   // Only the owner's own library syncs — visiting a profile must never trigger
   // API calls against someone else's Steam account.
   useGamingSync({ userId: id ?? null, enabled: isSelf, sections: ['library', 'achievements'] });
 
   const games = useQuery({
-    queryKey: ['gaming-library', 'steam', id, sort, search.trim()],
-    queryFn: () => getOwnedGames(id!, { sort, search: search.trim() || undefined }),
+    queryKey: ['gaming-library', ownedProvider, id, sort, search.trim()],
+    queryFn: () =>
+      getOwnedGames(id!, { provider: ownedProvider, sort, search: search.trim() || undefined }),
     enabled: !!id,
   });
 
@@ -134,8 +181,7 @@ export default function LibraryScreen() {
     enabled: !!id && tab === 'steam',
   });
 
-  /* What the whole collection adds up to, for the head of All games — and the
-     physical count on the Physical tab. One server-side aggregate (0028). */
+  /* The Physical row's count. One server-side aggregate (0028). */
   const collection = useQuery({
     queryKey: ['user-game-stats', id],
     queryFn: () => getUserGameStats(id!),
@@ -152,19 +198,26 @@ export default function LibraryScreen() {
     [copies.data]
   );
 
-  /* Games logged in this app. Fetched for every tab except Steam, because the
-     merged list and the Logged list both need it and it is one indexed query
-     capped at 100 rows. */
+  /* Games logged in this app: the Logged list, and the head's "Recently added".
+     One indexed query, capped at 100 rows. */
   const logs = useQuery({
     queryKey: ['user-logs', id],
     queryFn: () => getUserLogs(id!),
-    enabled: !!id && tab !== 'steam',
+    enabled: !!id && (tab === null || tab === 'logged'),
+  });
+
+  /* Under `['user-logs', id]`, so everything that refreshes a person's logs
+     refreshes it too. */
+  const backlog = useQuery({
+    queryKey: ['user-logs', id, 'backlog'],
+    queryFn: () => getUserBacklog(id!),
+    enabled: !!id && (tab === null || tab === 'backlog'),
   });
 
   const favourites = useQuery({
     queryKey: ['favorites', id],
     queryFn: () => getFavorites(id!),
-    enabled: !!id && (tab === 'favourites' || tab === 'all'),
+    enabled: !!id && (tab === null || tab === 'favourites'),
   });
 
   /*
@@ -180,40 +233,56 @@ export default function LibraryScreen() {
     const logged = logs.data ?? [];
 
     switch (tab) {
-      case 'physical':
-        return [];
       case 'steam':
+      case 'playstation':
+      case 'xbox':
+      case 'gog':
         return owned.map(fromOwned);
       case 'logged':
-        return logged.map(fromLog).filter((entry): entry is LibraryEntry => entry !== null);
+        return logged
+          .filter((log) => log.status !== 'backlog')
+          .map(fromLog)
+          .filter((entry): entry is LibraryEntry => entry !== null);
+      case 'backlog':
+        return (backlog.data ?? [])
+          .map(fromLog)
+          .filter((entry): entry is LibraryEntry => entry !== null);
       case 'favourites':
         return (favourites.data?.items ?? [])
           .map(fromFavourite)
           .filter((entry): entry is LibraryEntry => entry !== null);
       default:
-        return mergeEntries(
-          logged.map(fromLog).filter((entry): entry is LibraryEntry => entry !== null),
-          owned.map(fromOwned)
-        );
+        return [];
     }
-  }, [tab, games.data, logs.data, favourites.data]);
+  }, [tab, games.data, logs.data, backlog.data, favourites.data]);
 
-  /* Counts sit inline on the tabs, the way a library reads them. Only the ones
-     already fetched are shown — a number that appears a second after you tap is
-     worse than no number. */
-  const counts: Partial<Record<LibraryTab, number>> = {
-    all: tab === 'all' ? entries.length || undefined : undefined,
-    physical: collection.data?.copies,
-    favourites: favourites.data?.items?.length,
-    steam: games.data?.length,
-    logged: logs.data?.length,
+  /* A count only where it is the whole of the list: `getUserLogs` stops at a
+     hundred, so a full page of logs says nothing about how many there are. */
+  const loggedCount =
+    logs.data && logs.data.length < 100
+      ? logs.data.filter((log) => log.status !== 'backlog').length
+      : null;
+  const counts: Record<LibraryTab, number | null> = {
+    logged: loggedCount,
+    favourites: favourites.data?.items?.length ?? null,
+    backlog: backlog.data?.length ?? null,
+    physical: collection.data?.copies ?? null,
+    steam: tab === null ? (games.data?.length ?? null) : null,
+    /* Not fetched for the head: the count is on the list itself. */
+    playstation: null,
+    xbox: null,
+    gog: null,
   };
 
-  const tabs = TAB_ORDER.map((key) => ({
-    key,
-    label: TAB_LABELS[key],
-    count: counts[key] ?? null,
-  }));
+  const rows: LibraryRow[] = TAB_ORDER.filter((key) => !isOwnedTab(key) || linked[key]).map(
+    (key) => ({
+      key,
+      label: TAB_LABELS[key],
+      icon: TAB_ICONS[key],
+      count: counts[key],
+      href: { pathname: '/library/[id]', params: { id: id ?? '', tab: key } },
+    })
+  );
 
   const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
 
@@ -228,12 +297,22 @@ export default function LibraryScreen() {
   const isPrivate = account.data?.visibility === 'private';
   const noSteam = !account.isLoading && !account.data;
 
-  return (
-    /* The tab bar under the header switches the whole page; each tab's own
-       scroller is the page's, so the bar frosts for whichever is showing. */
-    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Library" />}>
-      <TabBar tabs={tabs} value={tab} onChange={setTab} />
+  if (tab === null) {
+    return (
+      <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title="Library" />}>
+        <LibraryHome
+          userId={id}
+          isSelf={isSelf}
+          rows={rows}
+          recent={logs.data ?? []}
+          recentLoading={logs.isLoading}
+        />
+      </Screen>
+    );
+  }
 
+  return (
+    <Screen edges={['bottom']} insetHeader topBar={<FrostedTopBar back title={TAB_LABELS[tab]} />}>
       {tab === 'physical' ? (
         <PhysicalTab
           copies={physical}
@@ -262,20 +341,13 @@ export default function LibraryScreen() {
           contentContainerStyle={styles.grid}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            tab === 'all' ? (
-              <LibraryStats
-                stats={collection.data}
-                loading={collection.isLoading}
-                failed={collection.isLoadingError}
-                onRetry={() => void collection.refetch()}
-              />
-            ) : /* Search and sort are Steam's, so they appear on Steam's tab. The
-               merged and logged lists are short enough to scan, and a sort row
-               that silently applied to only part of what was on screen would be
-               worse than no sort row. */
-            tab === 'steam' ? (
+            /* Search and sort are a linked account's, sorted in Postgres. The
+               others are short enough to scan, and a sort row that silently
+               applied to only part of what was on screen would be worse than
+               no sort row. */
+            isOwnedTab(tab) ? (
               <View style={styles.controls}>
-                <SteamFigures data={steamStats.data} />
+                {tab === 'steam' && <SteamFigures data={steamStats.data} />}
                 <TextField
                   value={search}
                   onChangeText={setSearch}
@@ -290,7 +362,10 @@ export default function LibraryScreen() {
                     API exposes no purchase date, and a sort that quietly fell
                     back to last-played would misrepresent what it shows. */}
                 <SortBar
-                  options={availableSorts(provider)}
+                  /* "Most played" only where the service reports playtime. */
+                  options={availableSorts(provider).filter(
+                    (option) => playtime || option.key !== 'most-played'
+                  )}
                   value={sort}
                   onChange={setSort}
                   accessibilityLabel="Sort this library"
@@ -305,8 +380,24 @@ export default function LibraryScreen() {
               isPrivate={isPrivate}
               noSteam={noSteam}
               search={search}
-              loading={games.isLoading || logs.isLoading || favourites.isLoading}
-              error={games.error ?? logs.error ?? favourites.error}
+              loading={
+                isOwnedTab(tab)
+                  ? games.isLoading
+                  : tab === 'backlog'
+                    ? backlog.isLoading
+                    : tab === 'favourites'
+                      ? favourites.isLoading
+                      : logs.isLoading
+              }
+              error={
+                isOwnedTab(tab)
+                  ? games.error
+                  : tab === 'backlog'
+                    ? backlog.error
+                    : tab === 'favourites'
+                      ? favourites.error
+                      : logs.error
+              }
               tileWidth={tileWidth}
             />
           }
@@ -344,6 +435,24 @@ type LibraryEntry = {
 };
 
 function fromOwned(game: OwnedGame): LibraryEntry {
+  /* An imported PlayStation, Xbox or GOG game: the service's own art, and its
+     playtime or how far through its trophies or achievements. */
+  if (game.provider !== 'steam') {
+    const progress =
+      game.achievementsTotal != null && game.achievementsTotal > 0
+        ? `${game.achievementsUnlocked ?? 0}/${game.achievementsTotal}`
+        : null;
+    return {
+      key: `${game.provider}:${game.appId}`,
+      gameId: game.gameId,
+      title: game.name,
+      coverUrl: null,
+      heroUrl: game.iconUrl,
+      steamAppId: null,
+      score: null,
+      caption: game.playtimeMinutes > 0 ? formatPlaytime(game.playtimeMinutes) : progress,
+    };
+  }
   return {
     key: `steam:${game.appId}`,
     gameId: game.gameId,
@@ -400,18 +509,6 @@ function fromFavourite(item: ListItem): LibraryEntry | null {
     score: null,
     caption: null,
   };
-}
-
-/**
- * Merge logged and owned, logs first.
- *
- * Same precedence as the profile shelf and for the same reason: a log carries a
- * real catalogue id, so its art is IGDB's portrait box art rather than a Steam
- * capsule that may not exist for the title.
- */
-function mergeEntries(logged: LibraryEntry[], owned: LibraryEntry[]): LibraryEntry[] {
-  const seen = new Set(logged.map((entry) => entry.gameId).filter(Boolean) as string[]);
-  return [...logged, ...owned.filter((entry) => !entry.gameId || !seen.has(entry.gameId))];
 }
 
 /**
@@ -516,6 +613,19 @@ function LibraryEmpty({
   if (loading) return <GridSkeleton width={tileWidth} />;
   if (error) return <ErrorState error={error} />;
 
+  if (tab === 'playstation' || tab === 'xbox' || tab === 'gog') {
+    return (
+      <EmptyState
+        title="Nothing imported"
+        message={
+          isSelf
+            ? 'No games came through. Make sure your profile and games are public, then import again from Edit profile.'
+            : 'No games imported yet.'
+        }
+      />
+    );
+  }
+
   if (tab === 'steam') {
     if (noSteam) {
       return (
@@ -557,23 +667,19 @@ function LibraryEmpty({
     );
   }
 
-  if (tab === 'logged') {
+  if (tab === 'backlog') {
     return (
       <EmptyState
-        title="Nothing logged"
-        message={isSelf ? 'Log a game and it shows up here.' : 'No games logged yet.'}
+        title="Nothing in the backlog"
+        message={isSelf ? 'Mark a game as Backlog and it waits for you here.' : 'No backlog yet.'}
       />
     );
   }
 
   return (
     <EmptyState
-      title="No games yet"
-      message={
-        isSelf
-          ? 'Log a game, or connect Steam from your profile to import your library.'
-          : 'This shelf is empty.'
-      }
+      title="Nothing logged"
+      message={isSelf ? 'Log a game and it shows up here.' : 'No games logged yet.'}
     />
   );
 }

@@ -16,7 +16,7 @@ export type ScoreSummaryProps = {
   /** Hold the summary's shape while the numbers are on their way. */
   loading?: boolean;
   /**
-   * Print "Based on N reviews" under the verdict. On in both places it is
+   * Print "Based on N ratings" under the verdict. On in both places it is
    * drawn: the Ratings card's heading carried the count until the owner moved
    * it here (2026-10-16). Off only where something beside it already says it.
    */
@@ -35,7 +35,7 @@ export type ScoreSummaryProps = {
  *
  * ```text
  *   Great                     (o_o)
- *   Based on 128 reviews       /|\  84
+ *   Based on 128 ratings       /|\  84
  *
  *     100   4 │▇▇
  *   90-99  21 │▇▇▇▇▇▇▇▇▇
@@ -104,7 +104,9 @@ export function ScoreSummary({
           {counted && (
             <Text variant="caption" color="textMuted">
               Based on {breakdown.total.toLocaleString()}{' '}
-              {breakdown.total === 1 ? 'review' : 'reviews'}
+              {/* Ratings, as the strip counts them: a score with no words
+                  is in this number too. */}
+              {breakdown.total === 1 ? 'rating' : 'ratings'}
             </Text>
           )}
         </View>

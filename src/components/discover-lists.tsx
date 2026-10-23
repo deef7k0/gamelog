@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { ListTile } from '@/components/list-tile';
+import { CollectionSeparator, ListTile } from '@/components/list-tile';
 import { LogCard } from '@/components/log-card';
 import { ReviewChartHead } from '@/components/review-chart-head';
 import { PageFlatList } from '@/components/ui/page-scroll';
@@ -170,15 +170,13 @@ export function DiscoverCollections() {
   }
 
   return (
-    /* One across, by the owner's choice: a collection is a card holding its
-       name, five covers and its owner's words, and two across those covers
-       would be under forty dp wide. A screen holds about three, twelve apart —
-       the interval review cards keep. */
+    /* One across: a collection is a row — its mosaic and its name — with a
+       hairline to the next (`<ListTile>`). */
     <PageFlatList
       data={collections.data ?? []}
       keyExtractor={(list) => list.id}
       contentContainerStyle={styles.content}
-      ItemSeparatorComponent={TileGap}
+      ItemSeparatorComponent={CollectionSeparator}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -213,10 +211,6 @@ function renderTile({ item }: { item: Awaited<ReturnType<typeof getPopularCollec
  * thirty-two of air, when it was five covers standing on the bare page. It is a
  * card now, and cards stack twelve apart.
  */
-function TileGap() {
-  return <View style={styles.tileGap} />;
-}
-
 const styles = StyleSheet.create({
   /* `flexGrow: 1` so `ListEmptyComponent` can centre itself. `EmptyState` sets
      `flex: 1` and centres, but a content container sized to its content gives it
@@ -226,6 +220,5 @@ const styles = StyleSheet.create({
   /* The interval between review cards everywhere they are stacked: this page,
      Search, a profile. */
   cardGap: { height: Spacing.x12 },
-  tileGap: { height: Spacing.x12 },
   settling: { opacity: 0.5 },
 });

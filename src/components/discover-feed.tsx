@@ -12,7 +12,6 @@ import {
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { CoverRailSkeleton, GameCoverRail, useRailLayout } from '@/components/game-rail';
-import { GenreGrid } from '@/components/genre-grid';
 import { HomeSection } from '@/components/home-section';
 import { SpotlightSlider } from '@/components/search/spotlight-slider';
 import { TopChartEntry } from '@/components/search/top-chart-entry';
@@ -355,12 +354,9 @@ export function DiscoverFeed() {
           way in — its top three, fanned as Surprise Me's cards are. */}
       <TopChartEntry />
 
-      {/* The one way in that works for someone with no particular game in
-            mind. It led the page; the slider leads it now, and this follows
-            the rows it used to stand above. */}
-      <HomeSection title="Browse by genre">
-        <GenreGrid />
-      </HomeSection>
+      {/* "Browse by genre" ended the page until 2026-10-22: the owner moved
+          genres onto Home, where choosing one reloads Home with that genre's
+          shelves, as a mood does. Do not bring the grid back here. */}
     </PageScrollView>
   );
 }

@@ -15,6 +15,8 @@ import { sortGenresByReach } from '@/constants/game-genres';
 import { SELECTABLE_PERSPECTIVES } from '@/constants/player-perspectives';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { useRawgTags } from '@/hooks/use-rawg-tags';
+import { rawgTagsAvailable } from '@/lib/games/rawg-tags';
 import { useTheme } from '@/hooks/use-theme';
 import { getGenres, getSurprisePoolSize, type SurprisePoolSize } from '@/lib/games';
 import {
@@ -99,7 +101,8 @@ function eraLabel(era: ReleaseEra, thisYear: number): string {
 }
 
 /** The many-of filters, each a row that opens its own checklist. */
-type ListFilter = 'genres' | 'themes' | 'perspectives' | 'modes' | 'platforms' | 'languages';
+type ListFilter =
+  'genres' | 'themes' | 'perspectives' | 'modes' | 'platforms' | 'languages' | 'tags';
 
 export type SurpriseSettingsProps = {
   prefs: SurprisePrefs;
@@ -156,9 +159,10 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
 
   /*
    * IGDB owns the genre vocabulary, so it is fetched — the same call
-   * `<GenreGrid>` makes, under the same key, so opening this after it costs
+   * Home's genre chip makes, under the same key, so opening this after it costs
    * nothing.
    */
+  const rawgTags = useRawgTags();
   const genres = useQuery({
     queryKey: ['igdb', 'genres'],
     queryFn: ({ signal }) => getGenres(signal),
@@ -196,23 +200,28 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
         poolFiltersFor(prefs, thisYear),
         signal
       ),
-    enabled: filtersApply && activeFilters > 0,
+    /* Not with RAWG tags: IGDB cannot count RAWG's tagging, and a count of
+       the other settings alone would be a wrong number. */
+    enabled: filtersApply && activeFilters > 0 && prefs.tagIds.length === 0,
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,
     placeholderData: (previous) => previous,
   });
 
-  /* Each many-of filter: its name, its options, what it holds, how it is set. */
-  const lists: Record<
-    ListFilter,
-    {
-      title: string;
-      hint: string;
-      options: readonly PickOption<number | string>[];
-      selected: readonly (number | string)[];
-      set: (next: (number | string)[]) => void;
-    }
+  /* Each many-of filter: its name, its options, what it holds, how it is set.
+     Tags are RAWG's and offered only with a RAWG key. */
+  const lists: Partial<
+    Record<
+      ListFilter,
+      {
+        title: string;
+        hint: string;
+        options: readonly PickOption<number | string>[];
+        selected: readonly (number | string)[];
+        set: (next: (number | string)[]) => void;
+      }
+    >
   > = {
     genres: {
       title: 'Genres',
@@ -261,9 +270,22 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
       selected: prefs.languageIds,
       set: (next) => onChange({ ...prefs, languageIds: next as number[] }),
     },
+    ...(rawgTagsAvailable()
+      ? {
+          tags: {
+            title: 'Tags',
+            hint: 'Tagged by RAWG’s players with any of these.',
+            options: [...(rawgTags.data ?? [])]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((tag) => ({ key: tag.id, label: tag.name })),
+            selected: prefs.tagIds,
+            set: (next: (number | string)[]) => onChange({ ...prefs, tagIds: next as number[] }),
+          },
+        }
+      : {}),
   };
 
-  const open = picking ? lists[picking] : null;
+  const open = picking ? (lists[picking] ?? null) : null;
 
   return (
     <View style={styles.root}>
@@ -326,7 +348,7 @@ export function SurpriseSettings({ prefs, onChange, canUseForYou }: SurpriseSett
           <View
             style={[styles.card, { backgroundColor: material.fill, borderColor: material.edge }]}>
             {(Object.keys(lists) as ListFilter[]).map((key, index) => {
-              const list = lists[key];
+              const list = lists[key]!;
               const genresFailed = key === 'genres' && genres.isLoadingError;
               const genresLoading = key === 'genres' && genres.isPending;
               return (

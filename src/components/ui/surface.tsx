@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
+import { Shimmer } from '@/components/ui/shimmer';
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
 import { Radius, Spacing, type ThemeColor } from '@/constants/theme';
@@ -210,11 +211,20 @@ export function ScoreBadge({
 // ---------------------------------------------------------------------------
 
 /**
- * Static placeholder block for loading states.
+ * A placeholder block for a loading state, shimmering.
  *
- * Deliberately not animated: a shimmer across a whole search list costs more in
- * dropped frames than it gains in perceived speed. Skeletons everywhere, though
- * — a spinner tells you to wait, a skeleton tells you what is coming.
+ * **It was deliberately static**, on this argument: "a shimmer across a whole
+ * search list costs more in dropped frames than it gains in perceived speed."
+ * That was right about the cost and the cost has moved — `<Shimmer>` is a
+ * Reanimated CSS animation on the UI thread, so a list of thirty of them
+ * neither slows the JS thread nor is slowed by it. The sweep is SimpMusic's,
+ * measured (`ui/shimmer`, and `skeletonSweep` for the light), at the owner's
+ * direction (2026-10-22: "use simpmusic way of loading things, animations and
+ * skeletons").
+ *
+ * Skeletons everywhere, still — a spinner tells you to wait, a skeleton tells
+ * you what is coming — and a skeleton that lies about its size is worse than
+ * none, because the page commits to a layout it is about to abandon.
  */
 export function Skeleton({
   width,
@@ -225,8 +235,7 @@ export function Skeleton({
   height: number;
   radius?: number;
 }) {
-  const theme = useTheme();
-  return <View style={{ width, height, borderRadius: radius, backgroundColor: theme.skeleton }} />;
+  return <Shimmer radius={radius} style={{ width, height }} />;
 }
 
 const styles = StyleSheet.create({

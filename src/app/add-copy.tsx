@@ -1,5 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { copyArtQuery, prefetchCopyArt } from '@/hooks/use-copy-art';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
@@ -266,6 +268,17 @@ function CopyForm({
     },
     onSuccess: (copyId) => {
       invalidate(copyId);
+      /* Its back cover and disc label, looked up as it is added (the owner's,
+         2026-10-22) — from the release's platform and region when one was
+         chosen, else what was typed. */
+      prefetchCopyArt(
+        queryClient,
+        copyArtQuery({
+          game: { title: game.title } as CopyWithRelations['game'],
+          platform: chosenRelease?.platform ?? platform ?? null,
+          region: (chosenRelease?.region ?? region ?? null) as CopyWithRelations['region'],
+        })
+      );
       /* A new copy lands on its own page, which is the confirmation; an edit
          goes back to the page it came from, which already shows it. */
       if (existing) router.back();

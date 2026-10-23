@@ -75,10 +75,7 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # the game page's masthead: its cover's size, the hero's
                    # dissolve and where the row sits in it, the cover's halo
                    # and the synopsis's fade, each against the reference it
-                   # was measured from (constants/game-masthead), the cover
-                   # stack — that five covers span their row and fewer stand
-                   # in the middle of it — against its reference
-                   # (constants/cover-stack), the profile's margin, face
+                   # was measured from (constants/game-masthead), the profile's margin, face
                    # and four-cover rows (constants/profile-layout), a row of
                    # covers — the cover's size and how many are in view,
                    # against the reference (constants/cover-rail),
@@ -148,7 +145,23 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # or animated, and what is fetched ahead within a byte
                    # budget (lib/surprise-prefetch); and how tall a
                    # collection's and a review's header art is
-                   # (constants/header-art)
+                   # (constants/header-art); Home's glow — its tone, the 25°
+                   # line, the eased stops (lib/home-glow) — and its moods:
+                   # the vocabulary, the floor, the shelves' dedupe, Quick
+                   # picks and the studio pick (lib/games/moods) and a
+                   # genre's shelves and the clock in them
+                   # (lib/games/genre-feed); RAWG's tags matched onto IGDB's
+                   # games (lib/games/rawg-match); Home's discover carousel —
+                   # its sizes, centring, the gaps through a swipe, the scrim
+                   # (constants/discover-carousel); a mood's and a genre's
+                   # block at the foot of Home — the reference's measurements,
+                   # the gradient from the item's own hue, and the name white
+                   # at AA on all ten of them, with every name measured
+                   # against Poppins' own advance widths
+                   # (constants/mood-tile); and a copy's art — GameTDB's
+                   # title lists and regions, a sleeve's back, ScreenScraper's
+                   # answers, image sizes (lib/copy-art, which loads the Edge
+                   # Function's own _shared/copy-art.ts)
 
 node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
                    # (PGlite, in-process) over every migration, with seven
@@ -279,6 +292,25 @@ PATH via `~/.profile`. SDK 57 needs Node ≥ 22.13.
    secrets: both are public Steam pages. Without the function both sections
    are simply absent; without `0039` it works and fetches Steam's page on
    every request. See § Where to buy, awards and Steam news.
+10. Optional: a physical copy's real back cover and disc label — run migration
+   `0042`, then `supabase functions deploy copy-art`. GameTDB needs no keys;
+   for ScreenScraper as well, `supabase secrets set SCREENSCRAPER_DEV_ID=…
+   SCREENSCRAPER_DEV_PASSWORD=…`. Without them a copy draws its own back and
+   the box-art disc. See § A copy's back cover and disc.
+11. Optional: RAWG's tags — a free key from rawg.io/apidocs in `.env` as
+   `EXPO_PUBLIC_RAWG_API_KEY`, then restart with `--clear`. Without it no tag
+   control is shown. See § RAWG tags.
+12. Pinned games — run migration `0043`. Without it a library has no pins
+   and pinning says the migration is missing; nothing else breaks. See § The
+   library.
+13. PlayStation, Xbox and GOG by username — run migration `0044`, then
+   `supabase functions deploy game-accounts`. GOG needs nothing else. For
+   PlayStation, `supabase secrets set PSN_NPSSO=…` (the NPSSO cookie of an
+   account the project owns: sign in at playstation.com, then open
+   https://ca.account.sony.com/api/v1/ssocookie); for Xbox,
+   `supabase secrets set OPENXBL_API_KEY=…` (xbl.io, free tier 150 requests an
+   hour). Without a service's secret its Connect says it is not connected yet.
+   See § Linked gaming accounts.
 
 ## Adding a route
 
@@ -304,10 +336,14 @@ src/
                      Steam's measured playtime. Opened from a library cover or a
                      profile's Steam rail, never from the game page
     playthroughs/[game]  your runs of one game; playthrough/[id] edits one (modal)
-    library/[id]     a person's games: All (stats header + grid), Physical
-                     (the CD binder), Logged, Favourites, Steam. Takes ?tab=.
+    library/[id]     a person's games. No ?tab= is Apple Music's Library:
+                     pinned games, rows (Logged, Favourites, Backlog, Physical,
+                     then Steam, PlayStation, Xbox and GOG when linked),
+                     Recently added. ?tab= is one list on
+                     its own page — Physical the CD binder. See § The library.
                      Its grids are four across, one line under each — the
                      one screen whose covers are
+    pin-game         pick a game to pin to your library (modal, 0043)
     copies/[user]    a physical collection as a plain list; copy/[id] one copy
                      on a stage of its own — its case as a box that turns by
                      itself and by hand, is opened, and has its disc taken out,
@@ -391,6 +427,18 @@ src/
                                         a bar that comes in after it.
                                         `<FoldingTopBar>` is Home's. See § The
                                         top bar
+                     ui/shimmer         `<Shimmer>`: SimpMusic's
+                                        `Modifier.shimmer()` — a flat fill
+                                        with one soft light sweeping it, a
+                                        Reanimated CSS animation on the UI
+                                        thread. `<Skeleton>` (ui/surface) is
+                                        this, so every placeholder in the app
+                                        wears it. See § Loading
+                     ui/arrive          `<Arrive>`: a band that has loaded
+                                        rising into its skeleton's place
+                                        (SimpMusic's `AnimatedVisibility`,
+                                        300ms), and `stagger` for a run of
+                                        them. See § Loading
                      ui/page-scroll     `<PageScrollView>`, `<PageFlatList>`,
                                         `<PageSectionList>`: a page's main
                                         scroller, which is how its bar learns
@@ -472,16 +520,10 @@ src/
                                         "Show all"
                      ui/soft-glow       a radial glow — a native CSS gradient,
                                         no Skia; Surprise Me's bloom and edges
-                     ui/cover-stack     up to five covers as one stack, the
-                                        first whole and in front — five span
-                                        their row, fewer stand in its middle: a
-                                        collection wherever collections are
-                                        listed, and nowhere else. See
-                                        § Conventions
-                     list-tile          a collection in a list, in the review
-                                        card's own card: its title and how many
-                                        games, its stack, two lines of
-                                        description, whose it is
+                     list-tile          a collection in a list: a mosaic of
+                                        four covers, its name, "12 GAMES" and
+                                        "BY ADA", a hairline to the next
+                                        (`<CollectionSeparator>`)
                      profile-section    `<ProfileWidget>`: a hairline, a small
                                         heading and its content — the profile's
                                         favourites, games and pinned song. Not
@@ -492,8 +534,23 @@ src/
                      profile-actions    the profile head's actions: the big
                                         white pill (Follow; Edit profile in
                                         grey) and the glyph keys beside it
-                     ui/ambient-light   Home's soft light in the top-left
-                                        corner (a native CSS gradient, no Skia)
+                     library-home       the head of a library (§ The library)
+                     home/              Home's SimpMusic parts: discover-carousel
+                                        (Games for you as "Your daily
+                                        discover"), home-header
+                                        (the avatar, All / Mood chips,
+                                        Create, Settings), mood-chips,
+                                        home-glow (the first block's glow),
+                                        mood-feed (a mood's lead shelf and
+                                        the rest), quick-picks, mood-tiles
+                                        ("Let's pick a mood for you": the
+                                        moods and genres as the reference's
+                                        search-screen blocks — a gradient of
+                                        the item's hue with a game's cover
+                                        tilted into the corner),
+                                        band-error. See § Home
+                     ui/anchored-menu   a menu dropped from its trigger, in
+                                        a Modal: Home's avatar and Create
                      surprise-card-art  a dealt card's art: square or portrait,
                                         still or animated (`chooseCardShape`),
                                         kept in the shape it was first drawn
@@ -563,7 +620,6 @@ src/
                                         § Progress, physical…
                      cd-disc-underside  the disc's mirrored side; the showcase
                                         alone turns a disc over
-                     library-stats      the head of a library (0028)
                      studio-identity    a studio's name, or its Commons logo in
                                         its place; see § Immersive pages
                      ui/smooth-scrim    SimpMusic's artworkScrimBrush: artwork
@@ -588,7 +644,7 @@ src/
                                         draws a metadata chip instead
                      game-platforms     the Overview's Platforms section: the
                                         case (and its turn-over) for the chosen
-                                        platform, the dropdown, the price
+                                        platform, the dropdown — no price
                      search/            what the Search tab looks through:
                                         search-scopes (`SEARCH_SCOPE_INFO`, the
                                         seven tabs' vocabulary), a results list
@@ -675,14 +731,16 @@ src/
                      the owner's reference: the cover's width, the hero's
                      dissolve, where the row sits in it, the halo, the
                      synopsis's fade — pure, tested),
-                     cover-stack.ts (where five overlapping covers go, and
-                     fewer — pure, tested),
                      profile-layout.ts (the profile's margin of ten, its
                      face, the head's rhythm and the four covers of a widget
                      — pure, tested),
                      similarity.ts (the twelve reasons), reports.ts (what a
                      report can say, per kind), wikidata.ts (the five Wikidata
                      properties the studio logo is found by),
+                     mood-tile.ts (a mood's or a genre's block at the foot of
+                     Home: the reference's measurements, the gradient from the
+                     item's hue and the name's ink at AA — pure, tested; see
+                     § Home),
                      cover-rail.ts (a row of covers — pure, tested), search-spotlight.ts (Search's slider, its scrim
                      and its light — pure, tested),
                      game-labels.ts (the labels a moderator can set — must_play),
@@ -748,7 +806,7 @@ src/
     use-game-prices     `useGameStorefronts` (a game's official stores and
                         Steam appid, from the page's own `['game-extras']`) and
                         `useGamePrices` (its ITAD prices). Where to buy, the
-                        Platforms price, the Awards card and the events rail
+                        Awards card and the events rail
                         all read these, so each is one request
     use-game-labels     which games carry a label, as one shared list of ids:
                         a module store, because `<Poster>` asks for every cover
@@ -807,7 +865,14 @@ src/
                      what each says about its date. Pure, tested.
                      release.ts for whether a game is out yet and its date as
                      words — what keeps an unreleased game from every way of
-                     starting a review
+                     starting a review.
+                     moods.ts for Home's ten moods as IGDB clauses, the
+                     shelves' dedupe, Quick picks and the mood's studio. Pure,
+                     tested; genre-feed.ts a genre as the same kind of feed;
+                     mood-feed.ts sends either, paced. See § Home.
+                     rawg-tags.ts for RAWG's tags — the vocabulary, a game's,
+                     a tag's games as IGDB's — and rawg-match.ts, its pure
+                     half. See § RAWG tags
     wikidata/        the studio logo, and nothing else any more: commons.ts
                      (the licence check — pure, tested), studio-logo.ts
                      (finding the file), claims.ts and client.ts (reading a
@@ -894,6 +959,9 @@ src/
                      written as a BMP. Pure, tested
     surprise-prefetch.ts  Surprise Me's media rules: a card's shape, and what
                      is fetched ahead within a byte budget. Pure, tested
+    home-view.ts     what Home shows — All, a mood or a genre — and its feed
+    home-glow.ts     SimpMusic's Home glow as numbers: the tone (× 0.5), the
+                     25° line, the eased stops. Pure, tested. See § Home
     top-chart.ts     Search's Top 1000 as rules: a thousand at most, pages of
                      twenty, the critics' floor of seven, what a score is made
                      of. Pure, tested
@@ -918,6 +986,7 @@ src/
       reports.ts     reports on suggestions and reviews, and their queues
       labels.ts      labels on games (Must Play): who has one, and a
                      moderator's set and unset
+      pins.ts        a library's pinned games (0043)
       notifications.ts
       songs.ts       the one starred track per profile — a SoundCloud URN
                      and the game, nothing else
@@ -965,7 +1034,12 @@ supabase/
                      or its one sentence,
                      0041 the weighted community score: rater_stats,
                      game_ratings, community_rating_state, the triggers on
-                     logs, and 0026's and 0037's functions weighted
+                     logs, and 0026's and 0037's functions weighted,
+                     0042 a physical copy's art: the copy_art cache and the
+                     public copy-art bucket (written by the function alone),
+                     0043 library_pins: six pinned games a person,
+                     0044 gaming_accounts.linked_by and gaming_service_tokens:
+                     PlayStation, Xbox and GOG linked by username
                      (0006, 0015, 0019 and 0022 each add an enum value and must
                       run alone — see those files)
   functions/igdb/    Edge Function proxying IGDB
@@ -976,7 +1050,14 @@ supabase/
                      its HTML, and its events & announcements. Caches in 0039
   functions/_shared/steam-store.ts  the parser for both. No imports, so
                      `npm test` loads it against real page excerpts
+  functions/copy-art/  a physical copy's back cover and disc label, from
+                     GameTDB and ScreenScraper, kept in the copy-art bucket
+  functions/_shared/copy-art.ts  how a game is found in each and which
+                     picture is which. No imports; `npm test` loads it
   functions/scandex/ Edge Function proxying ScanDex (barcode → IGDB game)
+  functions/game-accounts/  PlayStation, Xbox and GOG imported from a public
+                     username, RAWG's way; _shared/game-accounts.ts its pure
+                     half (no imports; `npm test` loads it)
   functions/soundcloud/  a game's soundtrack on SoundCloud, and a stream for
                      one track. Holds the client secret and the app's token
   functions/_shared/soundcloud-match.ts  the matcher: which upload is a
@@ -1034,6 +1115,12 @@ for 2:3, so the crop cuts the logo. `lib/games/steamgriddb.ts` is not a provider
 and must never become one: nothing there may put a game *into* the app, only art
 onto a game already in it.
 
+**There is no game logo anywhere, by the owner's decision** (2026-10-22): a
+game's transparent logo — Wikimedia Commons by its Wikidata item, then
+SteamGridDB's `/logos` — stood in for its name on the game page, then on a
+review's page, and the owner had every line of it removed: "I don't think it
+fits in any screen". Do not rebuild it.
+
 **Its static square has three surfaces**, all through `useSquareCover()`: Surprise Me,
 a review's own page — the square as the hero at its top, full width and
 fading into the page, the landscape art or the cover cropped in its place
@@ -1079,7 +1166,7 @@ work.** The game page briefly asked for the selected platform's own box front.
 `eshop` — not console families, so `playstation` and `xbox` had no endpoint to
 resolve against and every console tap spent a request to fall back to the cover
 it already had. The switcher — the Overview's Platforms section — re-draws the
-case and the price; the artwork is IGDB's.
+case; the artwork is IGDB's.
 
 Resolution is Steam appid, then a title search, because `games.source_id` is an
 IGDB id and SteamGridDB does not index IGDB; the title path is a string match and
@@ -1164,7 +1251,7 @@ which matters there because a library tile no longer prints the game's name.
 `<GameTile>` on the Steam tab's rails, `library-widget` and the achievements
 screen pass the capsule as `coverUrl` with no `steamAppId` — so a game with no
 capsule is a blank tile in each. Not changed: nobody asked, and the shelf's
-would need an appid carried through `<CoverStack>`.
+would need an appid carried through to its covers.
 
 **No HEAD probe, ever.** The direct URL costs nothing to build, so it is used
 optimistically and `<Image onError>` is what triggers the hashed lookup —
@@ -1273,6 +1360,21 @@ Commons — only ever a verified public-domain or CC0 file:
   involvement query survives only for a company with no games of its own.
 - Everything fails to the name: no item, no free logo, a rate limit, no
   network, an image that will not load.
+
+**The studio page is the banner game's Material 3 page, not near black** —
+the owner's (2026-10-22): "Make the background color for that page back to
+normal m3, don't darken it", and "for a studio who doesn't have a logo image,
+paint the text of their name with the m3 color". `useGameAccent(bannerUrl,
+genres)` gives the page (`accent.page`) and the name's ink
+(`accent.onSurface`); no `<AccentProvider>`, so the controls stay the app's.
+With game colours off it is the app's page and the name the text ink. **A
+trailer's letterbox bars now show against the page** — near black was chosen
+on 2026-10-17 for exactly that, and the owner overrode it. Its sections, top to
+bottom: Latest releases, Best rated (four rated originals, was six), Most
+popular (`total_rating_count`), Coming soon, a rail per franchise with three or
+more games (three at most, strapline "Franchise"), Remakes & remasters,
+Special editions, All games. `STUDIO_FIELDS` asks for franchises, genres and
+the rating count for them (`StudioGame`, optional fields).
 
 **The artwork plays its game's trailer** — SimpMusic's animated artist artwork
 (`ArtistScreen.kt`, `artistMotion`), at the owner's direction (2026-10-17): on
@@ -1469,7 +1571,9 @@ list.
   reference (2026-10-09), in the app's materials (`<DiscoverFeed>`). Top to
   bottom: the slider, then four rows of games — Popular this month, Similar to
   (the game you reviewed last), Beloved by the community, Highly rated — then
-  the Top 1000, then Browse by genre. Every one is a heading on the page with its content under
+  the Top 1000. ("Browse by genre" ended the page until 2026-10-22, when the
+  owner moved genres onto Home as feeds — § Home. Do not bring it back.)
+  Every one is a heading on the page with its content under
   it, thirty-two apart. Typed, it is the results. **No collections here**: a
   band of the most-liked ones closed the page and the owner had it removed
   from the Games tab — the Collections tab shows the same list. Three owner
@@ -1516,7 +1620,7 @@ list.
   slider, saw it on a phone twice in one day — hung from the slider's top
   edge, then lying along its foot and fixed there — and then: "Remove the glow
   from the search screen." `<DoorLight>` and its numbers are deleted. Home
-  keeps its own light (`<AmbientLight>`).
+  keeps its own glow (`<HomeGlow>`, § Home).
 - **"Beloved by the community" is GameLog's own scores** (`getBelovedGames`,
   migration 0037's `beloved_games`), where the band of most-liked reviews was.
   The period — week, month, year — is a small `<DropdownButton>` at the far end
@@ -1575,9 +1679,6 @@ list.
 - **A tab can be tapped with the keyboard up** because `<TabBar>`'s scroller is
   `keyboardShouldPersistTaps="handled"`; without it the first tap only closed
   the keyboard.
-- **The genre grid is two across, and its `minWidth` is 35%, not 45%.** See the
-  gotcha on percentages in a wrapping row: at 45% every genre took a row to
-  itself on a 360dp phone.
 - **Reviews is a scope because the field can filter it.** It was a tab here
   once and was taken out as a popularity chart the field ignored. Typed, it is
   `searchReviews` — the game a review is about, its headline, or a word in it,
@@ -2170,7 +2271,7 @@ when superseded (`signal` through the IGDB `queryFn`s), negative answers cached
 with a TTL (the square-cover, Steam-artwork and logo stores), and ABI filters on
 the sideloaded build (§ APK size).
 
-**Two things it does that were deliberately not copied yet:**
+**One thing it does that was deliberately not copied yet:**
 
 - **Screens that are not on top stop working.** Compose stops collecting state
   for a destination that is not started; here every screen in the stack and all
@@ -2181,10 +2282,50 @@ the sideloaded build (§ APK size).
   state (§ Gotchas), which is exactly what a freeze would disturb. It is two
   lines; try it on a phone, alone, and open a screen with a frosted top bar
   after returning to it.
-- **A skeleton in the page's shape, cross-faded.** SimpMusic's loading state is
-  `HomeShimmer` under a `Crossfade`; `<LoadingState>` is a spinner. Rules 1, 3
-  and 4 mean a spinner is now rare — a page neither visited, restored nor seen
-  in a list — so this is polish, and it is design work on each screen.
+**And one that is copied now** (2026-10-22, the owner: "use simpmusic way of
+loading things, animations and skeletons, animations of things arriving on
+screen too. The smoothnes of it"):
+
+- **A skeleton shimmers, and content rises into its place.** SimpMusic's
+  placeholders (`Shimmer.kt`) are blocks of `shimmerBackground` wearing
+  `Modifier.shimmer()` (`UIExt.kt`): a gradient `[background, line,
+  background]` swept from `-2 × width` to `+2 × width` on
+  `infiniteRepeatable(tween(1000))`, clamped outside that span — so a flat
+  block with one soft light passing over it and no seam where the light
+  begins. `components/ui/shimmer` is that, and **`<Skeleton>` is it now**, so
+  every one of the app's ~forty placeholder call sites got it without being
+  edited. Two things about it:
+  - **It reverses the old rule, and the old rule was right at the time.**
+    `<Skeleton>` was static because "a shimmer across a whole search list
+    costs more in dropped frames than it gains in perceived speed" — a cost
+    paid on the JS thread. This is a **Reanimated CSS animation**
+    (`animationName` on a React prop), declared once and run on the UI
+    thread, so a list of thirty neither slows the JS thread nor is slowed by
+    it; and it has no end value to lose (§ Gotchas), because it never ends
+    and the pose React holds is the plain fill.
+  - **The travel is dp from a measured width**, not the `'200%'` a CSS
+    transform would accept: a percentage transform is interpolated natively
+    and nothing here can be run on a phone to confirm it. One extra render
+    per block on mount, nothing after.
+  - **`skeletonSweep` is measured, not picked.** The reference's background
+    composites to a relative luminance of 0.0178 over its own `#121212`
+    panel and `skeleton` here is 0.0177; its line stands at 1.72:1 on that,
+    and `skeletonSweep` is the colour at the same ratio on `skeleton`.
+- **A band that has loaded arrives** (`components/ui/arrive`): `<Arrive>` is
+  SimpMusic's `AnimatedVisibility(enter = fadeIn() + expandVertically())`,
+  at Compose's own `DefaultDurationMillis` of 300, on Home's five bands and
+  on every shelf of a mood or a genre. `stagger(index)` holds a run of
+  equal-looking cards back 100ms each (capped at four) so a band fills from
+  the top rather than appearing as a slab. **It is a fade in, not the
+  reference's `Crossfade`**, and that is deliberate: the reference swaps its
+  whole page, where overlapping two full-page states costs nothing, while a
+  band here is one item in a column and Reanimated keeps an *exiting* view
+  mounted — so cross-dissolving a skeleton with its content would hold both
+  in the column for 300ms and shove everything below down a band's height
+  and back. The content takes the skeleton's place in the same frame and
+  rises into it, which only reads as a cross-dissolve because this app
+  already requires a skeleton to be the height of what is coming.
+- **Still under Reduce Motion**, both of them.
 
 ## Review cards
 
@@ -2823,10 +2964,13 @@ screen's heading under its bar again.
      soundtrack, a copy. The page tells it how tall its header is
      (`<FrostedTopBar header={…}>`); the bar arrives as the header's foot
      reaches its own, so it never lands on the art.
-  3. **Home** — `<FoldingTopBar>`: the first kind, **fixed at the top**. Its
-     row folded away while the page was read downward and came back on the way
-     up; the owner had that removed (2026-10-14): "Make the home top bar stay
-     at the top, it should not move with the scroll." Do not fold it again.
+  3. **Home** — `<FoldingTopBar height={56}>` holding `<HomeHeader>`: the
+     first kind, **fixed at the top**. Its row folded away while the page was
+     read downward and came back on the way up; the owner had that removed
+     (2026-10-14): "Make the home top bar stay at the top, it should not move
+     with the scroll." Do not fold it again. (For a week from 2026-10-15
+     Home had no bar — its masthead scrolled with the page; SimpMusic's header
+     replaced that on 2026-10-22. See § Home.)
 - **A screen's name is its bar's `title`.** Twenty-odd screens printed an `h1`
   at the top of their content because no bar existed to carry it — several
   said so in a comment. Those headings are the bars' titles now and are gone
@@ -2900,7 +3044,7 @@ screen's heading under its bar again.
     below Android 12. So there the frost's blur view is not mounted at all.
 - **The bar is a layer, not a surface.** It has nothing of its own to show; it
   softens what the page put behind it, which is why a page's ambience
-  (`<SoftGlow>`, `<AmbientLight>`) belongs in `<Screen backdrop>` and never in
+  (`<SoftGlow>`) belongs in `<Screen backdrop>` or the page and never in
   the bar. A gradient of the bar's own would be two ramps meeting at its foot —
   a seam.
 - **Every animated value on it survives a re-render, and how is easy to
@@ -2937,6 +3081,271 @@ screen's heading under its bar again.
   each artwork page's bar comes in (`header`, per screen — three of them are
   estimates and say so); Home's fold; and whether the animated blur holds its
   frame rate on an older phone.
+
+## Home: SimpMusic's header, glow and moods
+
+The owner's direction (2026-10-22): "replicate simpmusic's glow on the home
+page, with the same effect and size… It grabs the color from the first song
+that appears in the first section… grab their exact top bar and add the tabs
+with moods. Analyze how simpmusic categorizes… and translate that to
+videogames… Whatever is achievable in gamelog that simpmusic has there, do it.
+Even things like the quick picks or having a section for a specific artist
+that fits that mood". Read from SimpMusic's source (`HomeScreen.kt`,
+`HomeViewModel.kt`, `ChipGroup.kt`, `CreateSheet.kt`, `AdapterItems.kt`,
+`AmbientThemeGlow.kt`, `UIExt.kt`, and the `core` submodule's
+`HomeRepositoryImpl.kt` / `HomeParser.kt`), and YouTube Music's live answers.
+
+**How SimpMusic picks a mood's songs: it doesn't.** Its ten `HOME_PARAMS_*`
+strings decode (base64 → protobuf, field 48) to YouTube Music's ten home
+filter chips with one marked selected; choosing a mood reloads Home from
+YouTube's `FEmusic_home` with that chip pressed. YouTube's ranker decides; the
+app draws the answer. Fetched for all ten chips on 2026-10-22: a strapline over
+the first shelf ("FOR RELAXING" / "Unwind + explore"), five to ten themed
+shelves of playlists, a four-row Quick picks grid somewhere among them, and —
+signed in — shelves headed by an artist's round picture.
+
+**How GameLog does: IGDB clauses** (`lib/games/moods.ts`, pure, tested). Each
+mood is SimpMusic's name in SimpMusic's order (Sleep is "Wind down" — a game is
+not something to fall asleep to), a strapline (YouTube's own where it has one)
+and four to six shelves, **each shelf a `where` clause** over IGDB's genres,
+themes, modes, perspectives, platforms and above all its editors' *keywords*
+("relaxing", "cozy", "fast paced", "emotional", "couch co-op"). Every clause
+was run against the live catalogue and tightened where it caught the wrong
+games. What is easy to break:
+
+- **Negate by id, never by `keywords.name`.** `themes != (19,39)` is "contains
+  none of" and keeps a game with no themes (checked: 61 − 11 = 50). A dotted
+  field's `!=` is "has some keyword not in the list" — it let Nekopara
+  through. So the floor excludes IGDB's Erotic theme (42) and the keywords
+  nudity / sexual content / sexual themes **by id** (`ADULT_KEYWORDS`), and
+  `moods.test.ts` fails if a clause ever writes `keywords.name !=`.
+- **Bare keywords and genres lie.** "farming" alone is Demon's Souls and Rome:
+  Total War, "fitness" alone is GTA, IGDB's "Tactical" genre is Metal Gear and
+  Call of Duty, its "Quiz/Trivia" is Banjo-Kazooie, "Racing" includes GTA.
+  Calm moods shut out horror, thrillers, war, the Action theme and fighting /
+  shooters / hack-and-slash (`CALM`). Re-probe a clause live before changing
+  it (the scratch script for that was not kept; any `games` query through the
+  `igdb` function with the anon key will do).
+- **Shelves are deduplicated in order** (`distinctShelves`): a game, or a game
+  of the same name (remakes keep names), shows on one shelf only; a shelf left
+  under four is not drawn. Quick picks leave out the reader's logged games.
+- **Quick picks are ranked by score with a 100-rating floor**; at 40, "American
+  Chopper" and "Club Penguin" topped two moods.
+- **The studio is a developer, never a publisher** (`moodStudio`): the most
+  credited developer among the mood's 150 most-rated games, if it made three
+  or more. Measured live: Amanita Design (relax, wind down, feel good), Nintendo
+  EAD (energize, party), Game Freak (commute), Intelligent Systems (focus).
+- **Requests are paced** (`lib/games/mood-feed.ts`, 270 ms apart): a mood is
+  about nine IGDB requests and the app's credentials are shared at four a
+  second. Mood queries are `['mood', key, …]`, six hours fresh, and in
+  `NEVER_PERSIST`.
+
+**The page** (`app/(tabs)/index.tsx`, `components/home/`). Built on
+2026-10-22 and corrected the same day from the owner's first look — the
+second round is what is described here:
+
+- **The top bar is SimpMusic's header, less its avatar** (`<HomeHeader>` in
+  `<FoldingTopBar height={72}>`): fixed, clear at the top, the page's colour
+  once scrolled (no blur, the owner's rule for bars). **72, not the
+  reference's 56**: "make the top bar thicker, it cuts too early". The chips
+  are a scroller of their own between the margin and the keys, **clipped
+  there**: the reference's chips pass over its avatar and its keys, and the
+  owner had that stopped ("they go over and on top of the + and setting
+  buttons… out of screen boundary"). Create (+, a 36 disc in a 48 key) drops
+  an anchored menu (`ui/anchored-menu`) — log, review, new collection —
+  because a sheet would be under the floating tab bar; Settings is the bare
+  glyph.
+- **The avatar is on the page again**: the "Welcome back," row — face and
+  name to the profile, the bell with its unread badge at the row's end — on
+  All only ("only for the home screen, not the mood tabs"). For one build it
+  was the reference's avatar in the bar with a menu, and the masthead row
+  (GameLog, greeting, bell) is gone for good.
+- **The chips are All, Mood and Genre** (`<HomeChips>`, the reference's `Chip`
+  and `ExpandableChip`): each expandable one opens into its choices in one
+  pill and, picked, folds to "Mood | Relax" on primary twenty HCT tones
+  darker. Opening one closes the other. Fills pour. The reference's spinning
+  loading ring is not ported. What Home shows is a `HomeView` (`lib/home-view`):
+  All, a mood or a genre.
+- **A genre is a feed, as a mood is** (`lib/games/genre-feed.ts`, the owner:
+  "dont make it so that it opens a new screen… it reloads the page you're
+  on with sections tailored for the selected genre"): Best rated, New
+  releases (120 days, newest first, two follows or ratings), Most played,
+  Coming soon (five follows), Better with friends, Hidden gems (80+ by sixty
+  people at most), Classics (before 2005), Indie picks — then Quick picks and
+  the studio from the whole genre. The ten genres are `GAME_GENRES`, ids read
+  live (`useHomeGenres`). Search's "Browse by genre" grid, `<GenreGrid>` and
+  the `genre/[id]` screen are **deleted**.
+- **The glow** (`<HomeGlow>`, `lib/home-glow.ts`, pure, tested): the first
+  block's background — the bar's room, 24, and the first section — **plus
+  140dp**, scrolling with the page. Palette's dominant swatch of the first
+  cover of the first section (Games for you, Releases on a first run, a
+  feed's lead shelf) **× 0.5 in sRGB** (`rgbFactor`; the reference's 0.3, the
+  owner's "the hue has to be stronger") — not Material 3 —, an
+  `angledGradientBackground` at 25° with Compose's own line length and 24
+  smoothstep stops mixed in Oklab, and the page rising over its bottom 60%.
+  A new tone cross-dissolves over 500 ms; the last tone holds while the next is
+  decoded. With game colours off it is the house primary × 0.45
+  (`AmbientThemeGlow`'s rule). No tone, no glow. **The sections start 24 under
+  the bar** (`LEAD_GAP`; the reference's 8 — "a little bit lower").
+  **What is inside the first block is the glow's length**, and the block ends
+  after Surprise Me. On All it used to hold four bands — the greeting,
+  Surprise Me, the first-run ask and "Games for you", about 850dp against a
+  mood's ~240 — and the owner (2026-10-22): "the glow in the home screen for
+  the primary page is too long. it should be the same as the ones in the other
+  tabs." The first-run block and "Games for you" moved *out of the measured
+  view* and nowhere else: the bands are in the same order, and the scroller's
+  own content gap is the same thirty-two the block used inside itself, so
+  nothing shifted. A band that is games paints on the plain page. Do not put
+  either back inside the lead.
+- **A feed swaps everything under the first block**: lead shelf (with the
+  strapline) → Quick picks (four rows of 64, columns the page less 30, snapping)
+  → the next shelf → the studio (36dp round logo, "FROM THE STUDIO", its name
+  linking to the studio) → the rest. Every view ends on "Let's pick a mood for
+  you" (`<MoodTiles>`) — see the next section.
+- **Kept from before**: All's bands, Surprise Me's entry, the footer; section
+  headings stay this app's `h4` (the reference's are 20).
+- Feed queries are `['home-feed', feed.id, …]`, six hours fresh, in
+  `NEVER_PERSIST`.
+
+**The moods-and-genres grid is the reference's *search* screen's**
+(`<MoodTiles>`, `constants/mood-tile.ts` — pure, tested), at the owner's
+direction (2026-10-22): "Make mood and genre buttons like the ones in simpmusic
+search screen, being blocks in a gradient color with an image from a song." It
+replaced SimpMusic's *other* moods grid, `MoodMomentAndGenre` — 144 × 34 cards
+with a 10dp stripe, three rows deep, sliding sideways — which is what the
+reference puts at the foot of its own Home; a 2:1 block in a three-row carousel
+would be a stamp. Read from `MoodCategoryCard.kt`, `PlaylistThumbnail.kt` and
+the grid in `SearchScreen.kt`:
+
+- **A tile is a 2:1 block with a 10dp corner**, two to a row, twelve apart,
+  the name in white `itemTitle` at the top-left over two lines at most, and
+  **one game's cover tilted 25° off the bottom-right corner** — offset 8 right
+  and 12 down *before* it is turned, so the tile's own clip cuts it into a
+  diagonal rather than pasting a square inside the block. The name's 72 of
+  right-hand padding is the reference's own arithmetic for the turned cover's
+  bounding box (`64 × (cos 25° + sin 25°)`), not for a badge.
+- **The gradient is the item's own hue, not a hash of its name.** The
+  reference derives two unrelated hues from `title.hashCode()`; this app
+  already has a colour that means something for exactly these items — a
+  genre's identity hue, a mood's own — and inventing a hex is against the
+  colour rule. So a tile is its own hue twice, the second stop turned 16°
+  (half the ramp's own median step), at 45°.
+- **Both stops are anchored by measured luminance**, which is what lets the
+  name be white on every tile. The name's box is most of a 2:1 tile, so there
+  is no band to keep clear: white has to hold *everywhere*. Fixing a
+  lightness cannot do that (yellow and blue are nowhere near each other in
+  luminance at one lightness), so each stop is placed at a luminance with
+  `atLuminance`, which keeps the hue and the saturation. A blue tile comes out
+  darker than its number asks for because a saturated blue cannot be that
+  bright; that is the hue, not a bug. `mood-tile.test.ts` holds all ten at AA
+  and **fails if either stop is raised**.
+- **No badge.** The reference stamps each tile with a white disc carrying its
+  monochrome mark at 20%, as its shareable playlist placeholders do. There is
+  no GameLog logo, and twenty stand-in brand dots inside the app would tell
+  somebody which app they are already in.
+- **The covers arrive late, and only if you scroll this far.** The reference
+  requests a category's artwork from inside the tile and says why: "a category
+  the user never scrolls to never costs a browse." Twenty tiles is twenty IGDB
+  requests against credentials every phone shares, so the grid asks for
+  nothing until it is within a screen of the viewport — one
+  `useAnimatedReaction` on the page's `scrollY` against the block's own
+  `onLayout` offset, guarded on the UI thread so it fires once — and then goes
+  through `mood-feed`'s existing pacer, behind whatever feed is on screen
+  (`getFeedArtwork`: the feed's pool, its most-rated game, one field,
+  `t_cover_small` for a 64dp slot). `['mood-art', key]`, a week fresh and
+  **kept on the device**, so a cold start draws the covers it drew last time.
+  A tile is finished without its cover and only ever gains one.
+- **Ten moods and ten genres is ten rows of blocks**, about 900dp at the foot
+  of Home. That is the reference's layout and the owner asked for the blocks;
+  it is the first thing to judge on a phone.
+
+**Not seen on a device.** Types, lint and `npm test` (`lib/home-glow`,
+`lib/games/moods`, `lib/games/genre-feed`) pass; every clause, Quick picks and
+the studio pick were run against live IGDB. The owner asked (2026-10-22) that
+no emulator be used on this machine until they say otherwise. To judge on a
+phone: the glow's strength, its seam and its new length, the chips' clipping at
+the keys, the Mood and Genre pills' grow and fold (Reanimated layout
+transitions), the menus' placement, and how long a feed takes to fill. And of
+the grid and the loading work of 2026-10-22: whether ten rows of blocks is too
+much foot for Home, where the turned cover lands in a tile's corner, whether
+the shimmer's sweep holds its frame rate on a list of thirty placeholders, and
+whether the bands' arrival reads as smooth or as late.
+
+## RAWG tags
+
+The owner's request (2026-10-22): "Add from rawg's api their tags for games.
+And include them as searchable on any screen that contains other things to
+search about games." RAWG's tags are its players' words ("Atmospheric",
+"Great Soundtrack", "Story Rich", "Co-op") — IGDB's genres and themes are not
+that. `lib/games/rawg-tags.ts` asks RAWG; `lib/games/rawg-match.ts` (pure,
+tested) decides what its answers mean.
+
+- **Where they are searchable**: "Search by" → Tag, with RAWG's ~100 most-used
+  English tags filtered as you type; the title-search suggestions; a game's
+  Details card (a "Tags" row after Themes, each a link); and Surprise Me's
+  "Narrow it down" (a Tags checklist, `prefs.tagIds`).
+- **A tag is a facet** (`kind: 'tag'`, RAWG's tag id) **that is never a
+  clause**: `facetsClause` leaves it out. A search holding a tag pages
+  through RAWG's `/games?tags=…` in the catalogue's order as RAWG reads it
+  (`rawgOrdering`), and each page's names become one IGDB request —
+  `name = ("…","…")` with the rest of the search (other facets, a platform, a
+  word) ANDed on — so tags combine with everything. RAWG never puts a game in
+  the app: a row is shown as the IGDB game of its name and year
+  (`inRawgOrder`), or not at all. The count is RAWG's; a page can be short.
+  "Combined" keeps only rows carrying every tag (`hasEveryTag`).
+- **Surprise Me with tags** draws a random page of RAWG's games with them
+  (`getTagSurprisePool`) and narrows it by the rest of the settings. The live
+  pool count is not shown while tags are set: IGDB cannot count RAWG's
+  tagging.
+- **Built without a key, and not run.** `EXPO_PUBLIC_RAWG_API_KEY` was empty
+  on 2026-10-22 and RAWG answers nothing without one; everything follows its
+  published API description. Without a key every tag control is absent
+  (`rawgTagsAvailable`). On the first run with a key, check that `/games`
+  rows carry `tags` (the description lists them on a game's own record only)
+  and whether `tags=1,2` means both or either.
+- `['rawg-tags']` (a week) and `['rawg-game-tags', gameId]` are kept on the
+  device; a tag search is under `['search', 'catalogue-tags', …]`, never.
+
+## A copy's back cover and disc: GameTDB and ScreenScraper
+
+The owner's request (2026-10-22): "When someone scans a game and they add it
+to their physical collection, you should fetch in the two apis below for a
+back cover and CD disc to display. The front stays app-default." The sources
+and how a game is found in each are `supabase/functions/_shared/copy-art.ts`
+(no imports; `src/lib/copy-art.test.ts` loads it); the `copy-art` Edge
+Function runs it; `useCopyArt` asks it.
+
+- **GameTDB first**: no API — `emilydaemon/gametdb-api` is a small server over
+  GameTDB's title lists — so the function does the same: the console's
+  `ID = Title` list (`gametdb.com/wiitdb.txt?LANG=EN`), the IDs of the game's
+  name with the copy's region first (the region is a letter of the ID), then
+  `art.gametdb.com/{console}/{type}/{region}/{ID}`. Wii and GameCube: the whole
+  sleeve (`coverfullHQ`, back left of the spine — cropped by `sleeveBackCrop`)
+  and the disc; Wii U: `backHQ` and the disc; DS, 3DS, Switch: `backHQ` only.
+  Run live on 2026-10-22 for eight games on six consoles: every back found,
+  every disc where there is one.
+- **ScreenScraper for the rest**: `jeuRecherche.php` by name on the system,
+  then `box-2D-back` and `support-2D` / `support-texture` in the copy's region.
+  It needs developer credentials, and its media URLs carry them, so **every
+  image is downloaded and kept in the `copy-art` bucket** (GameTDB's too — no
+  phone hot-links either source). **Not run**: no credentials yet; the
+  system ids are the scraping tools' (`SCREENSCRAPER_SYSTEMS`) and are to be
+  checked on the first run.
+- **When**: as a copy is saved (`prefetchCopyArt` in `add-copy`), and on any
+  copy page or binder sleeve that has not asked yet. Answers are cached in
+  0042's `copy_art` by platform, region and name — three months for a find, a
+  week for a miss — and a day on the phone.
+- **What is drawn**: the back face of the copy screen's case shows the scan
+  (`<CopyCaseBack scan>`), and the edition record it printed is said under
+  the stage while the back faces the reader (`copyRecordLine`) — still shown,
+  still once. A disc shows its real label (`<CdDisc labelUrl>`) on the stage,
+  in the open case's tray and in the binder. **A cartridge's label is never
+  drawn** — the stage draws no cartridge. The front stays the app's.
+- **To switch it on**: run `0042_copy_art.sql`, then `supabase functions
+  deploy copy-art`. GameTDB needs nothing else; for ScreenScraper,
+  `supabase secrets set SCREENSCRAPER_DEV_ID=… SCREENSCRAPER_DEV_PASSWORD=…`
+  (and optionally `SCREENSCRAPER_USER` / `SCREENSCRAPER_PASSWORD`). Undeployed,
+  a copy draws its own back and the box-art disc, as before.
 
 ## The poster screens: onboarding, the event page, the progress pills
 
@@ -3115,6 +3524,13 @@ and the event page's foot bar are all for a device.
   `['latest-reviews', languages]`, `['lists', 'latest']`. Settings:
   `['game-colours', userId]` and `['animated-artwork', userId]` read device
   stores and are in `NEVER_PERSIST`; each one writer sets its own.
+  `['gaming-accounts', userId]` (the profile's platform badges; a link or
+  unlink invalidates it),
+  `['library-pins', userId]` (a library's pins; the picker and unpin
+  invalidate it).
+  `['mood-art', 'mood:relax' | 'genre:12']` is one cover for a tile at the
+  foot of Home — a week fresh and kept on the device, so the grid is not blank
+  on a cold start; nothing invalidates it.
   `['artwork-mesh', thumbnail]` is the cover viewer's page, never persisted;
   `['onboarding-examples', 'colours' | 'animated']` the look questions'
   games.
@@ -3491,8 +3907,21 @@ and the event page's foot bar are all for a device.
     with the game's rails." A row is its heading on the page and its covers
     under it, starting at the page's margin and running off the far edge.
     **Do not wrap a row of games in a card, a panel or a band, on any screen.**
+  - **One exception: Home's "Games for you" is SimpMusic's "Your daily
+    discover"** (`<DiscoverCarousel>`, the owner's, 2026-10-22 — it was Apple
+    Music's Top Picks cards for an hour). Material 3's centered hero carousel,
+    read from `HomeSectionStyles.kt`: a 320-tall card 74% of the display wide
+    (360 at most) in the middle, a narrow neighbour each side, 8 apart, 10 in,
+    28 round; every card's mask morphs between the two sizes on Material's
+    keylines as the row moves, the art staying full size under it. The game's
+    square art (SteamGridDB, else its box), its name in `h2` and "Similar to
+    Hades" (`recommendFromLogs`' `because`) over a scrim 0 → 0.78 from 45%
+    down. One card a swipe; a neighbour tapped comes to the middle, the middle
+    one opens the game. `constants/discover-carousel` is the geometry (pure,
+    tested). Cards and words on art here only — no other row follows it.
   - **The heading** (`<HomeSection>`; `<Section>` on a game's page) is one
-    line of `h4`, no subtitle, and no "See all" — a heading that leads
+    line of `h2` (the owner's "make the texts for the sections title bigger",
+    2026-10-22 — it was `h4`; every `<HomeSection>` caller moved with it), no subtitle, and no "See all" — a heading that leads
     somewhere is the link, the whole line, and ends in a quiet chevron.
     `trailing` puts one small control there instead (Beloved's period).
     Sections are `x32` apart. `<HomeSection>` also heads what is not a row —
@@ -3708,55 +4137,31 @@ and the event page's foot bar are all for a device.
      its title, centred (`profile/[id]`, the one `<FrostedTopBar centerTitle>`).
      That is from the week between and was not asked back, so the header's
      first line is the name alone.
-- **A stack of five covers is how a collection is shown** (`<CoverStack>`,
-  `constants/cover-stack.ts`, tested). The owner's second reference, old
-  Letterboxd's "New from friends" tile, measured exactly: five covers the same
-  size and level, each stepping 0.556 of a cover's width from the one in front
-  of it, so the stack is 3.22 covers wide; **the first cover is whole, in the
-  middle and in front**, the next two tucked behind it either side, the last
-  two behind those. **One place draws it: a collection's card**, wherever
-  collections are listed. (A profile's library drew it too, for three passes,
-  until the owner had it replaced with four separate covers — the profile's
-  rule 5.) It is inside the card and **five covers span the card's inside
-  exactly**, so the stack is on the margins of the text above and below it:
-  covers 93×140 on a 360dp phone. Being in a card is all the smaller it got. **For one
-  pass a full stack took seven-eighths of its row and stood in the middle**,
-  to be "a little bit smaller"; the owner saw it line up with nothing and had
-  it brought back: "whenever there are 5 games in that widget, the widget
-  aligns against the margins of the content inside the card". Do not inset a
-  full stack again.
-  - **The first cover is the one that represents the thing**: a collection's
-    chosen cover (else its first game). The rest alternate
-    left and right outward (`STACK_ORDER`).
-  - **A cover is the size it would be in a full stack**, however many there
-    are. Fewer than five build from the first cover outward, and **a short
-    stack stands in the middle of its row** — the owner's direction: at the
-    left edge, "a collection with 3 games leaves a big gap of nothing at the
-    right". Only a short one: five need no centring, they are the row.
-    The centring is the layout's own: `StackPlace.left` is measured from the
-    row's left edge and `<CoverStack>` is as wide as the row, so no caller can
-    forget it. None is one lettered placeholder, in the middle. No empty slots
-    are drawn.
-  - **Each cover is a `<Poster>`** — the box-art corner, the cover's edge, no
-    Must Play badge — and **casts a drawn shadow** on the one behind it, a strip
-    of gradient 8% of a cover wide. Drawn, because five level covers have no
-    "below" for an elevation to fall on; and drawn **by the cover in front**,
-    hanging outside its own edge, because Android paints a view's children in
-    order of elevation: a flat strip written after an elevated `<Poster>` lands
-    under it. Each cover's wrapper is `collapsable={false}` for the same
-    reason — flattened, all five covers and their strips are sorted by
-    elevation together.
-- **A collection is one cover on its own screen and a stack of five where it is
-  listed. There is no mosaic.** The owner removed it ("remove the mosaic feature
-  from the app, inside the collection screen only have one game displayed"):
-  `<CollectionMosaic>` is deleted, and with it the per-collection choice between
-  four covers and one. `lists.cover_style` (0033) is still in the database —
+- **A mosaic of four is how a collection is listed** (`<ListTile>`, the
+  owner's reference of 2026-10-22: "a mosaic, 4 squares with the portrait
+  cover in each square. They are slightly separated, you can make out the
+  squares"). A row on the page, not a card: the mosaic — four 46dp squares,
+  four apart, each a cover cropped to its middle, empty squares drawn as faint
+  tiles so every mosaic is one shape — then the name in `h3` (two lines at
+  most) and two quiet lines in spaced capitals, "12 GAMES" and "BY ADA", with
+  a hairline between rows (`<CollectionSeparator>`, every list's separator).
+  The reference's second line counts likes ("206 CAKES"); likes are not on a
+  collection's summary and cost a request a screenful, which the owner had
+  removed once, so the line is the owner. No description on the row. It
+  replaced the review card holding a stack of five covers (`<CoverStack>`,
+  deleted with its constants) — the tile from 2026-10-09 to 2026-10-22.
+- **A collection is one cover on its own screen and a mosaic of four where it
+  is listed.** The owner removed the mosaic from the collection's *own screen*
+  ("remove the mosaic feature from the app, inside the collection screen only
+  have one game displayed"): `<CollectionMosaic>` is deleted, and with it the
+  per-collection choice between four covers and one. The list's mosaic is a
+  different thing, asked for later (above). `lists.cover_style` (0033) is still in the database —
   nothing was dropped, as with `posts` — and **nothing reads or writes it**.
   - **The cover** is `cover_game_id`, the owner's pick (the menu's "Choose the
     cover", offered whenever there is more than one game), else the first item
     with art: `resolvePreview` over a summary, `collectionCover` over the full
-    list. The two must agree — it is the same game on the screen and in front
-    of the tile's stack, so a tile leads to the cover it was showing.
+    list. The two must agree — it is the same game on the screen and the first
+    square of the tile's mosaic, so a tile leads to the cover it was showing.
   - **On its own screen** (`<CollectionHeader>`): that one game, for every kind
     of collection, an award show included — its trophy over the artwork went
     with the mosaic, and "Award show" is the line under the title. Square art
@@ -3767,24 +4172,9 @@ and the event page's foot bar are all for a device.
     game takes the cover's page colour** now (§ Immersive pages); it was only
     those not showing four.
   - **Where it is listed** (`<ListTile>`: Search, a profile's Collections tab,
-    Discover, the game page's "In collections" sheet): **a card.** The owner's
-    third reference for this tile is a list drawn as a panel — its name top
-    left, "32 Films" top right, its posters under them — with the direction
-    "have the collection UI display inside a card… put everything inside the
-    card". So: the title with its kind's glyph (a gold trophy for an award
-    show) and **the game count at the far end of the title's line**; the stack
-    (`resolveStack` — the cover first, then the rest in order), five covers
-    from the title's left edge to the count's right one; two lines of
-    description if there is one; the owner's picture and name. **The card is
-    the review card** (`<LogCard>`'s: `surface`, `Radius.review`, fifteen in,
-    the card shadow and its hairline edge), by the owner's direction — change
-    one and change the other, which is what happened on 2026-10-20 when both
-    took the owner's new colours and shape. **One to a row,
-    twelve apart**, as review cards are; it was thirty-two of air while the
-    tile stood on the bare page. The owner chose one per row over two. **No
-    likes or comments on it** — the owner chose "game count only"; they are on
-    the collection's screen, and `useCollectionEngagement` (a second request
-    per screenful) is gone.
+    Discover, the game page's "In collections" sheet): the mosaic row above,
+    one to a row, a hairline between. The covers are `resolveStack`'s first
+    four — the cover first, then the rest in order.
   - **In the add-to-collection picker**: one small `<Poster>` of the cover, in
     the 48dp slot the mosaic had.
   The header itself is a music-app playlist hero: half the display, a long
@@ -4015,13 +4405,32 @@ and the event page's foot bar are all for a device.
   an edge over a cover or round a `<Poster>` again.
 - **One score in the masthead: IGDB's, and only when the app has none.** The
   stats strip under the row prints the app's own average and its count
-  (`['rating-breakdown', gameId]`). IGDB's `total_rating` — "Community" —
-  under the billing is drawn only when that query has answered with no ratings
+  (`['rating-breakdown', gameId]`). IGDB's `total_rating` — labelled "IGDB";
+  it said "Community", which read as GameLog's own over a strip saying nobody
+  here had rated it (critique, 2026-10-21) — under the billing is drawn only
+  when that query has answered with no ratings
   (or failed); with one, it was a second, different number about the same game
   a line above the first. Nothing is drawn while the query is pending: a figure
   that appears and is then removed is worse than one a moment late. The page
   reads the strip's query under the strip's key and arguments, so it is one
   request — diverge and it is two.
+- **The game page after its critique (2026-10-21)**, by the owner's answers:
+  - **The tabs pin under the bar** once the page has scrolled them up to it
+    (`<PinnedTabBar>`, `ui/pinned-tab-bar`): a second copy over the page,
+    shown from the in-flow tabs' measured top on the UI thread, hidden from
+    a screen reader. Choosing a tab there scrolls the new tab to its start.
+  - **The progress key says "Log" until there is a log** (`TonalKey`'s
+    `caption`) — the one printed word in the group, the owner's exception to
+    the keys being glyphs alone. A key with no `active` (Collect) announces
+    no selected state.
+  - **Share is a disc at the top right**, after the trailer switch. The
+    action row gave Share's slot to Collect and the page had none.
+  - The review button says "Write your review" on a log with no writing;
+    "Edit your review" only when there is some.
+  - The empty score cell is "Unrated" over "Be the first" (a door to the
+    sheet); "Based on N ratings", not reviews; Favourite and Wishlist each
+    dim alone while writing, both while the lists first load; "On GameLog"
+    and Achievements say they failed and offer Try again.
 - **A game that is not out cannot be reviewed, anywhere** — the owner's rule
   (2026-10-14). `isUnreleased` (`lib/games/release.ts`) decides, from IGDB's
   date. Its page has no review button and no progress key (`<GameActions>`
@@ -4042,16 +4451,12 @@ and the event page's foot bar are all for a device.
   is why so many notes in those files read "this measures 2.02:1 on the
   brightest stop". A flat page is a known quantity and gives the accent seven
   tone steps of headroom. Do not reintroduce it there. Home's light is
-  `<AmbientLight>` alone — a very soft field in the **top-left corner**, fixed
-  to the viewport, lighting the left of the screen and gone before the right
-  quarter. That is the owner's brief and the position of the stronger corner
-  `<SoftGlow>` it replaced; that glow was removed because it read as a lit
-  corner rather than as light, and the soft light was briefly centred, which
-  lit both sides. Keep it in the corner. It peaks at 0.42 of `glowCore` — about
-  as bright as the reference's own top light — which puts `textMuted` under AA on
-  its brightest pixels, so Home's greeting there is `textSecondary`; anything
-  muted placed in that corner later needs the same step. `<SoftGlow>` itself
-  survives for Surprise Me's bloom and swipe edge.
+  SimpMusic's glow (`<HomeGlow>`, § Home): the first block's background,
+  coloured from the first cover of its first section, scrolling with the
+  page. It replaced, on 2026-10-22, a soft field fixed in the top-left corner
+  (`<AmbientLight>`, deleted), which had replaced a stronger corner
+  `<SoftGlow>`. Lines set on the glow are `textSecondary`, never `textMuted`.
+  `<SoftGlow>` itself survives for Surprise Me's bloom and swipe edge.
 - **The game page's Overview tab is SimpMusic's artist page, section for
   section — with a head from Letterboxd** — read from `ArtistScreen.kt`,
   `AdapterItems.kt` and `DescriptionView.kt`, at the owner's direction. Every
@@ -4127,7 +4532,11 @@ and the event page's foot bar are all for a device.
   - **The object → on the page.** Platforms (`<GamePlatforms>`) is the one
     section that is neither: the game's box on the left — the console case for
     the chosen platform, which turns over to your record — and beside it the
-    title, "is available on …", the platform `<DropdownButton>` and the price.
+    title, "is available on …" and the platform `<DropdownButton>`. **No
+    price** (2026-10-21): it printed one platform's price directly above
+    Where to buy, which prices every store; Where to buy is the one place a
+    price is said. `components/game-availability` (`<GamePrice>`) has no
+    caller since.
     No card, because its subject is an object, and the case casts its own
     shadow. **The case lives here, not in the masthead**: the masthead shows
     the plain cover (a `<Poster>`) and no price; its one gesture is a tap,
@@ -4233,7 +4642,7 @@ and the event page's foot bar are all for a device.
   ticking more boxes must widen, or a third genre silently empties the pool.
   Perspective ids are a local literal in `constants/player-perspectives.ts`
   because `player_perspectives` is **not** on the Edge Function's allowlist;
-  genres are fetched, under the key `<GenreGrid>` already uses.
+  genres are fetched, under the key Home's genre chip already uses.
 - **`<Link asChild>` needs a flattened `style` on its child.** Expo Router clones
   that child and throws rather than guess precedence when `style` is an array —
   "You are passing an array of styles to a child of `<Slot>`". Wrap it:
@@ -4326,9 +4735,90 @@ the function's fetch, its cache, nor any of the three sections has run on a
 device. Types, lint, `npm test` and an Android bundle were checked here, and
 the parser was run over the live pages it was written from.
 
+## The library: Apple Music's
+
+The owner's reference (2026-10-22), Apple Music's Library, with GameLog's lists
+for its Playlists / Artists / Albums / Songs. `library/[id]` without `?tab=` is
+`<LibraryHome>`:
+
+- **Pinned games**, three across and square (SteamGridDB's square, else the box
+  cropped; `useSquareCover`'s `resolved` honoured), the name centred under
+  each. **Six at most, chosen by hand** (0043, `library_pins`, `lib/api/pins`):
+  the owner's library has a "+" tile while there is room (`pin-game`), and
+  holding a pin asks to unpin it. Somebody else's shows their pins only.
+- **Rows**: Logged (every log but the backlog), Favourites, Backlog
+  (`getUserBacklog`, its own request — `['user-logs', id, 'backlog']`),
+  Physical, and Steam when an account is linked. A glyph in `primaryText`, the
+  name, a count when it is the whole list, a chevron, a hairline from the name
+  to the edge. A row pushes the same route with `?tab=`, one list on its own
+  page under its name — **no tab bar**.
+- **Recently added**: the six newest logs, two across, square, the developer in
+  the accent under the name.
+
+The "All games" grid and its stats header (`library-stats`, deleted) are gone;
+`?tab=all` from an old link opens the head. `['library-pins', userId]` is the
+pins' key, written by the picker and the unpin.
+
 ## Linked gaming accounts
 
-Steam is one implementation of a **generic provider**, not a special case. See
+Steam is one implementation of a **generic provider**, not a special case.
+
+**PlayStation, Xbox and GOG are linked by username, RAWG's way** (the owner's,
+2026-10-22: "reverse engineer how rawg does the sync with psn and xbox and gog
+… they ask for the username and they fetch the things if their profile is
+public"). What RAWG does, read from its shipped web bundle
+(`rawg.io/assets/client/js/client.*.js` and the `game-accounts` /
+`accounts-import` chunks): the user has `psn_online_id`, `gamer_tag`, `gog` and
+`steam_id`, each with `_status`, `_date`, `_confirm` and `_locked`; the client
+only `PATCH`es `/api/users/current` with the name, and its server imports and
+reports `process`, `ready`, `error`, `private-user`, `private-games` or
+`unavailable`. Its help text says what must be public: PSN trophies ("we can
+import games only with trophies info"), Xbox game and app history and profile,
+GOG profile page and full library ("you can find it in your profile's URL").
+The server side is not in the bundle; what it must call follows from those
+requirements and was checked against open clients:
+
+- **GOG — no key.** `gog.com/u/{name}` (404: no such user; the HTML carries
+  `"userId"`), then `gog.com/u/{name}/games/stats?sort=…&order=…&page=N`, the
+  endpoint GOG's own profile script builds and Playnite's GOG plugin reads.
+  403 for a private profile, 404 for hidden games — both observed live. **No
+  public profile was found, so a successful answer has not been seen**; its
+  shape is Playnite's model (`_embedded.items[].game`, `stats[userId]`).
+- **PlayStation — the trophy API, signed in as the app.** psn-api's flow:
+  `PSN_NPSSO` → `ca.account.sony.com/api/authz/v3/oauth/authorize` (a code)
+  → `/token` (kept and refreshed in `gaming_service_tokens`, 0044), then
+  `us-prof.np.community.playstation.net/userProfile/v1/users/{onlineId}/profile2`
+  for the account id and `m.np.playstation.com/api/trophy/v1/users/{id}/
+  trophyTitles`. 2240526 ("Not permitted") is private trophies. No playtime.
+- **Xbox — title history through OpenXBL.** `xbl.io/api/v2/search/{gamertag}`
+  (the exact gamertag, never the first hit), then
+  `/player/titleHistory/{xuid}`, games only. An empty history is taken as a
+  hidden one. No playtime.
+
+`supabase/functions/game-accounts` does all three (`link`, `sync` — at most
+every six hours — and `unlink`); `_shared/game-accounts.ts` is its pure half
+(names, statuses, rows; under `npm test`). It writes `gaming_accounts` with
+`linked_by = 'username'` (0044), replaces the provider's `gaming_owned_games`,
+and the library section's `gaming_sync_state`. The app: `username-provider.ts`
+(three providers in the registry; `link({ handle })`), Edit profile's **Game
+accounts** (`<UsernameAccount>`: the name, RAWG's privacy note, Connect;
+linked, the count, Import again, Disconnect), a Library row each, and **a
+badge per linked platform beside the profile's name** (`<PlatformBadges>`,
+the owner's: tapping one raises a bubble with the name it is linked as;
+`['gaming-accounts', userId]`, which a link or unlink invalidates). Things
+that are easy to get wrong:
+
+- **Nobody proves the account is theirs**, as on RAWG. 0009's
+  `unique (provider, external_id)` stands, so a name another GameLog account
+  holds is refused (`taken`) — and a squatter blocks the owner until they
+  unlink. Sony and Microsoft offer third parties no sign-in to prove it.
+- **Imported games are not matched to IGDB.** `link_gaming_owned_games` still
+  matches Steam only; a PlayStation, Xbox or GOG tile is the service's own art
+  and opens nothing. GOG's product ids are in IGDB's `external_games` and are
+  the obvious first match.
+- **Not run with keys, and not seen on a phone.** GOG's error answers were
+  observed live; nothing else has run. Deno is not installed here — the
+  function was only transpiled. See
 `lib/gaming/types.ts` for the contract and `supabase/functions/README.md` for
 deployment, rate limits and verified API behaviour.
 
@@ -4718,8 +5208,8 @@ was not this app's code. The rules that keep it that way:
   it. All 118 worklets in the app were swept that way; that one was the only one.
 - **There is no Skia, and a gradient does not need it.** React Native 0.86 draws
   `experimental_backgroundImage: 'radial-gradient(…)'` / `'linear-gradient(…)'`
-  natively on the New Architecture, iOS and Android alike, so `<SoftGlow>` and
-  `<AmbientLight>` are plain views. Skia was ~8–15 MB of native library per CPU
+  natively on the New Architecture, iOS and Android alike, so `<SoftGlow>` (and
+  Home's old corner light) are plain views. Skia was ~8–15 MB of native library per CPU
   architecture for those two glows and one logo measurement, and each Skia
   `<Canvas>` was a GPU surface of its own. What it had and a CSS gradient lacks
   is `dither`: a gradient spanning a few dozen 8-bit steps on near-black can show
@@ -4740,7 +5230,7 @@ was not this app's code. The rules that keep it that way:
   box.** When Yoga breaks a `flexWrap` row into lines it resolves each child's
   min and max against the row's *owner* (`FlexLine.cpp`, `mainAxisOwnerSize`) —
   the full-width parent, before the row's own padding — not against the row's
-  inner width, as CSS does. `<GenreGrid>` forced two per row with
+  inner width, as CSS does. The genre grid (since deleted) forced two per row with
   `minWidth: '45%'`: 162dp on a 360dp phone, so two tiles and the gap were 332
   against the 330 inside a 15dp margin, and every genre wrapped onto its own
   row. It had only ever fitted because the margin was 10. Nothing errors and a

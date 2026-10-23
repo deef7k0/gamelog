@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 
+import { UsernameAccount } from '@/components/gaming/username-account';
 import { Button } from '@/components/ui/button';
 import { FrostedTopBar } from '@/components/ui/frosted-top-bar';
 import { PageScrollView } from '@/components/ui/page-scroll';
@@ -11,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { TextField } from '@/components/ui/text-field';
 import { Spacing } from '@/constants/theme';
 import { updateProfile } from '@/lib/api';
+import { USERNAME_PROVIDERS } from '@/lib/gaming';
 import { useAuth } from '@/store/auth';
 
 /** SteamID64 is exactly 17 digits — mirrors the CHECK constraint in 0002. */
@@ -153,6 +155,22 @@ export default function EditProfileScreen() {
             </Text>
           </View>
 
+          {/* PlayStation, Xbox and GOG by username, as RAWG links them. Each
+              connects on its own button, not on Save: an import is a request
+              to the service, and its answer is shown where it was asked. */}
+          {userId && (
+            <View style={styles.accounts}>
+              <Text variant="h4">Game accounts</Text>
+              <Text variant="bodySmall" color="textMuted">
+                Type the name you use on each service and your public games are imported into your
+                library.
+              </Text>
+              {USERNAME_PROVIDERS.map((provider) => (
+                <UsernameAccount key={provider.id} userId={userId} provider={provider.id} />
+              ))}
+            </View>
+          )}
+
           <Button
             title="Save profile"
             onPress={() => save.mutate()}
@@ -171,4 +189,5 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: Spacing.x12 },
   rowItem: { flex: 1 },
   steamBlock: { gap: Spacing.x8 },
+  accounts: { gap: Spacing.x12 },
 });

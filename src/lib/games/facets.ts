@@ -41,7 +41,8 @@ export type FacetKind =
   | 'series'
   | 'franchise'
   | 'language'
-  | 'rating';
+  | 'rating'
+  | 'tag';
 
 export type Facet = { kind: FacetKind; id: number; name: string };
 
@@ -58,10 +59,11 @@ type FacetInfo = {
   list: boolean;
   /**
    * How "Search by" finds its values: a fixed list filtered as you type, a
-   * fetched list filtered the same way, a search by name — or not at all (an
-   * age rating is reached from a game's details only).
+   * fetched list filtered the same way, a search by name, RAWG's tags (a
+   * fetched list, but RAWG's) — or not at all (an age rating is reached from a
+   * game's details only).
    */
-  lookup: 'fixed' | 'fetched' | 'remote' | null;
+  lookup: 'fixed' | 'fetched' | 'remote' | 'tags' | null;
 };
 
 export const FACET_INFO: Record<FacetKind, FacetInfo> = {
@@ -114,7 +116,16 @@ export const FACET_INFO: Record<FacetKind, FacetInfo> = {
     list: true,
     lookup: null,
   },
+  /* RAWG's tags, by RAWG's id: not a field of IGDB's, so never a clause
+     (`facetsClause` leaves them out) — their games come from RAWG
+     (`rawg-tags.ts`) and the other facets narrow them on IGDB. */
+  tag: { label: 'Tag', plural: 'tags', field: '', list: true, lookup: 'tags' },
 };
+
+/** Whether a facet is RAWG's tag rather than one of IGDB's fields. */
+export function isTagFacet(facet: Pick<Facet, 'kind'>): boolean {
+  return facet.kind === 'tag';
+}
 
 /** The kinds "Search by" offers, in its order. */
 export const LOOKUP_KINDS: readonly FacetKind[] = [
@@ -126,6 +137,7 @@ export const LOOKUP_KINDS: readonly FacetKind[] = [
   'series',
   'franchise',
   'language',
+  'tag',
 ];
 
 /** IGDB's themes, read off the live catalogue on 2026-10-16. */
@@ -306,7 +318,8 @@ export function facetsClause(
   facets: readonly Pick<Facet, 'kind' | 'id'>[],
   match: MatchMode
 ): string {
-  const clauses = facets.map(facetClause);
+  /* A tag is RAWG's and has no clause; its games are found another way. */
+  const clauses = facets.filter((facet) => !isTagFacet(facet)).map(facetClause);
   if (clauses.length <= 1) return clauses[0] ?? '';
   return match === 'all' ? clauses.join(' & ') : `(${clauses.join(' | ')})`;
 }

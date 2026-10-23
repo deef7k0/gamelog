@@ -347,6 +347,23 @@ export async function getUserLogs(userId: string): Promise<LogWithRelations[]> {
   return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
 }
 
+/**
+ * The games this user wants to play — the library's Backlog. Its own request,
+ * not a filter over `getUserLogs`, whose hundred newest rows can leave out an
+ * old backlog.
+ */
+export async function getUserBacklog(userId: string): Promise<LogWithRelations[]> {
+  const { data, error } = await supabase
+    .from('logs')
+    .select(LOG_WITH_RELATIONS)
+    .eq('user_id', userId)
+    .eq('status', 'backlog')
+    .order('created_at', { ascending: false })
+    .limit(300);
+
+  return rememberLogs(unwrap(data as LogWithRelations[] | null, error));
+}
+
 /** Games this user has platinumed or 100%'d — the achievements showcase. */
 export async function getUserCompletions(userId: string): Promise<LogWithRelations[]> {
   const { data, error } = await supabase

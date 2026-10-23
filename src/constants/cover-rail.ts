@@ -51,8 +51,8 @@ export const SECTION = {
   margin: 15,
   /** From the heading's line down to the covers (`<HomeSection>`'s gap). */
   headingGap: 12,
-  /** One line of `h4`. */
-  heading: 21,
+  /** One line of `h2` (the owner's bigger headings, 2026-10-22). */
+  heading: 25,
   /** Between one section and the next, and from Search's slider to its first. */
   gap: 32,
 } as const;

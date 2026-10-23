@@ -101,7 +101,11 @@ colors:
   # `danger` means something is about to be destroyed. 8.67:1 on the page.
   liked: "#FF9D35"
   scrim: "rgba(0,0,0,0.6)"
-  skeleton: "#1B1A20"
+  # A placeholder's fill, and the light that sweeps it. The sweep is measured,
+  # not picked: SimpMusic's shimmer line stands at 1.72:1 on its own shimmer
+  # background, and this is the colour at that ratio on `skeleton`. See § 22.
+  skeleton: "#1F2430"
+  skeletonSweep: "#40495E"
   # Ink for gradient ramps over artwork. Not a surface — never fill with it.
   shadowInk: "#000000"
   # Tier-list ramp. Data, not chrome. See § 1.5.
@@ -970,7 +974,7 @@ the studio page, the game page's stats and cards, the collection rows.
   Label and value sit 2–4dp apart and read as one object.
 - **Sentence case, no tracking.** No uppercase micro-labels on a stat strip, a
   masthead fact or a notice: "To beat", "Collections", "Planned release",
-  "Community". Acronyms stay acronyms (PEGI, ESRB).
+  "Lowest". Acronyms stay acronyms (PEGI, ESRB, IGDB).
 - **Rows and cards title themselves in `itemTitle`** (13 semibold) with a
   `bodySmall` line under them — a game in a collection, a collection in a list,
   a search result.
@@ -2171,7 +2175,7 @@ follow; the **physical case** (§ 4.1) is in the Overview's Platforms section
   date                        │        │
   developer                   └────────┘
   publisher
-  86 Community   ← only when nobody here has rated it
+  86 IGDB        ← only when nobody here has rated it
 
   Three lines of synopsis, on the page,
   not in a card. Tap it and it opens in
@@ -2229,8 +2233,11 @@ none is to be "restored":
   description card's motion (§ 14.1). A game with no synopsis has no block.
 - **One score in the masthead, and it is the app's own when there is one.** The
   stats strip carries the app's average and how many ratings are behind it.
-  IGDB's aggregate ("Community") is printed under the billing **only for a game
-  nobody here has rated** — otherwise it was a second, different number about
+  IGDB's aggregate, labelled "IGDB", is printed under the billing **only for a
+  game nobody here has rated** — and the strip's empty score cell says
+  "Unrated / Be the first" beside it. It was labelled "Community", which read
+  as GameLog's own community directly above a cell saying nobody here had
+  rated the game (critique, 2026-10-21) — otherwise it was a second, different number about
   the same game, a line above the first. Nothing is printed while that is still
   being asked.
 
@@ -2289,14 +2296,17 @@ Platforms
 │ CASE │  is available on PS5, Xbox,
 │      │  PC and 2 more
 │      │  ( ◉ PS5  ⌄ )                     ← the dropdown, outlined (§ 9.4)
-└──────┘  $59.99
+└──────┘                                   ← no price: Where to buy says it
 Editions & extras
 ▯▯▯▯  ▯▯▯▯  ▯▯▯▯  ▯▯▯                      ← a row of games (§ 3.3): on the page,
                                               nothing under a cover, never a card
 ```
 
-- **Ratings is the sheet's three-part bar, not a histogram** — the owner's
-  choice, offered both. One component (`<ScoreSummary>`) in both places.
+- **Ratings is the rating graph** — a row for 100 and each ten below it, a
+  thin pill bar in the score ramp per row (`<RatingDistribution>`, drawn as
+  How ratings work's spread). The owner kept a three-part bar on 2026-10-09
+  and asked for the graph on 2026-10-21. One component (`<ScoreSummary>`) in
+  both places; in the sheet the graph has a card of its own.
 - **Ratings and the two squares** are titled inside in `h5` with a hairline
   under the title, as the profile's boxes are; a face is 44, and opens that
   person's record of the game. With players and none of yours, the second
@@ -2324,8 +2334,9 @@ Editions & extras
 - **Platforms** is the one section that is neither a rail nor a card: the box
   for the chosen platform — the case, which turns over to your record, or the
   plain cover where there is no case — a third of the display wide, beside the
-  title, a sentence naming up to three platforms, the platform button and the
-  price. The button is SimpMusic's `DropdownButton` (its Home's chart country):
+  title (four lines at most, as the masthead's), a sentence naming up to three
+  platforms, and the platform button. **No price** (2026-10-21): it repeated
+  Where to buy, directly under it. The button is SimpMusic's `DropdownButton` (its Home's chart country):
   an outlined 40dp pill with the platform's glyph, its short name and a chevron
   that turns while open; the menu opens from it — anchored to its left edge,
   below or above, `Radius.sheet`, `Elevation.overlay`, rows with the full name
@@ -2700,6 +2711,20 @@ fast: 150,  normal: 200,  slow: 300,  pressScale: 0.98
 
 A spinner says "wait"; a skeleton says "here is what is coming". Prefer the
 second every time.
+
+**A skeleton shimmers, and what replaces it rises into its place.** The sweep
+is SimpMusic's `Modifier.shimmer()` — a gradient `[fill, skeletonSweep, fill]`
+crossing the block over 1000ms, linear, forever, so it has no edge where it
+begins and no end value to lose. `<Skeleton>` carries it, so every placeholder
+in the app does. Content then fades in over **300ms** (`<Arrive>`, Compose's
+own default duration), taking the skeleton's place in the same frame, and a run
+of equal-looking cards is staggered 100ms apart so a band fills from the top.
+
+Both are Reanimated CSS animations on the UI thread, and both are still under
+Reduce Motion. The whole effect depends on one rule kept elsewhere: **a
+skeleton is the shape and the height of what is coming.** A placeholder that
+lies about its size makes the page commit to a layout it is about to abandon,
+and no amount of motion covers that.
 
 Reanimated shared values use `.get()` / `.set()`, never `.value =` — the React
 Compiler rules flag assignment to `.value` as mutating a captured binding.

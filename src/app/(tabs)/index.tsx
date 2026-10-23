@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useNavigation, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshControl,
   StyleSheet,
@@ -12,30 +12,46 @@ import {
 
 import { ActivityRail } from '@/components/activity-rail';
 import { CoverRailSkeleton, GameCoverRail } from '@/components/game-rail';
+import { BandError, INLINE_LINK_SLOP } from '@/components/home/band-error';
+import { HOME_HEADER_ROW, HomeHeader } from '@/components/home/home-header';
+import { HomeGlow } from '@/components/home/home-glow';
+import { MoodBody, MoodLead, useMoodFeed } from '@/components/home/mood-feed';
+import { MoodTiles } from '@/components/home/mood-tiles';
+import { DiscoverCarousel, DiscoverCarouselSkeleton } from '@/components/home/discover-carousel';
 import { HomeSection } from '@/components/home-section';
 import { ArticleCard, PastEventCard } from '@/components/news-cards';
+import { Arrive, stagger } from '@/components/ui/arrive';
 import { SurpriseEntry } from '@/components/surprise-entry';
-import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { PageScrollView } from '@/components/ui/page-scroll';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, Screen } from '@/components/ui/screen';
-import { AmbientLight } from '@/components/ui/ambient-light';
+import { Avatar } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { useTabBarClearance } from '@/components/app-tab-bar';
 import { footHeight } from '@/constants/cover-rail';
 import { HeroAspectRatio, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
-import { TOP_BAR_ROW } from '@/constants/top-bar';
-import { useHeaderHeight } from '@/hooks/use-header-height';
+import { useGameColours } from '@/hooks/use-game-colours';
+import { useTopBarInset } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import { getHomeActivity, getUnreadCount, getUserLogs } from '@/lib/api';
-import { displayNameFor, greetingFor } from '@/lib/format';
+import { extractDominantColor } from '@/lib/artwork-color';
 import { recommendFromLogs } from '@/lib/games/recommend';
 import { getLatestEvents } from '@/lib/games/browse';
+import { ALL, feedFor, sameView, type HomeView } from '@/lib/home-view';
+import { GLOW_OVERFLOW, glowTone } from '@/lib/home-glow';
 import { getGamingNews, getNewReleases, getUpcomingReleases } from '@/lib/news';
+import { displayNameFor } from '@/lib/format';
 import { useAuth } from '@/store/auth';
+
+/**
+ * From the bar's foot to the first thing on the page: the reference's 8, and
+ * more at the owner's direction (2026-10-22: "the sections must start a little
+ * bit lower").
+ */
+const LEAD_GAP = Spacing.x24;
 
 /** How many finished events Home shows: the owner's three. */
 const LATEST_EVENTS = 3;
@@ -78,8 +94,33 @@ function newsCardHeight(width: number): number {
  * "what should I look at now", and those are different questions with different
  * ingredients.
  *
- * **Four bands, and the order is the argument.** The page opens on *you* and
- * widens outward — what you might play, what people played, what came out,
+ * **SimpMusic's Home, around this app's bands** — the owner's direction
+ * (2026-10-22): its glow "with the same effect and size", "their exact top
+ * bar", and its tabs with moods. Read from its source, not its screens:
+ *
+ * - **The top bar is `<HomeHeader>`**: All, Mood and Genre, Create and
+ *   Settings on one row, fixed over the page, clear at the top and the
+ *   page's colour once the page is under it. The reference puts the avatar
+ *   there too; the owner had it brought back onto the page (2026-10-22) as
+ *   the "Welcome back" row it was — on All, with the bell beside the name —
+ *   so the chips have the row to themselves.
+ * - **The glow is `<HomeGlow>`**: the background of the page's first block —
+ *   the bar's room and the first section — and 140dp past it, scrolling with
+ *   the page. Its colour is the dominant colour of the first game in the first
+ *   section — "Games for you", or a mood's or a genre's first shelf — times 0.5, as the
+ *   reference takes it from its first shelf's first song (`lib/home-glow`).
+ *   It replaced the soft light in the top-left corner (`<AmbientLight>`).
+ *   **Its length is the first block's**, which on All is the greeting and
+ *   Surprise Me and stops there — see `leadHeight`.
+ * - **Mood and Genre swap the page.** All is this page's own bands, below; a
+ *   mood or a genre is its feed (`<MoodLead>`, `<MoodBody>`, `lib/games/moods`
+ *   and `genre-feed` — what the reference asks YouTube for, written as IGDB
+ *   clauses). Every view ends on "Let's pick a mood for you" (`<MoodTiles>`),
+ *   the reference's moods-and-genres grid — its *search* screen's blocks, at
+ *   the owner's direction (2026-10-22) — before the footer.
+ *
+ * **All is four bands, and the order is the argument.** The page opens on *you*
+ * and widens outward — what you might play, what people played, what came out,
  * what happened. Every band is a different question; none of them is a second
  * helping of the one above it.
  *
@@ -108,11 +149,7 @@ function newsCardHeight(width: number): number {
  * predicate, rendered back to back; "From people you follow" and "Latest
  * reviews" were the same component from the same query, separated by ~2,900dp
  * of other content, and `newest` is *defined* as the residue after `followed`
- * is removed. Reaching the bottom and finding a section indistinguishable from
- * one you read five screens earlier is what a page assembled from queries feels
- * like. Both pairs are now single bands, which also took the page from ~5,100dp
- * to roughly 3,000 and cut the share of it that is review cards from 51% to
- * about a third.
+ * is removed. Both pairs are now single bands.
  *
  * **"Fresh collections" was cut rather than merged.** It had no sibling to
  * merge with and it was the most expensive band on the page — a plain
@@ -134,23 +171,24 @@ function newsCardHeight(width: number): number {
 export default function HomeScreen() {
   const theme = useTheme();
   const clearance = useTabBarClearance();
-  const accent = useAccent();
   const router = useRouter();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const userId = useAuth((state) => state.session?.user.id);
   const profile = useAuth((state) => state.profile);
+  const accent = useAccent();
+  const name = displayNameFor(profile);
+  const colours = useGameColours();
 
   /*
    * Tapping the active tab returns to the top.
    *
    * The platform convention on every tab bar, and this page needs it more than
-   * most: it hides its own bar on the way down, so without this the only way
-   * back to the notification bell from the footer is a long reverse flick.
+   * most: it is long, and the chips that change it are at the top.
    */
   const scroller = useRef<ScrollView>(null);
-  /* The floating bar's height, kept clear at the top of the scroll. */
-  const headerHeight = useHeaderHeight();
+  /* The bar's room at the top of the page: the status bar and the row. */
+  const barHeight = useTopBarInset() + HOME_HEADER_ROW;
 
   useEffect(() => {
     const unsubscribe = navigation.addListener(
@@ -163,10 +201,28 @@ export default function HomeScreen() {
   }, [navigation, scroller]);
 
   /*
-   * The viewer's own logs, which do two jobs on this screen: they seed the
-   * recommendation rail, and their *count* is what decides whether this is a
-   * first run. Cheap enough to be worth it — one indexed query capped at 100
-   * rows — and it is the only data on the page genuinely about this account.
+   * All, a mood or a genre — the reference's `params`, which reloads its Home
+   * with that feed. Session state, as the reference's view model holds it:
+   * Home opens on All.
+   */
+  const [view, setView] = useState<HomeView>(ALL);
+  const spec = useMemo(() => feedFor(view), [view]);
+  const feed = useMoodFeed(spec);
+  const inFeed = spec !== null;
+
+  function changeView(next: HomeView) {
+    if (sameView(next, view)) return;
+    setView(next);
+    /* A new feed starts at its top, under the chips that asked for it. */
+    scroller.current?.scrollTo({ y: 0, animated: false });
+  }
+
+  /*
+   * The viewer's own logs, which do three jobs on this screen: they seed the
+   * recommendation rail, their *count* is what decides whether this is a
+   * first run, and a mood's Quick picks leave out the games in them. Cheap
+   * enough to be worth it — one indexed query capped at 100 rows — and it is
+   * the only data on the page genuinely about this account.
    */
   const logs = useQuery({
     queryKey: ['user-logs', userId],
@@ -174,6 +230,7 @@ export default function HomeScreen() {
     enabled: !!userId,
     staleTime: 5 * 60_000,
   });
+  const logged = useMemo(() => new Set((logs.data ?? []).map((log) => log.game_id)), [logs.data]);
 
   /*
    * Keyed on what the seeds *are*, not how many there are.
@@ -241,17 +298,25 @@ export default function HomeScreen() {
   const unreadCount = unread.data ?? 0;
 
   /* Watches every band the pull actually refetches, so the spinner stops when
-     the page is done rather than when the first four queries are. */
-  const refreshing =
-    logs.isRefetching ||
-    recommended.isRefetching ||
-    activity.isRefetching ||
-    news.isRefetching ||
-    releases.isRefetching ||
-    upcoming.isRefetching ||
-    latestEvents.isRefetching;
+     the page is done rather than when the first four queries are. A mood's
+     pull is its own three. */
+  const refreshing = inFeed
+    ? feed.shelves.isRefetching || feed.quickPicks.isRefetching || feed.studio.isRefetching
+    : logs.isRefetching ||
+      recommended.isRefetching ||
+      activity.isRefetching ||
+      news.isRefetching ||
+      releases.isRefetching ||
+      upcoming.isRefetching ||
+      latestEvents.isRefetching;
 
   function refreshAll() {
+    if (inFeed) {
+      feed.shelves.refetch();
+      feed.quickPicks.refetch();
+      feed.studio.refetch();
+      return;
+    }
     logs.refetch();
     recommended.refetch();
     activity.refetch();
@@ -261,7 +326,6 @@ export default function HomeScreen() {
     latestEvents.refetch();
   }
 
-  const name = displayNameFor(profile);
   const recommendedGames = recommended.data?.games ?? [];
 
   /*
@@ -311,24 +375,61 @@ export default function HomeScreen() {
   const personFoot = footHeight('person');
   const lineFoot = footHeight('line');
 
+  /*
+   * The glow's colour: the first game of the page's first section — "the
+   * first song that appears in the first section", the reference's
+   * `mainHomeThumbnail`. On All that is "Games for you" (Releases on a first
+   * run, where there is none); in a mood, its first shelf.
+   *
+   * The same query, key and decoder a collection's page colour reads
+   * (`useImmersiveBackground`), so a cover is decoded once for both. The last
+   * colour holds while the next is worked out, as the reference's animated
+   * colour does — a mood's feed loading does not drop the glow to nothing.
+   */
+  const seedCover = inFeed
+    ? (feed.shelves.data?.[feed.leadIndex]?.[0]?.coverUrl ?? null)
+    : ((recommendedGames[0] ?? releaseRail[0])?.coverUrl ?? null);
+  const dominant = useQuery({
+    queryKey: ['artwork-dominant', seedCover],
+    queryFn: () => extractDominantColor(seedCover!),
+    enabled: !!seedCover && colours.on,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+  const tone = glowTone(dominant.data ?? null, {
+    gameColours: colours.on,
+    primary: theme.primary,
+  });
+
+  /*
+   * The first block's height — the bar's room and the one block of content
+   * under it — which the glow covers and runs 140 past. Measured, so it is
+   * the real block's on any phone: "300 is the height of this shelf ON A
+   * PHONE".
+   *
+   * **What is inside that block is the glow's length**, and on All it used to
+   * be four bands: the greeting, Surprise Me, the first-run ask and "Games
+   * for you" — about 850dp of it, against a mood's ~240. The owner
+   * (2026-10-22): "the glow in the home screen for the primary page is too
+   * long. it should be the same as the ones in the other tabs." So the block
+   * ends after Surprise Me, which puts the two within a few dozen dp of each
+   * other, and everything that is a band of games paints over the plain page.
+   * Nothing moved: the bands are in the same order, only the measured view
+   * closes earlier.
+   */
+  const [leadHeight, setLeadHeight] = useState(0);
+
   return (
     <Screen
       edges={[]}
       /* Home's own floor, separate from the app's `background` while the
          owner tries colours on it. See `homeBackground`. */
       background={theme.homeBackground}
-      /* The `backdrop` slot rather than a child: it renders outside the
-         safe-area inset, so the light reaches the top of the display instead of
-         starting under the status bar and drawing a hard line across it. Inert:
-         the canvas takes `pointerEvents="none"`.
-
-         The room's light and nothing else — a very soft field in the top-left
-         corner, where Home's old corner glow sat, lighting the left of the
-         screen and falling off before it reaches the right. Fixed rather than
-         scroll-faded. See `ui/ambient-light`. The old glow itself — a far
-         stronger `<SoftGlow>` that faded out on scroll — was removed at the
-         owner's request: it read as a lit corner rather than as light. */
-      backdrop={<AmbientLight />}>
+      /* Fixed over the page; the page keeps its room clear at the top of the
+         first block. A slot, not a child — see `<Screen topBar>`. */
+      topBar={<HomeHeader view={view} onViewChange={changeView} />}>
       <PageScrollView
         ref={scroller}
         /*
@@ -349,243 +450,274 @@ export default function HomeScreen() {
             tintColor={theme.primary}
             /* Otherwise the spinner drops out of the very top of the display,
                behind the bar, and a pull-to-refresh looks like it did nothing. */
-            progressViewOffset={headerHeight}
+            progressViewOffset={barHeight}
           />
         }>
         {/*
-          GameLog, the greeting and the bell — the page's first row, scrolled
-          with it like any card. The owner's direction (2026-10-15): "I don't
-          want the topbar in the home page to follow the user scroll. Remove the
-          topbar as a feature and just make it part of the… screen". It was a
-          bar floating over the page (`<FoldingTopBar>`), fixed at the top while
-          the bands scrolled under it. The status bar's height is room above
-          the row, so it starts where the bar's row did.
+          The first block: the bar's room, then the first section — the
+          reference's first list item, whose background the glow is. It is
+          measured, and the glow is its first child so everything paints over
+          it; it runs 140 past the block's foot, under whatever comes next.
+          The room is the bar's, and `LEAD_GAP` more.
         */}
-        <View style={{ height: headerHeight, paddingTop: headerHeight - TOP_BAR_ROW }}>
-          <View style={styles.masthead}>
-            <View style={styles.mastheadTitles}>
-              {/* `h3`: the reference's app name is `titleMedium`, 18 — a step
-                  under the 20 its shelves are titled in. */}
-              <Text variant="h3">GameLog</Text>
-              {/* `textSecondary`, not `textMuted`: this line sits on the corner
-                  light's brightest pixels, where the muted grey is under AA. */}
-              <Text variant="bodySmall" color="textSecondary">
-                {greetingFor()}
-              </Text>
-            </View>
+        <View
+          style={[styles.lead, { paddingTop: barHeight + LEAD_GAP }]}
+          onLayout={(event) => {
+            const height = Math.round(event.nativeEvent.layout.height);
+            setLeadHeight((was) => (was === height ? was : height));
+          }}>
+          <HomeGlow tone={tone} height={leadHeight > 0 ? leadHeight + GLOW_OVERFLOW : 0} />
 
-            <View style={styles.mastheadActions}>
-              {/* Round keys in the action grey, as every icon-only control in the
-                  app is. Not `<IconButton>`, which has nowhere to hang the unread
-                  badge. */}
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={
-                  unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
-                }
-                onPress={() => router.push('/notifications')}
-                scaleTo={0.92}
-                pressedColor={theme.controlPressed}
-                focusRing={accent.ring}
-                style={StyleSheet.flatten([styles.key, { backgroundColor: theme.controlFill }])}>
-                <Ionicons name="notifications-outline" size={20} color={theme.text} />
-                {unreadCount > 0 && (
-                  /* Ringed in the page colour so the badge reads as sitting on
-                     the key rather than as a stain on its edge. */
-                  <View
-                    style={[
-                      styles.badge,
-                      { backgroundColor: theme.primary, borderColor: theme.homeBackground },
-                    ]}>
-                    <Text variant="caption" style={{ color: theme.onPrimary }}>
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </Text>
+          {inFeed ? (
+            <MoodLead feed={feed} />
+          ) : (
+            <>
+              {/*
+                Who you are, a way into your profile, and the bell — the row the
+                reference's avatar replaced, brought back by the owner
+                (2026-10-22) to give the chips the bar. On All only: a mood or a
+                genre is a page about games, and opens on its strapline. Two
+                lines rather than one because "Welcome back, Ada" buries the
+                name inside a sentence.
+              */}
+              {profile && (
+                <View style={styles.welcome}>
+                  <Text variant="h4" color="textSecondary">
+                    Welcome back,
+                  </Text>
+                  <View style={styles.welcomeUser}>
+                    <Link href="/(tabs)/profile" asChild>
+                      <PressableScale
+                        accessibilityRole="link"
+                        accessibilityLabel={`Signed in as ${name}. Open your profile.`}
+                        scaleTo={0.98}
+                        style={styles.welcomeLink}>
+                        <Avatar uri={profile.avatar_url} name={name} size={40} />
+                        <Text variant="h1" numberOfLines={1} style={styles.welcomeName}>
+                          {name}
+                        </Text>
+                      </PressableScale>
+                    </Link>
+                    {/* Round, in the action grey, as every icon-only control is.
+                        Not `<IconButton>`, which has nowhere to hang the badge. */}
+                    <PressableScale
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+                      }
+                      onPress={() => router.push('/notifications')}
+                      scaleTo={0.92}
+                      pressedColor={theme.controlPressed}
+                      focusRing={accent.ring}
+                      style={StyleSheet.flatten([
+                        styles.key,
+                        { backgroundColor: theme.controlFill },
+                      ])}>
+                      <Ionicons name="notifications-outline" size={20} color={theme.text} />
+                      {unreadCount > 0 && (
+                        /* Ringed in the page colour, so the badge reads as on the key. */
+                        <View
+                          style={[
+                            styles.badge,
+                            { backgroundColor: theme.primary, borderColor: theme.homeBackground },
+                          ]}>
+                          <Text variant="caption" style={{ color: theme.onPrimary }}>
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </Text>
+                        </View>
+                      )}
+                    </PressableScale>
                   </View>
-                )}
-              </PressableScale>
-            </View>
-          </View>
+                </View>
+              )}
+
+              {/*
+                The one way into the app that asks for nothing.
+
+                Above every band, because it is the answer for the person who
+                opened the app without a game in mind — and every band below
+                this one needs you to already be somewhere. It works on a
+                brand-new account too, which none of the personal bands do.
+              */}
+              <SurpriseEntry covers={deckCovers} />
+            </>
+          )}
         </View>
 
-        {/* Who you are, and a way into your own profile. Two lines rather than
-            one because "Welcome back, Ada" buries the name inside a sentence —
-            the name is the part worth reading, so it gets its own line at
-            display weight beside the avatar. */}
-        {profile && (
-          <Link href="/(tabs)/profile" asChild>
-            <PressableScale
-              accessibilityRole="link"
-              accessibilityLabel={`Signed in as ${name}. Open your profile.`}
-              scaleTo={0.98}
-              style={styles.welcome}>
-              <Text variant="h4" color="textSecondary">
-                Welcome back,
-              </Text>
-              <View style={styles.welcomeUser}>
-                <Avatar uri={profile.avatar_url} name={name} size={40} />
-                <Text variant="h1" numberOfLines={1} style={styles.welcomeName}>
-                  {name}
-                </Text>
-              </View>
-            </PressableScale>
-          </Link>
-        )}
-
-        {/*
-          The one way into the app that asks for nothing.
-
-          Directly under the greeting, above every band, because it is the answer
-          for the person who opened the app without a game in mind — and every
-          band below this one needs you to already be somewhere. It works on a
-          brand-new account too, which none of the personal bands do.
-        */}
-        <SurpriseEntry covers={deckCovers} />
-
-        {/*
-         * Band 1 — on a first run, the ask.
-         *
-         * This slot used to render its heading and five skeleton cards for a
-         * brand-new account and then **delete itself** once `logs` resolved
-         * empty, because the guard included `logs.isLoading`. The first thing a
-         * new user saw was a promise being withdrawn — and the three social
-         * bands below it were all gated on data that account cannot have, so
-         * Home showed three of seven bands, none of which mentioned the one
-         * thing this product exists for.
-         *
-         * PRODUCT.md's success metric is someone coming back to write about a
-         * *second* game. Nothing on this page moved anyone toward the first.
-         */}
-        {isFirstRun && (
-          <View style={styles.firstRun}>
-            <EmptyState
-              title="Start your shelf"
-              message="Log the last game you finished — a status, a score, and as much or as little as you want to say about it."
-              action={
-                <Button
-                  title="Find a game"
-                  onPress={() => router.push('/(tabs)/search')}
-                  icon="search"
+        {inFeed ? (
+          <MoodBody feed={feed} logged={logged} />
+        ) : (
+          <>
+            {/*
+             * Band 1 — on a first run, the ask.
+             *
+             * This slot used to render its heading and five skeleton cards for a
+             * brand-new account and then **delete itself** once `logs` resolved
+             * empty, because the guard included `logs.isLoading`. The first thing a
+             * new user saw was a promise being withdrawn — and the three social
+             * bands below it were all gated on data that account cannot have, so
+             * Home showed three of seven bands, none of which mentioned the one
+             * thing this product exists for.
+             *
+             * PRODUCT.md's success metric is someone coming back to write about a
+             * *second* game. Nothing on this page moved anyone toward the first.
+             */}
+            {isFirstRun && (
+              <View style={styles.firstRun}>
+                <EmptyState
+                  title="Start your shelf"
+                  message="Log the last game you finished — a status, a score, and as much or as little as you want to say about it."
+                  action={
+                    <Button
+                      title="Find a game"
+                      onPress={() => router.push('/(tabs)/search')}
+                      icon="search"
+                    />
+                  }
                 />
-              }
-            />
-          </View>
-        )}
-
-        {/*
-         * What you might play. From your own logs — not "rated highest":
-         * `recommendFromLogs` seeds from logs with a null rating too. Home's
-         * rails keep the parallax — see the note above `PARALLAX_OVERSCAN` in
-         * `ui/poster.tsx`.
-         */}
-        {!isFirstRun && (recommendedGames.length > 0 || seedsPending) && (
-          <HomeSection title="Games for you">
-            {seedsPending ? (
-              <CoverRailSkeleton inset={Spacing.x16} />
-            ) : (
-              <GameCoverRail games={recommendedGames} inset={Spacing.x16} parallax />
+              </View>
             )}
-          </HomeSection>
-        )}
 
-        {/*
-         * What people played: your circle's, or — when they have been quiet,
-         * or there is nobody in it — everyone's, under the heading that says
-         * which. Absent only when nobody on GameLog has scored or written
-         * about anything at all.
-         */}
-        {activity.isLoading ? (
-          <HomeSection title={activityTitle}>
-            <CoverRailSkeleton foot={personFoot} inset={Spacing.x16} />
-          </HomeSection>
-        ) : activity.isLoadingError ? (
-          <HomeSection title={activityTitle}>
-            <View style={styles.inset}>
-              <BandError
-                label="What people are playing could not load."
-                onRetry={() => activity.refetch()}
-              />
-            </View>
-          </HomeSection>
-        ) : activityLogs.length > 0 ? (
-          <HomeSection title={activityTitle}>
-            <ActivityRail logs={activityLogs} inset={Spacing.x16} />
-          </HomeSection>
-        ) : null}
-
-        {/*
-         * The catalogue. Out now and coming next, as one timeline — two rails
-         * with an inverted date predicate are one rail cut in half. The date
-         * under each cover is what separates the halves, and is the one thing
-         * here its box does not say.
-         */}
-        <HomeSection title="Releases" seeAll="/releases">
-          {releases.isLoading || upcoming.isLoading ? (
-            <CoverRailSkeleton foot={lineFoot} inset={Spacing.x16} />
-          ) : releases.isLoadingError && upcoming.isLoadingError ? (
-            <View style={styles.inset}>
-              <BandError
-                label="Releases could not load."
-                onRetry={() => {
-                  releases.refetch();
-                  upcoming.refetch();
-                }}
-              />
-            </View>
-          ) : (
-            <GameCoverRail
-              games={releaseRail}
-              inset={Spacing.x16}
-              lineOf={(game) => releaseLabel(game.releaseDate, game.releaseYear)}
-              labelOf={(game) =>
-                [game.title, releaseLabel(game.releaseDate, game.releaseYear)]
-                  .filter(Boolean)
-                  .join(', ')
-              }
-              parallax
-            />
-          )}
-        </HomeSection>
-
-        {/* Band 4 — what happened. */}
-        <HomeSection title="Latest news" seeAll="/news">
-          <View style={styles.stack}>
-            {news.isLoading ? (
-              Array.from({ length: NEWS_PREVIEW }).map((_, index) => (
-                <Skeleton key={index} width="100%" height={newsCardHeight(width)} />
-              ))
-            ) : news.isLoadingError ? (
-              <BandError label="News could not load." onRetry={() => news.refetch()} />
-            ) : (
-              (news.data ?? [])
-                .slice(0, NEWS_PREVIEW)
-                .map((article) => <ArticleCard key={article.id} article={article} />)
+            {/*
+             * What you might play. From your own logs — not "rated highest":
+             * `recommendFromLogs` seeds from logs with a null rating too.
+             * SimpMusic's "Your daily discover" carousel (`<DiscoverCarousel>`,
+             * the owner's, 2026-10-22).
+             * Its first cover is the glow's colour.
+             */}
+            {!isFirstRun && (recommendedGames.length > 0 || seedsPending) && (
+              <HomeSection title="Games for you">
+                {seedsPending ? (
+                  <DiscoverCarouselSkeleton />
+                ) : (
+                  <Arrive>
+                    <DiscoverCarousel
+                      games={recommendedGames}
+                      because={recommended.data?.because}
+                    />
+                  </Arrive>
+                )}
+              </HomeSection>
             )}
-          </View>
-        </HomeSection>
 
-        {/* Band 5 — the showcases that just happened, as stories. Absent when
-            IGDB has none to give; a failure says so, as every band does. */}
-        {latestEvents.isLoadingError ? (
-          <HomeSection title="Latest events">
-            <BandError label="Events could not load." onRetry={() => latestEvents.refetch()} />
-          </HomeSection>
-        ) : latestEvents.isPending || (latestEvents.data ?? []).length > 0 ? (
-          <HomeSection title="Latest events">
-            <View style={styles.stack}>
-              {latestEvents.isPending
-                ? Array.from({ length: LATEST_EVENTS }).map((_, index) => (
+            {/*
+             * What people played: your circle's, or — when they have been quiet,
+             * or there is nobody in it — everyone's, under the heading that says
+             * which. Absent only when nobody on GameLog has scored or written
+             * about anything at all.
+             */}
+            {activity.isLoading ? (
+              <HomeSection title={activityTitle}>
+                <CoverRailSkeleton foot={personFoot} inset={Spacing.x16} />
+              </HomeSection>
+            ) : activity.isLoadingError ? (
+              <HomeSection title={activityTitle}>
+                <View style={styles.inset}>
+                  <BandError
+                    label="What people are playing could not load."
+                    onRetry={() => activity.refetch()}
+                  />
+                </View>
+              </HomeSection>
+            ) : activityLogs.length > 0 ? (
+              <HomeSection title={activityTitle}>
+                <Arrive of={activity.data?.scope}>
+                  <ActivityRail logs={activityLogs} inset={Spacing.x16} />
+                </Arrive>
+              </HomeSection>
+            ) : null}
+
+            {/*
+             * The catalogue. Out now and coming next, as one timeline — two rails
+             * with an inverted date predicate are one rail cut in half. The date
+             * under each cover is what separates the halves, and is the one thing
+             * here its box does not say.
+             */}
+            <HomeSection title="Releases" seeAll="/releases">
+              {releases.isLoading || upcoming.isLoading ? (
+                <CoverRailSkeleton foot={lineFoot} inset={Spacing.x16} />
+              ) : releases.isLoadingError && upcoming.isLoadingError ? (
+                <View style={styles.inset}>
+                  <BandError
+                    label="Releases could not load."
+                    onRetry={() => {
+                      releases.refetch();
+                      upcoming.refetch();
+                    }}
+                  />
+                </View>
+              ) : (
+                <Arrive>
+                  <GameCoverRail
+                    games={releaseRail}
+                    inset={Spacing.x16}
+                    lineOf={(game) => releaseLabel(game.releaseDate, game.releaseYear)}
+                    labelOf={(game) =>
+                      [game.title, releaseLabel(game.releaseDate, game.releaseYear)]
+                        .filter(Boolean)
+                        .join(', ')
+                    }
+                    parallax
+                  />
+                </Arrive>
+              )}
+            </HomeSection>
+
+            {/* Band 4 — what happened. */}
+            <HomeSection title="Latest news" seeAll="/news">
+              <View style={styles.stack}>
+                {news.isLoading ? (
+                  Array.from({ length: NEWS_PREVIEW }).map((_, index) => (
                     <Skeleton key={index} width="100%" height={newsCardHeight(width)} />
                   ))
-                : latestEvents.data!.map((event) => <PastEventCard key={event.id} event={event} />)}
-            </View>
-          </HomeSection>
-        ) : null}
+                ) : news.isLoadingError ? (
+                  <BandError label="News could not load." onRetry={() => news.refetch()} />
+                ) : (
+                  (news.data ?? []).slice(0, NEWS_PREVIEW).map((article, index) => (
+                    /* Staggered, so three cards of the same shape fill the
+                       band from the top rather than appearing as one slab. */
+                    <Arrive key={article.id} delay={stagger(index)}>
+                      <ArticleCard article={article} />
+                    </Arrive>
+                  ))
+                )}
+              </View>
+            </HomeSection>
+
+            {/* Band 5 — the showcases that just happened, as stories. Absent when
+            IGDB has none to give; a failure says so, as every band does. */}
+            {latestEvents.isLoadingError ? (
+              <HomeSection title="Latest events">
+                <BandError label="Events could not load." onRetry={() => latestEvents.refetch()} />
+              </HomeSection>
+            ) : latestEvents.isPending || (latestEvents.data ?? []).length > 0 ? (
+              <HomeSection title="Latest events">
+                <View style={styles.stack}>
+                  {latestEvents.isPending
+                    ? Array.from({ length: LATEST_EVENTS }).map((_, index) => (
+                        <Skeleton key={index} width="100%" height={newsCardHeight(width)} />
+                      ))
+                    : latestEvents.data!.map((event, index) => (
+                        <Arrive key={event.id} delay={stagger(index)}>
+                          <PastEventCard event={event} />
+                        </Arrive>
+                      ))}
+                </View>
+              </HomeSection>
+            ) : null}
+          </>
+        )}
+
+        {/* The reference's search screen's "Moods & Genres": each a block in
+            its own hue with a game's cover tilted into the corner — under All
+            and under every mood and genre. */}
+        <MoodTiles onView={changeView} />
 
         <Link href="/(tabs)/search" asChild>
           <PressableScale
             accessibilityRole="link"
             accessibilityLabel="Search every game on IGDB"
-            hitSlop={FOOTER_SLOP}
+            hitSlop={INLINE_LINK_SLOP}
             scaleTo={0.98}
             style={styles.footer}>
             <Text variant="bodySmall" style={{ color: theme.primaryText }}>
@@ -596,39 +728,6 @@ export default function HomeScreen() {
         </Link>
       </PageScrollView>
     </Screen>
-  );
-}
-
-/**
- * One band failed, said where it failed, and offered the way back.
- *
- * The page used to carry a single `<ErrorState>` gated on news **and** releases
- * **and** upcoming all failing at once — so one dead band rendered a heading, a
- * "See all" chevron and nothing underneath, indistinguishable from "nothing
- * today", while a Supabase outage that killed only the reviews showed no error
- * anywhere. And when the all-three gate did fire, `ErrorState`'s `flex: 1`
- * inside a content-driven `contentContainerStyle` had no free space to resolve
- * against, so it collapsed to its own padding.
- */
-function BandError({ label, onRetry }: { label: string; onRetry: () => void }) {
-  const theme = useTheme();
-
-  return (
-    <View style={styles.bandError}>
-      <Text variant="bodySmall" color="textMuted">
-        {label}
-      </Text>
-      <PressableScale
-        accessibilityRole="button"
-        accessibilityLabel={`Retry: ${label}`}
-        hitSlop={FOOTER_SLOP}
-        onPress={onRetry}
-        scaleTo={0.96}>
-        <Text variant="bodySmall" style={{ color: theme.primaryText }}>
-          Try again
-        </Text>
-      </PressableScale>
-    </View>
   );
 }
 
@@ -651,26 +750,28 @@ function releaseLabel(releaseDate: string | null, releaseYear: number | null): s
     : `${day} ${date.getUTCFullYear()}`;
 }
 
-/** Lifts a one-line inline link to the platform floor without moving the text. */
-const FOOTER_SLOP = { top: 14, bottom: 14, left: 8, right: 8 };
-
 const styles = StyleSheet.create({
-  /* The bar's row, filled: the page's own margin at either end, so the
-     wordmark starts on the line every band under it starts on. */
-  masthead: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: Spacing.x12,
-    paddingHorizontal: Spacing.x16,
-  },
-  mastheadTitles: { flex: 1, gap: 1 },
-  /* `x8` (8) between the two keys: Material's gap between touch targets. */
-  mastheadActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x8 },
-  /* A round key at the tap floor itself — 44 on iOS, 48 on Android — so the
-     disc you see is the area you can press. It is the sole route to
-     notifications and must not be the hardest thing to hit. */
+  /* `x32` (32) between bands — SimpMusic's interval between sections — against
+     15 from a heading to its own rail.
+
+     The page's only structural rhythm, and the reason a stack of unrelated
+     sections still reads as one document rather than one long scroll. When the
+     two gaps were close, the headings read as captions floating in a
+     continuous column. The interval separating sections has to be unmistakably
+     bigger than any interval inside one. */
+  content: { paddingBottom: Spacing.x48, gap: Spacing.x32 },
+  /* The first block keeps the page's rhythm inside it: the greeting and
+     Surprise Me are thirty-two apart, as every band is — and so is the first
+     band under the block, because the scroller's own content gap is the same
+     thirty-two. */
+  lead: { gap: Spacing.x32 },
+  welcome: { paddingHorizontal: Spacing.x16, gap: Spacing.x8 },
+  welcomeUser: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  /* Shrinks rather than pushing the row wide — a long display name truncates
+     instead of shoving the bell off the right edge. */
+  welcomeLink: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
+  welcomeName: { flex: 1 },
+  /* A round key at the tap floor itself — 44 on iOS, 48 on Android. */
   key: {
     width: TapTarget,
     height: TapTarget,
@@ -678,8 +779,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* On the key's upper-right shoulder, overlapping its edge the way a badge on
-     an app icon does. */
+  /* On the key's upper-right shoulder, as a badge on an app icon is. */
   badge: {
     position: 'absolute',
     top: -Spacing.x4,
@@ -692,28 +792,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* `x32` (32) between bands — SimpMusic's interval between sections — against
-     15 from a heading to its own rail.
-
-     The page's only structural rhythm, and the reason a stack of unrelated
-     sections still reads as one document rather than one long scroll. When the
-     two gaps were close, the headings read as captions floating in a
-     continuous column. The interval separating sections has to be unmistakably
-     bigger than any interval inside one. */
-  content: { paddingBottom: Spacing.x48, gap: Spacing.x32 },
-  welcome: { paddingHorizontal: Spacing.x16, gap: Spacing.x8, paddingTop: Spacing.x4 },
-  welcomeUser: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x12 },
-  /* Shrinks rather than pushing the row wide — a long display name truncates
-     instead of shoving the avatar off the left edge. */
-  welcomeName: { flex: 1 },
   /* `EmptyState` centres on `flex: 1`, which resolves to nothing inside a
      content-driven scroll container. The explicit height is what gives it space
      to centre in. */
   firstRun: { minHeight: 260, justifyContent: 'center' },
   stack: { paddingHorizontal: Spacing.x16, gap: Spacing.x12 },
-  /* No inset of its own: the news band's stack already has the page's margin,
-     and a band of games gives it `inset`. */
-  bandError: { gap: Spacing.x4, alignItems: 'flex-start' },
   inset: { paddingHorizontal: Spacing.x16 },
   footer: {
     flexDirection: 'row',

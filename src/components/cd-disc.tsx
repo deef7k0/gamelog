@@ -30,6 +30,12 @@ export type CdDiscProps = {
   holeColor: string;
   /** Casts when it is an object on its own; the binder's sleeves hold it flat. */
   cast?: boolean;
+  /**
+   * The real disc's label, scanned — GameTDB's or ScreenScraper's, through the
+   * `copy-art` function (`useCopyArt`). Drawn whole in place of the box art
+   * printed on a template: the scan is already a disc, hub and rim included.
+   */
+  labelUrl?: string | null;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -44,6 +50,10 @@ export type CdDiscProps = {
  *
  * Decorative on its own: the caller carries the label, because a disc is always
  * inside something that says which game it is.
+ *
+ * **With a scan of the real disc** (`labelUrl`, 2026-10-22) the disc is that
+ * scan: the surface behind showing through its hole, the scan over it, and
+ * the same faint sheen. No template — the scan has its own rim and hub.
  */
 export const CdDisc = memo(function CdDisc({
   coverUrl,
@@ -54,6 +64,7 @@ export const CdDisc = memo(function CdDisc({
   holeColor,
   cast = false,
   style,
+  labelUrl = null,
 }: CdDiscProps) {
   const theme = useTheme();
   const template = discTemplateFor(platform);
@@ -61,6 +72,57 @@ export const CdDisc = memo(function CdDisc({
   const art = template.artRadius * 2 * scale;
   const hub = template.hubRadius * 2 * scale;
   const source = coverUrl ?? heroUrl ?? null;
+
+  if (labelUrl) {
+    return (
+      <View
+        style={[
+          { width: size, height: size, borderRadius: size / 2 },
+          cast && [styles.cast, { shadowColor: theme.shadowInk }],
+          style,
+        ]}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants">
+        <View
+          style={[
+            styles.centred,
+            {
+              width: hub,
+              height: hub,
+              borderRadius: hub / 2,
+              left: (size - hub) / 2,
+              top: (size - hub) / 2,
+              backgroundColor: holeColor,
+            },
+          ]}
+        />
+        <Image
+          source={{ uri: labelUrl }}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          transition={200}
+          cachePolicy="memory-disk"
+          recyclingKey={labelUrl}
+          accessibilityIgnoresInvertColors
+        />
+        <View
+          style={[styles.centred, { width: size, height: size, borderRadius: size / 2 }]}
+          pointerEvents="none">
+          <LinearGradient
+            colors={[
+              withAlpha('#FFFFFF', 0.16),
+              withAlpha('#FFFFFF', 0),
+              withAlpha('#FFFFFF', 0.08),
+            ]}
+            locations={[0, 0.5, 1]}
+            start={{ x: 0.15, y: 0 }}
+            end={{ x: 0.85, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View

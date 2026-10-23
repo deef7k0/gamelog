@@ -195,12 +195,15 @@ export function useAccountLink(userId: string | null, provider: GamingProvider =
     }
     queryClient.invalidateQueries({ queryKey: ['gaming-sync', provider, userId] });
     queryClient.invalidateQueries({ queryKey: ['profile', userId] });
+    /* The badges beside the profile's name. */
+    queryClient.invalidateQueries({ queryKey: ['gaming-accounts', userId] });
   }
 
   const link = useMutation({
-    mutationFn: async () => {
+    /* `handle`: the public name a username-linked provider imports from. */
+    mutationFn: async (handle: string | void) => {
       if (!userId) throw new Error('You must be signed in.');
-      const outcome = await requireProvider(provider).link({ userId });
+      const outcome = await requireProvider(provider).link({ userId, handle: handle ?? undefined });
       // A cancellation is not an error worth throwing — the UI just stays put.
       if (!outcome.ok && outcome.reason !== 'cancelled') throw new Error(outcome.message);
       return outcome;

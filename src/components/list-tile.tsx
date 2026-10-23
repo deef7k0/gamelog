@@ -1,162 +1,80 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { Link } from 'expo-router';
-import { memo, useMemo, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { memo } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { Avatar } from '@/components/ui/avatar';
-import { CoverStack, type StackCover } from '@/components/ui/cover-stack';
 import { PressableScale } from '@/components/ui/pressable-scale';
-import { RichText } from '@/components/ui/rich-text';
 import { Text } from '@/components/ui/text';
-import { Elevation, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { FontFamily, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { displayNameFor } from '@/lib/format';
 import type { ListSummary } from '@/lib/api';
 
-/** The kind's mark on the title line, and the owner's picture in the byline. */
-const KIND_GLYPH = 12;
-const AVATAR = 16;
-
-/** The card's inset: the review card's (`<LogCard>`), which this card is. */
-const INSET = Spacing.x16;
+/** One square of the mosaic, and the gap that keeps the four apart. */
+const SQUARE = 46;
+const SQUARE_GAP = 4;
+/** The mosaic: two squares and the gap between them, each way. */
+const MOSAIC = SQUARE * 2 + SQUARE_GAP;
+/** The kind's mark on the title line. */
+const KIND_GLYPH = 13;
 
 /** No covers yet: the summary a restored cache row may still be missing them from. */
 const NO_COVERS: ListSummary['stack'] = [];
 
-export type ListTileProps = {
-  list: ListSummary;
-  /**
-   * How wide the card is drawn, when its caller knows: the stack is sized from
-   * it, and a card told its width draws the right covers on its first frame.
-   * Without it the card measures itself and starts from the display less the
-   * app's margin, which is right everywhere but the profile.
-   */
-  width?: number;
-};
+export type ListTileProps = { list: ListSummary };
 
 /**
- * A collection, wherever collections are listed: a card with its name and its
- * size across the top, its covers as a stack in the middle, and under them what
- * its owner says about it and whose it is.
+ * A collection, wherever collections are listed: **a mosaic of four squares**
+ * — each a game's portrait cover, cropped to the square, a hair apart — and
+ * beside it the collection's name and two small lines in capitals.
  *
  * ```
- * ┌────────────────────────────────────────┐
- * │ 🏆 Horror I finished at 3am   12 games │   the title, its kind's mark, the count
- * │                                        │
- * │       ▮▮▮▮▮[ ▮▮▮▮▮▮▮ ]▮▮▮▮▮            │   five covers, the first in front
- * │                                        │
- * │ Two lines of the owner's own argument, │   the description, if there is one
- * │ and no more…                           │
- * │ (◯) ada                                │   who made it
- * └────────────────────────────────────────┘
+ *  ▮▮ ▮▮   Great Games To Create Screenshots
+ *  ▮▮ ▮▮   316 GAMES
+ *  ▮▮ ▮▮   BY ADA
+ *  ▮▮ ▮▮
+ * ───────────────────────────────────────────   a hairline to the next
  * ```
  *
- * The owner's design, and the fifth shape this has had. It was a row with one
- * cover; a square tile, two across; a row again, with a mosaic of four covers;
- * then old Letterboxd's "New from friends" tile — five covers stacked at the
- * row's full width, the title and the byline under them on the page. The owner
- * then asked for that "inside a card", from a second reference (a list as a
- * panel: its name top left, "32 Films" top right, its posters under them), so
- * that "the widget itself can get smaller and you just put everything inside
- * the card". Three things follow from that reference:
+ * The owner's reference (2026-10-22): a list of collections from another game
+ * site — "a mosaic, 4 squares with the portrait cover in each square. They are
+ * slightly separated, you can make out the squares." Rows on the page with a
+ * hairline between them (`<CollectionSeparator>`), not cards. It replaced the
+ * review card with a stack of five covers (`<CoverStack>`, a collection's
+ * tile from 2026-10-09), and the owner's earlier "remove the mosaic" — that
+ * was four covers joined into one picture on the collection's *own* screen,
+ * which stays one cover.
  *
- * **The title is above the covers and the count is at the far end of its
- * line**, where the reference has them. The count was the end of the byline;
- * the byline is the owner alone now.
- *
- * **Five covers run from one side of the card's inside to the other**, on the
- * margins the title, the count and the words under them keep — the first
- * cover's left edge under the title's, the last one's right edge under the
- * count's. Fewer than five stand in the middle (`constants/cover-stack`). For
- * one pass the stack was seven-eighths of the inside and centred, so that it
- * lined up with nothing; the owner had it brought to the margins.
- *
- * **Cards stack twelve apart**, as review cards do. The tiles were thirty-two
- * apart on the bare page, where air was the only thing separating them.
- *
- * ## The card is the review card
- *
- * The owner's direction: "the same card as the review card in the home page".
- * So it is `<LogCard>`'s, restated: the same fill (`surface`, the owner's
- * `#1B1F28`), the same corner (`Radius.review`, measured off their reference),
- * the same hairline edge, fifteen in, twelve between its parts, the card
- * shadow. Drawn on the pressable itself, so each row of a list is one view.
- * Change one and change the other — and both moved on 2026-10-20, when the
- * owner gave new colours and a new shape for the review card.
- *
- * ## What is not on it
- *
- * **Likes and comments.** They cost a second request for every screenful
- * (neither can ride on a list row — both are polymorphic) and the owner chose
- * the game count alone. They are on the collection's own screen, one tap away.
- *
- * **The mosaic**, and with it the trophy laid over an award show's artwork.
- * What says "award show" here is the gold trophy beside the title; the artwork
- * is the show's games, like any other collection's.
- *
- * ## What the covers are
- *
- * `list.stack`: the cover that represents the collection first — the owner's
- * chosen one, else its first game — then the rest in order. That first cover is
- * the one drawn whole, and it is the game the collection's own screen opens on,
- * so the card and the page it leads to agree. None is a lettered placeholder.
- *
- * **The title never runs past two lines and the description never past two.**
- * Cards in a list have to stay comparable, and a collection with a
- * five-paragraph About cannot be allowed to occupy a screen on its own.
+ * - **The squares are 46, four apart**: the reference's mosaic is a hundred
+ *   pixels of two squares and a visible gap. A cover is cropped to its middle
+ *   — IGDB publishes no square, and the squares are thumbnails. The first is
+ *   the collection's chosen cover (`list.stack`, the game its screen opens
+ *   on), then the rest in order; a collection of fewer than four keeps the
+ *   empty squares, drawn as faint tiles, so every mosaic is the same shape.
+ * - **The name is `h3`, two lines at most**, top-aligned with the mosaic.
+ * - **Two quiet lines in capitals**: how many games, and whose it is. The
+ *   reference's second line is a count of its "cakes" — likes. A collection's
+ *   likes are not on its summary and cost a request per screenful (the owner
+ *   had that request removed once), so the line is the owner, whom the old
+ *   card named in its byline.
+ * - **No description.** It is on the collection's screen.
  */
-export const ListTile = memo(function ListTile({ list, width }: ListTileProps) {
+export const ListTile = memo(function ListTile({ list }: ListTileProps) {
   const theme = useTheme();
-  const { width: windowWidth } = useWindowDimensions();
 
   /*
-   * The card's real width, when nobody said. `onLayout` is the only honest
-   * source — the card is handed its width by whatever list it is in — and the
-   * estimate is what the first frame draws with. The covers are absolutely
-   * placed inside the stack, so this sets their size and the stack's height and
-   * never the card's own width: there is no loop.
-   */
-  const [measured, setMeasured] = useState(0);
-  const outer = width ?? (measured || Math.min(windowWidth, MaxContentWidth) - Spacing.x16 * 2);
-  /* The row the stack stands in: the card, less its inset on both sides. */
-  const row = Math.max(0, outer - INSET * 2);
-
-  function onLayout(event: LayoutChangeEvent) {
-    if (width != null) return;
-    const next = Math.round(event.nativeEvent.layout.width);
-    setMeasured((previous) => (previous === next ? previous : next));
-  }
-
-  /*
-   * A stable array, or `<CoverStack>`'s memo would never hold: the summary is
-   * query data and keeps its identity between renders.
-   *
    * `?? NO_COVERS` is for a summary written to the device before it had a
-   * `stack` at all — it carried a `mosaic` then. Reading `.map` off that is
-   * what closed the screen with "cannot read property 'map' of undefined" the
-   * first time it was opened after the change. `CACHE_VERSION` drops those rows
-   * now; this is what makes the next rename a card with no covers for a moment
-   * instead of a screen that will not open.
+   * `stack` at all — reading `.slice` off that would close the screen.
    */
   const stack = list.stack ?? NO_COVERS;
-  const covers = useMemo<StackCover[]>(
-    () =>
-      stack.map((cover) => ({
-        id: cover.id,
-        title: cover.title,
-        coverUrl: cover.cover_url,
-        heroUrl: cover.hero_url,
-      })),
-    [stack]
-  );
+  const squares = Array.from({ length: 4 }, (_, index) => stack[index] ?? null);
 
   const owner = displayNameFor(list.owner);
   const games = `${list.itemCount} ${list.itemCount === 1 ? 'game' : 'games'}`;
-  const description = list.description?.trim();
 
-  /* The three shapes that are not a plain collection. A glyph on the title line
-     rather than a word in the byline: which of these you are looking at changes
-     what the games inside mean. */
+  /* The shapes that are not a plain collection: which of these you are
+     looking at changes what the games inside mean. */
   const kindGlyph =
     list.kind === 'awards'
       ? 'trophy'
@@ -172,81 +90,84 @@ export const ListTile = memo(function ListTile({ list, width }: ListTileProps) {
     <Link href={{ pathname: '/list/[id]', params: { id: list.id } }} asChild>
       <PressableScale
         accessibilityRole="button"
-        accessibilityLabel={[list.title, `by ${owner}`, games].join(', ')}
+        accessibilityLabel={[list.title, games, `by ${owner}`].join(', ')}
         scaleTo={0.98}
-        onLayout={onLayout}
-        style={StyleSheet.flatten([
-          styles.card,
-          { backgroundColor: theme.surface, borderColor: theme.border },
-        ])}>
-        {/* The reference's first line: the name at the left, how many are in it
-            at the right. The name gives way before the count does — it wraps to
-            a second line and then truncates; the count is the part that cannot
-            be read off the covers. */}
-        <View style={styles.head}>
-          {kindGlyph && (
-            <Ionicons
-              name={kindGlyph}
-              size={KIND_GLYPH}
-              color={list.kind === 'awards' ? theme.identityGold : theme.textMuted}
-              style={styles.kindGlyph}
-            />
-          )}
-          <Text variant="h5" numberOfLines={2} style={styles.title}>
-            {list.title}
-          </Text>
-          <Text variant="bodySmall" color="textMuted" numberOfLines={1} style={styles.count}>
-            {games}
-          </Text>
+        style={styles.row}>
+        <View style={styles.mosaic}>
+          {squares.map((cover, index) => (
+            <View
+              key={cover?.id ?? `empty-${index}`}
+              style={[styles.square, { backgroundColor: theme.surfaceElevated }]}>
+              {cover?.cover_url || cover?.hero_url ? (
+                <Image
+                  source={{ uri: (cover.cover_url ?? cover.hero_url)! }}
+                  recyclingKey={cover.cover_url ?? cover.hero_url}
+                  cachePolicy="memory-disk"
+                  contentFit="cover"
+                  transition={220}
+                  style={StyleSheet.absoluteFill}
+                  accessibilityIgnoresInvertColors
+                />
+              ) : null}
+            </View>
+          ))}
         </View>
 
-        <CoverStack covers={covers} width={row} title={list.title} />
-
-        <View style={styles.foot}>
-          {/* Two lines of the owner's argument, with their emphasis intact. */}
-          {!!description && (
-            <RichText variant="body" color="textSecondary" numberOfLines={2}>
-              {description}
-            </RichText>
-          )}
-
-          {/* Whose it is. A long name truncates rather than wrapping. */}
-          <View style={styles.byline}>
-            <Avatar uri={list.owner?.avatar_url} name={owner} size={AVATAR} />
-            <Text variant="bodySmall" color="textSecondary" numberOfLines={1} style={styles.owner}>
-              {owner}
-            </Text>
-          </View>
+        <View style={styles.words}>
+          <Text variant="h3" numberOfLines={2}>
+            {kindGlyph && (
+              /* Inline, so it sits on the title's first line and wraps with it. */
+              <Ionicons
+                name={kindGlyph}
+                size={KIND_GLYPH}
+                color={list.kind === 'awards' ? theme.identityGold : theme.textMuted}
+              />
+            )}
+            {kindGlyph ? ` ${list.title}` : list.title}
+          </Text>
+          <Text variant="body" color="textMuted" numberOfLines={1} style={styles.fact}>
+            {games.toUpperCase()}
+          </Text>
+          <Text variant="body" color="textMuted" numberOfLines={1} style={styles.fact}>
+            {`BY ${owner.toUpperCase()}`}
+          </Text>
         </View>
       </PressableScale>
     </Link>
   );
 });
 
+/**
+ * The hairline between two collections — every list of `<ListTile>`s uses it
+ * as its separator. Module scope, so a list's separator prop is one component
+ * type for the life of the list.
+ */
+export function CollectionSeparator() {
+  const theme = useTheme();
+  return <View style={[styles.separator, { backgroundColor: theme.border }]} />;
+}
+
 const styles = StyleSheet.create({
-  /* `<LogCard>`'s card, to the token: its inset, its twelve between parts, its
-     corner, its hairline edge and its shadow, on the fill set inline. Change
-     one and change the other. */
-  card: {
-    padding: INSET,
-    gap: Spacing.x12,
-    borderRadius: Radius.review,
-    borderWidth: 1,
-    ...Elevation.card,
+  /* The reference's rows: the mosaic and the words, twenty apart, and about as
+     much air above and below as the gap the mosaic's squares are spaced by
+     makes look intended. */
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.x20,
+    paddingVertical: Spacing.x20,
   },
-
-  /* `baseline` would drop the glyph and the count onto the title's baseline and
-     leave them hanging under a two-line title; `center` on a row whose text may
-     wrap is wrong for the same reason. First line, top aligned, each nudged
-     down by the difference between its own box and the title's line. */
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x4 },
-  kindGlyph: { marginTop: 4 },
-  title: { flex: 1 },
-  /* An 11/15 line beside a 14/19 one: three down sets the two on one baseline.
-     Eight clear of the title, so a long name stops short of it. */
-  count: { marginTop: 3, marginStart: Spacing.x8 },
-
-  foot: { gap: Spacing.x8 },
-  byline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.x4 },
-  owner: { flexShrink: 1, marginStart: 2 },
+  mosaic: {
+    width: MOSAIC,
+    height: MOSAIC,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SQUARE_GAP,
+  },
+  square: { width: SQUARE, height: SQUARE, borderRadius: Radius.image, overflow: 'hidden' },
+  words: { flex: 1, gap: Spacing.x4, paddingTop: 2 },
+  /* Spaced capitals, as the reference's counts are; a hair of tracking keeps
+     the small caps from crowding. */
+  fact: { fontFamily: FontFamily.medium, letterSpacing: 0.6 },
+  separator: { height: StyleSheet.hairlineWidth },
 });

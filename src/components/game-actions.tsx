@@ -19,6 +19,7 @@ import { getListMembership, toggleSingletonMembership } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import type { Game } from '@/lib/games';
 import { formatReleaseDate, isUnreleased } from '@/lib/games/release';
+import { hasWriting } from '@/lib/review-quote';
 import { useAuth } from '@/store/auth';
 
 export type GameActionsProps = {
@@ -91,6 +92,11 @@ export const GameActions = memo(function GameActions({
     onSuccess: invalidate,
   });
 
+  /* Which key is writing: the two share one mutation, and a tap on one must
+     not dim the other. While the lists are first loading both are dimmed and
+     hold their taps: drawn "off" and then switched on, they claimed a state
+     they did not know, and a tap then would have written the wrong one. */
+  const busyKind = toggleList.isPending ? toggleList.variables?.kind : undefined;
   const favorited = membership.data?.favorited ?? false;
   const wishlisted = membership.data?.wishlisted ?? false;
   const error = toggleList.error;
@@ -112,7 +118,7 @@ export const GameActions = memo(function GameActions({
       icon: 'star',
       outline: 'star-outline',
       active: favorited,
-      busy: toggleList.isPending,
+      busy: busyKind === 'favorites' || membership.isLoading,
       label: 'Favourite',
       onPress: () => toggleList.mutate({ kind: 'favorites', next: !favorited }),
     },
@@ -120,7 +126,7 @@ export const GameActions = memo(function GameActions({
       icon: 'bookmark',
       outline: 'bookmark-outline',
       active: wishlisted,
-      busy: toggleList.isPending,
+      busy: busyKind === 'wishlist' || membership.isLoading,
       label: 'Wishlist',
       onPress: () => toggleList.mutate({ kind: 'wishlist', next: !wishlisted }),
     },
@@ -148,7 +154,13 @@ export const GameActions = memo(function GameActions({
             active: log !== null,
             label: progressMeta
               ? `Your progress: ${progressMeta.label}. Change it.`
-              : 'Set your progress',
+              : 'Log your progress',
+            /* The one printed word in the group, and only until there is a
+               log: a bare "+" beside Collect's stack does not say "log this
+               game", and this key is the ten-second path the review button
+               is not (the owner, 2026-10-21). Once logged, its glyph is the
+               answer and says enough. */
+            caption: log ? undefined : 'Log',
             onPress: onOpenProgress,
           },
         ] satisfies ActionSpec[])),
@@ -161,8 +173,8 @@ export const GameActions = memo(function GameActions({
       and it is the one path into a collection that starts from the game — the
       `add-to-list` route starts from the collection and cannot serve it.
       
-      Sharing has not gone anywhere: the top bar's disc still carries it, which
-      is where a share belongs on every other screen in the app.
+      Sharing moved to the top bar: a disc at the top right, beside the
+      trailer switch (the owner, 2026-10-21) — it had been lost in the move.
       
       Not a toggle, so it carries no selected state at all — it used to announce
       as a permanently unselected one to a screen reader.
@@ -222,8 +234,16 @@ export const GameActions = memo(function GameActions({
               behind all of it is that palette's darkest tone — so at the shared
               `primary` it was only marginally the loudest thing here. See the
               note on `ButtonProps.tone`; nothing else in the app takes it. */}
+          {/* "Edit" only when there is writing to edit: a log that is a
+              status alone has no review yet, and saying so was a false claim. */}
           <Button
-            title={log ? 'Edit your review' : 'Write a review'}
+            title={
+              log && hasWriting(log)
+                ? 'Edit your review'
+                : log
+                  ? 'Write your review'
+                  : 'Write a review'
+            }
             icon="create-outline"
             size="large"
             tone="vivid"
@@ -363,6 +383,8 @@ type ActionSpec = {
   /** A write is in flight. Blocks the second tap of a double-tap. */
   busy?: boolean;
   label: string;
+  /** A printed word beside the glyph — the progress key, until logged. */
+  caption?: string;
   onPress: () => void;
 };
 
@@ -404,9 +426,10 @@ function Arriving({
 function Action({
   icon,
   outline,
-  active = false,
+  active,
   busy = false,
   label,
+  caption,
   onPress,
   delay,
   position,
@@ -423,6 +446,7 @@ function Action({
         active={active}
         busy={busy}
         label={label}
+        caption={caption}
         onPress={onPress}
         position={position}
       />

@@ -5,9 +5,8 @@ import { StyleSheet, type SectionListData } from 'react-native';
 import { PageFlatList, PageSectionList } from '@/components/ui/page-scroll';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
-import { ListTile } from '@/components/list-tile';
+import { CollectionSeparator, ListTile } from '@/components/list-tile';
 import {
-  CardGap,
   SeeAll,
   SectionEmpty,
   SectionFailed,
@@ -48,8 +47,8 @@ const LATEST_COLLECTIONS_PAGE = 20;
  *     screens learning that this list exists.
  *
  * Typed, it is a title search across everybody's authored collections
- * (`searchLists`). The row is `<ListTile>`, the collection card everywhere
- * else: its name, its covers as a stack and its owner, one to a row.
+ * (`searchLists`). The row is `<ListTile>`, as everywhere else: a mosaic of
+ * four covers and the name, one to a row, hairlines between.
  */
 export function CollectionResults({ query }: { query: string }) {
   return query.length >= MIN_QUERY_LENGTH ? (
@@ -80,7 +79,7 @@ function CollectionSearch({ query }: { query: string }) {
       keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}
       contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
-      ItemSeparatorComponent={CardGap}
+      ItemSeparatorComponent={CollectionSeparator}
       {...TallCardWindow}
       renderItem={renderTile}
       ListEmptyComponent={
@@ -200,7 +199,7 @@ function CollectionsDiscover() {
       showsVerticalScrollIndicator={false}
       stickySectionHeadersEnabled={false}
       contentContainerStyle={[styles.content, { paddingBottom: Spacing.x48 + clearance }]}
-      ItemSeparatorComponent={CardGap}
+      ItemSeparatorComponent={CollectionSeparator}
       renderSectionHeader={renderHeader}
       renderSectionFooter={renderFooter}
       renderItem={renderTile}

@@ -68,7 +68,7 @@ export type GamesWidgetProps = {
  * four they chose, and the four they played last.
  *
  * It was a stack of overlapping covers before that — a staircase of five, then
- * `<CoverStack>`. A collection's card still draws the stack; a profile's games
+ * a five-cover stack (deleted 2026-10-22, when collections became mosaics); a profile's games
  * do not. **Do not bring a stack back here.**
  *
  * ## Not a card

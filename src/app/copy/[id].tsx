@@ -41,6 +41,7 @@ import {
   type CopyStageMode,
 } from '@/components/copy-showcase';
 import { STAGE_KEY_WIDTH, StageKey } from '@/components/copy-stage-key';
+import { copyRecordLine } from '@/components/copy-case-back';
 import { formatReleaseDate } from '@/lib/games/release';
 import { ReviewQuote } from '@/components/review-quote';
 import { Button } from '@/components/ui/button';
@@ -55,8 +56,10 @@ import { TextField } from '@/components/ui/text-field';
 import { stageMetrics } from '@/constants/copy-stage';
 import { CONTRIBUTION_STATUS_LABEL } from '@/constants/physical';
 import { CASE_TEMPLATE_SIZE } from '@/constants/platform-cases';
+import { platformKeyForStored } from '@/constants/platform-family';
 import { Radius, Spacing, Type } from '@/constants/theme';
 import { AccentProvider, useAccent, useGameAccent } from '@/hooks/use-accent';
+import { useCopyArt } from '@/hooks/use-copy-art';
 import { useDiscRoom } from '@/hooks/use-header-height';
 import { useTheme } from '@/hooks/use-theme';
 import {
@@ -248,6 +251,11 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
     if (away !== scrolledAway) setScrolledAway(away);
   };
 
+  /* The real back cover and disc label, looked up when the copy was added
+     (`useCopyArt`); the case draws its own until they are found, and if
+     they never are. */
+  const art = useCopyArt(copy);
+
   const waiting = !copy.release_id && copy.contribution?.status === 'pending';
   /* Who made it and when it came out — the game's facts, not the copy's. The
      full date when the catalogue has one, the year when that is all there is. */
@@ -271,7 +279,10 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
     : side === 'cover'
       ? credit || 'The cover'
       : side === 'back'
-        ? 'The back of the case'
+        ? /* A scanned back covers the printed record, so it is said here. */
+          art.back
+          ? copyRecordLine(copy, platformKeyForStored(copy.platform) ?? 'other')
+          : 'The back of the case'
         : side === 'inside'
           ? 'Inside · tap the disc to lift it out'
           : side === 'disc'
@@ -323,6 +334,7 @@ function CopyDetail({ copy, pageColor }: { copy: CopyWithRelations; pageColor: s
             an open cover leaves by the side of the display. */}
         <CopyShowcase
           copy={copy}
+          art={art}
           width={width}
           stage={stage}
           pageColor={pageColor}

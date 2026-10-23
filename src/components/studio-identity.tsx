@@ -28,18 +28,26 @@ const LOGO_MAX_HEIGHT = 84;
  * (Valve's red, Mojang's white-on-red block) is drawn as it is. See
  * `logoNeedsLightInk`. Either way it is the logo, never a colour taken from it
  * for a button.
+ *
+ * **The name's colour** (`nameColor`) is the banner game's Material 3 colour
+ * when there is no logo — the owner's, 2026-10-22: "paint the text of their
+ * name with the m3 color from the background game". Without one, the page's
+ * own ink.
  */
 export function StudioIdentity({
   name,
   logo,
   pageColor,
   maxWidth,
+  nameColor,
 }: {
   name: string | undefined;
   logo: StudioLogo | null | undefined;
   /** The page the logo sits on, which decides its ink. */
   pageColor: string;
   maxWidth: number;
+  /** The name's ink when it is drawn as type. */
+  nameColor?: string;
 }) {
   const theme = useTheme();
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -71,7 +79,11 @@ export function StudioIdentity({
 
   if (!name) return null;
   return (
-    <Text variant="display" numberOfLines={2} accessibilityRole="header" style={styles.name}>
+    <Text
+      variant="display"
+      numberOfLines={2}
+      accessibilityRole="header"
+      style={[styles.name, nameColor ? { color: nameColor } : null]}>
       {name}
     </Text>
   );

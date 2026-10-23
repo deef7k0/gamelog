@@ -12,6 +12,7 @@ import { FontFamily, Spacing, TapTarget } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { FACET_INFO, facetParams, type Facet, type FacetKind } from '@/lib/games/facets';
 import { getGameDetails, type GameDetails } from '@/lib/games/igdb';
+import { getGameRawgTags, rawgTagsAvailable, type RawgTag } from '@/lib/games/rawg-tags';
 import { parseGameId } from '@/lib/games';
 
 /**
@@ -47,8 +48,22 @@ const VALUE_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
  * and they are sent to the search screen with the selected theme". So each is
  * bold, and opens the Search tab on that facet's games (`lib/games/facets.ts`)
  * — the theme, the engine, the language, the age rating alike.
+ *
+ * **Tags are RAWG's** (2026-10-22): its players' words for the game, read
+ * from RAWG by the game's name and year, listed after the themes and as
+ * searchable as they are — a tag opens Search on RAWG's games with it.
+ * Absent without a RAWG key, or when RAWG has no game of this name and year.
  */
-export function GameDetailsCard({ gameId }: { gameId: string }) {
+export function GameDetailsCard({
+  gameId,
+  title,
+  year,
+}: {
+  gameId: string;
+  /** The game's name and year, which RAWG's tags are looked up by. */
+  title?: string;
+  year?: number | null;
+}) {
   const accent = useAccent();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
@@ -74,12 +89,20 @@ export function GameDetailsCard({ gameId }: { gameId: string }) {
     if (untagged) void refetch();
   }, [untagged, refetch]);
 
+  const rawgTags = useQuery({
+    queryKey: ['rawg-game-tags', gameId],
+    queryFn: ({ signal }) => getGameRawgTags(title!, year ?? null, signal),
+    enabled: !!title && rawgTagsAvailable(),
+    staleTime: 7 * 24 * 60 * 60_000,
+    retry: false,
+  });
+
   if (!igdbId || !details.data) return null;
 
   const open = (facet: Facet) =>
     router.navigate({ pathname: '/search', params: facetParams(facet) });
 
-  const { head, rest } = rowsOf(details.data);
+  const { head, rest } = rowsOf(details.data, rawgTags.data ?? []);
   if (head.length === 0 && rest.length === 0) return null;
   /* With nothing behind the button, the card is just its first rows. */
   const shown = expanded || head.length === 0 ? [...head, ...rest] : head;
@@ -148,7 +171,7 @@ export function GameDetailsCard({ gameId }: { gameId: string }) {
 }
 
 /** The rows shown before expanding, and the rest. No companies: see above. */
-function rowsOf(details: GameDetails): { head: Row[]; rest: Row[] } {
+function rowsOf(details: GameDetails, rawgTags: readonly RawgTag[]): { head: Row[]; rest: Row[] } {
   const tags = details.tags;
 
   /* With ids, each value is a link; a record from before them is words. */
@@ -162,9 +185,15 @@ function rowsOf(details: GameDetails): { head: Row[]; rest: Row[] } {
   const keep = (entry: Row) => entry.values.length > 0;
 
   return {
-    head: [row('Genres', 'genre', details.genres), row('Themes', 'theme', details.themes)].filter(
-      keep
-    ),
+    head: [
+      row('Genres', 'genre', details.genres),
+      row('Themes', 'theme', details.themes),
+      {
+        label: 'Tags',
+        kind: 'tag' as const,
+        values: rawgTags.map((tag) => ({ name: tag.name, id: tag.id })),
+      },
+    ].filter(keep),
     rest: [
       row('Game modes', 'mode', details.gameModes),
       row('Player perspectives', 'perspective', details.playerPerspectives),

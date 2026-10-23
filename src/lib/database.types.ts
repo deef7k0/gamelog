@@ -459,8 +459,13 @@ export type GamingSyncStatus = 'idle' | 'syncing' | 'ok' | 'partial' | 'private'
 export type GamingAccountRow = {
   user_id: string;
   provider: GamingProvider;
-  /** SteamID64 for Steam. Written only by the steam-auth Edge Function. */
+  /**
+   * SteamID64 for Steam, written only by the steam-auth Edge Function; the
+   * service's own id for one linked by username (game-accounts, 0044).
+   */
   external_id: string;
+  /** 0044: `sign-in` (proved) or `username` (a public name). Absent before it. */
+  linked_by?: 'sign-in' | 'username';
   handle: string | null;
   display_name: string | null;
   avatar_url: string | null;
@@ -1030,6 +1035,16 @@ export type GameLabelRow = {
   created_at: string;
 };
 
+/** A game pinned to the head of a person's library (0043). */
+export type LibraryPinRow = {
+  id: number;
+  user_id: string;
+  game_id: string;
+  /** 0–5: six at most, unique per person. */
+  position: number;
+  created_at: string;
+};
+
 /**
  * What the contribution RPCs answer.
  *
@@ -1435,6 +1450,15 @@ export type Database = {
         Relationships: [
           FK<'game_labels_game_id_fkey', 'game_id', 'games', 'id'>,
           FK<'game_labels_added_by_fkey', 'added_by', 'profiles', 'id'>,
+        ];
+      };
+      library_pins: {
+        Row: LibraryPinRow;
+        Insert: Insert<LibraryPinRow, 'id' | 'created_at'>;
+        Update: Partial<LibraryPinRow>;
+        Relationships: [
+          FK<'library_pins_user_id_fkey', 'user_id', 'profiles', 'id'>,
+          FK<'library_pins_game_id_fkey', 'game_id', 'games', 'id'>,
         ];
       };
       // --- 0009 linked gaming accounts ---------------------------------------

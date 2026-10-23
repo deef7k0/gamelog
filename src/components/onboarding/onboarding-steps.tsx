@@ -290,7 +290,7 @@ export function PlatformsStep({ answers, onChange, onNext }: AnswerStepProps) {
 const GENRE_COUNT = 15;
 
 export function GenresStep({ answers, onChange, onNext }: AnswerStepProps) {
-  /* The same request, under the same key, that `<GenreGrid>` makes. */
+  /* The same request, under the same key, that Home's genre chip makes. */
   const genres = useQuery({
     queryKey: ['igdb', 'genres'],
     queryFn: ({ signal }) => getGenres(signal),

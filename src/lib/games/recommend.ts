@@ -44,9 +44,14 @@ export type Recommendations = {
   games: GameSearchResult[];
   /** The games these were derived from, best first. Empty when nothing seeded. */
   seeds: LogSeed[];
+  /**
+   * Which seed's title each game came from, by game id — Home's cards say
+   * "Similar to Hades". Optional: a cached answer from before it existed has none.
+   */
+  because?: Record<string, string>;
 };
 
-const EMPTY: Recommendations = { games: [], seeds: [] };
+const EMPTY: Recommendations = { games: [], seeds: [], because: {} };
 
 /**
  * Recommend games from a viewer's logs.
@@ -106,12 +111,13 @@ export async function recommendFromLogs(
    * viewer's taste, which is what the band is claiming to do.
    */
   const games: GameSearchResult[] = [];
+  const because: Record<string, string> = {};
   const taken = new Set<string>();
 
   for (let rank = 0; games.length < limit; rank += 1) {
     let foundAtThisRank = false;
 
-    for (const result of results) {
+    for (const [index, result] of results.entries()) {
       const candidate = result[rank];
       if (!candidate) continue;
       foundAtThisRank = true;
@@ -119,6 +125,7 @@ export async function recommendFromLogs(
       if (known.has(candidate.id) || taken.has(candidate.id)) continue;
       taken.add(candidate.id);
       games.push(candidate);
+      because[candidate.id] = seeds[index].title;
       if (games.length >= limit) break;
     }
 
@@ -126,5 +133,5 @@ export async function recommendFromLogs(
     if (!foundAtThisRank) break;
   }
 
-  return { games, seeds };
+  return { games, seeds, because };
 }

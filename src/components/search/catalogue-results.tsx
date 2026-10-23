@@ -26,11 +26,13 @@ import {
   PLATFORM_GROUPS,
   facetSubject,
   facetsSentence,
+  isTagFacet,
   type Facet,
   type MatchMode,
   type PlatformGroupKey,
 } from '@/lib/games/facets';
 import { PAGE_SIZE, pageCountFor } from '@/lib/games/paging';
+import { getTagGamesPage } from '@/lib/games/rawg-tags';
 
 /**
  * The orders a slice of the catalogue can be read in — a platform's page and a
@@ -77,6 +79,13 @@ type Layout = 'rows' | 'grid';
  * - **A word in the name**, from the Search field: searched within the facet.
  *
  * The count is exact (`games/count`), and the page does not wait for it.
+ *
+ * **A RAWG tag among the facets changes where the games come from**: RAWG's
+ * games with that tag, a page at a time in RAWG's reading of the order, each
+ * shown as the IGDB game of its name — narrowed on IGDB by everything else
+ * chosen (`getTagGamesPage`). The count is then RAWG's, and a page can hold
+ * fewer than ten, where a name is not IGDB's or the rest of the search rules
+ * the game out.
  */
 export function CatalogueResults({
   facets,
@@ -110,10 +119,14 @@ export function CatalogueResults({
   const pageKey = `${subject}|${sort}`;
   const page = paging.key === pageKey ? paging.page : 1;
 
-  const games = useQuery({
+  const tagIds = facets.filter(isTagFacet).map((facet) => facet.id);
+  const tagged = tagIds.length > 0;
+
+  const igdbGames = useQuery({
     /* Under `search`: never kept on the device (`NEVER_PERSIST`). */
     queryKey: ['search', 'catalogue', subject, sort, page],
     queryFn: ({ signal }) => getCatalogueGamesPage(subject, sort, page, signal),
+    enabled: !tagged,
     placeholderData: keepPreviousData,
     staleTime: 10 * 60_000,
   });
@@ -122,15 +135,29 @@ export function CatalogueResults({
     /* The clause, not the order: two orders of one set count once. */
     queryKey: ['search', 'catalogue-count', catalogueCountKey(subject, sort)],
     queryFn: ({ signal }) => getCatalogueGameCount(subject, sort, signal),
+    enabled: !tagged,
     staleTime: 60 * 60_000,
     retry: false,
   });
 
-  const total = count.data ?? null;
+  const tagPage = useQuery({
+    queryKey: ['search', 'catalogue-tags', tagIds.join(','), match, subject, sort, page],
+    queryFn: ({ signal }) => getTagGamesPage({ tagIds, match, where: subject, sort, page }, signal),
+    enabled: tagged,
+    placeholderData: keepPreviousData,
+    staleTime: 10 * 60_000,
+  });
+
+  /* Whichever is asked: its loading, failure and placeholder are the page's. */
+  const games = tagged ? tagPage : igdbGames;
+  const total = tagged ? (tagPage.data?.count ?? null) : (count.data ?? null);
   const pageCount = total === null ? null : pageCountFor(total);
-  const rows = games.data ?? [];
-  /* While the count is unknown, a full page is the evidence of another. */
-  const hasNext = rows.length === PAGE_SIZE;
+  const rows: readonly GameSearchResult[] = tagged
+    ? (tagPage.data?.games ?? [])
+    : (igdbGames.data ?? []);
+  /* While the count is unknown, a full page is the evidence of another. A
+     tag's page can be short without being the last. */
+  const hasNext = tagged ? pageCount !== null && page < pageCount : rows.length === PAGE_SIZE;
   const grid = layout === 'grid';
   const tileWidth = gridItemWidth(width, PORTRAIT_COLUMNS, Spacing.x16, GRID_GAP);
 
@@ -239,7 +266,7 @@ export function CatalogueResults({
                 : /* Said plainly when the combination is the reason — the
                      owner's "if a game doesn't exist, say it". */
                   facets.length > 1 && match === 'all'
-                  ? `No game on IGDB is ${facetsSentence(facets, 'all')}${
+                  ? `No game ${tagged ? 'here' : 'on IGDB'} is ${facetsSentence(facets, 'all')}${
                       term ? ` with “${term}” in its name` : ''
                     }${platform !== 'all' ? ' on this platform' : ''}. Take one away, or switch to Any of.`
                   : term

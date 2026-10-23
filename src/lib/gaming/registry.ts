@@ -1,4 +1,5 @@
 import { steamProvider } from './steam/provider';
+import { gogProvider, playstationProvider, xboxProvider } from './username-provider';
 import type { GamingAccountProvider, GamingProviderId } from './types';
 
 /**
@@ -12,8 +13,10 @@ import type { GamingAccountProvider, GamingProviderId } from './types';
  */
 const PROVIDERS: GamingAccountProvider[] = [
   steamProvider,
-  // Future: xboxProvider, playstationProvider, epicProvider, gogProvider,
-  // battlenetProvider, riotProvider, ubisoftProvider.
+  playstationProvider,
+  xboxProvider,
+  gogProvider,
+  // Future: epicProvider, battlenetProvider, riotProvider, ubisoftProvider.
 ];
 
 export function allProviders(): readonly GamingAccountProvider[] {

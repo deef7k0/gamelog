@@ -246,8 +246,6 @@ export default function RootLayout() {
                   a search scope, so they are pages now. */}
                 <Stack.Screen name="reviews" />
                 <Stack.Screen name="collections" />
-                {/* Where Search's genre grid leads — one genre, ranked. */}
-                <Stack.Screen name="genre/[id]" />
                 {/* Where Search's hub leads that is not a list under the field:
                   a platform's games, page by page; an event and what was shown
                   at it; and the year's releases as a calendar. */}
@@ -290,6 +288,8 @@ export default function RootLayout() {
                 <Stack.Screen name="add-to-list/[id]" options={SHEET} />
                 {/* The moderators' picker behind the Must Play list's "+". */}
                 <Stack.Screen name="label-games" options={SHEET} />
+                {/* The library's "+": a game to pin to its head (0043). */}
+                <Stack.Screen name="pin-game" options={SHEET} />
                 <Stack.Screen name="quick-log" options={SHEET} />
                 <Stack.Screen name="edit-profile" options={SHEET} />
               </Stack.Protected>

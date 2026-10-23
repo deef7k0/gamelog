@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { Text } from '@/components/ui/text';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { filledRoles } from '@/lib/filled';
@@ -58,14 +59,22 @@ export function keyPosition(index: number, count: number): KeyPosition {
  * the fill's own `onPrimary` (`filledRoles`) — SimpMusic's rule, the owner's
  * direction (2026-10-17). It was `primaryContainer`, a dark tone of the hue.
  * A key that is an act rather than a state carries no `active` and never
- * lights.
+ * lights — and announces no selected state, which for an act would be a
+ * permanent "not selected".
+ *
+ * `caption` prints one short word beside the glyph. Keys are glyphs alone by
+ * design; the caption is for the one key whose glyph cannot say what it does
+ * yet — the game page's progress key before there is a log, a bare "+"
+ * beside Collect's stack (the owner's ruling, 2026-10-21: "label it until
+ * logged").
  */
 export function TonalKey({
   icon,
   outline,
-  active = false,
+  active,
   busy = false,
   label,
+  caption,
   onPress,
   position,
   style,
@@ -73,21 +82,28 @@ export function TonalKey({
   icon: keyof typeof Ionicons.glyphMap;
   /** The glyph at rest; `icon` once lit. Defaults to `icon`. */
   outline?: keyof typeof Ionicons.glyphMap;
+  /** On or off, for a key that is a state. Omitted for an act. */
   active?: boolean;
   busy?: boolean;
   label: string;
+  /** A short printed word beside the glyph. */
+  caption?: string;
   onPress: () => void;
   position: KeyPosition;
   style?: StyleProp<ViewStyle>;
 }) {
   const accent = useAccent();
   const filled = filledRoles(accent);
+  const lit = active === true;
+  const ink = lit ? filled.ink : accent.m3.onSurfaceVariant;
 
   return (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected: active, busy, disabled: busy }}
+      accessibilityState={
+        active === undefined ? { busy, disabled: busy } : { selected: lit, busy, disabled: busy }
+      }
       disabled={busy}
       onPress={onPress}
       scaleTo={0.92}
@@ -96,19 +112,21 @@ export function TonalKey({
         keyCorners(position),
         /* Raised when lit: a solid block of the accent where depth is the only
            edge it has. */
-        active ? Elevation.raised : Elevation.none,
+        lit ? Elevation.raised : Elevation.none,
         {
-          backgroundColor: active ? filled.fill : accent.m3.surfaceContainerHigh,
-          borderColor: active ? filled.fill : accent.m3.surfaceContainerHigh,
+          backgroundColor: lit ? filled.fill : accent.m3.surfaceContainerHigh,
+          borderColor: lit ? filled.fill : accent.m3.surfaceContainerHigh,
         },
+        caption ? styles.captioned : null,
         busy && styles.busy,
         style,
       ])}>
-      <Ionicons
-        name={active ? icon : (outline ?? icon)}
-        size={22}
-        color={active ? filled.ink : accent.m3.onSurfaceVariant}
-      />
+      <Ionicons name={lit ? icon : (outline ?? icon)} size={caption ? 20 : 22} color={ink} />
+      {caption && (
+        <Text variant="tab" numberOfLines={1} style={{ color: ink }}>
+          {caption}
+        </Text>
+      )}
     </PressableScale>
   );
 }
@@ -120,6 +138,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /* Glyph and word side by side, as Material's icon button with a label. */
+  captioned: { flexDirection: 'row', gap: Spacing.x4, paddingHorizontal: Spacing.x8 },
   /* A brief dim rather than a spinner: one round trip. */
   busy: { opacity: 0.5 },
 });

@@ -9,3 +9,12 @@ export * from './types';
 export * from './format';
 export { allProviders, configuredProviders, getProvider, requireProvider } from './registry';
 export { steamProvider, SteamProvider } from './steam/provider';
+export {
+  USERNAME_FORM,
+  USERNAME_PROVIDERS,
+  UsernameProvider,
+  gogProvider,
+  playstationProvider,
+  xboxProvider,
+  type UsernameProviderId,
+} from './username-provider';

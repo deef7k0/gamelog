@@ -30,6 +30,11 @@ function apiKey(): string | null {
   return key ? key : null;
 }
 
+/** Whether this build has a RAWG key — without one, every RAWG feature is absent. */
+export function rawgConfigured(): boolean {
+  return apiKey() !== null;
+}
+
 type RawgGame = {
   id: number;
   name?: string;
@@ -62,7 +67,8 @@ type RawgAchievement = {
   percent?: string;
 };
 
-async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+/** A GET on RAWG's API with the key attached. Shared with `rawg-tags.ts`. */
+export async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const key = apiKey();
   if (!key) throw new Error('RAWG API key is not configured');
 

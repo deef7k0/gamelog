@@ -111,6 +111,10 @@ const NEVER_PERSIST: ReadonlySet<string> = new Set([
   'gaming-sync',
   'gaming-sync-state',
 
+  /* Home's moods and genres: up to sixty whole games a feed, and Home always opens on
+     All — rows that would push out the ones a cold start actually draws. */
+  'home-feed',
+
   /* SoundCloud's. Its API terms forbid keeping titles, names or artwork past
      the session, and a query cache written to the device is exactly that.
      Surprise Me's `surprise-soundtrack` is covered by the prefix rule below. */

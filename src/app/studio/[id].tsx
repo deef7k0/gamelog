@@ -19,13 +19,14 @@ import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { scoreColor } from '@/constants/score';
 import { Palette, Radius, Spacing, withAlpha } from '@/constants/theme';
-import { useImmersiveBackground } from '@/hooks/use-immersive-background';
+import { useGameAccent } from '@/hooks/use-accent';
 import { useStudioBanner } from '@/hooks/use-studio-banner';
 import { BANNER_MAX_ASPECT, useStudioCatalogue } from '@/hooks/use-studio-catalogue';
 import { useStudioLogo } from '@/hooks/use-studio-logo';
 import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
 import { useTheme } from '@/hooks/use-theme';
 import { gameSortOptions, sortGames, type GameSearchResult, type GameSort } from '@/lib/games';
+import type { StudioGame } from '@/lib/games/igdb';
 
 /** Three across, the app's portrait size (`PORTRAIT_COLUMNS`). */
 const COLUMNS = PORTRAIT_COLUMNS;
@@ -78,7 +79,7 @@ const VEIL = 0.05;
 const META_ALPHA = 0.77;
 
 /**
- * How many rated originals a studio needs before "Best from the studio" means
+ * How many rated originals a studio needs before "Best rated" means
  * anything, and how many it then shows.
  *
  * Six, because a rail drawn from three games is not a selection — it is the
@@ -87,8 +88,15 @@ const META_ALPHA = 0.77;
  * game is visible and the sort row offers "Top rated" for anybody who wants the
  * same ordering honestly labelled.
  */
-const BEST_FLOOR = 6;
+const BEST_FLOOR = 4;
 const BEST_SHOWN = 10;
+
+/** How many games a rail of the newest, the most rated or a franchise shows. */
+const RAIL_SHOWN = 12;
+
+/** A franchise is a rail of its own from three games, and the page shows three. */
+const FRANCHISE_FLOOR = 3;
+const FRANCHISES_SHOWN = 3;
 
 /**
  * A rail needs two posters.
@@ -125,11 +133,11 @@ const REPACKAGED: readonly (GameSearchResult['edition'] & string)[] = ['edition'
  * ## Why `best` is originals only
  *
  * A remaster inherits its parent's reception and frequently scores a point or two
- * higher for it. Left in, "Best from the studio" fills up with the same games'
+ * higher for it. Left in, "Best rated" fills up with the same games'
  * remasters, and the rail stops answering "what should I play" and starts
  * answering "which re-release reviewed best".
  */
-function shelves(games: readonly GameSearchResult[]) {
+function shelves(games: readonly StudioGame[], now: number) {
   const repackaged = games.filter((game) => game.edition && REPACKAGED.includes(game.edition));
   const catalogue = games.filter((game) => !game.edition || !REPACKAGED.includes(game.edition));
 
@@ -139,7 +147,48 @@ function shelves(games: readonly GameSearchResult[]) {
 
   const best = sortGames(rated, 'rating');
 
+  /* Out, newest first; and still to come, soonest first. A date is the only
+     honest test for either — a game with none is neither. */
+  const released = catalogue.filter(
+    (game) => game.releaseDate && Date.parse(game.releaseDate) <= now
+  );
+  const latest = sortGames(released, 'newest').slice(0, RAIL_SHOWN);
+  const upcoming = sortGames(
+    catalogue.filter((game) => game.releaseDate && Date.parse(game.releaseDate) > now),
+    'oldest'
+  ).slice(0, RAIL_SHOWN);
+
+  /* The most rated originals: what people have actually played of theirs. */
+  const popular = originals
+    .filter((game) => (game.ratingCount ?? 0) > 0)
+    .sort((a, b) => (b.ratingCount ?? 0) - (a.ratingCount ?? 0))
+    .slice(0, RAIL_SHOWN);
+
+  /* Each franchise the studio has three or more games in, the largest first,
+     its games in release order. */
+  const byFranchise = new Map<number, { name: string; games: StudioGame[] }>();
+  for (const game of catalogue) {
+    for (const franchise of game.franchises ?? []) {
+      const entry = byFranchise.get(franchise.id) ?? { name: franchise.name, games: [] };
+      entry.games.push(game);
+      byFranchise.set(franchise.id, entry);
+    }
+  }
+  const franchises = [...byFranchise.entries()]
+    .filter(([, entry]) => entry.games.length >= FRANCHISE_FLOOR)
+    .sort((a, b) => b[1].games.length - a[1].games.length)
+    .slice(0, FRANCHISES_SHOWN)
+    .map(([id, entry]) => ({
+      id,
+      name: entry.name,
+      games: sortGames(entry.games, 'oldest').slice(0, RAIL_SHOWN),
+    }));
+
   return {
+    latest,
+    upcoming,
+    popular,
+    franchises,
     catalogue,
     repackaged,
     redone,
@@ -191,20 +240,21 @@ function yearsOf(games: readonly GameSearchResult[]): string | null {
  * random.
  *
  * So the grid stays — it is the record, and the sort row is what makes it usable
- * — and three bands go above it, each answering a question release order cannot:
- * what their best work is, what they have gone back and redone, and which of
- * their games exist in more than one box. Every one of the three comes out of the
- * list already fetched; see `shelves`.
+ * — and bands go above it, each answering a question release order cannot:
+ * what is newest, what is best rated, what people played most, what is coming,
+ * each of its big franchises (the owner's, 2026-10-22), what it has gone back
+ * and redone, and which of its games exist in more than one box. Every one
+ * comes out of the list already fetched; see `shelves`.
  *
  * ## The page takes the banner's colour; the controls do not
  *
  * The header is SimpMusic's artist page, read from `ArtistScreen.kt`: the
- * artwork square and full width, melting into a page that is near black
- * with the artwork's hue as a trace (`useImmersiveBackground`, `depth:
- * 'black'` — the owner's, 2026-10-17, so a trailer's letterbox bars meet it
- * without an edge; it was the art's darkened tone), and the studio's name
- * set over the bottom — as its logo, when Wikimedia Commons has a public-domain
- * one (`useStudioLogo`, `<StudioIdentity>`).
+ * artwork square and full width, melting into a page that is the banner
+ * game's Material 3 page — the owner's, 2026-10-22; it was near black from
+ * 2026-10-17, so a trailer's letterbox bars met it without an edge — and the
+ * studio's name set over the bottom: as its logo, when Wikimedia Commons has a
+ * public-domain one (`useStudioLogo`, `<StudioIdentity>`), else as type in the
+ * same palette's colour.
  *
  * The colour is the page's and nothing else's. There is still no
  * `<AccentProvider>`: this page shows a hundred games, and a sort pill or a link
@@ -243,10 +293,21 @@ export default function StudioScreen() {
      the image's own load event, so it only ever grows by one per bad strip. */
   const [strips, setStrips] = useState<readonly string[]>([]);
 
-  const { catalogue, repackaged, redone, best, bannerCandidates, span, average } = useMemo(
-    () => shelves(games.data ?? []),
-    [games.data]
-  );
+  /* The day the page opened, to the minute: what "out" means for its rails. */
+  const [now] = useState(() => Date.now());
+  const {
+    catalogue,
+    repackaged,
+    redone,
+    best,
+    latest,
+    upcoming,
+    popular,
+    franchises,
+    bannerCandidates,
+    span,
+    average,
+  } = useMemo(() => shelves(games.data ?? [], now), [games.data, now]);
 
   const ordered = useMemo(() => sortGames(catalogue, sort), [catalogue, sort]);
 
@@ -263,12 +324,17 @@ export default function StudioScreen() {
   const trailer = useGameTrailer(banner && banner.heroUrl === bannerUrl ? banner.id : null);
   const trailers = useTrailerSetting();
 
-  /* The page's colour, from the banner it melts out of — near black with the
-     banner game's hue as a trace, so a trailer's black bars meet the page
-     without an edge (the owner's, 2026-10-17). Null until there is a banner
-     and its colour is read, when the page stays the app's own. */
-  const pageColor = useImmersiveBackground(bannerUrl, { depth: 'black' });
+  /* The page's colour: the banner game's Material 3 page, as its own game page
+     has — the owner's (2026-10-22): "make the background color for that page
+     back to normal m3, don't darken it". It was near black, so a trailer's
+     letterbox bars met it without an edge (2026-10-17); those bars now show
+     against the page. The app's own page until there is a banner, and with
+     game colours off. Only the ground and the name take it: the controls stay
+     the app's, and there is still no `<AccentProvider>`. */
+  const accent = useGameAccent(bannerUrl, banner?.genres ?? null);
+  const pageColor = bannerUrl && accent.tonal ? accent.page : null;
   const page = pageColor ?? theme.background;
+  const nameColor = pageColor ? accent.onSurface : undefined;
 
   /* The logo, when Commons has a free one. The name is on screen from the
      route in the meantime, and stays whenever there is none. */
@@ -416,6 +482,7 @@ export default function StudioScreen() {
                   logo={logo.data}
                   pageColor={page}
                   maxWidth={Math.round(width * LOGO_WIDTH_RATIO)}
+                  nameColor={nameColor}
                 />
                 {games.data && (
                   <Text
@@ -439,23 +506,56 @@ export default function StudioScreen() {
             </View>
 
             {/*
-              Three bands, in the order the questions get asked: what is worth
-              playing, what has been redone, what exists twice. Each renders
-              nothing at all below its floor — see `BEST_FLOOR` and `RAIL_FLOOR` —
-              because a heading is a claim and a two-poster rail under "Best from
-              the studio" is not one this data can make.
+              The bands, in the order the questions get asked: what is new,
+              what is worth playing, what people played, what is coming, its
+              franchises, what has been redone, what exists twice. Each renders
+              nothing at all below its floor — see `BEST_FLOOR`, `RAIL_FLOOR`
+              and `FRANCHISE_FLOOR` — because a heading is a claim and a
+              two-poster rail under "Best rated" is not one this data can make.
             */}
             {/* Rows of games, as every one in the app is: a heading on the
                 page and small covers under it. The rail runs edge to edge
                 (`railBleed` cancels the list's padding) and its first cover
                 starts in line with the heading above it. */}
+            {latest.length >= RAIL_FLOOR && (
+              <HomeSection title="Latest releases">
+                <View style={styles.railBleed}>
+                  <GameCoverRail games={latest} inset={RAIL_INSET} />
+                </View>
+              </HomeSection>
+            )}
+
             {best.length > 0 && (
-              <HomeSection title="Best from the studio">
+              <HomeSection title="Best rated">
                 <View style={styles.railBleed}>
                   <GameCoverRail games={best} inset={RAIL_INSET} />
                 </View>
               </HomeSection>
             )}
+
+            {popular.length >= BEST_FLOOR && (
+              <HomeSection title="Most popular">
+                <View style={styles.railBleed}>
+                  <GameCoverRail games={popular} inset={RAIL_INSET} />
+                </View>
+              </HomeSection>
+            )}
+
+            {upcoming.length > 0 && (
+              <HomeSection title="Coming soon">
+                <View style={styles.railBleed}>
+                  <GameCoverRail games={upcoming} inset={RAIL_INSET} />
+                </View>
+              </HomeSection>
+            )}
+
+            {franchises.map((franchise) => (
+              <HomeSection key={franchise.id} strapline="Franchise" title={franchise.name}>
+                <View style={styles.railBleed}>
+                  <GameCoverRail games={franchise.games} inset={RAIL_INSET} />
+                </View>
+              </HomeSection>
+            ))}
 
             {redone.length >= RAIL_FLOOR && (
               <HomeSection title="Remakes & remasters">

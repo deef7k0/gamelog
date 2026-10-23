@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { GamePrice } from '@/components/game-availability';
 import { caseHeightFor } from '@/components/game-case';
 import { GameCaseFlip } from '@/components/game-case-flip';
 import { DropdownButton, type DropdownOption } from '@/components/ui/dropdown-button';
@@ -72,9 +71,13 @@ export type GamePlatformsProps = {
  *
  * A section of the Overview, on the page and not in a card: the object on the
  * left, and beside it the game's name continuing into a sentence about where it
- * is available, the platform button, and what it costs there. Choosing a
- * platform re-draws the box — a console case for PS5, PS4, Xbox and Switch, the
- * plain cover for everything else (DESIGN.md § 4.1.3) — and re-prices it.
+ * is available, and the platform button. Choosing a platform re-draws the box —
+ * a console case for PS5, PS4, Xbox and Switch, the plain cover for everything
+ * else (DESIGN.md § 4.1.3).
+ *
+ * **No price here** (critique, 2026-10-21): it printed one platform's price
+ * directly above Where to buy, which prices every store — the same figure
+ * twice in a row. Where to buy is the one place a price is said.
  *
  * **This is where the case lives now.** The masthead always shows the plain
  * cover, and the turn-over came here with the case: tap or drag the box and it
@@ -142,7 +145,9 @@ export function GamePlatforms({
         <View style={styles.column}>
           {/* One sentence to a screen reader, as it reads on the page. */}
           <View accessible accessibilityLabel={`${game.title} ${line}`} style={styles.claim}>
-            <Text variant="h3" numberOfLines={2}>
+            {/* Four lines, as the masthead allows: a game's name is not cut
+                on its own page. */}
+            <Text variant="h3" numberOfLines={4}>
               {game.title}
             </Text>
             <Text variant="body" style={{ color: accent.quietInk }}>
@@ -158,7 +163,6 @@ export function GamePlatforms({
               onChange={onSelect}
               filled
             />
-            <GamePrice gameId={game.id} selected={selected} title={game.title} />
           </View>
         </View>
       </View>

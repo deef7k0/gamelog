@@ -48,6 +48,8 @@ export type CopyCaseTrayProps = {
   height: number;
   /** The disc's diameter, true to its case (`discDiameter`). */
   disc: number;
+  /** A scan of the real disc's label, when one was found (`useCopyArt`). */
+  discLabelUrl?: string | null;
   /**
    * The seated disc's own style: the stage hides it the moment the disc starts
    * to lift, and draws the one that travels in the same place. Animated, since
@@ -73,6 +75,7 @@ export const CopyCaseTray = memo(function CopyCaseTray({
   width,
   height,
   disc,
+  discLabelUrl,
   seatStyle,
 }: CopyCaseTrayProps) {
   const well = disc * 1.045;
@@ -118,6 +121,7 @@ export const CopyCaseTray = memo(function CopyCaseTray({
           platform={platform}
           size={disc}
           holeColor={PLASTIC.top}
+          labelUrl={discLabelUrl}
         />
       </Animated.View>
 

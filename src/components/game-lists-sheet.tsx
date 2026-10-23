@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { FlatList, StyleSheet, View } from 'react-native';
 
-import { ListTile } from '@/components/list-tile';
+import { CollectionSeparator, ListTile } from '@/components/list-tile';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { TallCardWindow } from '@/constants/list-window';
@@ -93,6 +93,7 @@ export function GameListsSheet({ gameId, gameTitle }: GameListsSheetProps) {
       showsVerticalScrollIndicator={false}
       {...TallCardWindow}
       renderItem={({ item }) => <ListTile list={item} />}
+      ItemSeparatorComponent={CollectionSeparator}
       ListFooterComponent={
         /* Only when the cap actually bit. A footnote saying "and 0 more" is the
            kind of honesty that reads as a bug. */
@@ -111,6 +112,6 @@ export function GameListsSheet({ gameId, gameTitle }: GameListsSheetProps) {
 const styles = StyleSheet.create({
   /* The sheet pads nothing — it owns the corner and the grabber and leaves the
      body to whatever fills it. */
-  body: { padding: Spacing.x16, gap: Spacing.x12, paddingBottom: Spacing.x48 },
+  body: { paddingHorizontal: Spacing.x16, paddingBottom: Spacing.x48 },
   footer: { paddingTop: Spacing.x8, alignItems: 'center' },
 });

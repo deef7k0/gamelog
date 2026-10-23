@@ -219,6 +219,32 @@ Three things to know, all verified against the live pages on 2026-10-16:
   reads that as `"unavailable"`, keeps it six hours, and the card is absent.
 - `"status":"none"` is a page with no Awards section — most of the catalogue.
 
+### `game-accounts`: PlayStation, Xbox and GOG by username
+
+Run migration `0044` first, then `supabase functions deploy game-accounts`.
+
+- **GOG** needs nothing.
+- **PlayStation**: `supabase secrets set PSN_NPSSO=…`. Use an account the
+  project owns, never a person's: sign in at playstation.com, then open
+  https://ca.account.sony.com/api/v1/ssocookie and copy `npsso`. It lasts about
+  two months; the function keeps the tokens it earns in `gaming_service_tokens`
+  and only signs in again when the refresh token runs out. When it stops
+  working, PlayStation imports answer `unavailable` and the log says to renew it.
+- **Xbox**: `supabase secrets set OPENXBL_API_KEY=…` from xbl.io. The free tier
+  is 150 requests an hour; an import is two.
+
+What to check the first time each runs with a real public account — none of
+these have been seen working:
+
+1. GOG: that `games/stats` for a public profile answers `_embedded.items` with
+   `game.id`, `game.title`, `game.image` and `stats[userId].playtime`, and that
+   `_196.jpg` on the image address is a square tile.
+2. PlayStation: that `profile2` still answers by Online ID and that a private
+   profile answers 2240526 on `trophyTitles`.
+3. Xbox: that `/search/{gamertag}` answers `people[]` with `xuid` and
+   `gamertag`, and that `/player/titleHistory/{xuid}` answers `titles[]` with
+   `type: "Game"` on games.
+
 ### `--no-verify-jwt` on `steam-auth` is required, not a shortcut
 
 Step 3 of the OpenID flow is a **browser redirect from Steam**, which carries no

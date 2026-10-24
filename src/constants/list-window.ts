@@ -20,13 +20,12 @@
  */
 
 /**
- * A grid of covers, counted in **rows** — a `numColumns` list's items are its
- * rows. Four rows of three are a screenful; two screens either side keep ahead
- * of a scroll.
+ * A grid of covers: 12 items = 4 complete rows of three for a screenful;
+ * two screens either side keep ahead of a scroll.
  */
 export const CoverGridWindow = {
-  initialNumToRender: 4,
-  maxToRenderPerBatch: 4,
+  initialNumToRender: 12,
+  maxToRenderPerBatch: 12,
   windowSize: 5,
 } as const;
 

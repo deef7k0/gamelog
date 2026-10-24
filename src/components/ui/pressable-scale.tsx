@@ -1,11 +1,18 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, type PressableProps, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withTiming,
+  type AnimatedStyle,
 } from 'react-native-reanimated';
 
 import { Motion } from '@/constants/theme';
@@ -14,7 +21,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export type PressableScaleProps = Omit<PressableProps, 'style' | 'children'> & {
   children: ReactNode;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<AnimatedStyle<StyleProp<ViewStyle>>> | StyleProp<ViewStyle> | any;
   /** How far to shrink while held. Lower = more pronounced. */
   scaleTo?: number;
   /**

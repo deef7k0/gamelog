@@ -1,11 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
 import { ExpandableText } from '@/components/ui/expandable-text';
+import { KeyColorHero, footFade } from '@/components/ui/key-color-hero';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { useSectionMetrics } from '@/components/ui/section';
 import { SmoothScrim } from '@/components/ui/smooth-scrim';
@@ -46,7 +45,14 @@ const META_ALPHA = 0.77;
  * subject and its logo sit high, so the crop is weighted a fifth of the way down.
  * Square art is composed for a square and is drawn from its centre.
  */
-const SINGLE_ANCHOR = '22%';
+export const COLLECTION_BOX_ANCHOR = 0.22;
+const SINGLE_ANCHOR = `${COLLECTION_BOX_ANCHOR * 100}%` as const;
+
+/** The art giving way to its ground over its bottom `SCRIM_RATIO`, eased at both ends. */
+const COVER_FADE = footFade(SCRIM_RATIO);
+
+/** How much of the cover, from the top, is darkened for the status bar and the glass discs. */
+const SCRIM_TOP = 0.22;
 
 /**
  * The two actions under the art: the reference album's 48dp circles
@@ -79,10 +85,11 @@ export type CollectionHeaderProps = {
   collection: ListWithItems;
   owner: Profile | null;
   /**
-   * The page colour the artwork melts into — the immersive colour of the
-   * collection's cover (`useImmersiveBackground`), or null for the app's own
-   * page while that is being read and for a collection with no games. The
-   * screen fills with the same value.
+   * The page's colour once its artwork has gone — the darker of the two tones
+   * the screen fills with (`<Screen tone>`), or the app's own page for a
+   * collection with no games. The artwork's foot fades into the page's colour
+   * itself, read off the chrome; this is only what an *empty* collection's
+   * well melts into, which has no artwork and so no tone.
    */
   pageColor?: string | null;
   /** Like count and whether the viewer is one of them. */
@@ -154,12 +161,15 @@ export type CollectionHeaderProps = {
  * with a game in it now, where it was only those showing one cover. The colour
  * is the background's alone — the actions keep a neutral wash.
  *
- * ## The fade is a ramp, not a blur
+ * ## The art ends in its own colour, and softens as the page scrolls
  *
- * A blurred copy of the artwork revealed through a mask is the game page's
- * treatment and belongs there. A plain ramp to the page colour is what the
- * reference uses and it is the honest one: the artwork does not dissolve, the
- * page takes over underneath it.
+ * Apple Music's artist hero (2026-10-23, the owner's direction,
+ * `<KeyColorHero>`): the cover melts into its key colour — read off the edges
+ * of the part of the box the banner shows — and that colour into the page.
+ * At rest the cover is sharp and the fade is the reference's plain ramp, over
+ * the bottom 70%; scrolled, a blurred copy fades in over it and the colour
+ * drains to the page, finished as the glass bar comes in. Square art has no
+ * key colour (`useKeyColor` says why) and melts into the page's own colour.
  */
 export function CollectionHeader({
   collection,
@@ -193,30 +203,64 @@ export function CollectionHeader({
   const actionFill = withAlpha(theme.text, ACTION_FILL);
   const ownerName = owner ? displayNameFor(owner) : null;
 
+  const titleBlock = (
+    <View style={styles.titleBlock} pointerEvents="none">
+      <Text variant="display" numberOfLines={2} style={styles.title} accessibilityRole="header">
+        {collection.title}
+      </Text>
+
+      <Text variant="body" style={[styles.meta, { color: withAlpha(theme.text, META_ALPHA) }]}>
+        {collectionKindLabel(collection)} · {items.length} {items.length === 1 ? 'game' : 'games'}
+      </Text>
+    </View>
+  );
+
   return (
     <View>
-      <View style={[styles.cover, { height: coverHeight }]}>
-        {/*
-          The artwork: one game's, full width and cropped to the banner — square
-          art from its centre, a stand-in box anchored high (`SINGLE_ANCHOR`).
+      {/*
+        The name and what it is, set over the artwork.
 
+        Anchored to the bottom of the cover block rather than placed after it,
+        so they sit on ground the fade has already turned — printed on the
+        cover rather than captioned beneath it. `paddingBottom` is what keeps
+        them clear of the very bottom edge, where the fade is wholly the ground
+        and the text would look like it had fallen out of the image.
+
+        Two lines of the reference's three: the name, then the kind and count
+        at 77% white — "2007 • Album" in SimpMusic, "Collection · 12 games"
+        here. Its middle line, the artist, is this collection's owner, and the
+        owner asked for that under the art.
+      */}
+      {cover ? (
+        /*
+          The artwork: one game's, full width and cropped to the banner —
+          square art from its centre, a stand-in box anchored high
+          (`SINGLE_ANCHOR`) — as Apple Music's artist hero (2026-10-23, the
+          owner's direction): melting into its own key colour, sharp at rest,
+          softening and draining to the page as the page scrolls, the glass bar
+          coming in over the colour it is tinted with (`<KeyColorHero>`).
+
+          The fade is SimpMusic's album scrim, over the bottom 70% and nothing
+          else, so the top of the cover shows at full strength — into the key
+          colour of the box, or the page's own colour for square art, whose
+          400px file is too large to read in JavaScript (`useKeyColor`).
+        */
+        <KeyColorHero
+          uri={art}
+          height={coverHeight}
+          fade={COVER_FADE}
+          scrim={SCRIM_TOP}
+          contentPosition={square.uri ? 'center' : { top: SINGLE_ANCHOR, left: '50%' }}>
+          {titleBlock}
+        </KeyColorHero>
+      ) : (
+        /*
           A collection with no games in it yet has no cover to draw. It gets the
-          app's well and its own initial — or a trophy, for an award show nobody
-          has filled in — so the title has ground to stand on and the page does
-          not open on a hole.
-        */}
-        {cover ? (
-          art && (
-            <Image
-              source={{ uri: art }}
-              style={styles.single}
-              contentFit="cover"
-              contentPosition={square.uri ? 'center' : { top: SINGLE_ANCHOR, left: '50%' }}
-              transition={220}
-              accessibilityIgnoresInvertColors
-            />
-          )
-        ) : (
+          app's well and its own initial — or a trophy, for an award show
+          nobody has filled in — so the title has ground to stand on and the
+          page does not open on a hole.
+        */
+        <View style={[styles.cover, { height: coverHeight }]}>
           <View style={[styles.single, styles.empty, { backgroundColor: theme.surfaceElevated }]}>
             {collection.kind === 'awards' ? (
               <Ionicons name="trophy" size={EMPTY_GLYPH} color={theme.identityGold} />
@@ -226,51 +270,10 @@ export function CollectionHeader({
               </Text>
             )}
           </View>
-        )}
-
-        {/*
-          The artwork melting into the page: SimpMusic's album header, which
-          lays `artworkScrimBrush` over the bottom 70% of the art and nothing
-          else — no tint over the whole image, so the top of the cover shows at
-          full strength and only the bottom gives way.
-
-          Into `page`: the cover's own immersive colour, or the app's page for a
-          collection with nothing in it.
-        */}
-        <SmoothScrim color={page} style={[styles.fade, { height: `${SCRIM_RATIO * 100}%` }]} />
-
-        {/* Keeps the status bar and the glass discs legible over a bright cover. */}
-        <LinearGradient
-          colors={[withAlpha(Palette.shadowInk, 0.5), withAlpha(Palette.shadowInk, 0)]}
-          style={styles.scrim}
-          pointerEvents="none"
-        />
-
-        {/*
-          The name and what it is, set over the artwork.
-
-          Anchored to the bottom of the cover block rather than placed after it,
-          so they sit on ground the fade has already darkened — printed on the
-          cover rather than captioned beneath it. `paddingBottom` is what keeps
-          them clear of the very bottom edge, where the ramp is fully the page
-          and the text would look like it had fallen out of the image.
-
-          Two lines of the reference's three: the name, then the kind and count
-          at 77% white — "2007 • Album" in SimpMusic, "Collection · 12 games"
-          here. Its middle line, the artist, is this collection's owner, and the
-          owner asked for that under the art.
-        */}
-        <View style={styles.titleBlock} pointerEvents="none">
-          <Text variant="display" numberOfLines={2} style={styles.title} accessibilityRole="header">
-            {collection.title}
-          </Text>
-
-          <Text variant="body" style={[styles.meta, { color: withAlpha(theme.text, META_ALPHA) }]}>
-            {collectionKindLabel(collection)} · {items.length}{' '}
-            {items.length === 1 ? 'game' : 'games'}
-          </Text>
+          <SmoothScrim color={page} style={[styles.fade, { height: `${SCRIM_RATIO * 100}%` }]} />
+          {titleBlock}
         </View>
-      </View>
+      )}
 
       {/* Under the art, on the page's own colour, at the page's margin — the
           left edge the sort tools and the games below it keep. */}
@@ -560,7 +563,6 @@ const styles = StyleSheet.create({
   emptyLetter: { fontSize: EMPTY_GLYPH, lineHeight: EMPTY_GLYPH + 12 },
   /* `height` is supplied inline — `SCRIM_RATIO` of the artwork, from the bottom. */
   fade: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  scrim: { position: 'absolute', left: 0, right: 0, top: 0, height: '22%' },
 
   /* The reference's title block: 20 in from each side, 16 up from the edge
      (`x24`, the ladder's 15), and 4 between its two lines. */

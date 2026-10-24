@@ -13,8 +13,15 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { CARD_GAP, CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
+import {
+  CARD_GAP,
+  CARD_INSET,
+  cardShape,
+  useCardAnimatedStyle,
+  useCardMaterial,
+} from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { Reveal } from '@/components/ui/reveal';
 import { Text } from '@/components/ui/text';
 import { MaxContentWidth, TapTarget, Type } from '@/constants/theme';
 
@@ -213,6 +220,7 @@ export function SectionCard({
 }) {
   const inset = useSectionInset();
   const material = useCardMaterial();
+  const animatedFill = useCardAnimatedStyle();
 
   const card = StyleSheet.flatten([
     cardShape,
@@ -226,7 +234,7 @@ export function SectionCard({
     style,
   ]);
 
-  if (!onPress) return <View style={card}>{children}</View>;
+  if (!onPress) return <Animated.View style={[card, animatedFill]}>{children}</Animated.View>;
 
   return (
     <PressableScale
@@ -234,7 +242,7 @@ export function SectionCard({
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       scaleTo={0.98}
-      style={card}>
+      style={[card, animatedFill]}>
       {children}
     </PressableScale>
   );
@@ -257,11 +265,13 @@ export function Section({
   moreSlot?: ReactNode;
   children: ReactNode;
 }) {
+  /* A `<Reveal>`: on a page that opts in (`<RevealScope>`), the section rises
+     into place as it scrolls into view; everywhere else it is a plain view. */
   return (
-    <View>
+    <Reveal>
       <SectionHeader title={title} action={action} more={more} moreSlot={moreSlot} />
       {children}
-    </View>
+    </Reveal>
   );
 }
 

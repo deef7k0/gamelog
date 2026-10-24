@@ -161,7 +161,13 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # (constants/mood-tile); and a copy's art — GameTDB's
                    # title lists and regions, a sleeve's back, ScreenScraper's
                    # answers, image sizes (lib/copy-art, which loads the Edge
-                   # Function's own _shared/copy-art.ts)
+                   # Function's own _shared/copy-art.ts); and Apple Music's
+                   # hero — the key colour, against three real IGDB heroes
+                   # decoded as the app decodes them, the edges of the part
+                   # on screen, iTunes' black-or-white rule, the dark-room
+                   # ground (lib/key-color), and the hero's scroll: the
+                   # softening, the drain, the iOS stretch, a shelf arriving
+                   # (lib/scroll-motion)
 
 node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
                    # (PGlite, in-process) over every migration, with seven
@@ -439,6 +445,21 @@ src/
                                         (SimpMusic's `AnimatedVisibility`,
                                         300ms), and `stagger` for a run of
                                         them. See § Loading
+                     ui/key-color-hero  Apple Music's hero — the game page's,
+                                        a studio's, a collection's: the art
+                                        melting into its key colour, a blurred
+                                        copy fading in and the colour draining
+                                        as the page scrolls, the iOS stretch.
+                                        See § Apple Music's hero
+                     ui/screen          `<Screen>`: the page shell — and
+                                        `tone`, the Apple Music pages' one
+                                        page colour, bright at rest and
+                                        darkening as the page is read
+                     ui/reveal          `<Reveal>`: a shelf rising into place
+                                        as it scrolls into view, inside a
+                                        `<RevealScope>` only. `<Section>`,
+                                        `<HomeSection>` and `<Panel>` are built
+                                        on it
                      ui/page-scroll     `<PageScrollView>`, `<PageFlatList>`,
                                         `<PageSectionList>`: a page's main
                                         scroller, which is how its bar learns
@@ -782,6 +803,12 @@ src/
                         four dp less a page that opens on artwork keeps clear
                         for its discs
     use-steam-artwork   Steam CDN URLs + the hashed-path fallback, cached 7 days
+    use-pulse           `usePulse()`: a value that changes on every render, so
+                        a scroll-driven animated style is re-applied after one.
+                        See § Gotchas, the lost end value
+    use-key-color       a page's two tones from its hero's key colour — IGDB's
+                        `t_cover_small` of the art, decoded in JavaScript,
+                        kept on the device for good. See § Apple Music's hero
     use-immersive-background  a page colour from one piece of artwork, or null
                         for the app's page. Background only — never a control
     use-studio-catalogue  a studio's company (identity + game ids) and its
@@ -879,6 +906,12 @@ src/
                      statement; the Action API). The game's "Additional
                      information" lived here too and was scrapped — see
                      § Immersive pages
+    key-color.ts     Apple's key colour (iTunes 11's): the colour a picture
+                     ends in, read off the edges of the part on screen, and
+                     the two page tones it becomes in a dark room (`keyPage`).
+                     Pure, tested against real heroes
+    scroll-motion.ts how an Apple Music hero answers the scroll, and a shelf
+                     arriving: the curves, as worklets. Pure, tested
     immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
                      darkened in Oklab, and the scrim's stops. Pure, tested
     logo-luminance.ts   how light a logo's ink is, from a 250px thumbnail
@@ -1314,6 +1347,8 @@ Elysium's lands on `#0A0A06`, Marvel's Spider-Man's on `#530000`. The recipe is 
 - **Geometry.** Collections: artwork half the display, scrim over its bottom
   70%. Studio: a square banner (≤ half the display), 5% black veil, the same
   scrim, the name or logo centred over the bottom with one meta line under it.
+  The scrim now runs into the art's key colour, not straight into the page
+  (§ Apple Music's hero); the page colour is unchanged and still this one.
 
 The **studio logo** replaces the name with the studio's logo from Wikimedia
 Commons — only ever a verified public-domain or CC0 file:
@@ -2950,6 +2985,8 @@ screen's heading under its bar again.
   was frost — the page blurred, washed with its colour — and the owner had the
   blur removed (2026-10-14). Where this section still says "frost", read "the
   page's colour". The glass discs over artwork still blur; they are buttons.
+  **One exception, the owner's of 2026-10-23: Apple's glass bar** on the game
+  page, a studio and a collection (`glass`) — § Apple Music's hero.
 - **Which of three ways it behaves is the page's, not a prop's:**
   1. **A page that opens on a list or a form** — `<Screen insetHeader>`. The
      bar is there from the start, clear while the page is at its very top and
@@ -3081,6 +3118,174 @@ screen's heading under its bar again.
   each artwork page's bar comes in (`header`, per screen — three of them are
   estimates and say so); Home's fold; and whether the animated blur holds its
   frame rate on an older phone.
+
+## Apple Music's hero: the key colour, the blur, the glass bar
+
+The owner's direction (2026-10-23), with a description of Apple Music's artist
+page pasted in: its hero, its `keyColor`, the blur from hero to content, the
+colour shift, the frosted bar and the shelves arriving — "for the game page,
+studio page and collection page… It needs to read as an apple product".
+Then, mid-build: "make sure it works for animated banners". `<KeyColorHero>`
+draws all three heroes; DESIGN.md § 13.1 is the visual statement.
+
+**The key colour** (`lib/key-color.ts`, pure, tested) is iTunes 11's: crop the
+border, sample a band of each edge, cluster, take the largest — with iTunes'
+rule that black or white yields to a colour at least 30% as large. Three
+things this app adds, and each is load-bearing:
+
+- **Only the part of the image on screen is read** (`visibleRegion`, which is
+  `contentFit: cover` with its anchor). A 16:9 key art drawn into a studio's
+  square shows its middle; the colour of its cropped-away sides is the colour
+  of something nobody can see.
+- **The foot counts most** (`HERO_EDGES`: foot 1, sides 0.5, top 0.15). iTunes
+  sampled the left edge because its art met the panel there; a hero meets the
+  page at its foot.
+- **Clustered in Oklab**, from a 5-bit histogram seeded most-populous first,
+  so the answer does not depend on pixel order and a distance is the same
+  visible difference in the darks as in the lights.
+
+Run on twelve real heroes (2026-10-23): Stardew Valley's is the teal of its
+hills where Palette's dominant colour is the navy of its sky — a navy page
+would have drawn a seam under the art. The test holds the key colour nearer
+the colour of the art's foot than the dominant one, on three real IGDB heroes
+decoded as the phone decodes them (`fixtures/key-color/`).
+
+**The page is one colour, and it is the key colour** (`keyPage`, `<Screen
+tone>`) — the owner's correction of 2026-10-23: "The page must be one color,
+all the same." It was a *ground* behind the masthead over a different page
+colour, which put a seam across the page where the ground ran out, at the
+synopsis. Now:
+
+- **`bright`** is the key colour taken toward black in Oklab, in tenths, until
+  the quietest type on the page holds 4.5:1 (`keyGround`). Apple sets dark type
+  on a light key colour; this is a dark room with grey body copy in it, and a
+  page is not a backdrop — everything is read *on* it. **That is the ceiling on
+  how bright a bright page can be**, and on light art it binds: Stardew's
+  `#0B908C` lands on `#03504C`. To go brighter, the masthead's quiet inks have
+  to become white; nothing else will do it.
+- **`dark`** is that tone again, `KEY_PAGE_DARKEN` (45%) toward black. Measured
+  over twelve real heroes, the step is 1.7–1.9:1 on coloured art and 1.1–1.3:1
+  on art that is already near black — which is right: a dark game's page is
+  dark at both ends.
+
+**Every layer that paints the page's colour reads the same tone**, off
+`ScreenChrome.tone`, and crosses between the two on one shared value: the
+page's fill and its wash (`<Screen>`'s own `PageWash`), the hero's foot fade,
+and the veil under a synopsis (`<ExpandableText fade>`, which draws a second
+gradient in the bright tone only where a tone exists). A fourth place that
+paints the page's colour goes through the same context, or the page is two
+colours again for 600 ms or for a scroll.
+
+**What it is read from: IGDB's `t_cover_small` of the same picture, and
+nothing else** (`keyColorSource`). It is a *fit*, never a crop — every edge
+intact — about 2 KB, about 15 ms of JavaScript decoding. SteamGridDB's smallest
+square is 400px, measured at a full second to decode with the JIT off, so a
+collection drawing square art has no key colour and melts into its page's own
+colour, as it did; so does a legacy Steam hero. **Never read a stand-in
+picture's edges** for the one on screen. Kept on the device for good
+(`key-color:v1:`), and `['key-color', source, aspect, ax, ay]` is persisted, so
+every visit after the first has it before its first frame. Off with game
+colours.
+
+**The layers** are in `<KeyColorHero>`'s docblock. What is easy to break:
+
+- **The hero paints no page colour of its own.** `<Screen tone>` is the page,
+  behind everything; the hero draws the art on it and fades the art's foot into
+  it. The hero's own `ground`/`base`/`tail` props are gone — it reads the tone
+  from the chrome, so the colour under the masthead and the colour at the foot
+  of the page cannot be two different colours. **A container round a hero must
+  not clip** (the studio banner's `overflow: hidden` went for that reason); the
+  frame clips its own art.
+- **The foot fade is to a colour, not the art's alpha**, and it is drawn
+  **twice** — the dark tone at full strength underneath, the bright one over it
+  at the page's own opacity. One gradient would have to change colour, which a
+  gradient cannot do; and the one underneath is full strength throughout, so
+  the art never shows through the middle of the cross. The game page's hero was
+  a `MaskedView`; a trailer cannot be drawn inside a mask on Android, and the
+  colour under it is flat and known now. `MASTHEAD_FADE` is the owner's soft
+  dissolve (`dissolveAt`) turned round, so the masthead's row sits in the same
+  last tenth it always did.
+- **One distance runs all of it**: rest to the hero's foot reaching the bar's
+  (`revealOffset`), computed the same way by the hero and by the chrome. The
+  page darkens over the whole of it; the picture lags throughout; the blur and
+  the zoom run over its last 45%, so the bar comes in over a page that is
+  already its own colour. On the game page the bar arrives later still (after
+  the masthead row).
+- **The picture travels with the page and falls behind it** — the owner's
+  (2026-10-23): "It scrolls with the user, it goes down, but it always stays
+  behind the page." `parallaxShift`, 60% of the page's speed. What the lag
+  uncovers at the top of the frame is **always above the display** — the frame
+  is scrolling up faster than the picture is being pushed down — which is why a
+  plain translate is enough and the image needs no extra height; the test holds
+  it for every offset. The trailer rides inside the same view, so an animated
+  banner lags and softens with the art.
+- **The blur and the zoom come late, together**, from `HERO_MOTION.blurFrom`
+  (0.55) to the end — "a little bit before the art is off the screen, it blurs
+  and zooms in a little". They were running from the first pixel of scroll,
+  which is what the owner corrected. The zoom is the picture's; the blurred
+  copy carries a further 1.1 so its soft edges never show.
+- **The blurred copy lies over the picture and fades in** — never under it
+  with the sharp one fading out. For a still the two are the same blend; over
+  a **trailer** (the animated banner: the art steps aside at the video's first
+  frame) only this way round softens anything. Scrolled, a moving banner
+  settles into its own still, blurred, then drains; the trailer pauses once
+  out of sight. The foot fade, scrim and drain all lie over the video too.
+- **The blur's radius never moves**: every radius is a new bitmap. The copy is
+  mounted once the sharp one has loaded — on Android a blur is a Glide
+  transformation, a second request, so it then decodes from the disk cache.
+  **Nothing is blurred at rest**, which keeps the owner's 2026-10-15 ruling on
+  the studio banner.
+- **The colour arriving is an opacity, never a background colour.** Every layer
+  in the bright tone is nested twice: an outer opacity that is a CSS transition
+  on a React prop (0 → 1 when the colour arrives, 600 ms, and cannot lose its
+  end value) and an inner one driven by the scroll. They multiply, which is what
+  lets a colour arrive mid-scroll without either forgetting the other — and what
+  keeps the wash, the foot fade and the synopsis's veil in step, since all three
+  are built the same way.
+- **Every scroll-driven style reads `pulse` and carries a transform**
+  (`usePulse`, exported from the bar for this): without it a render two
+  seconds after the page stopped would put the hero back to its first frame.
+- **The iOS stretch** is `stretchOf`: top pinned, foot with the page. Android
+  never reports a negative offset; its own stretch does the whole page.
+
+**The glass bar** (`<FrostedTopBar glass>`): the discs stay where they are,
+centred in the row — there is always a way back, which every other artwork
+page lacks for a hundred dp — and a bar of glass fades in under them (never
+slides), with the name centred between them. iOS draws it on
+`systemChromeMaterialDark`, the system's own nav-bar material; Android 12+
+blurs the page through the `blurReductionFactor` trick (`FROST.androidIntensity`
+— this is the bar's old blur, recovered from git, with the fixes it had when
+the owner last saw it); below 12 it is opaque. Washed with the page's colour
+at 60% (`FROST.glassTint`). **The blur is back on these three bars only**; the
+test fails if another page's bar takes `glass`, or if the plain bar blurs.
+
+**Shelves arrive** (`<Reveal>`, `SHELF_REVEAL`): a fade and a 16dp rise, 560ms,
+once, on a game's Overview and a studio's rails — the pages that wrap their
+content in `<RevealScope>`; `<Section>`, `<HomeSection>` and `<Panel>` are
+built on it and are plain views everywhere else. Things that are easy to get
+wrong:
+
+- **Never wrap a section from outside.** A box round a section that renders
+  nothing is a second `gap` in the page. That is why the primitives do it.
+- **A shelf hides only when its first layout finds it wholly below the
+  display.** Opening a page animates nothing; a page restored half-scrolled
+  shows what it showed.
+- **It re-reads where it is on events, never on a timer**: every scroll, its
+  own layout, and `ScreenChrome.layout` — bumped by the page scrollers'
+  content-size changes and by `<ExpandableText>` when it finishes opening or
+  closing on the UI thread. A frame callback was considered and refused: it
+  keeps the UI thread awake for as long as one shelf is waiting.
+- A shelf inside a shelf does not arrive twice.
+
+**Not seen on a phone.** Types, lint, `npm test` (954), the worklets as the
+plugin ships them (every closure unpacked in the body) and an Android Hermes
+bundle were checked here; four scroll states were rendered from the real
+curves, fade stops and twelve real heroes' colours. To judge on a device: how
+bright a bright page reads with the masthead's grey type on it (the one thing
+with a knob on it — the ink), the parallax at 0.4, the blur's strength at 72
+(Android caps it at 25 over a 4× downsample), the crossfade's middle — a
+blurred copy over a sharp one is a blend, not a growing radius — the glass
+bar's 60% wash, and the shelves' 560 ms.
 
 ## Home: SimpMusic's header, glow and moods
 
@@ -3531,6 +3736,8 @@ and the event page's foot bar are all for a device.
   `['mood-art', 'mood:relax' | 'genre:12']` is one cover for a tile at the
   foot of Home — a week fresh and kept on the device, so the grid is not blank
   on a cold start; nothing invalidates it.
+  `['key-color', source, aspect, ax, ay]` is a hero's key colour — kept on
+  the device, nothing invalidates it (a picture's edges do not change).
   `['artwork-mesh', thumbnail]` is the cover viewer's page, never persisted;
   `['onboarding-examples', 'colours' | 'animated']` the look questions'
   games.

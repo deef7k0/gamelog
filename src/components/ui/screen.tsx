@@ -1,6 +1,7 @@
 import { BlurTargetView } from 'expo-blur';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
@@ -8,9 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { MINI_PLAYER_BAND } from '@/constants/player';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { usePulse } from '@/hooks/use-pulse';
 import { useHeaderHeight } from '@/hooks/use-header-height';
-import { ScreenChromeProvider } from '@/hooks/use-screen-chrome';
+import { ScreenChromeProvider, useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
+import { HERO_MOTION } from '@/lib/scroll-motion';
 import { useMiniPlayerActive } from '@/store/player';
 
 export type ScreenProps = {
@@ -78,6 +81,22 @@ export type ScreenProps = {
    */
   background?: string;
   /**
+   * The page's colour, read from its own artwork — the Apple Music pages: a
+   * game, a studio, a collection (§ Apple Music's hero).
+   *
+   * **One colour, from the top of the page to its foot**, which darkens as the
+   * page is read: `bright` at rest, `dark` once the artwork has reached the
+   * bar, crossed over the artwork's own `header` height. It is the page's fill
+   * and its wash, and every other layer that has to paint the page's colour —
+   * the hero's foot fade, the veil under a synopsis — reads the same tone off
+   * the chrome, so none of them can disagree.
+   *
+   * `bright` may be null while the colour is being read, or for artwork whose
+   * colour cannot be read: the page is then `dark` throughout, and takes its
+   * bright tone over 600ms when one arrives. Supersedes `background`.
+   */
+  tone?: { bright: string | null; dark: string; header: number };
+  /**
    * Whether this page makes room for the mini player while music is being kept
    * playing. On by default, and a page almost never says otherwise.
    *
@@ -95,6 +114,39 @@ export type ScreenProps = {
   miniPlayer?: boolean;
 };
 
+/**
+ * The page's colour at rest, laid over its darker tone and taken away as the
+ * page is read — the whole of it, so the page is one colour everywhere.
+ *
+ * Two nested opacities, because they answer different things: the outer fades
+ * the colour in when it arrives (a CSS transition on a React prop, which
+ * cannot lose its end value), and the inner takes it away on the page's own
+ * scroll (`ScreenTone.darkening`, on the UI thread). They multiply, which is
+ * what lets a colour arrive mid-scroll without either forgetting the other.
+ *
+ * It reads `pulse` and carries a transform for the reason every scroll-driven
+ * style in the app does — CLAUDE.md § Gotchas, the lost end value.
+ */
+function PageWash() {
+  const tone = useScreenChrome()?.tone;
+  const pulse = usePulse();
+  const still = useSharedValue(0);
+  const darkening = tone?.darkening ?? still;
+
+  const fading = useAnimatedStyle(() => {
+    pulse.get();
+    return { opacity: 1 - darkening.get(), transform: [{ translateY: 0 }] };
+  });
+
+  if (!tone || !tone.bright) return null;
+
+  return (
+    <Animated.View pointerEvents="none" style={styles.wash}>
+      <Animated.View style={[styles.wash, fading, { backgroundColor: tone.bright }]} />
+    </Animated.View>
+  );
+}
+
 /** Page shell: themed background, safe-area insets, centred max-width column. */
 export function Screen({
   children,
@@ -105,6 +157,7 @@ export function Screen({
   topBar,
   modal = false,
   background,
+  tone,
   miniPlayer = true,
 }: ScreenProps) {
   const theme = useTheme();
@@ -122,6 +175,10 @@ export function Screen({
    * The band is in the page's own colour — the padding is inside the fill
    * below — so on a game's page the bar rests on that game's tone.
    */
+  /* The page's fill is its dark tone: what the bar is washed with, and what
+     the bright tone is laid over and fades back to. */
+  const fill = tone?.dark ?? background ?? theme.background;
+
   const tabClearance = useTabBarClearance();
   const miniPlayerActive = useMiniPlayerActive();
   const miniPlayerRoom =
@@ -130,10 +187,7 @@ export function Screen({
       : 0;
 
   return (
-    <ScreenChromeProvider
-      modal={modal}
-      background={background ?? theme.background}
-      insetHeader={insetHeader}>
+    <ScreenChromeProvider modal={modal} background={fill} insetHeader={insetHeader} tone={tone}>
       {({ blurTargetRef }) => (
         <View style={styles.flex}>
           {/*
@@ -154,9 +208,12 @@ export function Screen({
             `backdrop` is for; `SafeAreaView` stays transparent and does insets
             and nothing else.
           */}
-          <BlurTargetView
-            ref={blurTargetRef}
-            style={[styles.flex, { backgroundColor: background ?? theme.background }]}>
+          <BlurTargetView ref={blurTargetRef} style={[styles.flex, { backgroundColor: fill }]}>
+            {/* The page's colour at rest, over its darker tone, fading out as
+                the page is read. Here rather than in `backdrop` so a page may
+                still have one, and inside the blur target so the bar's glass
+                samples the colour the page actually is. */}
+            {tone && <PageWash />}
             {backdrop}
 
             <SafeAreaView style={styles.flex} edges={edges}>
@@ -269,6 +326,7 @@ export function ErrorState({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  wash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   column: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   padded: { paddingHorizontal: Spacing.x16 },
   centered: {

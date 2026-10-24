@@ -1839,6 +1839,25 @@ screen twice.
 Under Reduce Motion the frost still fades — a fade is not movement — the bar
 after artwork fades in without sliding, and Home's row does not fold.
 
+**Apple's glass bar — a game, a studio, a collection, and nowhere else**
+(`<FrostedTopBar glass>`, the owner's direction of 2026-10-23). The three pages
+whose hero melts into its key colour (§ 13.1) take Apple Music's bar instead of
+the one above:
+
+```ts
+discs:  pinned — centred in the 64 row, 12 from the edge; they never leave
+glass:  fades in (300ms), never slides — as the hero finishes draining
+        iOS: the system's own navigation-bar material
+        Android 12+: the page blurred (radius 21); below 12: opaque
+        the page's colour over it at 60%
+title:  h3, centred on the display between the discs; scrolls when long
+```
+
+There is always a way back — the gap between the disc leaving and the bar
+arriving, which every other artwork page has, is gone on these three. **The
+bar's blur is back on these pages alone**: the owner had it taken off every bar
+on 2026-10-14, and every other bar is still the page's colour, solid.
+
 ---
 
 # 8. Bottom Navigation
@@ -2143,6 +2162,70 @@ visible end to the picture just above the billing. The owner asked for it
 softer, and for the row to be set into it (§ 14). The curve is fitted to the
 reference's own backdrop at the three points it could be measured, drawn as
 fourteen stops, and held by `constants/game-masthead.test.ts`.
+
+## 13.1 The Apple Music hero — a game, a studio, a collection
+
+The owner's direction (2026-10-23): Apple Music's artist page — its hero, its
+key colour, its blur and its colour shift — on the game page, a studio and a
+collection. `<KeyColorHero>` draws it; CLAUDE.md § Apple Music's hero is the
+code-level statement.
+
+**The key colour is the colour the art ends in**, not the colour of the art:
+read off the edges of the part of the image on screen, the foot above all
+(`lib/key-color`, iTunes 11's algorithm — crop the border, sample the edges,
+cluster, take the largest, prefer a colour to black or white at 30%). Stardew
+Valley's is the teal of its hills where its dominant colour is the navy of its
+sky — the dominant colour would have drawn a seam under every hero.
+
+**The page is one colour, and that colour is the page's** (`<Screen tone>`):
+from the top of the page to its foot, the artwork's key colour, which darkens
+as the page is read. It is not a wash behind the masthead and not a gradient —
+the owner's direction, 2026-10-23: "The page must be one color, all the same."
+
+```ts
+bright:  the key colour, darkened only as far as the quietest type on the page
+         needs — the page carries grey body copy, which is the ceiling on how
+         bright a bright page can be
+dark:    that tone again, 45% toward black in Oklab: the same hue, read as the
+         same colour, plainly darker
+```
+
+Every layer that paints the page's colour reads those two off the screen's
+chrome and crosses between them on one value — the page's fill and its wash,
+the hero's foot fade, the veil under a synopsis — so no two of them can
+disagree about what colour the page is at any moment.
+
+```
+          the art, sharp — travelling slower than the page
+          ─ its foot gives way to the page's colour (the game page's soft
+            dissolve, a studio's and a collection's 70%)
+          the page: one colour, bright → dark
+```
+
+**As the page scrolls**, over one distance — rest to the hero's foot reaching
+the bar's:
+
+| Share of the way | What happens |
+| --- | --- |
+| 0 → 1 | The whole page darkens from `bright` to `dark`, eased flat at both ends |
+| 0 → 1 | The picture travels at 60% of the page's speed, so the page slides over it |
+| 0.55 → 1 | It softens and grows to 1.08: a blurred copy (radius fixed, a further 10% out) fades in over the picture — or over the trailer playing in its place |
+| 1 | The glass bar fades in over a page that is already its own colour (§ 7) |
+
+Every step is an opacity or a transform read off the scroll on the UI thread.
+**Pulled past the top on iOS the hero stretches**, its top pinned to the display
+and its foot with the page; Android's own stretch does that for the whole page.
+
+**The type keeps its colour; the page is darkened to fit it.** Apple sets dark
+type on a light key colour; this is a dark room, so the colour is taken toward
+black in Oklab — hue kept — until the quiet ink holds 4.5:1. A dark key is
+never lightened, and a game whose art is already dark has two tones close
+together and a page that barely changes: that is right.
+
+**Where there is no key colour** — square art from SteamGridDB (400px, too
+large to read on the phone), a legacy Steam hero, game colours switched off —
+the page keeps the colour it had (a game's Material 3 page, a collection's
+immersive one), and everything else is the same.
 
 ---
 
@@ -2725,6 +2808,12 @@ Reduce Motion. The whole effect depends on one rule kept elsewhere: **a
 skeleton is the shape and the height of what is coming.** A placeholder that
 lies about its size makes the page commit to a layout it is about to abandon,
 and no amount of motion covers that.
+
+**On the Apple Music pages a shelf arrives as it scrolls into view**
+(`<Reveal>`, inside a `<RevealScope>`: a game's Overview, a studio's rails): a
+fade and a 16dp rise over 560ms on `cubic-bezier(0.16, 1, 0.3, 1)` — fast away,
+a long soft landing — once. Nothing already on screen when the page opens
+moves, and under Reduce Motion nothing does.
 
 Reanimated shared values use `.get()` / `.set()`, never `.value =` — the React
 Compiler rules flag assignment to `.value` as mutating a captured binding.

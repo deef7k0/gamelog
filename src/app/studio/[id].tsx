@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { GameCoverRail } from '@/components/game-rail';
@@ -8,50 +8,70 @@ import { HomeSection } from '@/components/home-section';
 import { LOGO_WIDTH_RATIO, StudioIdentity } from '@/components/studio-identity';
 import { TrailerBackdrop } from '@/components/trailer-backdrop';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
-import { HeroArt } from '@/components/ui/hero-art';
+import { KeyColorHero, footFade } from '@/components/ui/key-color-hero';
 import { PageFlatList } from '@/components/ui/page-scroll';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { RevealScope } from '@/components/ui/reveal';
 import { EmptyState, ErrorState, Screen } from '@/components/ui/screen';
-import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Skeleton } from '@/components/ui/surface';
 import { SortBar } from '@/components/ui/sort-bar';
 import { Text } from '@/components/ui/text';
 import { scoreColor } from '@/constants/score';
-import { Palette, Radius, Spacing, withAlpha } from '@/constants/theme';
-import { useGameAccent } from '@/hooks/use-accent';
+import { Radius, Spacing, withAlpha } from '@/constants/theme';
 import { useStudioBanner } from '@/hooks/use-studio-banner';
 import { BANNER_MAX_ASPECT, useStudioCatalogue } from '@/hooks/use-studio-catalogue';
 import { useStudioLogo } from '@/hooks/use-studio-logo';
 import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
+import { useKeyColor } from '@/hooks/use-key-color';
 import { useTheme } from '@/hooks/use-theme';
 import { gameSortOptions, sortGames, type GameSearchResult, type GameSort } from '@/lib/games';
 import type { StudioGame } from '@/lib/games/igdb';
+import { getTextColor } from '@/lib/key-color';
 
 /** Three across, the app's portrait size (`PORTRAIT_COLUMNS`). */
 const COLUMNS = PORTRAIT_COLUMNS;
 const GAP = Spacing.x8;
-
-/**
- * How much of the grid exists at once, in rows of three.
- *
- * The list defaults are built for text rows: ten rows up front and ten
- * screens either side after that, which on a 200-game catalogue is every
- * cover — two hundred downloads, most of them for games nobody scrolls to,
- * all racing the banner. The grid starts under a screenful of banner and
- * rails, so two rows are enough to be ready when it is reached, and one
- * screen either side keeps ahead of a scroll.
- */
-const GRID_FIRST_ROWS = 2;
-
-/**
- * Where a rail's first cover starts: the list's own padding plus the heading's,
- * which is where `<HomeSection>` sets its title. The rail itself is pulled out
- * to the screen's edges (`railBleed`), so it scrolls off both of them.
- */
 const RAIL_INSET = Spacing.x16 * 2;
-const GRID_BATCH_ROWS = 4;
-const GRID_WINDOW = 3;
+
+/**
+ * How much of the grid exists at once, in multiples of 3 columns.
+ * 12 items = 4 full rows up front, rendered cleanly without micro-batches.
+ */
+const GRID_INITIAL_ITEMS = 12;
+const GRID_BATCH_ITEMS = 12;
+const GRID_WINDOW = 5;
+
+/** Memoized grid item to eliminate VirtualizedList slow update bottlenecks. */
+const StudioGridItem = memo(function StudioGridItem({
+  item,
+  tileWidth,
+}: {
+  item: StudioGame;
+  tileWidth: number;
+}) {
+  return (
+    <Link href={{ pathname: '/game/[id]', params: { id: item.id } }} asChild>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={item.title}
+        scaleTo={0.95}>
+        <View style={{ width: tileWidth }}>
+          <Poster
+            coverUrl={item.coverUrl}
+            heroUrl={item.heroUrl}
+            title={item.title}
+            edition={item.edition}
+            gameId={item.id}
+            width={tileWidth}
+            rounded="image"
+            priority="low"
+          />
+        </View>
+      </PressableScale>
+    </Link>
+  );
+});
 
 /**
  * How a catalogue can be ordered.
@@ -69,8 +89,12 @@ const SORTS = gameSortOptions(['newest', 'oldest', 'rating', 'title']);
  */
 const FRAME_MAX_RATIO = 0.5;
 
-/** How much of the banner the scrim covers, from the bottom: the reference's `fillMaxHeight(0.7f)`. */
-const SCRIM_RATIO = 0.7;
+/**
+ * How much of the banner gives way to its ground, from the bottom: the
+ * reference's `fillMaxHeight(0.7f)`, the scrim it was before the ground was the
+ * art's own key colour.
+ */
+const BANNER_FADE = footFade(0.7);
 
 /** The reference's 5% black over the artwork, so a bright image sits back behind the name. */
 const VEIL = 0.05;
@@ -324,24 +348,29 @@ export default function StudioScreen() {
   const trailer = useGameTrailer(banner && banner.heroUrl === bannerUrl ? banner.id : null);
   const trailers = useTrailerSetting();
 
-  /* The page's colour: the banner game's Material 3 page, as its own game page
-     has — the owner's (2026-10-22): "make the background color for that page
-     back to normal m3, don't darken it". It was near black, so a trailer's
-     letterbox bars met it without an edge (2026-10-17); those bars now show
-     against the page. The app's own page until there is a banner, and with
-     game colours off. Only the ground and the name take it: the controls stay
-     the app's, and there is still no `<AccentProvider>`. */
-  const accent = useGameAccent(bannerUrl, banner?.genres ?? null);
-  const pageColor = bannerUrl && accent.tonal ? accent.page : null;
-  const page = pageColor ?? theme.background;
-  const nameColor = pageColor ? accent.onSurface : undefined;
+  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
+  const bannerHeight = Math.round(Math.min(width, height * FRAME_MAX_RATIO));
+
+  /* The page's colour, from the banner's key colour — read off the edges of
+     the square the banner shows, not of the 16:9 art it is cut from. It is the
+     whole page's colour, bright at rest and darkening as the page is read
+     (`<Screen tone>`), not a wash behind the banner. */
+  const key = useKeyColor(bannerUrl, {
+    frame: { width, height: bannerHeight },
+    ink: theme.textSecondary,
+  });
+  const pageTone = key.dark ?? theme.background;
+  const nameColor = key.bright ? getTextColor(key.bright) : undefined;
 
   /* The logo, when Commons has a free one. The name is on screen from the
      route in the meantime, and stays whenever there is none. */
   const logo = useStudioLogo(companyId, name);
 
-  const tileWidth = gridItemWidth(width, COLUMNS, Spacing.x16, GAP);
-  const bannerHeight = Math.round(Math.min(width, height * FRAME_MAX_RATIO));
+  const keyExtractor = useCallback((game: StudioGame) => game.id, []);
+  const renderItem = useCallback(
+    ({ item }: { item: StudioGame }) => <StudioGridItem item={item} tileWidth={tileWidth} />,
+    [tileWidth]
+  );
 
   if (!Number.isFinite(companyId)) {
     return (
@@ -352,17 +381,18 @@ export default function StudioScreen() {
   }
 
   return (
-    /* No `insetHeader`: the banner runs under the floating back disc, the way
-       every screen that opens on artwork does. The disc carries its own scrim
-       and leaves with the banner; the bar that follows it carries the studio's
-       name, and is frosted with `background` — the banner's immersive colour,
-       or the app's page. */
+    /* No `insetHeader`: the banner runs under the glass discs, the way every
+       screen that opens on artwork does. The discs stay put (`glass`, Apple's
+       bar); the glass bar fades in under them with the studio's name once the
+       banner has drained to the page's colour, and is washed with
+       `background` — the banner game's Material 3 page, or the app's. */
     <Screen
       edges={['bottom']}
-      background={pageColor ?? undefined}
+      tone={{ bright: key.bright, dark: pageTone, header: bannerHeight }}
       topBar={
         <FrostedTopBar
           back
+          glass
           title={name}
           header={bannerHeight}
           /* The trailer on and off — SimpMusic's video ⇄ picture key, opposite
@@ -382,64 +412,48 @@ export default function StudioScreen() {
         data={ordered}
         key={`grid-${COLUMNS}`}
         numColumns={COLUMNS}
-        keyExtractor={(game) => game.id}
+        keyExtractor={keyExtractor}
         columnWrapperStyle={styles.column}
         contentContainerStyle={styles.grid}
         showsVerticalScrollIndicator={false}
-        initialNumToRender={GRID_FIRST_ROWS}
-        maxToRenderPerBatch={GRID_BATCH_ROWS}
+        initialNumToRender={GRID_INITIAL_ITEMS}
+        maxToRenderPerBatch={GRID_BATCH_ITEMS}
         windowSize={GRID_WINDOW}
-        renderItem={({ item }) => (
-          <Link href={{ pathname: '/game/[id]', params: { id: item.id } }} asChild>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={item.title}
-              scaleTo={0.95}>
-              <View style={{ width: tileWidth }}>
-                <Poster
-                  coverUrl={item.coverUrl}
-                  heroUrl={item.heroUrl}
-                  title={item.title}
-                  edition={item.edition}
-                  gameId={item.id}
-                  width={tileWidth}
-                  rounded="image"
-                  /* Behind the banner and the rails in the download queue:
-                     the grid starts below the first screen. */
-                  priority="low"
-                />
-              </View>
-            </PressableScale>
-          </Link>
-        )}
+        renderItem={renderItem}
+        removeClippedSubviews={Platform.OS === 'android'}
         ListHeaderComponent={
-          <View style={styles.header}>
-            {/*
-              The banner, bleeding past the grid's own padding.
+          /* The rails rise into place as they scroll into view. */
+          <RevealScope>
+            <View style={styles.header}>
+              {/*
+              The banner, bleeding past the grid's own padding: Apple Music's
+              artist hero (2026-10-23, the owner's direction). The art melts
+              into its own key colour, sharp at rest, softening and then
+              draining to the page as the page scrolls (`<KeyColorHero>`).
 
-              Drawn whether or not there is art yet — `<HeroArt>` falls back to a
-              flat block of the same height — so the name below it does not jump
-              down when the catalogue resolves. That matters more here than on a
-              game page: the name is already known from the route params and is on
-              screen a whole round trip before the art it sits on.
+              Drawn whether or not there is art yet — the frame is its ground
+              until the art arrives — so the name below it does not jump down
+              when the catalogue resolves. That matters more here than on a
+              game page: the name is already known from the route params and
+              is on screen a whole round trip before the art it sits on.
+
+              **Sharp at rest.** The owner had this banner's resting blur
+              removed (2026-10-15), and it stays removed: the blur is what
+              scrolling does, not how the banner sits.
+
+              No `steamAppId`: the studio catalogue does not ask IGDB for store
+              ids, so the banner is always the IGDB art its colours were read
+              from. The strip check is a backstop now — the catalogue already
+              passes over art it knows the size of — and only judges the
+              catalogue's own choice, never remembered art.
             */}
-            <View style={[styles.banner, { height: bannerHeight }]}>
-              {/* No fade of its own: the scrim below is the fade, into this
-                  page's colour rather than the app's. `HeroArt` still dissolves
-                  a blurred copy of the art into its lower half, the reference's
-                  soft bottom.
-
-                  No `steamAppId`: the studio catalogue does not ask IGDB for
-                  store ids, so the banner is always the IGDB art its colour
-                  was read from. The strip check is a backstop now — the
-                  catalogue already passes over art it knows the size of — and
-                  only judges the catalogue's own choice, never remembered art. */}
-              <TrailerBackdrop
-                url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
-                height={bannerHeight}>
-                <HeroArt
+              <View style={[styles.banner, { height: bannerHeight }]}>
+                <KeyColorHero
                   uri={bannerUrl}
                   height={bannerHeight}
+                  fade={BANNER_FADE}
+                  scrim={0.4}
+                  veil={VEIL}
                   onLoad={({ width: artWidth, height: artHeight }) => {
                     if (
                       banner &&
@@ -450,62 +464,56 @@ export default function StudioScreen() {
                       setStrips((previous) => [...previous, banner.id]);
                     }
                   }}
-                  scrim
-                  fade={false}
-                  /* No blur on this page — the owner's direction (2026-10-15). */
-                  blur={false}
-                />
-              </TrailerBackdrop>
-              <View
-                style={[styles.fill, { backgroundColor: withAlpha(Palette.shadowInk, VEIL) }]}
-                pointerEvents="none"
-              />
-              <SmoothScrim
-                color={page}
-                style={[styles.scrim, { height: `${SCRIM_RATIO * 100}%` }]}
-              />
+                  media={(art) => (
+                    <TrailerBackdrop
+                      url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
+                      height={bannerHeight}>
+                      {art}
+                    </TrailerBackdrop>
+                  )}>
+                  {/*
+                  The name over the bottom of the art, centred — as the
+                  studio's logo when Commons has a free one, as type when it
+                  has not — and under it one line of what the studio has made,
+                  where the reference prints subscribers and views. The logo's
+                  ink is judged against what is under it: the ground.
+
+                  Absolutely positioned rather than pulled up with a negative
+                  margin: the name arrives from the route params a full round
+                  trip before the art does, and out of flow neither it nor a
+                  logo that replaces it can move anything below.
+                */}
+                  <View style={styles.identity}>
+                    <StudioIdentity
+                      name={name}
+                      logo={logo.data}
+                      pageColor={key.bright ?? pageTone}
+                      maxWidth={Math.round(width * LOGO_WIDTH_RATIO)}
+                      nameColor={nameColor}
+                    />
+                    {games.data && (
+                      <Text
+                        variant="body"
+                        style={[styles.meta, { color: withAlpha(theme.text, META_ALPHA) }]}>
+                        {`${catalogue.length} ${catalogue.length === 1 ? 'game' : 'games'}`}
+                        {span ? ` · ${span}` : ''}
+                        {average !== null && (
+                          <>
+                            {' · Average rating '}
+                            {/* The score's own ramp, never the accent: a blue 55
+                              would read as endorsed (CLAUDE.md, "One score ramp"). */}
+                            <Text variant="h5" style={{ color: scoreColor(average, theme) }}>
+                              {average}
+                            </Text>
+                          </>
+                        )}
+                      </Text>
+                    )}
+                  </View>
+                </KeyColorHero>
+              </View>
 
               {/*
-                The name over the bottom of the art, centred — as the studio's
-                logo when Commons has a free one, as type when it has not — and
-                under it one line of what the studio has made, where the
-                reference prints subscribers and views.
-
-                Absolutely positioned rather than pulled up with a negative
-                margin: the name arrives from the route params a full round trip
-                before the art does, and out of flow neither it nor a logo that
-                replaces it can move anything below.
-              */}
-              <View style={styles.identity}>
-                <StudioIdentity
-                  name={name}
-                  logo={logo.data}
-                  pageColor={page}
-                  maxWidth={Math.round(width * LOGO_WIDTH_RATIO)}
-                  nameColor={nameColor}
-                />
-                {games.data && (
-                  <Text
-                    variant="body"
-                    style={[styles.meta, { color: withAlpha(theme.text, META_ALPHA) }]}>
-                    {`${catalogue.length} ${catalogue.length === 1 ? 'game' : 'games'}`}
-                    {span ? ` · ${span}` : ''}
-                    {average !== null && (
-                      <>
-                        {' · Average rating '}
-                        {/* The score's own ramp, never the accent: a blue 55
-                            would read as endorsed (CLAUDE.md, "One score ramp"). */}
-                        <Text variant="h5" style={{ color: scoreColor(average, theme) }}>
-                          {average}
-                        </Text>
-                      </>
-                    )}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {/*
               The bands, in the order the questions get asked: what is new,
               what is worth playing, what people played, what is coming, its
               franchises, what has been redone, what exists twice. Each renders
@@ -513,67 +521,67 @@ export default function StudioScreen() {
               and `FRANCHISE_FLOOR` — because a heading is a claim and a
               two-poster rail under "Best rated" is not one this data can make.
             */}
-            {/* Rows of games, as every one in the app is: a heading on the
+              {/* Rows of games, as every one in the app is: a heading on the
                 page and small covers under it. The rail runs edge to edge
                 (`railBleed` cancels the list's padding) and its first cover
                 starts in line with the heading above it. */}
-            {latest.length >= RAIL_FLOOR && (
-              <HomeSection title="Latest releases">
-                <View style={styles.railBleed}>
-                  <GameCoverRail games={latest} inset={RAIL_INSET} />
-                </View>
-              </HomeSection>
-            )}
+              {latest.length >= RAIL_FLOOR && (
+                <HomeSection title="Latest releases">
+                  <View style={styles.railBleed}>
+                    <GameCoverRail games={latest} inset={RAIL_INSET} />
+                  </View>
+                </HomeSection>
+              )}
 
-            {best.length > 0 && (
-              <HomeSection title="Best rated">
-                <View style={styles.railBleed}>
-                  <GameCoverRail games={best} inset={RAIL_INSET} />
-                </View>
-              </HomeSection>
-            )}
+              {best.length > 0 && (
+                <HomeSection title="Best rated">
+                  <View style={styles.railBleed}>
+                    <GameCoverRail games={best} inset={RAIL_INSET} />
+                  </View>
+                </HomeSection>
+              )}
 
-            {popular.length >= BEST_FLOOR && (
-              <HomeSection title="Most popular">
-                <View style={styles.railBleed}>
-                  <GameCoverRail games={popular} inset={RAIL_INSET} />
-                </View>
-              </HomeSection>
-            )}
+              {popular.length >= BEST_FLOOR && (
+                <HomeSection title="Most popular">
+                  <View style={styles.railBleed}>
+                    <GameCoverRail games={popular} inset={RAIL_INSET} />
+                  </View>
+                </HomeSection>
+              )}
 
-            {upcoming.length > 0 && (
-              <HomeSection title="Coming soon">
-                <View style={styles.railBleed}>
-                  <GameCoverRail games={upcoming} inset={RAIL_INSET} />
-                </View>
-              </HomeSection>
-            )}
+              {upcoming.length > 0 && (
+                <HomeSection title="Coming soon">
+                  <View style={styles.railBleed}>
+                    <GameCoverRail games={upcoming} inset={RAIL_INSET} />
+                  </View>
+                </HomeSection>
+              )}
 
-            {franchises.map((franchise) => (
-              <HomeSection key={franchise.id} strapline="Franchise" title={franchise.name}>
-                <View style={styles.railBleed}>
-                  <GameCoverRail games={franchise.games} inset={RAIL_INSET} />
-                </View>
-              </HomeSection>
-            ))}
+              {franchises.map((franchise) => (
+                <HomeSection key={franchise.id} strapline="Franchise" title={franchise.name}>
+                  <View style={styles.railBleed}>
+                    <GameCoverRail games={franchise.games} inset={RAIL_INSET} />
+                  </View>
+                </HomeSection>
+              ))}
 
-            {redone.length >= RAIL_FLOOR && (
-              <HomeSection title="Remakes & remasters">
-                <View style={styles.railBleed}>
-                  <GameCoverRail games={redone} inset={RAIL_INSET} />
-                </View>
-              </HomeSection>
-            )}
+              {redone.length >= RAIL_FLOOR && (
+                <HomeSection title="Remakes & remasters">
+                  <View style={styles.railBleed}>
+                    <GameCoverRail games={redone} inset={RAIL_INSET} />
+                  </View>
+                </HomeSection>
+              )}
 
-            {repackaged.length >= RAIL_FLOOR && (
-              <HomeSection title="Special editions">
-                <View style={styles.railBleed}>
-                  <GameCoverRail games={repackaged} inset={RAIL_INSET} />
-                </View>
-              </HomeSection>
-            )}
+              {repackaged.length >= RAIL_FLOOR && (
+                <HomeSection title="Special editions">
+                  <View style={styles.railBleed}>
+                    <GameCoverRail games={repackaged} inset={RAIL_INSET} />
+                  </View>
+                </HomeSection>
+              )}
 
-            {/*
+              {/*
               The heading the grid needs now that it is no longer the whole page.
 
               It was three bare lines — a name, a count, a sort row — because
@@ -581,24 +589,25 @@ export default function StudioScreen() {
               from. With three rails above it, an unlabelled grid reads as a fourth
               rail that failed to lay out.
             */}
-            {catalogue.length > 0 && (
-              <HomeSection title="All games">
-                {/* Hidden until there is a catalogue to reorder — sorting one
+              {catalogue.length > 0 && (
+                <HomeSection title="All games">
+                  {/* Hidden until there is a catalogue to reorder — sorting one
                     game is theatre, and the pills would show during the
                     skeleton. */}
-                {catalogue.length > 1 && (
-                  <View style={styles.sort}>
-                    <SortBar
-                      options={SORTS}
-                      value={sort}
-                      onChange={setSort}
-                      accessibilityLabel="Sort this studio's games"
-                    />
-                  </View>
-                )}
-              </HomeSection>
-            )}
-          </View>
+                  {catalogue.length > 1 && (
+                    <View style={styles.sort}>
+                      <SortBar
+                        options={SORTS}
+                        value={sort}
+                        onChange={setSort}
+                        accessibilityLabel="Sort this studio's games"
+                      />
+                    </View>
+                  )}
+                </HomeSection>
+              )}
+            </View>
+          </RevealScope>
         }
         ListEmptyComponent={
           games.isLoading ? (
@@ -630,11 +639,9 @@ const styles = StyleSheet.create({
      interval too — and tighter inside the header's own blocks: the rails are
      separate subjects and the identity block is one. */
   header: { gap: Spacing.x32, paddingBottom: Spacing.x16 },
-  /* Cancels the grid's horizontal padding so the art reaches both edges. */
-  banner: { marginHorizontal: -Spacing.x16, overflow: 'hidden' },
-  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  /* `height` is supplied inline — `SCRIM_RATIO` of the banner, from the bottom. */
-  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  /* Cancels the grid's horizontal padding so the art reaches both edges. Not
+     clipped: the hero clips its own art, and its ground runs on below it. */
+  banner: { marginHorizontal: -Spacing.x16 },
   /* The reference's name block: centred, 20 in from each side, 16 up from the
      edge (`x24`, the ladder's 15), and 4 between the name and the line under it. */
   identity: {

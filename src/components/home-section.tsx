@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { Reveal } from '@/components/ui/reveal';
 import { Text } from '@/components/ui/text';
 import { FontFamily, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -111,8 +112,10 @@ export function HomeSection({
     words
   );
 
+  /* A `<Reveal>`: on a page that opts in (`<RevealScope>` — a studio's
+     rails), the section rises into place as it scrolls into view. */
   return (
-    <View style={styles.section}>
+    <Reveal style={styles.section}>
       {seeAll ? (
         <Link href={seeAll} asChild>
           <PressableScale
@@ -133,7 +136,7 @@ export function HomeSection({
       )}
 
       {children}
-    </View>
+    </Reveal>
   );
 }
 

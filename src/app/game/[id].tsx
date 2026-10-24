@@ -29,11 +29,18 @@ import { useCriticSummary } from '@/components/critic-reviews';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
-import { CARD_INSET, cardMaterialFor, cardShape } from '@/components/ui/card-material';
+import {
+  CARD_INSET,
+  cardMaterialFor,
+  cardShape,
+  useCardAnimatedStyle,
+} from '@/components/ui/card-material';
 import { CoverHalo } from '@/components/ui/cover-halo';
 import { TrailerBackdrop } from '@/components/trailer-backdrop';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
-import { HeroArt, heroHeightFor } from '@/components/ui/hero-art';
+import { heroHeightFor } from '@/components/ui/hero-art';
+import { KeyColorHero, MASTHEAD_FADE } from '@/components/ui/key-color-hero';
+import { RevealScope } from '@/components/ui/reveal';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { ScorePill } from '@/components/ui/score';
@@ -58,11 +65,13 @@ import { labelFor, scoreColor } from '@/constants/score';
 import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
 import { FontFamily, PosterAspectRatio, Spacing } from '@/constants/theme';
-import { AccentProvider, useGameAccent } from '@/hooks/use-accent';
+import { AccentProvider } from '@/hooks/use-accent';
 import { useLandingArrival } from '@/hooks/use-arrival';
 import { useHeaderHeight } from '@/hooks/use-header-height';
 import { useGameStorefronts } from '@/hooks/use-game-prices';
 import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
+import { useKeyColor } from '@/hooks/use-key-color';
+import { getSecondaryTextColor, getTextColor } from '@/lib/key-color';
 import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
@@ -373,7 +382,7 @@ export default function GameDetailScreen() {
   const appRatings = useQuery({
     queryKey: ['rating-breakdown', id],
     queryFn: () => getRatingBreakdown(id!),
-    enabled: !!id,
+    enabled: !!id && !!game.data,
   });
 
   const similar = useQuery({
@@ -395,7 +404,7 @@ export default function GameDetailScreen() {
   const myCopies = useQuery({
     queryKey: ['copies', userId, id],
     queryFn: () => getCopies(userId!, id!),
-    enabled: !!userId && !!id,
+    enabled: !!userId && !!id && !!game.data,
   });
 
   const achievements = useQuery({
@@ -418,7 +427,7 @@ export default function GameDetailScreen() {
     queryFn: ({ signal }) => getGameExtras(igdbSourceId!, signal),
     /* On every tab, not the Overview alone: the header's company names are
        links, and the ids they lead to come from here. */
-    enabled: !!igdbSourceId,
+    enabled: !!igdbSourceId && !!game.data,
     staleTime: 30 * 60_000,
   });
 
@@ -454,24 +463,21 @@ export default function GameDetailScreen() {
   });
 
   /*
-   * The game's own hue, for the parts of this screen the screen itself draws.
+   * The page's colour, from the hero's key colour — read off the edges of the
+   * part of the art this frame shows, its foot above all (`useKeyColor`).
    *
-   * Read directly rather than through `useAccent()` because the provider that
-   * carries it to the children below is rendered *by* this component, and a
-   * component cannot consume a context it is itself the parent of. Everything
-   * inside `<AccentProvider>` — the tab bar, the buttons, the chips, the
-   * ambient wash — reads it the ordinary way.
-   *
-   * Resolves to the house blue while the query is in flight, which is what the
-   * loading state should be: the app's colour until there is a game to take one
-   * from.
+   * Apple Music adaptive color is the single source of truth: `bright` at rest
+   * and `dark` once scrolled. Primary and secondary text colors adapt via WCAG
+   * relative luminance.
    */
-  const accent = useGameAccent(game.data?.coverUrl ?? game.data?.heroUrl, game.data?.genres);
-  /* Every card's material, in this game's tone — for the log block below,
-     which this component draws itself. */
-  const cardMaterial = cardMaterialFor(accent, theme);
-  /* The same extraction the accent uses, returning its three-depth ramp rather
-     than the single accent hue — one query, served from cache on both calls. */
+  const key = useKeyColor(game.data?.heroUrl, {
+    frame: { width, height: heroHeight },
+  });
+  const page = key.dark ?? theme.surface;
+  const cardMaterial = cardMaterialFor(key, theme);
+  const primaryText = getTextColor(key.bright ?? '#000000');
+  const secondaryText = getSecondaryTextColor(key.bright ?? '#000000');
+  const animatedCardFill = useCardAnimatedStyle();
 
   /*
    * Which platform's box the Platforms section shows, and prices.
@@ -509,7 +515,7 @@ export default function GameDetailScreen() {
            itself in a rectangle that includes the status bar and the Dynamic
            Island. Nothing is drawn under the notch that wants to be there. */
         edges={['top', 'bottom']}
-        topBar={<FrostedTopBar back />}>
+        topBar={<FrostedTopBar back glass />}>
         <LoadingState />
       </Screen>
     );
@@ -524,7 +530,7 @@ export default function GameDetailScreen() {
            itself in a rectangle that includes the status bar and the Dynamic
            Island. Nothing is drawn under the notch that wants to be there. */
         edges={['top', 'bottom']}
-        topBar={<FrostedTopBar back />}>
+        topBar={<FrostedTopBar back glass />}>
         <ErrorState
           error={game.error}
           action={<Button title="Retry" variant="secondary" onPress={() => game.refetch()} />}
@@ -542,7 +548,7 @@ export default function GameDetailScreen() {
            itself in a rectangle that includes the status bar and the Dynamic
            Island. Nothing is drawn under the notch that wants to be there. */
         edges={['top', 'bottom']}
-        topBar={<FrostedTopBar back />}>
+        topBar={<FrostedTopBar back glass />}>
         <EmptyState title="Game not found" />
       </Screen>
     );
@@ -595,36 +601,40 @@ export default function GameDetailScreen() {
   const header = (
     <View style={styles.header}>
       <View style={styles.hero}>
-        {/* `mask`, not a colour ramp: the page behind this is the game's own
-            tone, and a fade to a fixed dark would draw a band across it.
-            Dissolving the art's own alpha lets whatever is behind show through,
-            whatever colour it is.
+        {/*
+          Apple Music's hero (2026-10-23, the owner's direction): the art
+          melting into its own key colour, sharp at rest, softening and then
+          draining to the game's page as the page scrolls, the glass bar coming
+          in over the colour it is tinted with (`<KeyColorHero>`).
 
-            The hero is the app's backdrop hero — 38% of the display, the art
-            cropped to fill it, dissolving into the page — after one pass as a
-            picture shown whole at its own shape, which the owner took back.
-            What survived that pass is *which* image it is: the game's key art,
-            chosen (`lib/games/hero-art.ts`), not IGDB's first artwork, which
-            was as often an icon or a wordmark.
+          Still the app's backdrop hero — 38% of the display, the art cropped
+          to fill it — and still the owner's soft dissolve at its foot
+          (`MASTHEAD_FADE`, `dissolveAt`), so the masthead's row is set into
+          the same last tenth of the art it always was. What changed is what it
+          dissolves *into*: the colour the art itself ends in, not the game's
+          page, so the picture has no edge. The fade is to a colour now, not
+          the art's own alpha: the ground under it is known and flat, and a
+          trailer cannot be drawn inside a mask on Android.
 
-            The dissolve itself is softer than it was: it starts higher, eases
-            at both ends and trails off, where it used to run in a straight
-            line to the hero's bottom edge and stop. See `<HeroArt>`. */}
-        {/* The trailer under the art, when there is one and it is switched
-            on: the art fades off it at its first frame, and it dissolves into
-            the page along the art's own curve (`<TrailerBackdrop>`). */}
-        <TrailerBackdrop
-          url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
+          The image is the game's key art, chosen (`lib/games/hero-art.ts`),
+          not IGDB's first artwork — and the trailer runs under it when there
+          is one and it is switched on: the art fades off it at its first
+          frame, and the foot fade covers the video as it covers the art.
+        */}
+        <KeyColorHero
+          uri={data.heroUrl}
+          steamAppId={data.steamAppId}
           height={heroHeight}
-          dissolveInto={accent.page}>
-          <HeroArt
-            uri={data.heroUrl}
-            steamAppId={data.steamAppId}
-            height={heroHeight}
-            scrim
-            fade="mask"
-          />
-        </TrailerBackdrop>
+          fade={MASTHEAD_FADE}
+          scrim={0.4}
+          media={(art) => (
+            <TrailerBackdrop
+              url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
+              height={heroHeight}>
+              {art}
+            </TrailerBackdrop>
+          )}
+        />
       </View>
 
       {/*
@@ -698,22 +708,18 @@ export default function GameDetailScreen() {
             variant="display"
             accessibilityRole="header"
             numberOfLines={4}
-            style={[styles.billingTitle, { color: theme.white }]}>
+            style={[styles.billingTitle, { color: primaryText }]}>
             {data.title}
           </Text>
 
-          {/* `accent.quietInk`, not a grey token, for every quiet line in this
-              block — on a tonal accent it resolves to M3's `onSurfaceVariant`,
-              which carries a trace of the game's own hue rather than being a
-              flat grey dropped onto a coloured page. */}
           {hasBillingLines && (
             <View style={styles.billingLines}>
               {data.releaseDate ? (
-                <Text variant="body" style={{ color: accent.quietInk }}>
+                <Text variant="body" style={{ color: secondaryText }}>
                   {formatReleaseDate(data.releaseDate)}
                 </Text>
               ) : data.releaseYear ? (
-                <Text variant="body" style={{ color: accent.quietInk }}>
+                <Text variant="body" style={{ color: secondaryText }}>
                   {data.releaseYear}
                 </Text>
               ) : null}
@@ -786,7 +792,7 @@ export default function GameDetailScreen() {
                   Named for whose number it is: "Community" read as GameLog's
                   own, one line above the strip saying nobody here has rated
                   it (critique, 2026-10-21). */}
-              <Text variant="body" style={{ color: accent.quietInk }}>
+              <Text variant="body" style={{ color: secondaryText }}>
                 IGDB
               </Text>
             </View>
@@ -813,7 +819,7 @@ export default function GameDetailScreen() {
           coverUrl={data.coverUrl}
           heroUrl={data.heroUrl}
           width={coverWidth}
-          page={accent.page}
+          page={page}
           label={[data.title, data.edition ? editionLabel(data.edition) : null, 'cover art']
             .filter(Boolean)
             .join(', ')}
@@ -840,8 +846,8 @@ export default function GameDetailScreen() {
         <View style={styles.about}>
           <ExpandableText
             lines={ABOUT_LINES}
-            style={[styles.aboutText, { color: accent.quietInk }]}
-            fade={{ to: accent.page, ...ABOUT_FADE }}
+            style={[styles.aboutText, { color: secondaryText }]}
+            fade={{ to: page, ...ABOUT_FADE }}
             subject="the description">
             {data.description}
           </ExpandableText>
@@ -856,7 +862,7 @@ export default function GameDetailScreen() {
         style={[
           styles.rule,
           !data.description && styles.ruleUnderRow,
-          { backgroundColor: accent.m3.outlineVariant },
+          { backgroundColor: 'rgba(255, 255, 255, 0.12)' },
         ]}
       />
 
@@ -924,11 +930,12 @@ export default function GameDetailScreen() {
         empty tinted rectangle above the actions.
       */}
       {logged && (hasWriting(logged) || logged.rating !== null || logged.platinum) && (
-        <View
+        <Animated.View
           style={[
             cardShape,
             styles.myLog,
             { backgroundColor: cardMaterial.fill, borderColor: cardMaterial.edge },
+            animatedCardFill,
           ]}>
           {hasWriting(logged) ? (
             /*
@@ -992,7 +999,7 @@ export default function GameDetailScreen() {
               {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
             </>
           )}
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -1270,7 +1277,7 @@ export default function GameDetailScreen() {
                   <ExternalLink
                     href={data.storeUrl as Href & string}
                     label={`Open ${data.title} on ${data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}`}>
-                    <Text variant="h5" style={{ color: accent.onSurface }}>
+                    <Text variant="h5" style={{ color: primaryText }}>
                       Open on {data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}
                     </Text>
                   </ExternalLink>
@@ -1287,38 +1294,46 @@ export default function GameDetailScreen() {
        The provider is what makes that a one-line change instead of a prop on
        every control: the tab bar, the log button, the chips and the ambient
        wash all read the accent from context. */
-    <AccentProvider artwork={data.coverUrl ?? data.heroUrl} genres={data.genres}>
+    <AccentProvider
+      color={key.bright ?? key.dark}
+      artwork={data.coverUrl ?? data.heroUrl}
+      genres={data.genres}>
       <>
         <Screen
           edges={[]}
           /*
-            A flat fill in the game's own darkest tone, where a scroll-driven
-            gradient used to be.
+            One colour, the art's own, which darkens as the page is read
+            (`<Screen tone>`, § Apple Music's hero): the key colour of the hero
+            from the top of the page to its foot, crossing to its darker tone
+            as the hero reaches the bar.
 
-            The gradient was the wrong instrument for what this page needs. It
-            put the page's brightest colour at the top — directly behind the
-            masthead — so the primary button, the active action keys and the lit
-            platform key were all competing with a backdrop made of their own
-            hue, and the answer had been to keep pushing the accent quieter. A
-            fixed near-black page inverts that: `accent.page` sits three full
-            tone steps below `accent.color`, so the loud things can be as loud as
-            they are meant to be without anything having to be measured against a
-            surface that moves as you scroll.
+            **One colour, and not a gradient.** This page has had three page
+            treatments now. A scroll-driven gradient came first, and put the
+            brightest colour directly behind the masthead, so the review
+            button, the lit action keys and the platform key were all competing
+            with a backdrop made of their own hue — every "this measures 2.02:1
+            on the brightest stop" note in this file is from that. A flat
+            `accent.page` replaced it. Then the key colour arrived as a ground
+            behind the masthead alone, which put a seam across the page where
+            it ran out — the owner's words (2026-10-23): "The page must be one
+            color, all the same." So the colour is the page's, everywhere, and
+            the only thing that changes it is the scroll.
 
-            It also removes a whole class of contrast problem. Every "this
-            measures 2.02:1 on the brightest stop" note in this file and its
-            neighbours existed because the backdrop was variable; a flat page is
-            a known quantity.
+            Nothing is measured against a moving surface still: the two tones
+            are both known, both hold the type they carry, and the darker one
+            is what every control was already judged on.
           */
-          background={accent.page}
-          /* Over the hero there is no bar, only the disc, and it leaves with
-             the art — the masthead already says which game this is. The bar
-             comes in, carrying the game's name, once the masthead's row (the
-             name and the cover) has gone under where it sits: the hero, less
-             how far the row rises into it, plus the cover. */
+          tone={{ bright: key.bright, dark: page, header: heroHeight }}
+          /* Over the hero there is no bar, only the glass discs, and they stay
+             where they are — Apple's bar (`glass`): there is always a way back.
+             The bar's glass fades in under them, with the game's name centred,
+             once the masthead's row (the name and the cover) has gone under
+             where it sits: the hero, less how far the row rises into it, plus
+             the cover. By then the hero has drained to the page's colour. */
           topBar={
             <FrostedTopBar
               back
+              glass
               title={data.title}
               header={heroHeight - overlap + coverHeight}
               /* The trailer on and off, opposite the back disc — the studio
@@ -1367,14 +1382,15 @@ export default function GameDetailScreen() {
             <View onLayout={(event) => setTabsAt(event.nativeEvent.layout.y)}>
               <TabBar tabs={TABS} value={tab} onChange={setTab} align="spread" />
             </View>
-            {renderTab()}
+            {/* The Overview's shelves rise into place as they scroll into view. */}
+            <RevealScope>{renderTab()}</RevealScope>
           </PageScrollView>
           {/* The same tabs, held under the bar once the page has scrolled them
               up to it (critique, 2026-10-21). Switching there starts the new
               tab at its top, under the tabs, rather than mid-way down it. */}
           <PinnedTabBar
             at={tabsAt}
-            background={accent.page}
+            background={page}
             tabs={TABS}
             value={tab}
             onChange={(next) => {

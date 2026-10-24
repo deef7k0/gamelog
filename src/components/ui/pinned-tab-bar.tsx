@@ -1,8 +1,8 @@
 import { StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
-import { usePulse } from '@/components/ui/frosted-top-bar';
 import { TabBar, type TabBarProps } from '@/components/ui/tab-bar';
+import { usePulse } from '@/hooks/use-pulse';
 import { useHeaderHeight } from '@/hooks/use-header-height';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 

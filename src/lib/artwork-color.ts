@@ -207,6 +207,8 @@ const DOMINANT_PREFIX = 'artwork-dominant:v1:';
 /** Stored when the image decoded and no swatch survived Palette's filter. */
 const NO_SWATCH = 'none';
 
+const DOMINANT_MEMORY_CACHE = new Map<string, string | null>();
+
 /**
  * The colour covering the most of an image — Android Palette's dominant swatch,
  * ported in `lib/immersive-color.ts` — for a page whose background is the
@@ -217,10 +219,20 @@ const NO_SWATCH = 'none';
  * returns null and the next visit asks again.
  */
 export async function extractDominantColor(uri: string): Promise<string | null> {
+  if (DOMINANT_MEMORY_CACHE.has(uri)) {
+    return DOMINANT_MEMORY_CACHE.get(uri) ?? null;
+  }
+
   try {
     const stored = await AsyncStorage.getItem(DOMINANT_PREFIX + uri);
-    if (stored === NO_SWATCH) return null;
-    if (stored && hexToRgb(stored)) return stored;
+    if (stored === NO_SWATCH) {
+      DOMINANT_MEMORY_CACHE.set(uri, null);
+      return null;
+    }
+    if (stored && hexToRgb(stored)) {
+      DOMINANT_MEMORY_CACHE.set(uri, stored);
+      return stored;
+    }
   } catch {
     /* An unreadable cache is an empty one. */
   }
@@ -229,6 +241,8 @@ export async function extractDominantColor(uri: string): Promise<string | null> 
   if (!pixels) return null;
 
   const color = dominantSwatch(pixels)?.color ?? null;
+  DOMINANT_MEMORY_CACHE.set(uri, color);
+
   try {
     await AsyncStorage.setItem(DOMINANT_PREFIX + uri, color ?? NO_SWATCH);
   } catch {
@@ -372,7 +386,12 @@ const VIBRANT_LUMINANCE = 0.11;
 const DEEP_LUMINANCE = 0.052;
 const DARK_LUMINANCE = 0.016;
 
+const ARTWORK_MEMORY_CACHE = new Map<string, ArtworkColor>();
+
 async function readCache(uri: string): Promise<ArtworkColor | null> {
+  if (ARTWORK_MEMORY_CACHE.has(uri)) {
+    return ARTWORK_MEMORY_CACHE.get(uri) ?? null;
+  }
   try {
     const stored = await AsyncStorage.getItem(CACHE_PREFIX + uri);
     if (!stored) return null;
@@ -380,13 +399,16 @@ async function readCache(uri: string): Promise<ArtworkColor | null> {
     if (!hexToRgb(parsed.color)) return null;
     // Older cache entries predate `palette`; derive it rather than discarding an
     // extraction that is still perfectly good.
-    return parsed.palette ? parsed : { ...parsed, palette: paletteFor(parsed.color) };
+    const result = parsed.palette ? parsed : { ...parsed, palette: paletteFor(parsed.color) };
+    ARTWORK_MEMORY_CACHE.set(uri, result);
+    return result;
   } catch {
     return null;
   }
 }
 
 async function writeCache(uri: string, value: ArtworkColor): Promise<void> {
+  ARTWORK_MEMORY_CACHE.set(uri, value);
   try {
     await AsyncStorage.setItem(CACHE_PREFIX + uri, JSON.stringify(value));
   } catch {

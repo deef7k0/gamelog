@@ -1,8 +1,11 @@
 import { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
+import { interpolateColor, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { Elevation, Palette, Radius, Spacing, type AccentRoles } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { usePulse } from '@/hooks/use-pulse';
+import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { mix } from '@/lib/color';
 
@@ -22,13 +25,12 @@ import { mix } from '@/lib/color';
  * ## The fill follows the page
  *
  * On the app's own pages a card is `surface` — the owner's `#1B1F28` on their
- * `#14171C`. On a game's page, which is built from the game's own colours
- * (Material 3, seeded by its box art), a neutral blue-grey card would be the
- * one foreign object on a red or green page; there the card is the game's
- * dark tone instead — its `primaryContainer` at half brightness, the tone the
- * page's section cards and its review card already had — at the same corner,
- * edge, inset and shadow. Switch game colours off (Settings → Game colours)
- * and a game's page is the app's own room, so its cards are `surface` too.
+ * `#14171C`. On an Apple Music adaptive page (game, studio, collection),
+ * cards start in `dark` at rest against the `bright` page background, and
+ * smoothly brighten to `bright` as the user scrolls and the page darkens to `dark`.
+ *
+ * Switch game colours off (Settings → Game colours) and a game's page is the
+ * app's own room, so its cards are `surface` too.
  *
  * `border` is white at 7%, so the one edge reads on either fill.
  */
@@ -41,20 +43,60 @@ export type CardMaterial = {
 
 export function useCardMaterial(): CardMaterial {
   const theme = useTheme();
+  const chrome = useScreenChrome();
   const accent = useAccent();
-  return useMemo(() => cardMaterialFor(accent, theme), [accent, theme]);
+
+  return useMemo(() => {
+    if (chrome?.tone?.dark) {
+      return {
+        fill: chrome.tone.dark,
+        edge: theme.border,
+      };
+    }
+    return cardMaterialFor(accent, theme);
+  }, [chrome?.tone?.dark, accent, theme]);
 }
 
 /**
- * The same, from an accent in hand — for the screen that renders a game's
- * `<AccentProvider>` and so cannot read it (`useGameAccent`).
+ * UI-thread animated style for cards on an adaptive keyColor screen.
+ * Inverts with the scroll: at rest (scrollY = 0) it is the `dark` tone against
+ * the `bright` background; as the user scrolls, it brightens to `bright` as the
+ * background darkens to `dark`.
+ */
+export function useCardAnimatedStyle() {
+  const chrome = useScreenChrome();
+  const still = useSharedValue(0);
+  const darkening = chrome?.tone?.darkening ?? still;
+  const dark = chrome?.tone?.dark;
+  const bright = chrome?.tone?.bright;
+  const pulse = usePulse();
+
+  return useAnimatedStyle(() => {
+    pulse.get();
+    if (!dark || !bright) return {};
+    return {
+      backgroundColor: interpolateColor(darkening.get(), [0, 1], [dark, bright]),
+    };
+  });
+}
+
+/**
+ * The same, from an accent or key tone in hand — for screens that render
+ * cards before context is mounted.
  */
 export function cardMaterialFor(
-  accent: AccentRoles,
+  accent: AccentRoles | { bright: string | null; dark: string | null } | null | undefined,
   theme: { surface: string; border: string }
 ): CardMaterial {
+  if (accent && 'dark' in accent) {
+    return {
+      fill: accent.dark ?? theme.surface,
+      edge: theme.border,
+    };
+  }
+  const roles = accent as AccentRoles | null | undefined;
   return {
-    fill: accent.tonal ? mix(accent.m3.primaryContainer, Palette.shadowInk, 0.5) : theme.surface,
+    fill: roles?.tonal ? mix(roles.m3.primaryContainer, Palette.shadowInk, 0.5) : theme.surface,
     edge: theme.border,
   };
 }

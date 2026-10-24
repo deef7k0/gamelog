@@ -41,12 +41,10 @@ export const COVER_GUTTER = 16;
 /**
  * Where the art starts to go, as a fraction of the hero's height from its top.
  *
- * It was 0.38, and from there a straight line to nothing at the bottom edge. A
- * straight line has a corner at each end — one where the art starts to thin,
- * one where it stops — and the second sat just above the row of billing as a
- * visible end to the picture. Starting higher is what makes room to ease both.
+ * Shrunk down to 0.60 so the top 60% of the artwork remains completely crisp,
+ * sharp, and visible, while the bottom 40% dissolves into the page key colour.
  */
-export const DISSOLVE_STARTS_AT = 0.16;
+export const DISSOLVE_STARTS_AT = 0.6;
 
 /** The curve's two exponents: how gently it leaves, and how long it trails. */
 const LEAVE = 2.4;

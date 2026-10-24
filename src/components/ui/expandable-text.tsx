@@ -24,6 +24,8 @@ import { RichText } from '@/components/ui/rich-text';
 import { useSectionMetrics } from '@/components/ui/section';
 import { Text, type TextVariant } from '@/components/ui/text';
 import { TapTarget, Type, withAlpha, type ThemeColor } from '@/constants/theme';
+import { usePulse } from '@/hooks/use-pulse';
+import { useScreenChrome } from '@/hooks/use-screen-chrome';
 
 /**
  * The reference's timing, from `DescriptionView.kt`: 250ms on Compose's
@@ -142,11 +144,21 @@ export function ExpandableText({
   const closed = lines * lineHeight;
   const height = useSharedValue(closed);
 
+  /* The page's own record of its content moving without a scroll: a shelf
+     waiting to arrive under this text re-reads where it is when the text has
+     finished opening or closing (`<Reveal>`). */
+  const pageLayout = useScreenChrome()?.layout;
+
   /* Every change after the first measurement animates: opening, closing, and
      the text itself changing. The first is set in `onTextLayout`, unanimated. */
   useEffect(() => {
-    if (heights) height.set(withTiming(expanded ? heights.full : heights.collapsed, TIMING));
-  }, [expanded, heights, height]);
+    if (!heights) return;
+    height.set(
+      withTiming(expanded ? heights.full : heights.collapsed, TIMING, (finished) => {
+        if (finished && pageLayout) pageLayout.set(pageLayout.get() + 1);
+      })
+    );
+  }, [expanded, heights, height, pageLayout]);
 
   const windowStyle = useAnimatedStyle(() => ({ height: height.get() }));
 
@@ -298,15 +310,59 @@ function Veil({
   to: string;
   depth: number;
 }) {
+  const tone = useScreenChrome()?.tone;
+  const still = useSharedValue(0);
+  const darkening = tone?.darkening ?? still;
+  const pulse = usePulse();
+
   const lifted = useAnimatedStyle(() => ({
     opacity: interpolate(height.get(), [closed, closed + span], [1, 0], 'clamp'),
   }));
+  /* The page's dark tone, faded in as the page darkens so it does not muddy the
+     bright tone at rest. */
+  const dark = useAnimatedStyle(() => {
+    pulse.get();
+    return {
+      opacity: tone?.bright ? darkening.get() : 1,
+      transform: [{ translateY: 0 }],
+    };
+  });
+  /* The page's bright tone over its dark one, on the page's own progress —
+     see below. */
+  const bright = useAnimatedStyle(() => {
+    pulse.get();
+    return {
+      opacity: 1 - darkening.get(),
+      transform: [{ translateY: 0 }],
+    };
+  });
 
   return (
     <Animated.View pointerEvents="none" style={[styles.veil, { height: span }, lifted]}>
       {/* Ends on the colour at `depth`, starts on the same colour at nothing —
           never `transparent`, which Android fades through black. */}
-      <LinearGradient colors={[withAlpha(to, 0), withAlpha(to, depth)]} style={styles.fill} />
+      <Animated.View style={[styles.fill, dark]}>
+        <LinearGradient colors={[withAlpha(to, 0), withAlpha(to, depth)]} style={styles.fill} />
+      </Animated.View>
+
+      {/*
+        On a page whose colour is its artwork's and changes as the page is read
+        (`<Screen tone>`: a game's, a studio's, a collection's), the veil has to
+        be that colour at every moment or it is a smudge on the page. So the
+        caller's colour is the page's dark tone and this is the bright one over
+        it, at the page's own opacity — the very value the page's own wash and
+        the hero's foot fade read, so all three cross together.
+
+        Nowhere else: no tone, nothing drawn.
+      */}
+      {tone?.bright && (
+        <Animated.View style={[styles.fill, bright]}>
+          <LinearGradient
+            colors={[withAlpha(tone.bright, 0), withAlpha(tone.bright, depth)]}
+            style={styles.fill}
+          />
+        </Animated.View>
+      )}
     </Animated.View>
   );
 }
@@ -315,5 +371,5 @@ const styles = StyleSheet.create({
   window: { overflow: 'hidden' },
   toggle: { alignSelf: 'flex-start' },
   veil: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  fill: { flex: 1 },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
 });

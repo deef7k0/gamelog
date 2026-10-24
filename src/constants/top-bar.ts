@@ -129,6 +129,19 @@ export const FROST = {
    * the blur still under it — what is behind shows as movement, not as light.
    */
   artTint: 0.85,
+  /**
+   * The wash on the glass bar of a page that opens on artwork the Apple Music
+   * way — a game, a studio, a collection (`<FrostedTopBar glass>`): the page's
+   * own colour at 60% over the blur.
+   *
+   * Apple's bar is black at 40% over a blur that also lifts saturation; this
+   * app's room is the page's colour, and that bar comes in only once the hero
+   * has drained to it (`lib/scroll-motion`), so the wash is that colour. At
+   * 60% what passes under it shows as soft movement, not as light: the 55% the
+   * owner found too pale (2026-10-14) was over a masthead still bright with
+   * art, which this bar never is. iOS draws it on its own nav-bar material.
+   */
+  glassTint: 0.6,
 } as const;
 
 /**

@@ -85,6 +85,21 @@ export function usePageScroll<T extends Scroller>(forwarded?: Ref<T>) {
   );
 }
 
+/**
+ * The page scroller's `onContentSizeChange`, which also tells the page its
+ * content has moved (`ScreenChrome.layout`) — keeping the caller's own handler.
+ */
+function usePageContentSize(own?: (width: number, height: number) => void) {
+  const layout = useScreenChrome()?.layout;
+  return useCallback(
+    (width: number, height: number) => {
+      layout?.set(layout.get() + 1);
+      own?.(width, height);
+    },
+    [layout, own]
+  );
+}
+
 /*
  * `scrollEventThrottle` is 16 unless the caller says otherwise: one event a
  * frame. iOS sends a scroll event only when the gesture ends without it; it is
@@ -94,26 +109,53 @@ export function usePageScroll<T extends Scroller>(forwarded?: Ref<T>) {
 export function PageScrollView({
   ref,
   scrollEventThrottle = 16,
+  onContentSizeChange,
   ...props
 }: ScrollViewProps & { ref?: Ref<ScrollView> }) {
   const setRef = usePageScroll(ref);
-  return <ScrollView ref={setRef} scrollEventThrottle={scrollEventThrottle} {...props} />;
+  const sized = usePageContentSize(onContentSizeChange);
+  return (
+    <ScrollView
+      ref={setRef}
+      scrollEventThrottle={scrollEventThrottle}
+      onContentSizeChange={sized}
+      {...props}
+    />
+  );
 }
 
 export function PageFlatList<ItemT>({
   ref,
   scrollEventThrottle = 16,
+  onContentSizeChange,
   ...props
 }: FlatListProps<ItemT> & { ref?: Ref<FlatList<ItemT>> }) {
   const setRef = usePageScroll(ref);
-  return <FlatList ref={setRef} scrollEventThrottle={scrollEventThrottle} {...props} />;
+  const sized = usePageContentSize(onContentSizeChange);
+  return (
+    <FlatList
+      ref={setRef}
+      scrollEventThrottle={scrollEventThrottle}
+      onContentSizeChange={sized}
+      {...props}
+    />
+  );
 }
 
 export function PageSectionList<ItemT, SectionT = DefaultSectionT>({
   ref,
   scrollEventThrottle = 16,
+  onContentSizeChange,
   ...props
 }: SectionListProps<ItemT, SectionT> & { ref?: Ref<SectionList<ItemT, SectionT>> }) {
   const setRef = usePageScroll(ref);
-  return <SectionList ref={setRef} scrollEventThrottle={scrollEventThrottle} {...props} />;
+  const sized = usePageContentSize(onContentSizeChange);
+  return (
+    <SectionList
+      ref={setRef}
+      scrollEventThrottle={scrollEventThrottle}
+      onContentSizeChange={sized}
+      {...props}
+    />
+  );
 }

@@ -1,11 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
-import { createContext, memo, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, memo, useContext, useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
+  useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
@@ -34,10 +35,12 @@ import {
   TOP_BAR_TITLE_GAP,
   TOP_BAR_TITLE_INSET,
   discShift,
+  frostStrength,
   isScrolled,
   revealOffset,
 } from '@/constants/top-bar';
 import { useTopBarInset } from '@/hooks/use-header-height';
+import { usePulse } from '@/hooks/use-pulse';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -75,6 +78,25 @@ const PANE_SCRIM = 0.27;
 
 /** Compose's `FastOutSlowInEasing`, the default of the reference's `tween(300)`. */
 const FROST_EASING = Easing.bezier(...FROST.easing);
+
+/*
+ * The glass bar's blur (`glass`), where there is one to be had: iOS, and
+ * Android from 12, where the blur view's own hardware method runs. Below that
+ * the bar is its wash, opaque — SimpMusic's rule, and for its reason: the old
+ * path blurs a strip the width of the display in software on every frame.
+ */
+const GLASS_BLURS = Platform.OS !== 'android' || Number(Platform.Version) >= 31;
+
+/**
+ * The blur at full strength, as each platform is asked for it, and what
+ * Android divides that by to get a radius — `FROST.androidIntensity` has the
+ * arithmetic (Android paints its own grey over the blur in proportion to the
+ * strength, so it is asked for a strength its grey cannot be seen at).
+ */
+const GLASS_MAX = Platform.OS === 'android' ? FROST.androidIntensity : FROST.intensity;
+const ANDROID_REDUCTION = FROST.androidIntensity / FROST.androidRadius;
+
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
 /**
  * A page that opens on artwork and does not say how tall its header is: this
@@ -197,6 +219,24 @@ export type FrostedTopBarProps = {
    * rather than a grey button.
    */
   intensity?: number;
+  /**
+   * Apple Music's bar, on a page that opens on artwork: the three pages whose
+   * hero melts into its key colour (`<KeyColorHero>`) — a game, a studio, a
+   * collection — and no other.
+   *
+   * The back and the page's controls stay where they are, glass discs, and
+   * never leave: there is always a way back. Once the hero has drained to the
+   * page's colour, a bar of glass fades in under them — the page behind it
+   * blurred, washed with that colour (`FROST.glassTint`), on iOS's own
+   * navigation-bar material — and the page's name fades in centred between
+   * them, as an Apple title is.
+   *
+   * **It brings back the bar's blur, on these three pages alone.** The owner
+   * had the blur taken off the bar (2026-10-14) and every other bar stays the
+   * page's colour, solid; their direction for these pages (2026-10-23) was
+   * Apple's frosted bar. To take it back here, drop the prop.
+   */
+  glass?: boolean;
 };
 
 export const FrostedTopBar = memo(function FrostedTopBar({
@@ -209,6 +249,7 @@ export const FrostedTopBar = memo(function FrostedTopBar({
   centerTitle = false,
   variant,
   intensity = 60,
+  glass = false,
 }: FrostedTopBarProps) {
   const router = useRouter();
   const chrome = useScreenChrome();
@@ -234,6 +275,18 @@ export const FrostedTopBar = memo(function FrostedTopBar({
 
   const kind = variant ?? (chrome && !chrome.insetHeader ? 'art' : 'bar');
 
+  if (kind === 'art' && glass) {
+    return (
+      <GlassBar
+        leading={leading}
+        title={title}
+        right={right}
+        header={header}
+        intensity={intensity}
+      />
+    );
+  }
+
   return kind === 'art' ? (
     <ArtBar leading={leading} title={title} right={right} header={header} intensity={intensity} />
   ) : (
@@ -243,33 +296,6 @@ export const FrostedTopBar = memo(function FrostedTopBar({
 
 type Leading = { icon: IconName; label: string; onPress: () => void; nudge: number } | null;
 type IconName = keyof typeof Ionicons.glyphMap;
-
-/**
- * A value that changes on every render, for animated styles to depend on.
- *
- * Reanimated keeps a settled animated value in a registry the native side
- * empties after two seconds, and a render after that puts the view back at
- * its first frame (CLAUDE.md § Gotchas). The usual answer is to restate the
- * resting pose as a plain style, which needs a pose React can name; "frosted
- * or not" and "discs carried off by 340dp" are the page's scroll offset, which
- * React never hears. So every style here reads this, and a render re-applies
- * them all the frame after — the copy showcase's remedy.
- *
- * **Re-applies only what differs from the last value.** Reanimated compares a
- * style with the one before it key by key and sends nothing when every key is
- * identical — and an opacity that settled at 1 is identical. A transform is an
- * array, never the same object twice, so every style here carries one, if only
- * a transform by nothing; and the one value that is a prop and not a style,
- * the blur's strength, is moved by a hundredth on alternate renders instead
- * (`<Frost>`).
- */
-export function usePulse(): SharedValue<number> {
-  const pulse = useSharedValue(0);
-  useEffect(() => {
-    pulse.set(pulse.get() + 1);
-  });
-  return pulse;
-}
 
 /** The page's scroll offset, or a still zero outside a `<Screen>`. */
 function usePageOffset(): SharedValue<number> {
@@ -445,6 +471,206 @@ function ArtBar({
         </Animated.View>
       </Animated.View>
     </>
+  );
+}
+
+/**
+ * Apple Music's bar over a page that opens on artwork (`glass`).
+ *
+ * Two layers, and the order is the point: the bar's glass underneath, the
+ * controls on top of it.
+ *
+ *  - **The controls never move.** The discs are pinned to the top of the
+ *    display, centred in the bar's row, whatever the page does. They are not
+ *    part of the artwork here, as they are on SimpMusic's page: there is
+ *    never a stretch of scroll with no way back, which there is on every
+ *    other artwork page (§ The top bar, "no back control on screen").
+ *  - **The glass fades in, it does not slide.** An Apple bar's material
+ *    arrives as content reaches it; it does not drop from above. Over 300ms,
+ *    as the page reaches `revealAt` — which on these pages is the moment the
+ *    hero has finished draining to the page's colour, so the glass comes in
+ *    over the colour it is tinted with.
+ *  - **The name is centred** between the controls — inset on both sides by
+ *    the wider of the two, so it is centred on the display — and scrolls when
+ *    it does not fit. It fades with the glass.
+ *
+ * The bar takes touches once it is in, so a press on it does not reach a row
+ * the glass is hiding; the discs, above it, take theirs throughout.
+ */
+function GlassBar({
+  leading,
+  title,
+  right,
+  header,
+  intensity,
+}: {
+  leading: Leading;
+  title?: string;
+  right?: ReactNode;
+  header?: number;
+  intensity: number;
+}) {
+  const theme = useTheme();
+  const chrome = useScreenChrome();
+  const inset = useTopBarInset();
+  const scrollY = usePageOffset();
+  const pulse = usePulse();
+  const { height: display } = useWindowDimensions();
+
+  const barHeight = inset + TOP_BAR_ROW;
+  const revealAt = revealOffset(header ?? Math.round(display * DEFAULT_HEADER), barHeight);
+
+  const shown = useSharedValue(0);
+  const [pinned, setPinned] = useState(false);
+  /* How far the right-hand discs reach in from the edge, so the name can be
+     centred on the display and still clear them. Read off their own layout. */
+  const [rightWidth, setRightWidth] = useState(0);
+
+  useAnimatedReaction(
+    () => {
+      const offset = scrollY.get();
+      return isScrolled(offset) && offset >= revealAt;
+    },
+    (past, was) => {
+      if (past === was || (was === null && !past)) return;
+      /* A fade, so it is the same under Reduce Motion: nothing moves. */
+      shown.set(withTiming(past ? 1 : 0, { duration: FROST.ms, easing: FROST_EASING }));
+      runOnJS(setPinned)(past);
+    },
+    [revealAt]
+  );
+
+  const titleStyle = useAnimatedStyle(() => {
+    pulse.get();
+    return { opacity: shown.get(), transform: [{ translateY: 0 }] };
+  });
+
+  const leftWidth = TOP_BAR_EDGE + (leading ? DISC : 0);
+  const titleInset =
+    Math.max(leftWidth, rightWidth > 0 ? TOP_BAR_EDGE + rightWidth : TOP_BAR_EDGE) +
+    TOP_BAR_TITLE_GAP * 2;
+
+  return (
+    <>
+      <View
+        style={[styles.layer, { height: barHeight }]}
+        pointerEvents={pinned ? 'auto' : 'none'}
+        accessibilityElementsHidden={!pinned}
+        importantForAccessibility={pinned ? 'auto' : 'no-hide-descendants'}>
+        <GlassFrost progress={shown} pulse={pulse} tint={chrome?.background ?? theme.background} />
+        <Animated.View
+          style={[
+            styles.glassTitle,
+            { top: inset, left: titleInset, right: titleInset },
+            titleStyle,
+          ]}>
+          {/* Mounted only while the bar is in: a marquee is a loop. */}
+          {pinned && !!title && (
+            <MarqueeText text={title} variant="h3" accessibilityRole="header" align="center" />
+          )}
+        </Animated.View>
+      </View>
+
+      {/* Over the glass, and `box-none`: the row spans the width so the far
+          controls sit at the far edge, and draws nothing a tap could land on. */}
+      <View
+        style={[styles.layer, { paddingTop: inset + (TOP_BAR_ROW - DISC) / 2 }]}
+        pointerEvents="box-none">
+        <View style={styles.discRow} pointerEvents="box-none">
+          {leading ? <GlassDisc {...leading} intensity={intensity} /> : <View />}
+          {!!right && (
+            <View
+              style={styles.discs}
+              onLayout={(event) => setRightWidth(Math.round(event.nativeEvent.layout.width))}>
+              {right}
+            </View>
+          )}
+        </View>
+      </View>
+    </>
+  );
+}
+
+/**
+ * The glass: the page behind the bar, blurred, and the page's own colour over
+ * it at `FROST.glassTint` — the bar's frost as it was before the owner had it
+ * removed from every other bar, kept for the one that asks for it.
+ *
+ * It fades by its **strength**, never by anybody's opacity: a blur inside a
+ * view that is itself fading is not a blur on iOS until the fade ends. So
+ * `progress` drives the blur's intensity and the wash together.
+ *
+ * Two things Android's blur view does, both of which bit this bar before:
+ *
+ *  - **It cannot be set up at a strength of nothing** ("nativePtr is null").
+ *    So the strength never reaches zero (`frostStrength`), and what hides the
+ *    glass while it is away is the `veil` — an opacity that is 0 or 1 and
+ *    nothing between, so it is never a fade over a blur.
+ *  - **It paints its own grey over the blur, in proportion to the strength.**
+ *    So it is asked for a small strength and the radius is made up through
+ *    `blurReductionFactor`; the wash is then the only tint.
+ *
+ * Every style reads `pulse` and carries a transform, and the strength moves by
+ * a hundredth on alternate renders — see `usePulse`.
+ */
+function GlassFrost({
+  progress,
+  pulse,
+  tint,
+}: {
+  progress: SharedValue<number>;
+  pulse: SharedValue<number>;
+  tint: string;
+}) {
+  const chrome = useScreenChrome();
+
+  const blur = useAnimatedProps(() => {
+    const nudge = (pulse.get() % 2) * 0.01;
+    return { intensity: frostStrength(progress.get(), GLASS_MAX, FROST.floor) + nudge };
+  });
+  const veil = useAnimatedStyle(() => {
+    pulse.get();
+    return { opacity: progress.get() > 0 ? 1 : 0, transform: [{ translateY: 0 }] };
+  });
+  const wash = useAnimatedStyle(() => {
+    pulse.get();
+    return { opacity: progress.get(), transform: [{ translateY: 0 }] };
+  });
+
+  return (
+    <View style={styles.fill} pointerEvents="none">
+      {/* Not mounted where there is no blur: the old software path would
+          redraw the page into a bitmap every frame for a frost the opaque
+          wash below covers anyway. */}
+      {GLASS_BLURS && (
+        <Animated.View style={[styles.fill, veil]}>
+          <AnimatedBlurView
+            animatedProps={blur}
+            /* iOS's navigation-bar material — the very one Apple's bars are
+               drawn in, saturation and all. On Android the tint is only the
+               near-invisible grey `FROST.androidIntensity` keeps it to. */
+            tint={
+              Platform.OS === 'ios' ? 'systemChromeMaterialDark' : 'systemUltraThinMaterialDark'
+            }
+            style={styles.fill}
+            {...(Platform.OS === 'android'
+              ? {
+                  blurMethod: 'dimezisBlurViewSdk31Plus' as const,
+                  blurTarget: chrome?.blurTarget,
+                  blurReductionFactor: ANDROID_REDUCTION,
+                }
+              : null)}
+          />
+        </Animated.View>
+      )}
+      <Animated.View
+        style={[
+          styles.fill,
+          { backgroundColor: withAlpha(tint, GLASS_BLURS ? FROST.glassTint : 1) },
+          wash,
+        ]}
+      />
+    </View>
   );
 }
 
@@ -711,6 +937,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   title: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  /* The glass bar's name: the row's height, centred, inset by the controls. */
+  glassTitle: { position: 'absolute', height: TOP_BAR_ROW, justifyContent: 'center' },
   /* Centred on the screen, not on what is left between the controls: inset at
      both ends by one control, so a long name stops short of either. */
   centred: {

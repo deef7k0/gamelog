@@ -48,11 +48,32 @@ describe('the top bar', () => {
     for (const gradient of gradients) assert.doesNotMatch(gradient, /transparent/);
   });
 
-  it('is the page’s colour, not a blur — the glass discs alone blur', () => {
-    /* The owner had the bar's blur removed (2026-10-14). The one `<BlurView>`
-       left is the disc of glass over artwork, which is a button, not the bar. */
+  it('is the page’s colour, not a blur — except Apple’s glass bar, on three pages', () => {
+    /* The owner had the bar's blur removed (2026-10-14). The one plain
+       `<BlurView>` is the disc of glass over artwork, which is a button; the
+       one animated blur is the glass bar's (`glass`), which the owner asked
+       for on the three Apple Music pages (2026-10-23) and nowhere else. */
     assert.equal((bar.match(/^\s*<BlurView\b/gm) ?? []).length, 1);
-    assert.doesNotMatch(bar, /AnimatedBlurView/);
+    assert.equal((bar.match(/^\s*<AnimatedBlurView\b/gm) ?? []).length, 1);
+    assert.match(bar, /function GlassFrost/);
+    assert.doesNotMatch(
+      bar.slice(bar.indexOf('function Frost('), bar.indexOf("/** The bar's row")),
+      /BlurView/,
+      'every other bar is still a wash and nothing else'
+    );
+
+    const app = (path: string) => read(`../../app/${path}`);
+    const glassy = ['game/[id].tsx', 'studio/[id].tsx', 'list/[id].tsx'];
+    for (const page of glassy) {
+      const source = app(page);
+      const bars = source.match(/<FrostedTopBar\b[^>]*?(?:\/>|>)/gs) ?? [];
+      assert.ok(bars.length > 0, page);
+      for (const tag of bars) {
+        /* "Studio not found" is a list page's bar, not an artwork one. */
+        if (/insetHeader|title="Studio"/.test(tag)) continue;
+        assert.match(tag, /\bglass\b/, `${page}: ${tag}`);
+      }
+    }
   });
 
   it('keeps Home’s bar where it is: nothing folds it with the scroll', () => {

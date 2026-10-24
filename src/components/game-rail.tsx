@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
-import { useMemo, type ReactNode } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
   useReducedMotion,
@@ -92,6 +92,7 @@ export function CoverRail<T>({
   const inset = insetProp ?? contextInset;
   const reduceMotion = useReducedMotion();
   const { width } = layout.cover;
+  const itemStride = width + layout.gap;
 
   /* Written and read on the UI thread, so a drag never enters JS. */
   const scrollX = useSharedValue(0);
@@ -100,6 +101,34 @@ export function CoverRail<T>({
   });
   const driver = parallax && !reduceMotion ? scrollX : null;
 
+  const getItemLayout = useCallback(
+    (_data: unknown, index: number) => ({
+      length: itemStride,
+      offset: itemStride * index,
+      index,
+    }),
+    [itemStride]
+  );
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: T; index: number }) => (
+      <RailItem
+        item={item}
+        index={index}
+        width={width}
+        gap={layout.gap}
+        inset={inset}
+        labelled={labelled}
+        driver={driver}
+        gameOf={gameOf}
+        labelOf={labelOf}
+        footOf={footOf}
+        onPressItem={onPressItem}
+      />
+    ),
+    [width, layout.gap, inset, labelled, driver, gameOf, labelOf, footOf, onPressItem]
+  );
+
   return (
     <Animated.FlatList
       data={data}
@@ -107,36 +136,67 @@ export function CoverRail<T>({
       keyExtractor={keyOf}
       showsHorizontalScrollIndicator={false}
       initialNumToRender={5}
+      maxToRenderPerBatch={5}
       windowSize={3}
+      getItemLayout={getItemLayout}
+      removeClippedSubviews={Platform.OS === 'android'}
       onScroll={driver ? onScroll : undefined}
       scrollEventThrottle={16}
       contentContainerStyle={{ paddingHorizontal: inset, gap: layout.gap }}
-      renderItem={({ item, index }) => {
-        const game = gameOf(item);
-        return (
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={labelOf?.(item) ?? game.title}
-            onPress={() => onPressItem(item)}
-            scaleTo={0.96}>
-            <View style={{ width }}>
-              <RailCover
-                game={game}
-                width={width}
-                index={index}
-                scrollX={driver}
-                leading={inset}
-                gap={layout.gap}
-                labelled={labelled}
-              />
-              {footOf && <View style={styles.foot}>{footOf(item, width)}</View>}
-            </View>
-          </PressableScale>
-        );
-      }}
+      renderItem={renderItem}
     />
   );
 }
+
+type RailItemProps<T> = {
+  item: T;
+  index: number;
+  width: number;
+  gap: number;
+  inset: number;
+  labelled: boolean;
+  driver: SharedValue<number> | null;
+  gameOf: (item: T) => CoverRailGame;
+  labelOf?: (item: T) => string;
+  footOf?: (item: T, width: number) => ReactNode;
+  onPressItem: (item: T) => void;
+};
+
+const RailItem = memo(function RailItem<T>({
+  item,
+  index,
+  width,
+  gap,
+  inset,
+  labelled,
+  driver,
+  gameOf,
+  labelOf,
+  footOf,
+  onPressItem,
+}: RailItemProps<T>) {
+  const game = gameOf(item);
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={labelOf?.(item) ?? game.title}
+      onPress={() => onPressItem(item)}
+      scaleTo={0.96}>
+      <View style={{ width }}>
+        <RailCover
+          game={game}
+          width={width}
+          index={index}
+          scrollX={driver}
+          leading={inset}
+          gap={gap}
+          labelled={labelled}
+        />
+        {footOf && <View style={styles.foot}>{footOf(item, width)}</View>}
+      </View>
+    </PressableScale>
+  );
+}) as <T>(props: RailItemProps<T>) => ReactNode;
 
 /**
  * A row of games, each opening its page.

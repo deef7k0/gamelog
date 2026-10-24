@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
+import Animated from 'react-native-reanimated';
 
-import { CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, cardShape, useCardAnimatedStyle, useCardMaterial } from '@/components/ui/card-material';
 import { Shimmer } from '@/components/ui/shimmer';
 import { Text } from '@/components/ui/text';
 import { labelFor, scoreColor } from '@/constants/score';
@@ -50,6 +51,7 @@ export type CardProps = {
 export function Card({ children, elevated = false, padded = true, style }: CardProps) {
   const theme = useTheme();
   const material = useCardMaterial();
+  const animatedFill = useCardAnimatedStyle();
 
   /*
    * Two views on purpose. Android's `elevation` is clipped by `overflow:
@@ -62,17 +64,18 @@ export function Card({ children, elevated = false, padded = true, style }: CardP
    * meets the hairline without a sliver of fill between them.
    */
   return (
-    <View
+    <Animated.View
       style={[
         cardShape,
         {
           backgroundColor: elevated ? theme.surfaceElevated : material.fill,
           borderColor: material.edge,
         },
+        !elevated && animatedFill,
         style,
       ]}>
       <View style={[styles.cardClip, padded && styles.cardPadded]}>{children}</View>
-    </View>
+    </Animated.View>
   );
 }
 

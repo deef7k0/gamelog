@@ -1,10 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { interpolateColor, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { usePulse } from '@/hooks/use-pulse';
+import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { filledRoles } from '@/lib/filled';
 
 /**
@@ -95,7 +98,38 @@ export function TonalKey({
   const accent = useAccent();
   const filled = filledRoles(accent);
   const lit = active === true;
-  const ink = lit ? filled.ink : accent.m3.onSurfaceVariant;
+
+  const chrome = useScreenChrome();
+  const still = useSharedValue(0);
+  const darkening = chrome?.tone?.darkening ?? still;
+  const dark = chrome?.tone?.dark;
+  const bright = chrome?.tone?.bright;
+  const pulse = usePulse();
+
+  const keyAnimatedStyle = useAnimatedStyle(() => {
+    pulse.get();
+    if (!dark || !bright) return {};
+    if (lit) {
+      return {
+        backgroundColor: interpolateColor(darkening.get(), [0, 1], [dark, bright]),
+        borderColor: interpolateColor(darkening.get(), [0, 1], [dark, bright]),
+      };
+    }
+    return {
+      backgroundColor: interpolateColor(
+        darkening.get(),
+        [0, 1],
+        ['rgba(0, 0, 0, 0.28)', 'rgba(255, 255, 255, 0.08)']
+      ),
+      borderColor: 'rgba(255, 255, 255, 0.08)',
+    };
+  });
+
+  const ink = lit
+    ? '#ffffff'
+    : dark
+      ? 'rgba(235, 235, 245, 0.65)'
+      : accent.m3.onSurfaceVariant;
 
   return (
     <PressableScale
@@ -107,20 +141,23 @@ export function TonalKey({
       disabled={busy}
       onPress={onPress}
       scaleTo={0.92}
-      style={StyleSheet.flatten([
-        styles.key,
-        keyCorners(position),
-        /* Raised when lit: a solid block of the accent where depth is the only
-           edge it has. */
-        lit ? Elevation.raised : Elevation.none,
-        {
-          backgroundColor: lit ? filled.fill : accent.m3.surfaceContainerHigh,
-          borderColor: lit ? filled.fill : accent.m3.surfaceContainerHigh,
-        },
-        caption ? styles.captioned : null,
-        busy && styles.busy,
-        style,
-      ])}>
+      style={[
+        StyleSheet.flatten([
+          styles.key,
+          keyCorners(position),
+          /* Raised when lit: a solid block of the accent where depth is the only
+             edge it has. */
+          lit ? Elevation.raised : Elevation.none,
+          {
+            backgroundColor: lit ? (dark ?? filled.fill) : accent.m3.surfaceContainerHigh,
+            borderColor: lit ? (dark ?? filled.fill) : accent.m3.surfaceContainerHigh,
+          },
+          caption ? styles.captioned : null,
+          busy && styles.busy,
+          style,
+        ]),
+        keyAnimatedStyle,
+      ]}>
       <Ionicons name={lit ? icon : (outline ?? icon)} size={caption ? 20 : 22} color={ink} />
       {caption && (
         <Text variant="tab" numberOfLines={1} style={{ color: ink }}>

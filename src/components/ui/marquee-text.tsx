@@ -59,10 +59,17 @@ export function MarqueeText({
   text,
   variant,
   accessibilityRole,
+  align = 'start',
 }: {
   text: string;
   variant: 'h3';
   accessibilityRole?: 'header';
+  /**
+   * Where a title that fits sits in its window: at the start, or centred —
+   * an Apple bar's title, between its controls. One that scrolls always
+   * starts at the start, where it begins to read.
+   */
+  align?: 'start' | 'center';
 }) {
   const reduceMotion = useReducedMotion();
   const [boxWidth, setBoxWidth] = useState(0);
@@ -131,7 +138,7 @@ export function MarqueeText({
         <Text
           variant={variant}
           numberOfLines={1}
-          style={scrolling ? { width: textWidth } : undefined}
+          style={scrolling ? { width: textWidth } : align === 'center' ? styles.centred : undefined}
           importantForAccessibility="no">
           {text}
         </Text>
@@ -148,4 +155,5 @@ const styles = StyleSheet.create({
      still occupies its own line and would double the block's height. */
   probe: { position: 'absolute', left: -9999, top: 0, width: 9999 },
   probeText: { alignSelf: 'flex-start' },
+  centred: { textAlign: 'center' },
 });

@@ -277,17 +277,19 @@ export function dominantSwatch(
 // 2. The page colour — `toImmersiveBackground`, in Oklab
 // ---------------------------------------------------------------------------
 
-type Oklab = [l: number, a: number, b: number];
+export type Oklab = [l: number, a: number, b: number];
 
 const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 const fromLinear = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
 
-function toOklab(hex: string): Oklab | null {
+export function toOklab(hex: string): Oklab | null {
   const rgb = hexToRgb(hex);
   if (!rgb) return null;
-  const r = toLinear(rgb.r / 255);
-  const g = toLinear(rgb.g / 255);
-  const b = toLinear(rgb.b / 255);
+  return linearToOklab(toLinear(rgb.r / 255), toLinear(rgb.g / 255), toLinear(rgb.b / 255));
+}
+
+/** Oklab from linear-light sRGB channels, 0–1 — for a caller converting pixels in bulk. */
+export function linearToOklab(r: number, g: number, b: number): Oklab {
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
@@ -298,7 +300,7 @@ function toOklab(hex: string): Oklab | null {
   ];
 }
 
-function fromOklab([L, A, B]: Oklab): string {
+export function fromOklab([L, A, B]: Oklab): string {
   const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
   const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
   const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;

@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated from 'react-native-reanimated';
 
-import { CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, cardShape, useCardAnimatedStyle, useCardMaterial } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
+import { Reveal, useRevealing } from '@/components/ui/reveal';
 import { useSectionInset } from '@/components/ui/section';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
@@ -62,7 +64,9 @@ export function Panel({
 }: PanelProps) {
   const accent = useAccent();
   const material = useCardMaterial();
+  const animatedFill = useCardAnimatedStyle();
   const sectionInset = useSectionInset();
+  const revealing = useRevealing();
 
   const shell = StyleSheet.flatten([
     cardShape,
@@ -97,18 +101,25 @@ export function Panel({
     </>
   );
 
-  if (!onPress) return <View style={shell}>{body}</View>;
+  /* A `<Reveal>`: on a page that opts in (`<RevealScope>`, a game's
+     Overview) the card rises into place as it scrolls into view. A card that
+     is a door keeps its press on the card itself, so the reveal goes round it
+     there — and only there, where a box round it costs nothing. */
+  if (!onPress) {
+    return <Reveal style={[shell, animatedFill]}>{body}</Reveal>;
+  }
 
-  return (
+  const door = (
     <PressableScale
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       onPress={onPress}
       scaleTo={0.98}
-      style={shell}>
+      style={[shell, animatedFill]}>
       {body}
     </PressableScale>
   );
+  return revealing ? <Reveal>{door}</Reveal> : door;
 }
 
 /** Between two of these side by side, or one under another: as cards stack everywhere. */

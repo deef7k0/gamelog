@@ -2,10 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, BackHandler, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Alert, BackHandler, Platform, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { AwardShow } from '@/components/award-show';
 import {
+  COLLECTION_BOX_ANCHOR,
   COLLECTION_COVER_RATIO,
   CollectionHeader,
   CollectionOwnerMenu,
@@ -27,6 +28,8 @@ import { Text } from '@/components/ui/text';
 import { ArtRowWindow, CoverGridWindow } from '@/constants/list-window';
 import { ControlHeight, Radius, Spacing, type ThemePalette } from '@/constants/theme';
 import { useImmersiveBackground } from '@/hooks/use-immersive-background';
+import { useKeyColor } from '@/hooks/use-key-color';
+import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import {
   deleteList,
@@ -152,8 +155,29 @@ export default function ListDetailScreen() {
    * are the same game's artwork and nearly always the same palette.
    */
   const cover = list.data ? collectionCover(list.data) : null;
-  const pageColor = useImmersiveBackground(cover?.cover_url ?? cover?.hero_url ?? null);
-  const background = pageColor ?? undefined;
+  const boxArt = cover?.cover_url ?? cover?.hero_url ?? null;
+  /*
+   * The page's colour, from the cover's key colour — the colour the art ends
+   * in, read off the edges the header actually shows (`<Screen tone>`): one
+   * colour from the top of the page to its foot, darkening as the page is
+   * read.
+   *
+   * **Only where the header draws the box.** It draws SteamGridDB's square art
+   * where there is any, and a square is 400px — too large to decode on the
+   * phone — so a square-art collection has no key colour and keeps the
+   * immersive colour of its box, as it did. `useSquareCover` is a module store
+   * shared with the header, so asking here costs no second lookup.
+   */
+  const square = useSquareCover({ gameId: cover?.id, title: cover?.title, enabled: !!cover });
+  const coverHeight = Math.round(windowHeight * COLLECTION_COVER_RATIO);
+  const key = useKeyColor(square.resolved && !square.uri ? boxArt : null, {
+    frame: { width, height: coverHeight },
+    anchor: { x: 0.5, y: COLLECTION_BOX_ANCHOR },
+    ink: theme.textSecondary,
+  });
+  const immersive = useImmersiveBackground(boxArt);
+  const page = key.dark ?? immersive ?? theme.background;
+  const tone = { bright: key.bright, dark: page, header: coverHeight };
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', id] });
@@ -333,7 +357,7 @@ export default function ListDetailScreen() {
 
   if (list.isLoading) {
     return (
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back glass />}>
         <LoadingState />
       </Screen>
     );
@@ -341,7 +365,7 @@ export default function ListDetailScreen() {
 
   if (list.isLoadingError) {
     return (
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back glass />}>
         <ErrorState error={list.error} />
       </Screen>
     );
@@ -349,7 +373,7 @@ export default function ListDetailScreen() {
 
   if (!list.data) {
     return (
-      <Screen edges={['bottom']} topBar={<FrostedTopBar back />}>
+      <Screen edges={['bottom']} topBar={<FrostedTopBar back glass />}>
         <EmptyState title="List not found" />
       </Screen>
     );
@@ -374,15 +398,17 @@ export default function ListDetailScreen() {
    * for whoever made the collection — its menu at the right, in the same disc
    * of glass. A visitor has nothing to edit and gets no second disc.
    *
-   * The discs leave with the cover, as the reference's do; once the cover has
-   * gone under where the bar sits, the bar comes in with the collection's name
-   * and the same two controls as bare glyphs.
+   * The discs stay where they are — Apple's bar (`glass`): there is always a
+   * way back. Once the cover has gone under where the bar sits, and drained
+   * to the page's colour, the bar's glass fades in under them with the
+   * collection's name centred.
    */
   const topBar = (
     <FrostedTopBar
       back
+      glass
       title={list.data?.title}
-      header={Math.round(windowHeight * COLLECTION_COVER_RATIO)}
+      header={coverHeight}
       right={
         isOwner ? (
           <TopBarDisc
@@ -406,7 +432,7 @@ export default function ListDetailScreen() {
       <CollectionHeader
         collection={data}
         owner={owner.data ?? null}
-        pageColor={pageColor}
+        pageColor={page}
         engagement={engagement.data}
         onShare={() =>
           Share.share({
@@ -512,7 +538,9 @@ export default function ListDetailScreen() {
     <View
       style={[
         styles.selectionBar,
-        { backgroundColor: background ?? theme.background, borderTopColor: theme.border },
+        /* The page's darker tone: the bar is docked at the foot, where the
+           page has long since darkened. */
+        { backgroundColor: page, borderTopColor: theme.border },
       ]}>
       <IconButton icon="close" accessibilityLabel="Cancel the selection" onPress={clearSelection} />
       <View style={styles.selectionAction}>
@@ -543,7 +571,7 @@ export default function ListDetailScreen() {
    */
   if (isAwards) {
     return (
-      <Screen edges={['bottom']} background={background} topBar={topBar}>
+      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
         <AwardShow listId={id!} isOwner={isOwner} header={header} />
       </Screen>
     );
@@ -565,7 +593,7 @@ export default function ListDetailScreen() {
    */
   if (isCaptioned) {
     return (
-      <Screen edges={['bottom']} background={background} topBar={topBar}>
+      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
         <PageFlatList
           data={[null]}
           keyExtractor={() => 'board'}
@@ -607,7 +635,7 @@ export default function ListDetailScreen() {
    */
   if (!isTierList && layout === 'rows' && !pickingCover) {
     return (
-      <Screen edges={['bottom']} background={background} topBar={topBar}>
+      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
         <PageFlatList
           data={ordered}
           key="collection-rows"
@@ -653,16 +681,49 @@ export default function ListDetailScreen() {
     );
   }
 
+  const isRanked = data.is_ranked;
+  const coverGameId = data.cover_game_id;
+  const keyExtractor = useCallback((item: ListItem) => item.game_id, []);
+  const renderGridItem = useCallback(
+    ({ item }: { item: ListItem }) => (
+      <GridTile
+        item={item}
+        width={gridWidth}
+        rank={isRanked ? (rankOf.get(item.game_id) ?? null) : null}
+        mode={pickingCover ? 'pick' : selecting ? 'select' : 'open'}
+        isCover={coverGameId === item.game_id}
+        isSelected={selected.has(item.game_id)}
+        canSelect={canSelect}
+        onOpen={openGame}
+        onPick={pickCover}
+        onToggle={toggleSelected}
+      />
+    ),
+    [
+      gridWidth,
+      isRanked,
+      coverGameId,
+      rankOf,
+      pickingCover,
+      selecting,
+      selected,
+      canSelect,
+      openGame,
+      pickCover,
+      toggleSelected,
+    ]
+  );
+
   if (!isTierList) {
     return (
       /* The cover runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
-      <Screen edges={['bottom']} background={background} topBar={topBar}>
+      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
         <PageFlatList
           data={ordered}
           key="collection-grid"
           numColumns={GRID_COLUMNS}
-          keyExtractor={(item) => item.game_id}
+          keyExtractor={keyExtractor}
           {...CoverGridWindow}
           /* The set is not in `data`, so the list is told it matters. */
           extraData={selected}
@@ -671,24 +732,8 @@ export default function ListDetailScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={header}
           ListFooterComponent={footer}
-          renderItem={({ item }) => (
-            <GridTile
-              item={item}
-              width={gridWidth}
-              rank={data.is_ranked ? (rankOf.get(item.game_id) ?? null) : null}
-              /* One target, three verbs: in picking mode a tap chooses the
-                 cover, once a game is held it ticks or unticks, and otherwise
-                 it opens the game — so the grid never grows a second control
-                 on every tile. */
-              mode={pickingCover ? 'pick' : selecting ? 'select' : 'open'}
-              isCover={data.cover_game_id === item.game_id}
-              isSelected={selected.has(item.game_id)}
-              canSelect={canSelect}
-              onOpen={openGame}
-              onPick={pickCover}
-              onToggle={toggleSelected}
-            />
-          )}
+          renderItem={renderGridItem}
+          removeClippedSubviews={Platform.OS === 'android'}
           ListEmptyComponent={
             <EmptyState
               title="Nothing here yet"
@@ -706,7 +751,7 @@ export default function ListDetailScreen() {
   }
 
   return (
-    <Screen edges={['bottom']} background={background} topBar={topBar}>
+    <Screen edges={['bottom']} tone={tone} topBar={topBar}>
       <PageFlatList
         data={items}
         keyExtractor={(item) => item.game_id}

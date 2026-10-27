@@ -77,6 +77,11 @@ export type ScreenChrome = {
   tone: ScreenTone | null;
   /** The page reserves the bar's row at its top. */
   insetHeader: boolean;
+  /**
+   * The page is one flat colour from its artwork and its cards are glass
+   * (`<Screen glass>`, `useCardMaterial`): the game page.
+   */
+  glass: boolean;
 };
 
 const ScreenChromeContext = createContext<ScreenChrome | null>(null);
@@ -94,6 +99,7 @@ export type ScreenChromeProviderProps = {
   modal?: boolean;
   background: string;
   insetHeader?: boolean;
+  glass?: boolean;
   /** The page's own tones, and how tall the artwork they were read from is. */
   tone?: { bright: string | null; dark: string; header: number };
   children: (chrome: ScreenChrome & { blurTargetRef: { current: View | null } }) => ReactNode;
@@ -111,6 +117,7 @@ export function ScreenChromeProvider({
   modal = false,
   background,
   insetHeader = false,
+  glass = false,
   tone,
   children,
 }: ScreenChromeProviderProps) {
@@ -173,9 +180,10 @@ export function ScreenChromeProvider({
       layout,
       background,
       insetHeader,
+      glass,
       tone: tones,
     }),
-    [target, modal, scrollY, layout, background, insetHeader, tones]
+    [target, modal, scrollY, layout, background, insetHeader, glass, tones]
   );
 
   return (

@@ -166,8 +166,14 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # decoded as the app decodes them, the edges of the part
                    # on screen, iTunes' black-or-white rule, the dark-room
                    # ground (lib/key-color), and the hero's scroll: the
-                   # softening, the drain, the iOS stretch, a shelf arriving
-                   # (lib/scroll-motion)
+                   # softening, the drain, the iOS stretch, a shelf arriving,
+                   # and the game page's pinned hero — its drift, its blur
+                   # whole as the title reaches the top, its drain, its
+                   # stretch (lib/scroll-motion); and the game page's
+                   # colours — Palette's named swatches, the brief's filter
+                   # on synthetic images and on five real heroes, the glass
+                   # recipe's brightness order, Material's seed (fixed-seed,
+                   # so deterministic) and rule 5 (lib/page-color)
 
 node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
                    # (PGlite, in-process) over every migration, with seven
@@ -445,8 +451,14 @@ src/
                                         (SimpMusic's `AnimatedVisibility`,
                                         300ms), and `stagger` for a run of
                                         them. See § Loading
-                     ui/key-color-hero  Apple Music's hero — the game page's,
-                                        a studio's, a collection's: the art
+                     ui/pinned-hero     the game page's hero: pinned behind
+                                        the page as `<Screen backdrop>`,
+                                        nearly still, blurring and draining
+                                        as the page slides over it — and
+                                        `<PageFill>`. See § The game page's
+                                        colours
+                     ui/key-color-hero  Apple Music's hero — a studio's and
+                                        a collection's: the art
                                         melting into its key colour, a blurred
                                         copy fading in and the colour draining
                                         as the page scrolls, the iOS stretch.
@@ -806,7 +818,15 @@ src/
     use-pulse           `usePulse()`: a value that changes on every render, so
                         a scroll-driven animated style is re-applied after one.
                         See § Gotchas, the lost end value
-    use-key-color       a page's two tones from its hero's key colour — IGDB's
+    use-page-color      the game page's colours from its hero: the page, the
+                        Material 3 seed for its buttons, whether its cards
+                        are glass — IGDB's `t_cover_small_2x`, decoded in
+                        JavaScript, kept for good. See § The game page's
+                        colours
+    use-theme           `useTheme()` — and `<ThemeInks>`, a page's own inks
+                        for everything under it (`inks={null}` puts the
+                        app's back, round the protected case)
+    use-key-color       a studio's and a collection's two tones from a hero's key colour — IGDB's
                         `t_cover_small` of the art, decoded in JavaScript,
                         kept on the device for good. See § Apple Music's hero
     use-immersive-background  a page colour from one piece of artwork, or null
@@ -910,6 +930,9 @@ src/
                      ends in, read off the edges of the part on screen, and
                      the two page tones it becomes in a dark room (`keyPage`).
                      Pure, tested against real heroes
+    page-color.ts    the game page's colours: Palette's named swatches, the
+                     owner's filter, the page's inks, the glass recipe, and
+                     Material 3's own seed for the buttons. Pure, tested
     scroll-motion.ts how an Apple Music hero answers the scroll, and a shelf
                      arriving: the curves, as worklets. Pure, tested
     immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
@@ -2421,6 +2444,10 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
   card as the review card in the home page"): `<ListTile>` restates the fill,
   the corner, the inset, the twelve between parts and the shadow. Change one
   and change the other. See the bullet on collections under § Conventions.
+- **Except on a game's page, where every card is glass** (2026-10-27,
+  § The game page's colours): `useCardMaterial()` answers the glass there,
+  and its `shape` — not `cardShape` — is what a card spreads, so the same
+  components draw both.
 - **Every card in the app is this card** — the owner's direction
   (2026-10-20): "make all the cards in the app with that style of the review
   ones, with the same size and corner ratio and stuff. Even the ones in the
@@ -3126,7 +3153,10 @@ page pasted in: its hero, its `keyColor`, the blur from hero to content, the
 colour shift, the frosted bar and the shelves arriving — "for the game page,
 studio page and collection page… It needs to read as an apple product".
 Then, mid-build: "make sure it works for animated banners". `<KeyColorHero>`
-draws all three heroes; DESIGN.md § 13.1 is the visual statement.
+drew all three heroes; **since 2026-10-27 it draws the studio's and the
+collection's, and the game page has its own** — a pinned hero over one
+unchanging colour (§ The game page's colours). DESIGN.md § 13.1 is the visual
+statement.
 
 **The key colour** (`lib/key-color.ts`, pure, tested) is iTunes 11's: crop the
 border, sample a band of each edge, cluster, take the largest — with iTunes'
@@ -3286,6 +3316,80 @@ with a knob on it — the ink), the parallax at 0.4, the blur's strength at 72
 (Android caps it at 25 over a 4× downsample), the crossfade's middle — a
 blurred copy over a sharp one is a blend, not a growing radius — the glass
 bar's 60% wash, and the shelves' 560 ms.
+
+## The game page's colours, and its pinned hero (2026-10-27)
+
+The owner's direction (2026-10-27), with frames of Apple Music's artist page
+scrolling: no colour transition on the page — "The color will stay the same";
+the page's colour picked by a pasted pipeline of "anti-ugly" rules; the
+buttons Material 3 from the hero art, "not the game cover"; the cards glass;
+and the hero pinned behind the page. The studio and the collection keep
+§ Apple Music's hero as it was — only the game page moved.
+
+**The page colour** (`lib/page-color.ts`, `usePageColor`) is the brief's
+pipeline, in JavaScript rather than through `react-native-image-colors`: the
+native module returns bare hexes with no populations and cannot crop, iOS's
+answer is not Palette's at all, and Expo Go has none — so Palette's quantiser
+(already ported, `lib/immersive-color`) and its six targets are run here, on
+IGDB's `t_cover_small_2x` of the hero (the 90-px file changed the answer for
+nine of twenty live heroes; 180 px is Palette's own sampling area). A 10% ring
+is cropped first; saturation ≥ 0.15, HSL lightness 0.08–0.92; vibrant and
+dark vibrant preferred; darkened in HSL until white holds 3:1; the most
+saturated if nothing passes the floor, `#2C2C2E` if nothing at all, `#1C1C1E`
+if the image fails. **One addition, measured**: a swatch must cover 5% of
+what Palette counted (`minShare`) — "prefer vibrant" otherwise gave God of
+War its logo's red, The Witcher 3 its blood, Ghost of Tsushima its leaves.
+
+**The buttons** are `<AccentProvider color={seed}>`: Material's Celebi (128
+colours) and `Score` on the hero's visible part — Android's wallpaper path —
+then the first seed whose review-button fill is ΔE 30 from the page (rule 5),
+else its complement. Things that are easy to break:
+
+- **Celebi's JS port is random.** Its k-means starts from `Math.random()`
+  (Java seeds `0x42688`); two reads of one hero disagreed by ΔE 17 one time in
+  ten. `m3Seeds` runs it under a fixed seed, so it is deterministic.
+- **It is the slow part**: ~200 ms on an interpreter for 1,000 pixels (most
+  of it is the 128 clusters, which are Android's and kept), once per hero.
+- **`Button` and `TonalKey` read the accent again** — the backup commit had
+  them read the screen's tone; both are back to `filledRoles(accent)`.
+
+**The inks**: white and white at 60% (`pageInks`), handed to everything on the
+page by `<ThemeInks>` — `useTheme()` reads it, so every `<Text color>` follows.
+**The protected case's printed back is set in those inks**, so the Platforms
+section wraps the case in `<ThemeInks inks={null}>`; none of the case's own
+files changed. **The 3:1 floor and the 60% are the owner's numbers, and on a
+bright page they make the quiet type faint**: white at 60% is 2.0:1 on
+Cyberpunk 2077's, Disco Elysium's and Ghost of Tsushima's pages (each right at
+3:1), 1.8:1 on a glass card there; 2.8:1 on God of War's, 5:1 and up on dark
+pages (measured on the live heroes). `PAGE_COLOR.whiteContrast` is the one
+number to raise if the owner wants AA back.
+
+**The glass** (`GLASS`, `glassMaterial`): white at 12%, a 30% edge, a 1dp
+highlight inside the top edge and a soft 0 8 16 shadow at 15% — both
+`boxShadow`, because an Android elevation shows through a translucent card and
+React Native's box shadow clips itself out of the card (`clipOutPath`).
+`<Screen glass>` turns it on; `useCardMaterial()` returns it with its `shape`
+and an opaque `solid` (the page lifted 12%) for fades that end on a card.
+
+**The pinned hero** (`<PinnedHero>`, `PINNED_HERO`): `<Screen backdrop>`, not
+in the scroller. At rest it is exactly the old hero (38%, the owner's
+dissolve, the row set into it). Scrolled: the art drifts up at a fifth of the
+page's speed; the masthead (spacer, row, synopsis) is transparent and slides
+over it; a blurred copy fades in from 15% of the way and is whole as the title
+reaches the top (`blurAt`) — it carries its own shorter foot fade, so the
+blurred art reaches further down behind the cover and synopsis; then the art
+drains into the page (`coverAt`, the solid part reaching the bar), while the
+solid part — from the rule under the synopsis, opaque, with a 40dp lip — rises
+over it. No zoom. The trailer pauses at `coverAt` (`TrailerBackdrop until`).
+The first time a hero's colour is read the art and the page's colour come in
+over 400 ms; every visit after, the colour is there before the first frame.
+
+**Not seen on a phone**, and the owner asked for no emulator here. Checked:
+types, lint, `npm test`, the worklets as the plugin ships them, and scroll
+states rendered from the real geometry and real heroes. To judge on a device:
+the drift (0.2), where the blur starts (0.15), the lip's 40dp, the box
+shadow's look on Android, white at 60% on the brightest pages, and the first
+visit's 400 ms arrival.
 
 ## Home: SimpMusic's header, glow and moods
 
@@ -3738,6 +3842,8 @@ and the event page's foot bar are all for a device.
   on a cold start; nothing invalidates it.
   `['key-color', source, aspect, ax, ay]` is a hero's key colour — kept on
   the device, nothing invalidates it (a picture's edges do not change).
+  `['page-color', source, aspect, ax, ay]` is the game page's colours (the
+  page and Material's seeds) — the same: kept, never invalidated.
   `['artwork-mesh', thumbnail]` is the cover viewer's page, never persisted;
   `['onboarding-examples', 'colours' | 'animated']` the look questions'
   games.
@@ -4452,7 +4558,10 @@ and the event page's foot bar are all for a device.
   Steam library is the exception and sorts in Postgres via `LibrarySort`,
   because it can be nine hundred rows. Sorting is a view: never write the new
   order back, and read a ranked collection's numbers from its stored sequence.
-- **A game's screens run Material 3 dynamic colour, seeded by its box art.**
+- **A game's screens run Material 3 dynamic colour, seeded by its box art** —
+  except the game page itself, whose seed is its *hero's* (Material's own
+  seed choice off the hero art, § The game page's colours) and whose page is
+  not M3's at all.
   `theme/dynamic-color.ts` turns one seed hex into the twenty-three M3 roles via
   `DynamicScheme` + `Variant.TONAL_SPOT`. **The tones are read off the palettes,
   not off the scheme's getters** — those implement whichever M3 spec revision the

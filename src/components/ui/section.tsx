@@ -13,13 +13,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import {
-  CARD_GAP,
-  CARD_INSET,
-  cardShape,
-  useCardAnimatedStyle,
-  useCardMaterial,
-} from '@/components/ui/card-material';
+import { CARD_GAP, CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Reveal } from '@/components/ui/reveal';
 import { Text } from '@/components/ui/text';
@@ -220,10 +214,9 @@ export function SectionCard({
 }) {
   const inset = useSectionInset();
   const material = useCardMaterial();
-  const animatedFill = useCardAnimatedStyle();
 
   const card = StyleSheet.flatten([
-    cardShape,
+    material.shape,
     {
       marginHorizontal: inset,
       backgroundColor: material.fill,
@@ -234,7 +227,7 @@ export function SectionCard({
     style,
   ]);
 
-  if (!onPress) return <Animated.View style={[card, animatedFill]}>{children}</Animated.View>;
+  if (!onPress) return <View style={card}>{children}</View>;
 
   return (
     <PressableScale
@@ -242,7 +235,7 @@ export function SectionCard({
       accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       scaleTo={0.98}
-      style={[card, animatedFill]}>
+      style={card}>
       {children}
     </PressableScale>
   );

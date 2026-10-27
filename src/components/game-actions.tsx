@@ -14,13 +14,11 @@ import { PROGRESS_META, progressChoiceFor } from '@/constants/progress';
 import { Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
 import { ARRIVAL_CONTROL, useLandingArrival } from '@/hooks/use-arrival';
-import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { getListMembership, toggleSingletonMembership } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import type { Game } from '@/lib/games';
 import { formatReleaseDate, isUnreleased } from '@/lib/games/release';
-import { getSecondaryTextColor } from '@/lib/key-color';
 import { hasWriting } from '@/lib/review-quote';
 import { useAuth } from '@/store/auth';
 
@@ -189,20 +187,15 @@ export const GameActions = memo(function GameActions({
     },
   ];
 
-  const chrome = useScreenChrome();
-  const secondaryColor = chrome?.tone?.bright
-    ? getSecondaryTextColor(chrome.tone.bright)
-    : (accent?.quietInk ?? theme.textSecondary);
-
   return (
     <View style={styles.wrapper}>
       {unreleased && game.releaseDate && (
         <View style={[styles.unreleased, { borderColor: theme.border }]}>
-          <Ionicons name="calendar-outline" size={16} color={secondaryColor} />
+          <Ionicons name="calendar-outline" size={16} color={accent.quietInk} />
           <View style={styles.unreleasedText}>
             {/* Label over value, as the owner's reference sets a fact: the
                 label small and quiet, the value the bold line. */}
-            <Text variant="bodySmall" style={{ color: secondaryColor }}>
+            <Text variant="bodySmall" style={{ color: accent.quietInk }}>
               Planned release
             </Text>
             <Text variant="itemTitle">{formatReleaseDate(game.releaseDate)}</Text>

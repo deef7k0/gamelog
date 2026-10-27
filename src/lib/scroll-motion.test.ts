@@ -5,11 +5,16 @@ import { describe, it } from 'node:test';
 import { revealOffset, TOP_BAR_ROW } from '../constants/top-bar.ts';
 import {
   HERO_MOTION,
+  PINNED_HERO,
   SHELF_REVEAL,
   blurAmount,
   darkenOpacity,
   heroProgress,
   parallaxShift,
+  pinnedBlur,
+  pinnedDrain,
+  pinnedDrift,
+  pinnedStretch,
   shelfArrived,
   smoothstep,
   stretchOf,
@@ -144,6 +149,58 @@ describe('the hero pulled past the top (iOS)', () => {
       const foot = centre + (HERO * scale) / 2 + translateY;
       assert.ok(Math.abs(top) < 1e-9, `top at ${top} for ${offset}`);
       assert.ok(Math.abs(foot - (laidAt + HERO)) < 1e-9, `foot at ${foot} for ${offset}`);
+    }
+  });
+});
+
+describe('the game page’s hero, pinned behind the page', () => {
+  /* The title reaches the top of the display at about the hero's height less
+     its row's rise; the page's solid part a couple of hundred dp later. */
+  const TITLE_AT_TOP = 250;
+  const COVERED = 470;
+
+  it('is nearly still: it drifts up, slower than the page by far', () => {
+    assert.equal(pinnedDrift(0, PINNED_HERO.drift, HERO), 0);
+    assert.equal(pinnedDrift(-60, PINNED_HERO.drift, HERO), 0, 'a bounce is the stretch’s');
+    const moved = -pinnedDrift(TITLE_AT_TOP, PINNED_HERO.drift, HERO);
+    assert.ok(moved > 0, 'not completely still');
+    assert.ok(moved < TITLE_AT_TOP * 0.35, '"mostly still"');
+    /* Never further than its own height — it is off the display by then. */
+    assert.equal(pinnedDrift(1e6, PINNED_HERO.drift, HERO), -HERO);
+  });
+
+  it('is sharp at rest and at its blurriest when the title reaches the top', () => {
+    assert.equal(pinnedBlur(0, TITLE_AT_TOP, PINNED_HERO.blurFrom), 0);
+    assert.equal(
+      pinnedBlur(TITLE_AT_TOP * PINNED_HERO.blurFrom, TITLE_AT_TOP, PINNED_HERO.blurFrom),
+      0
+    );
+    assert.equal(pinnedBlur(TITLE_AT_TOP, TITLE_AT_TOP, PINNED_HERO.blurFrom), 1);
+    assert.equal(pinnedBlur(TITLE_AT_TOP * 2, TITLE_AT_TOP, PINNED_HERO.blurFrom), 1);
+    /* "After a bit": not from the first pixel. */
+    assert.ok(PINNED_HERO.blurFrom > 0.05 && PINNED_HERO.blurFrom < 0.4);
+  });
+
+  it('drains into the page only once it is fully blurred, and is gone when covered', () => {
+    for (const offset of steps(20).map((t) => t * TITLE_AT_TOP)) {
+      assert.equal(pinnedDrain(offset, TITLE_AT_TOP, COVERED), 0, `${offset}`);
+    }
+    assert.ok(pinnedDrain((TITLE_AT_TOP + COVERED) / 2, TITLE_AT_TOP, COVERED) > 0);
+    assert.equal(pinnedDrain(COVERED, TITLE_AT_TOP, COVERED), 1);
+  });
+
+  it('pulled past the top, keeps its top pinned and its foot with the page', () => {
+    assert.deepEqual(pinnedStretch(0, HERO), { scale: 1, translateY: 0 });
+    assert.deepEqual(pinnedStretch(200, HERO), { scale: 1, translateY: 0 });
+    for (const offset of [-1, -40, -120, -300]) {
+      const { scale, translateY } = pinnedStretch(offset, HERO);
+      /* Laid out at the top of the display, scaled about its centre. */
+      const top = HERO / 2 - (HERO * scale) / 2 + translateY;
+      const foot = HERO / 2 + (HERO * scale) / 2 + translateY;
+      assert.ok(Math.abs(top) < 1e-9, `top at ${top} for ${offset}`);
+      /* The page has come down by -offset, and the row set into the hero's
+         foot with it. */
+      assert.ok(Math.abs(foot - (HERO - offset)) < 1e-9, `foot at ${foot} for ${offset}`);
     }
   });
 });

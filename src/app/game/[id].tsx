@@ -61,14 +61,14 @@ import { copyStateLine, releaseLine } from '@/constants/physical';
 import { labelFor, scoreColor } from '@/constants/score';
 import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
-import { TOP_BAR_ROW } from '@/constants/top-bar';
+import { TOP_BAR_ROW, revealOffset } from '@/constants/top-bar';
 import { FontFamily, PosterAspectRatio, Spacing, accentRoles, withAlpha } from '@/constants/theme';
 import { AccentProvider } from '@/hooks/use-accent';
 import { useLandingArrival } from '@/hooks/use-arrival';
 import { useHeaderHeight, useTopBarInset } from '@/hooks/use-header-height';
 import { useGameStorefronts } from '@/hooks/use-game-prices';
 import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
-import { usePageColor } from '@/hooks/use-page-color';
+import { pageColorSource, usePageColor } from '@/hooks/use-page-color';
 import { ThemeInks, useTheme } from '@/hooks/use-theme';
 import { smoothScrimStops } from '@/lib/immersive-color';
 import { pageInks } from '@/lib/page-color';
@@ -512,25 +512,21 @@ export default function GameDetailScreen() {
   const logMaterial = colour.glass ? glassMaterial(page) : cardMaterialFor(null, theme);
 
   /*
-   * Where the pinned hero's motion turns, in how far the page has scrolled.
-   *
-   * **Blurred through, as the title reaches the top of the screen**: the
-   * title's capitals are the billing's twelve under the row's top, which is
-   * the hero's height less the row's rise into it. **Covered** once the
-   * page's solid part — from the rule under the synopsis — reaches the foot
-   * of the bar; measured, with an estimate of the masthead until it is.
+   * Where the pinned hero is solid page colour, in how far the page has
+   * scrolled: **exactly where the top bar comes in** — the owner's
+   * (2026-10-27), "at the same level where the top bar comes into screen".
+   * One header for both, so the bar and the art cannot disagree: the bar
+   * arrives once the masthead's row (the name and the cover) has gone under
+   * it, and `revealOffset` of that is the scroll it arrives at. The blur and
+   * the drain are shares of it (`PINNED_HERO`).
    */
   const topInset = useTopBarInset();
-  const blurAt = Math.max(1, heroHeight - overlap + Spacing.x12 - topInset);
-  const [solidAt, setSolidAt] = useState<number | null>(null);
-  /* The tabs are inside the solid part, so their place in the page is its
-     place plus theirs in it. */
-  const tabsAt = solidAt !== null && tabsY !== null ? solidAt + tabsY : null;
-  const coverAt = Math.max(
-    blurAt + Spacing.x48,
-    (solidAt ?? heroHeight - overlap + coverHeight + Spacing.x16 + ABOUT_LINES * 20) -
-      (topInset + TOP_BAR_ROW)
-  );
+  const barHeader = heroHeight - overlap + coverHeight;
+  const solidAt = Math.max(1, revealOffset(barHeader, topInset + TOP_BAR_ROW));
+  /* Where the page's solid part starts: the tabs are inside it, so their
+     place in the page is its place plus theirs in it. */
+  const [solidPartAt, setSolidPartAt] = useState<number | null>(null);
+  const tabsAt = solidPartAt !== null && tabsY !== null ? solidPartAt + tabsY : null;
 
   /*
    * Which platform's box the Platforms section shows, and prices.
@@ -1389,15 +1385,15 @@ export default function GameDetailScreen() {
                   height={heroHeight}
                   page={page}
                   fade={MASTHEAD_FADE}
-                  blurAt={blurAt}
-                  coverAt={coverAt}
+                  solidAt={solidAt}
+                  blurUri={pageColorSource(data.heroUrl)}
                   scrim={0.4}
                   ready={colour.resolved}
                   media={(art) => (
                     <TrailerBackdrop
                       url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
                       height={heroHeight}
-                      until={coverAt}>
+                      until={solidAt}>
                       {art}
                     </TrailerBackdrop>
                   )}
@@ -1409,14 +1405,14 @@ export default function GameDetailScreen() {
                The bar's glass fades in under them, with the game's name centred,
                once the masthead's row (the name and the cover) has gone under
                where it sits: the hero, less how far the row rises into it, plus
-               the cover. By then the art has blurred and is draining into the
-               page's colour. */
+               the cover. At that same scroll the art has finished draining:
+               it is solid page colour as the bar arrives (`solidAt`). */
             topBar={
               <FrostedTopBar
                 back
                 glass
                 title={data.title}
-                header={heroHeight - overlap + coverHeight}
+                header={barHeader}
                 /* The trailer on and off, opposite the back disc — the studio
                    page's key — shown only when there is a trailer to switch. */
                 right={
@@ -1465,7 +1461,7 @@ export default function GameDetailScreen() {
               Measured, so the hero knows when it is covered.
             */}
               <Animated.View
-                onLayout={(event) => setSolidAt(event.nativeEvent.layout.y)}
+                onLayout={(event) => setSolidPartAt(event.nativeEvent.layout.y)}
                 style={[
                   {
                     backgroundColor: page,

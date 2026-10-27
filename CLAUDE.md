@@ -3375,21 +3375,37 @@ and an opaque `solid` (the page lifted 12%) for fades that end on a card.
 in the scroller. At rest it is exactly the old hero (38%, the owner's
 dissolve, the row set into it). Scrolled: the art drifts up at a fifth of the
 page's speed; the masthead (spacer, row, synopsis) is transparent and slides
-over it; a blurred copy fades in from 15% of the way and is whole as the title
-reaches the top (`blurAt`) — it carries its own shorter foot fade, so the
-blurred art reaches further down behind the cover and synopsis; then the art
-drains into the page (`coverAt`, the solid part reaching the bar), while the
-solid part — from the rule under the synopsis, opaque, with a 40dp lip — rises
-over it. No zoom. The trailer pauses at `coverAt` (`TrailerBackdrop until`).
+over it; a blurred copy comes in **from the first pixel of scroll**, eased out
+so it is three quarters in by a quarter of the way, and whole halfway; then the
+art drains into the page's colour and is **solid exactly where the top bar
+comes in** — the owner's corrections of 2026-10-27, "start sooner and
+stronger" and "at the same level where the top bar comes into screen". One
+number, `solidAt`, is `revealOffset` of the very `header` the page hands the
+bar, so the two cannot disagree. No zoom. The trailer pauses at `solidAt`
+(`TrailerBackdrop until`). Things that are easy to break:
+
+- **One foot fade, over both copies.** For one build the blurred copy had a
+  shorter fade of its own, so as it came in the art stopped dissolving and
+  read "as if it was pasted onto the page raw". The sharp art and the blur
+  dissolve by the same curve, drawn once over both.
+- **The clip is on the box that drifts, not the frame.** The blurred copy is
+  drawn 10% oversize; the art moves up inside the frame, so a frame clip let
+  the overhang show as a band under the foot once the art had drifted 15dp.
+- **The blur is a small copy** (`blurUri`: IGDB's `t_cover_small_2x`, the
+  file the page colour is read from) at radius 24 — stretched six times across
+  the display it is far softer than any radius on the full-size file, and
+  Android's cap of 25 still allows it. A Steam hero is another picture, so it
+  blurs its own full-size file.
+
 The first time a hero's colour is read the art and the page's colour come in
 over 400 ms; every visit after, the colour is there before the first frame.
 
 **Not seen on a phone**, and the owner asked for no emulator here. Checked:
 types, lint, `npm test`, the worklets as the plugin ships them, and scroll
 states rendered from the real geometry and real heroes. To judge on a device:
-the drift (0.2), where the blur starts (0.15), the lip's 40dp, the box
-shadow's look on Android, white at 60% on the brightest pages, and the first
-visit's 400 ms arrival.
+the drift (0.2), the blur's strength on the small copy (radius 24) on each
+platform, the lip's 40dp, the box shadow's look on Android, white at 60% on
+the brightest pages, and the first visit's 400 ms arrival.
 
 ## Home: SimpMusic's header, glow and moods
 

@@ -154,39 +154,43 @@ describe('the hero pulled past the top (iOS)', () => {
 });
 
 describe('the game page’s hero, pinned behind the page', () => {
-  /* The title reaches the top of the display at about the hero's height less
-     its row's rise; the page's solid part a couple of hundred dp later. */
-  const TITLE_AT_TOP = 250;
-  const COVERED = 470;
+  /* Where the top bar comes in on a 360 × 800 phone with a 24dp status bar:
+     the hero (304) less the row's rise (35) plus the cover (150), less the
+     bar's foot (24 + 64). The art is solid page colour there. */
+  const SOLID_AT = revealOffset(304 - 35 + 150, BAR);
 
   it('is nearly still: it drifts up, slower than the page by far', () => {
     assert.equal(pinnedDrift(0, PINNED_HERO.drift, HERO), 0);
     assert.equal(pinnedDrift(-60, PINNED_HERO.drift, HERO), 0, 'a bounce is the stretch’s');
-    const moved = -pinnedDrift(TITLE_AT_TOP, PINNED_HERO.drift, HERO);
+    const moved = -pinnedDrift(SOLID_AT, PINNED_HERO.drift, HERO);
     assert.ok(moved > 0, 'not completely still');
-    assert.ok(moved < TITLE_AT_TOP * 0.35, '"mostly still"');
+    assert.ok(moved < SOLID_AT * 0.35, '"mostly still"');
     /* Never further than its own height — it is off the display by then. */
     assert.equal(pinnedDrift(1e6, PINNED_HERO.drift, HERO), -HERO);
   });
 
-  it('is sharp at rest and at its blurriest when the title reaches the top', () => {
-    assert.equal(pinnedBlur(0, TITLE_AT_TOP, PINNED_HERO.blurFrom), 0);
-    assert.equal(
-      pinnedBlur(TITLE_AT_TOP * PINNED_HERO.blurFrom, TITLE_AT_TOP, PINNED_HERO.blurFrom),
-      0
-    );
-    assert.equal(pinnedBlur(TITLE_AT_TOP, TITLE_AT_TOP, PINNED_HERO.blurFrom), 1);
-    assert.equal(pinnedBlur(TITLE_AT_TOP * 2, TITLE_AT_TOP, PINNED_HERO.blurFrom), 1);
-    /* "After a bit": not from the first pixel. */
-    assert.ok(PINNED_HERO.blurFrom > 0.05 && PINNED_HERO.blurFrom < 0.4);
+  it('starts to blur at the first pixel of scroll, and strongly', () => {
+    const blur = (offset: number) => pinnedBlur(offset, SOLID_AT, PINNED_HERO.blurUntil);
+    assert.equal(blur(0), 0, 'sharp at rest');
+    assert.equal(blur(-40), 0, 'and on a bounce');
+    /* "Start sooner": something at once, not after a dead zone. */
+    assert.ok(blur(8) > 0.05, `${blur(8)} at 8dp`);
+    /* "And stronger": eased out, so it is mostly in a quarter of the way. */
+    assert.ok(blur(SOLID_AT * 0.25) >= 0.7, `${blur(SOLID_AT * 0.25)} a quarter of the way`);
+    assert.equal(blur(SOLID_AT * PINNED_HERO.blurUntil), 1);
+    /* It only ever rises. */
+    const curve = steps(40).map((t) => blur(t * SOLID_AT));
+    for (let i = 1; i < curve.length; i += 1) assert.ok(curve[i] >= curve[i - 1]);
   });
 
-  it('drains into the page only once it is fully blurred, and is gone when covered', () => {
-    for (const offset of steps(20).map((t) => t * TITLE_AT_TOP)) {
-      assert.equal(pinnedDrain(offset, TITLE_AT_TOP, COVERED), 0, `${offset}`);
-    }
-    assert.ok(pinnedDrain((TITLE_AT_TOP + COVERED) / 2, TITLE_AT_TOP, COVERED) > 0);
-    assert.equal(pinnedDrain(COVERED, TITLE_AT_TOP, COVERED), 1);
+  it('is whole before it drains, and solid exactly where the top bar comes in', () => {
+    const drain = (offset: number) => pinnedDrain(offset, SOLID_AT, PINNED_HERO.drainFrom);
+    /* The drain never starts before the blur is whole. */
+    assert.ok(PINNED_HERO.drainFrom >= PINNED_HERO.blurUntil);
+    assert.equal(drain(SOLID_AT * PINNED_HERO.drainFrom), 0);
+    assert.ok(drain(SOLID_AT * 0.75) > 0 && drain(SOLID_AT * 0.75) < 1);
+    assert.equal(drain(SOLID_AT), 1, 'solid as the bar arrives');
+    assert.equal(drain(SOLID_AT * 2), 1, 'and stays solid');
   });
 
   it('pulled past the top, keeps its top pinned and its foot with the page', () => {

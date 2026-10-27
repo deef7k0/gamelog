@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { BLUR_RADIUS } from '@/components/ui/hero-art';
-import { footFade, type FootFade } from '@/components/ui/key-color-hero';
+import type { FootFade } from '@/components/ui/key-color-hero';
 import { Palette, withAlpha } from '@/constants/theme';
 import { usePulse } from '@/hooks/use-pulse';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
@@ -26,13 +26,6 @@ const colours = (fade: FootFade, page: string) =>
   fade.alphas.map((alpha) => withAlpha(page, alpha)) as unknown as Colours;
 const locations = (fade: FootFade) => fade.locations as unknown as Stops;
 
-/**
- * The blurred copy's own foot: the page's colour over its bottom 40% only,
- * where the sharp art's dissolve starts a sixth of the way down. A blur has no
- * detail to lose at its foot, so it can run further into the page.
- */
-const BLUR_FOOT = footFade(0.4);
-
 export type PinnedHeroProps = {
   /** The art. IGDB's, unless a Steam hero takes its place (`steamAppId`). */
   uri?: string | null;
@@ -42,12 +35,19 @@ export type PinnedHeroProps = {
   height: number;
   /** The page's colour: what the art's foot fades into, and what it drains into. */
   page: string;
-  /** How the art's foot gives way to the page. */
+  /** How the art's foot gives way to the page — the sharp copy's and the blurred one's alike. */
   fade: FootFade;
-  /** How far the page has scrolled when the title reaches the top: the blur is whole. */
-  blurAt: number;
-  /** How far it has scrolled when the page's solid part has covered the art. */
-  coverAt: number;
+  /**
+   * How far the page has scrolled when the art is solid page colour: where
+   * the top bar comes in. The blur and the drain are both shares of it.
+   */
+  solidAt: number;
+  /**
+   * A small copy of the same picture for the blur — IGDB's 180-wide fit. Drawn
+   * across the display it is far softer than a blur of the full-size file can
+   * be, and it is a few kilobytes. Without one, the full-size file is blurred.
+   */
+  blurUri?: string | null;
   /** How much of the frame, from the top, is darkened for the status bar and the discs. */
   scrim?: number;
   /**
@@ -81,11 +81,21 @@ export type PinnedHeroProps = {
  * ```
  *
  * The blur is a blurred copy whose opacity moves — a radius that moved would
- * be a new bitmap a frame — mounted once the sharp copy has loaded, so on
- * Android it decodes from the disk cache that load filled (`<HeroArt>`'s
- * order; CLAUDE.md § Gotchas). It lies over the art, so it softens a trailer
- * too. Whole when the title reaches the top (`blurAt`); from there the art
- * drains into the page's colour (`coverAt`), "transitioning into solid".
+ * be a new bitmap a frame. It is a *small* copy (`blurUri`), which is what
+ * makes it strong: a 180-wide picture drawn across the display is soft before
+ * any radius is applied. It lies over the art, so it softens a trailer too.
+ * It comes in from the first pixel of scroll, and the art drains into the
+ * page's colour over the second half of the way, solid at `solidAt` — where
+ * the top bar comes in.
+ *
+ * **One foot fade, over both copies.** The sharp art and the blurred one
+ * dissolve into the page by exactly the same curve, so the art is seamless
+ * with the page at every point of the crossfade. For one build the blurred
+ * copy carried a shorter fade of its own, and as it came in the art stopped
+ * dissolving and read "as if it was pasted onto the page raw" (the owner,
+ * 2026-10-27). The drifting box clips, so the blurred copy's 10% overscale
+ * never shows below the foot — the frame cannot, since the art moves inside
+ * it.
  *
  * Every scroll-driven style reads `pulse` and carries a transform: a render
  * re-applies them all (`usePulse`, CLAUDE.md § Gotchas, the lost end value).
@@ -96,8 +106,8 @@ export const PinnedHero = memo(function PinnedHero({
   height,
   page,
   fade,
-  blurAt,
-  coverAt,
+  solidAt,
+  blurUri = null,
   scrim = 0,
   ready = true,
   media,
@@ -113,10 +123,14 @@ export const PinnedHero = memo(function PinnedHero({
   const steamSource = steam && !steamFailed ? steam.hero : null;
   const source = steamSource ?? uri ?? null;
   const [loaded, setLoaded] = useState<string | null>(null);
-  const blurReady = !!source && loaded === source;
+  /* The small copy when the art on screen is the one it was made from (a
+     Steam hero is another picture); otherwise the full-size file, once it has
+     loaded, so Android decodes it from the cache that load filled. */
+  const blurSource =
+    !steamSource && blurUri ? blurUri : source && loaded === source ? source : null;
+  const blurRadius = blurSource === blurUri ? PINNED_HERO.blurRadius : BLUR_RADIUS;
 
   const footColours = useMemo(() => colours(fade, page), [fade, page]);
-  const blurFootColours = useMemo(() => colours(BLUR_FOOT, page), [page]);
 
   const frameStyle = useAnimatedStyle(() => {
     pulse.get();
@@ -130,14 +144,14 @@ export const PinnedHero = memo(function PinnedHero({
   const blurStyle = useAnimatedStyle(() => {
     pulse.get();
     return {
-      opacity: pinnedBlur(scrollY.get(), blurAt, PINNED_HERO.blurFrom),
+      opacity: pinnedBlur(scrollY.get(), solidAt, PINNED_HERO.blurUntil),
       transform: [{ scale: PINNED_HERO.blurScale }],
     };
   });
   const drainStyle = useAnimatedStyle(() => {
     pulse.get();
     return {
-      opacity: pinnedDrain(scrollY.get(), blurAt, coverAt),
+      opacity: pinnedDrain(scrollY.get(), solidAt, PINNED_HERO.drainFrom),
       transform: [{ translateY: 0 }],
     };
   });
@@ -180,35 +194,31 @@ export const PinnedHero = memo(function PinnedHero({
         },
       ]}>
       <Animated.View style={[styles.fill, frameStyle]}>
-        <Animated.View style={[styles.fill, driftStyle]}>
+        {/* Clipped here, on the box that drifts — not on the frame: the art
+            moves up inside the frame, and a clip that stayed put would let
+            the blurred copy's overhang show under the art's foot once it had
+            drifted past it. */}
+        <Animated.View style={[styles.fill, styles.clip, driftStyle]}>
           {media ? media(art) : art}
 
-          {/* The art's foot giving way to the page — on the art, so it drifts
-              with it and the art never shows an edge of its own. */}
-          <LinearGradient colors={footColours} locations={locations(fade)} style={styles.fill} />
-
-          {/* The art softening, over the art (and over a trailer) and over its
-              fade: it brings its own, shorter one, so as the blur comes in the
-              art reaches further down — behind the cover and the synopsis,
-              which float on it — and at rest, with no blur showing, nothing
-              about the hero has changed. */}
-          {blurReady && (
+          {/* The art softening: over the art, and over a trailer. */}
+          {blurSource && (
             <Animated.View style={[styles.fill, blurStyle]}>
               <Image
-                source={{ uri: source }}
+                source={{ uri: blurSource }}
                 style={styles.fill}
                 contentFit="cover"
-                blurRadius={BLUR_RADIUS}
+                blurRadius={blurRadius}
                 cachePolicy="memory-disk"
                 accessibilityIgnoresInvertColors
               />
-              <LinearGradient
-                colors={blurFootColours}
-                locations={locations(BLUR_FOOT)}
-                style={styles.fill}
-              />
             </Animated.View>
           )}
+
+          {/* The art's foot giving way to the page — over both copies, so the
+              art dissolves by the same curve sharp or blurred, and on the art,
+              so it drifts with it and the art never shows an edge of its own. */}
+          <LinearGradient colors={footColours} locations={locations(fade)} style={styles.fill} />
         </Animated.View>
 
         {scrim > 0 && (
@@ -227,6 +237,9 @@ export const PinnedHero = memo(function PinnedHero({
 const styles = StyleSheet.create({
   layer: { position: 'absolute', top: 0, left: 0, right: 0 },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  /* The blurred copy is drawn 10% past its box; it must never show below the
+     art's foot, where the fade has already given way to the page. */
+  clip: { overflow: 'hidden' },
   scrim: { position: 'absolute', left: 0, right: 0, top: 0 },
 });
 

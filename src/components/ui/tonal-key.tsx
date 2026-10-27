@@ -9,6 +9,7 @@ import { useAccent } from '@/hooks/use-accent';
 import { usePulse } from '@/hooks/use-pulse';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { filledRoles } from '@/lib/filled';
+import { getTextColor } from '@/lib/key-color';
 
 /**
  * Where a key sits in its group, which is the only thing that decides its shape.
@@ -100,33 +101,15 @@ export function TonalKey({
   const lit = active === true;
 
   const chrome = useScreenChrome();
-  const still = useSharedValue(0);
-  const darkening = chrome?.tone?.darkening ?? still;
   const dark = chrome?.tone?.dark;
   const bright = chrome?.tone?.bright;
-  const pulse = usePulse();
 
-  const keyAnimatedStyle = useAnimatedStyle(() => {
-    pulse.get();
-    if (!dark || !bright) return {};
-    if (lit) {
-      return {
-        backgroundColor: interpolateColor(darkening.get(), [0, 1], [dark, bright]),
-        borderColor: interpolateColor(darkening.get(), [0, 1], [dark, bright]),
-      };
-    }
-    return {
-      backgroundColor: interpolateColor(
-        darkening.get(),
-        [0, 1],
-        ['rgba(0, 0, 0, 0.28)', 'rgba(255, 255, 255, 0.08)']
-      ),
-      borderColor: 'rgba(255, 255, 255, 0.08)',
-    };
-  });
+  const keyAnimatedStyle = useAnimatedStyle(() => ({}));
+
+  const activeColor = bright ?? dark ?? filled.fill;
 
   const ink = lit
-    ? '#ffffff'
+    ? getTextColor(activeColor)
     : dark
       ? 'rgba(235, 235, 245, 0.65)'
       : accent.m3.onSurfaceVariant;
@@ -149,8 +132,8 @@ export function TonalKey({
              edge it has. */
           lit ? Elevation.raised : Elevation.none,
           {
-            backgroundColor: lit ? (dark ?? filled.fill) : accent.m3.surfaceContainerHigh,
-            borderColor: lit ? (dark ?? filled.fill) : accent.m3.surfaceContainerHigh,
+            backgroundColor: lit ? activeColor : accent.m3.surfaceContainerHigh,
+            borderColor: lit ? activeColor : accent.m3.surfaceContainerHigh,
           },
           caption ? styles.captioned : null,
           busy && styles.busy,

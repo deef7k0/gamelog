@@ -24,7 +24,6 @@ import { RichText } from '@/components/ui/rich-text';
 import { useSectionMetrics } from '@/components/ui/section';
 import { Text, type TextVariant } from '@/components/ui/text';
 import { TapTarget, Type, withAlpha, type ThemeColor } from '@/constants/theme';
-import { usePulse } from '@/hooks/use-pulse';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 
 /**
@@ -310,59 +309,15 @@ function Veil({
   to: string;
   depth: number;
 }) {
-  const tone = useScreenChrome()?.tone;
-  const still = useSharedValue(0);
-  const darkening = tone?.darkening ?? still;
-  const pulse = usePulse();
-
   const lifted = useAnimatedStyle(() => ({
     opacity: interpolate(height.get(), [closed, closed + span], [1, 0], 'clamp'),
   }));
-  /* The page's dark tone, faded in as the page darkens so it does not muddy the
-     bright tone at rest. */
-  const dark = useAnimatedStyle(() => {
-    pulse.get();
-    return {
-      opacity: tone?.bright ? darkening.get() : 1,
-      transform: [{ translateY: 0 }],
-    };
-  });
-  /* The page's bright tone over its dark one, on the page's own progress —
-     see below. */
-  const bright = useAnimatedStyle(() => {
-    pulse.get();
-    return {
-      opacity: 1 - darkening.get(),
-      transform: [{ translateY: 0 }],
-    };
-  });
 
   return (
     <Animated.View pointerEvents="none" style={[styles.veil, { height: span }, lifted]}>
       {/* Ends on the colour at `depth`, starts on the same colour at nothing —
           never `transparent`, which Android fades through black. */}
-      <Animated.View style={[styles.fill, dark]}>
-        <LinearGradient colors={[withAlpha(to, 0), withAlpha(to, depth)]} style={styles.fill} />
-      </Animated.View>
-
-      {/*
-        On a page whose colour is its artwork's and changes as the page is read
-        (`<Screen tone>`: a game's, a studio's, a collection's), the veil has to
-        be that colour at every moment or it is a smudge on the page. So the
-        caller's colour is the page's dark tone and this is the bright one over
-        it, at the page's own opacity — the very value the page's own wash and
-        the hero's foot fade read, so all three cross together.
-
-        Nowhere else: no tone, nothing drawn.
-      */}
-      {tone?.bright && (
-        <Animated.View style={[styles.fill, bright]}>
-          <LinearGradient
-            colors={[withAlpha(tone.bright, 0), withAlpha(tone.bright, depth)]}
-            style={styles.fill}
-          />
-        </Animated.View>
-      )}
+      <LinearGradient colors={[withAlpha(to, 0), withAlpha(to, depth)]} style={styles.fill} />
     </Animated.View>
   );
 }

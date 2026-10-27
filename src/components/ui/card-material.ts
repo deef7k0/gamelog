@@ -47,6 +47,12 @@ export function useCardMaterial(): CardMaterial {
   const accent = useAccent();
 
   return useMemo(() => {
+    if (chrome?.tone?.bright) {
+      return {
+        fill: chrome.tone.bright,
+        edge: 'rgba(255, 255, 255, 0.1)',
+      };
+    }
     if (chrome?.tone?.dark) {
       return {
         fill: chrome.tone.dark,
@@ -54,30 +60,15 @@ export function useCardMaterial(): CardMaterial {
       };
     }
     return cardMaterialFor(accent, theme);
-  }, [chrome?.tone?.dark, accent, theme]);
+  }, [chrome?.tone?.bright, chrome?.tone?.dark, accent, theme]);
 }
 
 /**
- * UI-thread animated style for cards on an adaptive keyColor screen.
- * Inverts with the scroll: at rest (scrollY = 0) it is the `dark` tone against
- * the `bright` background; as the user scrolls, it brightens to `bright` as the
- * background darkens to `dark`.
+ * On an adaptive page with an always-dark background, cards maintain the primary
+ * color with high luminance and high saturation consistently without scroll transition.
  */
 export function useCardAnimatedStyle() {
-  const chrome = useScreenChrome();
-  const still = useSharedValue(0);
-  const darkening = chrome?.tone?.darkening ?? still;
-  const dark = chrome?.tone?.dark;
-  const bright = chrome?.tone?.bright;
-  const pulse = usePulse();
-
-  return useAnimatedStyle(() => {
-    pulse.get();
-    if (!dark || !bright) return {};
-    return {
-      backgroundColor: interpolateColor(darkening.get(), [0, 1], [dark, bright]),
-    };
-  });
+  return useAnimatedStyle(() => ({}));
 }
 
 /**
@@ -85,9 +76,19 @@ export function useCardAnimatedStyle() {
  * cards before context is mounted.
  */
 export function cardMaterialFor(
-  accent: AccentRoles | { bright: string | null; dark: string | null } | null | undefined,
+  accent:
+    | AccentRoles
+    | { bright: string | null; dark: string | null; primary?: string | null }
+    | null
+    | undefined,
   theme: { surface: string; border: string }
 ): CardMaterial {
+  if (accent && 'bright' in accent && accent.bright) {
+    return {
+      fill: accent.bright,
+      edge: 'rgba(255, 255, 255, 0.1)',
+    };
+  }
   if (accent && 'dark' in accent) {
     return {
       fill: accent.dark ?? theme.surface,

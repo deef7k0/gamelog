@@ -184,18 +184,12 @@ export const KeyColorHero = memo(function KeyColorHero({
   const [loaded, setLoaded] = useState<string | null>(null);
   const blurReady = !!source && loaded === source;
 
-  /* The page's own two tones. The foot fade is drawn in both and crossed
-     between them on the page's own progress, so the art's foot and the page
-     under it are never two different colours. */
-  const bright = chrome?.tone?.bright ?? null;
+  /* The page's dark ground tone: the foot fade melts the artwork directly into it. */
   const base = chrome?.tone?.dark ?? chrome?.background ?? Palette.shadowInk;
 
   const footColours = useMemo(
-    () => ({
-      base: colours(fade.alphas.map((alpha) => withAlpha(base, alpha))),
-      bright: colours(fade.alphas.map((alpha) => withAlpha(bright ?? base, alpha))),
-    }),
-    [fade, base, bright]
+    () => colours(fade.alphas.map((alpha) => withAlpha(base, alpha))),
+    [fade, base]
   );
 
   const frameStyle = useAnimatedStyle(() => {
@@ -228,12 +222,7 @@ export const KeyColorHero = memo(function KeyColorHero({
       transform: [{ scale: HERO_MOTION.blurScale }],
     };
   });
-  /* The bright tone over the dark one, on the page's own progress — the same
-     value the page's own wash reads, so the two cross together. */
-  const brightStyle = useAnimatedStyle(() => {
-    pulse.get();
-    return { opacity: 1 - darkening.get(), transform: [{ translateY: 0 }] };
-  });
+
 
   const art = source ? (
     <Image
@@ -298,31 +287,14 @@ export const KeyColorHero = memo(function KeyColorHero({
         )}
 
         {/*
-          The art's foot giving way to the page: the dark tone under, the bright
-          one over it at the page's own opacity. Two layers rather than one
-          gradient whose colour changes, because a gradient's colours cannot be
-          animated — and the one underneath is at full strength throughout, so
-          the art never shows through the middle of the cross.
-
-          The bright layer also fades in when the colour arrives, over the same
-          600ms the page's own wash takes, as a CSS transition on a React prop —
-          which cannot lose its end value.
+          The art's foot giving way directly to the always-dark page ground.
         */}
         <View pointerEvents="none" style={styles.fill}>
           <LinearGradient
-            colors={footColours.base}
+            colors={footColours}
             locations={locations(fade.locations)}
             style={styles.fill}
           />
-          {bright && (
-            <Animated.View style={[styles.fill, brightStyle]}>
-              <LinearGradient
-                colors={footColours.bright}
-                locations={locations(fade.locations)}
-                style={styles.fill}
-              />
-            </Animated.View>
-          )}
         </View>
 
         {scrim > 0 && (

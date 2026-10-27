@@ -36,35 +36,30 @@ export function keyColorSource(uri: string | null | undefined): string | null {
 }
 
 /** Cache version. Bump it when what is read, or how, changes. */
-const CACHE_PREFIX = 'key-color:v1:';
+const CACHE_PREFIX = 'key-color:v2:';
 /** Stored when the image decoded and had nothing to read. */
 const NONE = 'none';
 /** A `t_cover_small` is ~2 KB and 0.012 MP; these only stop a host that ignored the size. */
 const MAX_BYTES = 40_000;
 const MAX_MP = 0.03;
 
+export type ReadKeyResult = {
+  color: string;
+  primary?: string;
+};
+
 /** Synchronous in-memory cache so subsequent screen renders have 0ms disk delay. */
-const MEMORY_CACHE = new Map<string, string | null>();
+const MEMORY_CACHE = new Map<string, ReadKeyResult | null>();
 
 /**
- * The page's two tones, from its artwork's key colour: `bright` at rest and
- * `dark` once the artwork has gone (`keyPage`) — or null for both, which is
- * the answer while the colour is read, for art that cannot be read, and while
- * game colours are off. The page then keeps whatever colour it had.
- *
- * `frame` is the hero's size and `anchor` the image's `contentPosition`, so
- * the edges read are the edges on screen (`visibleRegion`). `ink` is the
- * quietest type the page carries; the bright tone holds AA against it.
- *
- * `resolved` is false only while a colour is being read for the first time —
- * on every later sighting the answer is in memory or on the device before the
- * first frame. The page draws whatever it has either way, and takes its colour
- * over 600 ms when the colour arrives.
+ * The page's adaptive tones:
+ * - `dark`: The always-dark page background.
+ * - `bright` / `primary`: The high-saturation, high-luminance primary accent color for cards and buttons.
  */
 export function useKeyColor(
   uri: string | null | undefined,
   { frame, anchor, ink }: { frame: Size; anchor?: Anchor; ink?: string }
-): { bright: string | null; dark: string | null; resolved: boolean } {
+): { bright: string | null; dark: string | null; primary: string | null; resolved: boolean } {
   const colours = useGameColours();
   const source = colours.on ? keyColorSource(uri) : null;
 
@@ -78,7 +73,7 @@ export function useKeyColor(
   const inMemory = cacheKey && MEMORY_CACHE.has(cacheKey) ? MEMORY_CACHE.get(cacheKey) : undefined;
 
   const key = useQuery({
-    queryKey: ['key-color', source, aspect, ax, ay],
+    queryKey: ['key-color-v2', source, aspect, ax, ay],
     queryFn: () => readKeyColor(source!, aspect, { x: ax, y: ay }),
     enabled: !!source,
     initialData: () => (inMemory !== undefined ? inMemory : undefined),
@@ -89,10 +84,14 @@ export function useKeyColor(
   });
 
   const raw = source ? (key.data ?? null) : null;
-  const tones = useMemo(() => (raw ? keyPage(raw, { ink }) : null), [raw, ink]);
+  const tones = useMemo(
+    () => (raw ? keyPage(raw.color, { ink, primary: raw.primary }) : null),
+    [raw, ink]
+  );
   return {
     bright: tones?.bright ?? null,
     dark: tones?.dark ?? null,
+    primary: tones?.primary ?? null,
     resolved: !source || !key.isPending,
   };
 }
@@ -101,7 +100,7 @@ async function readKeyColor(
   source: string,
   aspect: number,
   anchor: Anchor
-): Promise<string | null> {
+): Promise<ReadKeyResult | null> {
   const cacheKey = `${CACHE_PREFIX}${source}:${aspect}:${anchor.x}:${anchor.y}`;
   if (MEMORY_CACHE.has(cacheKey)) {
     return MEMORY_CACHE.get(cacheKey) ?? null;
@@ -113,15 +112,23 @@ async function readKeyColor(
       MEMORY_CACHE.set(cacheKey, null);
       return null;
     }
-    if (stored && /^#[0-9a-f]{6}$/i.test(stored)) {
-      MEMORY_CACHE.set(cacheKey, stored);
-      return stored;
+    if (stored) {
+      if (stored.startsWith('{')) {
+        const parsed = JSON.parse(stored) as ReadKeyResult;
+        MEMORY_CACHE.set(cacheKey, parsed);
+        return parsed;
+      }
+      if (/^#[0-9a-f]{6}$/i.test(stored)) {
+        const parsed = { color: stored };
+        MEMORY_CACHE.set(cacheKey, parsed);
+        return parsed;
+      }
     }
   } catch {
     /* An unreadable cache is an empty one. */
   }
 
-  let color: string | null = null;
+  let result: ReadKeyResult | null = null;
   try {
     const response = await fetch(source);
     if (!response.ok) return null;
@@ -134,22 +141,24 @@ async function readKeyColor(
       maxResolutionInMP: MAX_MP,
     });
     const frame: Size = { width: aspect, height: 1 };
-    color =
-      keyColorOf(image.data, image.width, image.height, {
-        region: visibleRegion(image, frame, anchor),
-      })?.color ?? null;
+    const sampled = keyColorOf(image.data, image.width, image.height, {
+      region: visibleRegion(image, frame, anchor),
+    });
+    if (sampled) {
+      result = { color: sampled.color, primary: sampled.primary };
+    }
   } catch {
     /* A hero whose colour cannot be read melts into the page's own colour, and
        looks entirely normal; the next visit asks again. */
     return null;
   }
 
-  MEMORY_CACHE.set(cacheKey, color);
+  MEMORY_CACHE.set(cacheKey, result);
 
   try {
-    await AsyncStorage.setItem(cacheKey, color ?? NONE);
+    await AsyncStorage.setItem(cacheKey, result ? JSON.stringify(result) : NONE);
   } catch {
     /* A full disk should not stop a hero from having a ground. */
   }
-  return color;
+  return result;
 }

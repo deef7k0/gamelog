@@ -114,38 +114,7 @@ export type ScreenProps = {
   miniPlayer?: boolean;
 };
 
-/**
- * The page's colour at rest, laid over its darker tone and taken away as the
- * page is read — the whole of it, so the page is one colour everywhere.
- *
- * Two nested opacities, because they answer different things: the outer fades
- * the colour in when it arrives (a CSS transition on a React prop, which
- * cannot lose its end value), and the inner takes it away on the page's own
- * scroll (`ScreenTone.darkening`, on the UI thread). They multiply, which is
- * what lets a colour arrive mid-scroll without either forgetting the other.
- *
- * It reads `pulse` and carries a transform for the reason every scroll-driven
- * style in the app does — CLAUDE.md § Gotchas, the lost end value.
- */
-function PageWash() {
-  const tone = useScreenChrome()?.tone;
-  const pulse = usePulse();
-  const still = useSharedValue(0);
-  const darkening = tone?.darkening ?? still;
 
-  const fading = useAnimatedStyle(() => {
-    pulse.get();
-    return { opacity: 1 - darkening.get(), transform: [{ translateY: 0 }] };
-  });
-
-  if (!tone || !tone.bright) return null;
-
-  return (
-    <Animated.View pointerEvents="none" style={styles.wash}>
-      <Animated.View style={[styles.wash, fading, { backgroundColor: tone.bright }]} />
-    </Animated.View>
-  );
-}
 
 /** Page shell: themed background, safe-area insets, centred max-width column. */
 export function Screen({
@@ -209,11 +178,6 @@ export function Screen({
             and nothing else.
           */}
           <BlurTargetView ref={blurTargetRef} style={[styles.flex, { backgroundColor: fill }]}>
-            {/* The page's colour at rest, over its darker tone, fading out as
-                the page is read. Here rather than in `backdrop` so a page may
-                still have one, and inside the blur target so the bar's glass
-                samples the colour the page actually is. */}
-            {tone && <PageWash />}
             {backdrop}
 
             <SafeAreaView style={styles.flex} edges={edges}>

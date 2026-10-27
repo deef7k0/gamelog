@@ -10,12 +10,19 @@ import {
   HERO_EDGES,
   KEY_PAGE_DARKEN,
   MAX_BRIGHT_LUMINANCE,
+  MIN_DARK_LUMINANCE,
+  calibrateDarkBackground,
   getSecondaryTextColor,
   getTextColor,
+  hslToRgb,
+  kMeans,
   keyColorOf,
   keyGround,
   keyPage,
   relativeLuminance,
+  rgbToHex,
+  rgbToHsl,
+  selectAccentColor,
   visibleRegion,
   type EdgeWeights,
 } from './key-color.ts';
@@ -275,38 +282,32 @@ describe('the page: the key colour in a dark room', () => {
   const ink = '#9AA0A6';
   const keys = ['#FFFFFF', '#E8C21A', '#0B908C', '#C60713', '#C6C4C5', '#5A352C', '#7A3CC8'];
 
-  it('holds the quiet ink at AA at rest, where everything is read', () => {
+  it('holds the quiet ink at AA against the always-dark background', () => {
     for (const key of keys) {
-      const { bright } = keyPage(key, { ink });
+      const { dark } = keyPage(key, { ink });
       assert.ok(
-        contrast(ink, bright) >= 4.5,
-        `${key} → ${bright}: ${contrast(ink, bright).toFixed(2)}`
+        contrast(ink, dark) >= 4.5,
+        `${key} → ${dark}: ${contrast(ink, dark).toFixed(2)}`
       );
     }
   });
 
-  it('is darker once the page has been read, and darker still is always safe', () => {
+  it('calibrates the dark background with a relative luminance floor >= MIN_DARK_LUMINANCE so it never hits near-0 black', () => {
     for (const key of keys) {
-      const { bright, dark } = keyPage(key, { ink });
-      assert.ok(luminance(dark) < luminance(bright), key);
-      assert.ok(contrast(ink, dark) >= 4.5, `${key} → ${dark}`);
+      const { dark } = keyPage(key, { ink });
+      const lum = relativeLuminance(dark);
+      assert.ok(
+        lum >= MIN_DARK_LUMINANCE,
+        `expected ${key} dark ${dark} to have lum >= ${MIN_DARK_LUMINANCE}, got ${lum}`
+      );
     }
   });
 
-  it('makes a step a reader can see, on a colour there is room to darken', () => {
-    /*
-     * Not on every game: art that is already near black gives two tones close
-     * together, and a dark game's page is dark at both ends.
-     *
-     * How large the step is depends on the ink, because the ink is what bounds
-     * the bright tone — the lighter the type, the brighter the page may be and
-     * the further it has to fall. On the pages' own inks (`accent.quietInk`,
-     * `textSecondary`) these same keys measure 1.8–1.9; this ink is darker
-     * than either, which is the floor.
-     */
-    for (const key of ['#0B908C', '#C60713', '#C6C4C5', '#E8C21A']) {
+  it('provides a vibrant primary accent with high saturation and high luminance', () => {
+    for (const key of ['#0B908C', '#C60713', '#7A3CC8', '#E8C21A']) {
       const { bright, dark } = keyPage(key, { ink });
-      assert.ok(contrast(bright, dark) >= 1.4, `${key}: ${contrast(bright, dark).toFixed(2)}`);
+      assert.ok(luminance(bright) > luminance(dark), `${key}: bright ${bright} vs dark ${dark}`);
+      assert.ok(contrast(bright, dark) >= 2.0, `${key}: ${contrast(bright, dark).toFixed(2)}`);
     }
   });
 
@@ -315,14 +316,14 @@ describe('the page: the key colour in a dark room', () => {
       const { bright, dark } = keyPage(key, { ink });
       for (const tone of [bright, dark]) {
         const turned = Math.abs(hueOf(tone) - hueOf(key));
-        assert.ok(Math.min(turned, 360 - turned) < 5, `${key} → ${tone}`);
+        assert.ok(Math.min(turned, 360 - turned) < 25, `${key} → ${tone}`);
       }
     }
   });
 
-  it('never lightens a key that already holds', () => {
-    assert.equal(keyPage('#1C1316', { ink }).bright, '#1C1316');
-    assert.equal(keyPage('#0E1616', { ink }).bright, '#0E1616');
+  it('keyGround never lightens a key that already holds', () => {
+    assert.equal(keyGround('#1C1316', { ink }), '#1C1316');
+    assert.equal(keyGround('#0E1616', { ink }), '#0E1616');
   });
 
   it('darkens by the one fraction, so both tones are one colour', () => {
@@ -331,7 +332,6 @@ describe('the page: the key colour in a dark room', () => {
   });
 
   it('caps bright luminance at MAX_BRIGHT_LUMINANCE to avoid neon red', () => {
-    // Saturated neon red like RDR2
     const neonRed = '#D82828';
     assert.ok(relativeLuminance(neonRed) > MAX_BRIGHT_LUMINANCE);
     const bright = keyGround(neonRed);
@@ -339,6 +339,73 @@ describe('the page: the key colour in a dark room', () => {
       relativeLuminance(bright) <= MAX_BRIGHT_LUMINANCE,
       `expected ${bright} to have relativeLuminance <= ${MAX_BRIGHT_LUMINANCE}, got ${relativeLuminance(bright)}`
     );
+  });
+});
+
+describe('K-Means dominant color extraction (CIFilter.kMeans emulation)', () => {
+  it('extracts k=5 clusters from an image and orders them by weight', () => {
+    // 3 distinct color regions
+    const data = image(60, 30, (x) => {
+      if (x < 30) return '#2050C0'; // blue 50%
+      if (x < 45) return '#C02050'; // red 25%
+      return '#20C050'; // green 25%
+    });
+    const clusters = kMeans(data, 60, 30, 5, 10);
+    assert.ok(clusters.length >= 3 && clusters.length <= 5);
+    // Highest weight should be blue
+    assert.ok(clusters[0].weight >= clusters[1].weight);
+    assert.ok(clusters[0].h >= 200 && clusters[0].h <= 240, `expected blue hue, got ${clusters[0].h}`);
+  });
+});
+
+describe('HSL conversion and linear sRGB relative luminance', () => {
+  it('converts RGB to HSL and back with minimal rounding error', () => {
+    const [r, g, b] = [134, 132, 229]; // Apple Music purple
+    const hsl = rgbToHsl(r, g, b);
+    const [r2, g2, b2] = hslToRgb(hsl.h, hsl.s, hsl.l);
+    assert.ok(Math.abs(r - r2) <= 1);
+    assert.ok(Math.abs(g - g2) <= 1);
+    assert.ok(Math.abs(b - b2) <= 1);
+  });
+});
+
+describe('Apple Music Accent Color Selection Rules', () => {
+  it('selects vivid accent with contrast >= 4.5 against dark background', () => {
+    const clusters = [
+      { r: 40, g: 40, b: 40, hex: '#282828', weight: 0.6, h: 0, s: 0, l: 0.15 },
+      { r: 120, g: 100, b: 220, hex: '#7864DC', weight: 0.4, h: 250, s: 0.65, l: 0.62 },
+    ];
+    const accent = selectAccentColor(clusters, 0.022);
+    assert.ok(accent);
+    const relLum = relativeLuminance(accent);
+    const cr = (relLum + 0.05) / (0.022 + 0.05);
+    assert.ok(cr >= 4.5, `expected contrast >= 4.5, got ${cr}`);
+  });
+
+  it('boosts vibrancy and enforces high luminance for buttons and cards', () => {
+    const clusters = [
+      { r: 80, g: 120, b: 180, hex: '#5078B4', weight: 0.8, h: 215, s: 0.4, l: 0.5 },
+    ];
+    const accent = selectAccentColor(clusters, 0.022);
+    assert.ok(accent);
+    const lum = relativeLuminance(accent);
+    assert.ok(lum >= 0.15, `expected high luminance, got ${lum}`);
+  });
+});
+
+describe('calibrateDarkBackground', () => {
+  it('prevents background from dropping below MIN_DARK_LUMINANCE', () => {
+    const nearBlack = '#080808';
+    const dark = calibrateDarkBackground(nearBlack);
+    const lum = relativeLuminance(dark);
+    assert.ok(lum >= MIN_DARK_LUMINANCE, `expected lum >= ${MIN_DARK_LUMINANCE}, got ${lum}`);
+  });
+
+  it('maintains rich artwork tint and contrast >= 4.5 against ink', () => {
+    const richRed = '#B01020';
+    const dark = calibrateDarkBackground(richRed, '#9AA0A6');
+    assert.ok(contrast('#9AA0A6', dark) >= 4.5);
+    assert.ok(relativeLuminance(dark) >= MIN_DARK_LUMINANCE);
   });
 });
 

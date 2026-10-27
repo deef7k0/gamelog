@@ -1,5 +1,5 @@
-import { contrast } from './color';
-import { fromOklab, linearToOklab, towardBlack, type Oklab } from './immersive-color';
+import { contrast, hexToRgb } from './color';
+import { fromOklab, linearToOklab, toOklab, towardBlack, type Oklab } from './immersive-color';
 
 /**
  * Apple's key colour — `keyColor` on an Apple Music artist, the iTunes 11
@@ -134,6 +134,8 @@ export type KeyColor = {
   color: string;
   /** How much of what was sampled it covers, 0–1: its confidence. */
   share: number;
+  /** The dominant primary accent color extracted via K-Means and Apple Music rules. */
+  primary?: string;
 };
 
 type Cluster = {
@@ -274,6 +276,17 @@ export function keyColorOf(
     }
   }
 
+  /* Dominant palette extraction via K-Means and Apple Music accent selection rules. */
+  let primary = chosen ? fromOklab([chosen.l / chosen.weight, chosen.a / chosen.weight, chosen.b / chosen.weight]) : '#5E81F4';
+  try {
+    const dominantClusters = kMeans(data, width, height, 5, 10);
+    if (dominantClusters.length > 0) {
+      primary = selectAccentColor(dominantClusters);
+    }
+  } catch {
+    /* Fall back to chosen key color */
+  }
+
   return {
     color: fromOklab([
       chosen.l / chosen.weight,
@@ -281,6 +294,7 @@ export function keyColorOf(
       chosen.b / chosen.weight,
     ]),
     share: chosen.weight / total,
+    primary,
   };
 }
 
@@ -387,28 +401,282 @@ export function keyGround(
 
 /**
  * How much darker the page is once its artwork has gone.
- *
- * Apple Music's page is the key colour and turns darker as it is read. The
- * darker tone is the same colour pulled toward black in Oklab, so a page is one
- * hue at both ends and the transition between them passes through nothing else.
  */
 export const KEY_PAGE_DARKEN = 0.5;
 
+export type KMeansCluster = {
+  r: number;
+  g: number;
+  b: number;
+  hex: string;
+  weight: number;
+  h: number;
+  s: number;
+  l: number;
+  relLum: number;
+};
+
+export function rgbToHex(r: number, g: number, b: number): string {
+  const byte = (v: number) =>
+    Math.min(255, Math.max(0, Math.round(v)))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${byte(r)}${byte(g)}${byte(b)}`.toUpperCase();
+}
+
 /**
- * A page's two tones: **one colour**, at rest and once its artwork has gone.
- *
- * The page is `bright` from its top to its foot — there is no second colour
- * anywhere on it and no gradient where the masthead ends — and it crosses to
- * `dark` as the page is read (`lib/scroll-motion`, `<Screen tone>`).
- *
- * `bright` is the key colour, darkened only as far as the quietest type on the
- * page needs (`keyGround`) and capped at cinematic luminance. `dark` is that tone
- * again, pulled toward black.
+ * Standard HSL conversion with linearized sRGB for relative luminance.
+ */
+export function rgbToHsl(
+  r: number,
+  g: number,
+  b: number
+): { h: number; s: number; l: number; relLum: number } {
+  const rf = r / 255;
+  const gf = g / 255;
+  const bf = b / 255;
+  const max = Math.max(rf, gf, bf);
+  const min = Math.min(rf, gf, bf);
+  const delta = max - min;
+  const l = (max + min) / 2;
+  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (delta !== 0) {
+    if (max === rf) {
+      h = (((gf - bf) / delta) % 6) * 60;
+    } else if (max === gf) {
+      h = ((bf - rf) / delta + 2) * 60;
+    } else {
+      h = ((rf - gf) / delta + 4) * 60;
+    }
+  }
+  if (h < 0) h += 360;
+  return { h, s, l, relLum: relativeLuminance(rgbToHex(r, g, b)) };
+}
+
+export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ];
+}
+
+/**
+ * Dominant Colors (K-Means) clustering: finds up to k dominant colors.
+ * Emulates Core Image's CIFilter.kMeans() in JavaScript.
+ */
+export function kMeans(
+  data: Uint8Array | Uint8ClampedArray,
+  width: number,
+  height: number,
+  k = 5,
+  passes = 10
+): KMeansCluster[] {
+  const pixels: [number, number, number][] = [];
+  const total = width * height;
+  const step = Math.max(1, Math.floor(total / 1000));
+  for (let i = 0; i < data.length; i += 4 * step) {
+    if (data[i + 3] < 128) continue;
+    pixels.push([data[i], data[i + 1], data[i + 2]]);
+  }
+  if (pixels.length === 0) return [];
+
+  const centroids: [number, number, number][] = [];
+  centroids.push(pixels[Math.floor(pixels.length / 2)]);
+  while (centroids.length < k && centroids.length < pixels.length) {
+    let bestDist = -1;
+    let bestPix = pixels[0];
+    for (const p of pixels) {
+      let minDist = Infinity;
+      for (const c of centroids) {
+        const d = (p[0] - c[0]) ** 2 + (p[1] - c[1]) ** 2 + (p[2] - c[2]) ** 2;
+        if (d < minDist) minDist = d;
+      }
+      if (minDist > bestDist) {
+        bestDist = minDist;
+        bestPix = p;
+      }
+    }
+    centroids.push(bestPix);
+  }
+
+  const assignments = new Int32Array(pixels.length);
+  for (let pass = 0; pass < passes; pass += 1) {
+    const sums = Array.from({ length: centroids.length }, () => [0, 0, 0, 0]);
+    for (let i = 0; i < pixels.length; i += 1) {
+      const p = pixels[i];
+      let nearest = 0;
+      let nearestDist = Infinity;
+      for (let c = 0; c < centroids.length; c += 1) {
+        const d = (p[0] - centroids[c][0]) ** 2 + (p[1] - centroids[c][1]) ** 2 + (p[2] - centroids[c][2]) ** 2;
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = c;
+        }
+      }
+      assignments[i] = nearest;
+      sums[nearest][0] += p[0];
+      sums[nearest][1] += p[1];
+      sums[nearest][2] += p[2];
+      sums[nearest][3] += 1;
+    }
+    for (let c = 0; c < centroids.length; c += 1) {
+      if (sums[c][3] > 0) {
+        centroids[c] = [
+          sums[c][0] / sums[c][3],
+          sums[c][1] / sums[c][3],
+          sums[c][2] / sums[c][3],
+        ];
+      }
+    }
+  }
+
+  const counts = new Array(centroids.length).fill(0);
+  for (let i = 0; i < pixels.length; i += 1) {
+    counts[assignments[i]] += 1;
+  }
+
+  return centroids
+    .map((c, i) => {
+      const [r, g, b] = c;
+      const hsl = rgbToHsl(r, g, b);
+      return {
+        r: Math.round(r),
+        g: Math.round(g),
+        b: Math.round(b),
+        hex: rgbToHex(r, g, b),
+        weight: counts[i] / pixels.length,
+        ...hsl,
+      };
+    })
+    .sort((a, b) => b.weight - a.weight);
+}
+
+/**
+ * Apple Music Accent Color Selection Rules:
+ * Picks a vibrant, high-luminance, high-saturation accent color from candidates.
+ */
+export function selectAccentColor(clusters: KMeansCluster[], darkBgLum = 0.022): string {
+  let best: KMeansCluster | null = null;
+  let bestScore = -Infinity;
+
+  for (const c of clusters) {
+    if (c.l < 0.15 || c.l > 0.85) continue;
+    if (c.s < 0.20) continue;
+
+    let score = c.weight * 2;
+    score += c.s * 3;
+    if (c.h >= 180 && c.h <= 300) {
+      score += 2; // Preference for cool/vivid blue-purple
+    }
+    if (c.h >= 30 && c.h <= 90 && c.s < 0.45) {
+      score -= 2; // Disallow low-sat warm yellow-greens
+    }
+    if (c.h < 30 && c.l > 0.4 && c.l < 0.7 && c.s < 0.5) {
+      score -= 1.5; // Demote muddy skin-tone reds
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+
+  if (!best) {
+    const sorted = [...clusters]
+      .filter((c) => c.l >= 0.15 && c.l <= 0.85)
+      .sort((a, b) => b.s - a.s);
+    best = sorted[0] ?? clusters[0];
+  }
+  if (!best) return '#5E81F4';
+
+  const h = best.h;
+  const s = Math.min(1.0, Math.max(best.s, 0.5) + 0.15); // Vibrancy boost
+  let l = Math.min(0.68, Math.max(best.l, 0.45)); // High luminance
+
+  let rgb = hslToRgb(h, s, l);
+  let hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
+  let relLum = relativeLuminance(hex);
+  let cr = (relLum + 0.05) / (darkBgLum + 0.05);
+
+  while (cr < 4.5 && l < 0.75) {
+    l = Math.min(0.75, l + 0.05);
+    rgb = hslToRgb(h, s, l);
+    hex = rgbToHex(rgb[0], rgb[1], rgb[2]);
+    relLum = relativeLuminance(hex);
+    cr = (relLum + 0.05) / (darkBgLum + 0.05);
+  }
+
+  return hex;
+}
+
+/** Minimum relative luminance floor for the dark background so it never sinks to 0. */
+export const MIN_DARK_LUMINANCE = 0.018;
+export const TARGET_DARK_LUMINANCE = 0.022;
+
+/**
+ * Calibrate the dark background tone so it stays rich and dark with the artwork's hue,
+ * but never sinks to pitch black near-0.
+ */
+export function calibrateDarkBackground(keyHex: string, ink?: string, minContrast = 4.5): string {
+  let bg = keyHex;
+  for (let step = 0; step < 30 && relativeLuminance(bg) > 0.025; step += 1) {
+    bg = towardBlack(bg, 0.05);
+  }
+  let lab = toOklab(bg);
+  if (lab) {
+    let currentLum = relativeLuminance(bg);
+    while (currentLum < MIN_DARK_LUMINANCE && lab[0] < 0.35) {
+      lab = [lab[0] + 0.01, lab[1] * 0.98, lab[2] * 0.98];
+      bg = fromOklab(lab);
+      currentLum = relativeLuminance(bg);
+    }
+  }
+  if (ink) {
+    for (let step = 0; step < 20 && contrast(ink, bg) < minContrast; step += 1) {
+      bg = towardBlack(bg, 0.05);
+    }
+  }
+  return bg;
+}
+
+/**
+ * A page's adaptive tones:
+ * - `dark`: The always-dark page background, richly tinted with a calibrated luminance floor.
+ * - `bright` / `primary`: The high-saturation, high-luminance primary accent color for cards and buttons.
  */
 export function keyPage(
   key: string,
-  { ink, minContrast = 4.5 }: { ink?: string; minContrast?: number } = {}
-): { bright: string; dark: string } {
-  const bright = keyGround(key, { ink, minContrast });
-  return { bright, dark: towardBlack(bright, KEY_PAGE_DARKEN) };
+  {
+    ink,
+    minContrast = 4.5,
+    primary,
+  }: { ink?: string; minContrast?: number; primary?: string } = {}
+): { bright: string; dark: string; primary: string } {
+  const dark = calibrateDarkBackground(key, ink, minContrast);
+  let accent = primary;
+  if (!accent) {
+    const rgb = hexToRgb(key);
+    if (rgb) {
+      const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+      const cluster = { r: rgb.r, g: rgb.g, b: rgb.b, hex: key, weight: 1, ...hsl };
+      accent = selectAccentColor([cluster], relativeLuminance(dark));
+    } else {
+      accent = keyGround(key, { ink, minContrast });
+    }
+  }
+  return { bright: accent, dark, primary: accent };
 }

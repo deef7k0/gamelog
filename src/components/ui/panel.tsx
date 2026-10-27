@@ -9,6 +9,7 @@ import { useSectionInset } from '@/components/ui/section';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { getTextColor } from '@/lib/key-color';
 
 export type PanelProps = {
   title: string;
@@ -80,6 +81,10 @@ export function Panel({
     style,
   ]);
 
+  const titleColor = getTextColor(material.fill);
+  const ruleColor =
+    titleColor === '#1c1c1e' ? 'rgba(0, 0, 0, 0.12)' : accent.m3.outlineVariant;
+
   const body = (
     <>
       <View style={styles.head}>
@@ -91,12 +96,12 @@ export function Panel({
              gives up its last word. */
           adjustsFontSizeToFit
           minimumFontScale={0.8}
-          style={styles.title}>
+          style={[styles.title, { color: titleColor }]}>
           {title}
         </Text>
         {trailing}
       </View>
-      <View style={[styles.rule, { backgroundColor: accent.m3.outlineVariant }]} />
+      <View style={[styles.rule, { backgroundColor: ruleColor }]} />
       {children}
     </>
   );

@@ -102,6 +102,29 @@ export const PINNED_HERO = {
   arriveMs: 400,
 } as const;
 
+/*
+ * `smoothstep` is first, and that is load-bearing.
+ *
+ * The worklets plugin rewrites each of these declarations into a **`const`**,
+ * which is not hoisted, and builds every worklet's closure eagerly where the
+ * worklet itself is written. So a worklet that calls another one defined
+ * *later* in the file captures `undefined` and dies on the UI thread with
+ * "undefined is not a function" — while Node, where a function declaration is
+ * hoisted like any other, runs the same code and every test passes. That is
+ * exactly what `pinnedBlur` did on the owner's phone (2026-10-27).
+ *
+ * So: **a worklet that calls another must come after it.** Everything here
+ * calls `smoothstep` and nothing else, so `smoothstep` goes at the top and the
+ * rule is kept by `scroll-motion.test.ts`, which reads this file and checks it.
+ */
+/** `smoothstep`: 0 before `from`, 1 after `to`, and flat at both ends between. */
+export function smoothstep(from: number, to: number, value: number): number {
+  'worklet';
+  if (to <= from) return value < from ? 0 : 1;
+  const t = Math.min(1, Math.max(0, (value - from) / (to - from)));
+  return t * t * (3 - 2 * t);
+}
+
 /** How far up the display the pinned art has drifted, in dp (never past its own height). */
 export function pinnedDrift(offset: number, factor: number, height: number): number {
   'worklet';
@@ -155,14 +178,6 @@ export const SHELF_REVEAL = {
    */
   everyFrames: 12,
 } as const;
-
-/** `smoothstep`: 0 before `from`, 1 after `to`, and flat at both ends between. */
-export function smoothstep(from: number, to: number, value: number): number {
-  'worklet';
-  if (to <= from) return value < from ? 0 : 1;
-  const t = Math.min(1, Math.max(0, (value - from) / (to - from)));
-  return t * t * (3 - 2 * t);
-}
 
 /**
  * How far through the hero's motion a page is, 0–1, at `offset` dp scrolled

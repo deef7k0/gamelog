@@ -5522,6 +5522,21 @@ was not this app's code. The rules that keep it that way:
   string each worklet is shipped as: the closure is the `const {…} =
   this.__closure` on its first line, and nothing in the parameter list may need
   it. All 118 worklets in the app were swept that way; that one was the only one.
+- **A worklet may not call a worklet written below it in the same file.** The
+  plugin rewrites each worklet's `export function` into a **`const`**, which is
+  not hoisted, and builds every worklet's closure where the worklet itself
+  stands — so one that names a worklet defined later captures `undefined` and
+  dies on the UI thread with *undefined is not a function*, the moment the
+  style first runs. **Node hoists the declaration and every test passes**,
+  which is why `npm test`, `tsc`, lint, the worklet-closure sweep above and an
+  Android bundle all missed it: `pinnedBlur` called `smoothstep` from forty
+  lines above it and took the game page down on the owner's phone
+  (2026-10-27). `smoothstep` is the first function in `lib/scroll-motion.ts`
+  for that reason, and `scroll-motion.test.ts` reads the file and fails if any
+  function there calls one written after it. The other fifteen worklet files
+  were swept for the same thing (twelve same-file captures, all in order).
+  Transform the file and read the order of the `__closure` assignments if in
+  doubt — a capture must come after its target's own.
 - **There is no Skia, and a gradient does not need it.** React Native 0.86 draws
   `experimental_backgroundImage: 'radial-gradient(…)'` / `'linear-gradient(…)'`
   natively on the New Architecture, iOS and Android alike, so `<SoftGlow>` (and

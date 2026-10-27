@@ -239,4 +239,34 @@ describe('the source', () => {
     );
     for (const [, name, parameters] of worklets) assert.doesNotMatch(parameters, /=/, name);
   });
+
+  it('never calls a worklet written later in the file', () => {
+    /*
+     * The worklets plugin rewrites `export function x` into a `const`, which
+     * is not hoisted, and builds each worklet's closure where the worklet
+     * stands. So a worklet calling one defined below it captures `undefined`
+     * and throws "undefined is not a function" on the UI thread — while Node
+     * hoists the declaration and every test here passes. `pinnedBlur` did
+     * exactly that on the owner's phone (2026-10-27); `smoothstep` is first
+     * in the file because of it.
+     */
+    const source = readFileSync(new URL('./scroll-motion.ts', import.meta.url), 'utf8');
+    const declarations = [...source.matchAll(/export function (\w+)/g)];
+    const at = new Map(declarations.map((match) => [match[1], match.index!]));
+
+    for (const [index, declaration] of declarations.entries()) {
+      const name = declaration[1];
+      const from = declaration.index!;
+      const to = declarations[index + 1]?.index ?? source.length;
+      const body = source.slice(from, to);
+      for (const [callee, position] of at) {
+        if (callee === name) continue;
+        if (!new RegExp(`\\b${callee}\\(`).test(body)) continue;
+        assert.ok(
+          position < from,
+          `${name} calls ${callee}, which is written after it — move ${callee} up`
+        );
+      }
+    }
+  });
 });

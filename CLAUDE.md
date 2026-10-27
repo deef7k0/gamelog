@@ -3375,6 +3375,17 @@ Cyberpunk 2077's, Disco Elysium's and Ghost of Tsushima's pages (each right at
 pages (measured on the live heroes). `PAGE_COLOR.whiteContrast` is the one
 number to raise if the owner wants AA back.
 
+**The glass is switched off for now, and none of it is dead code.** The
+owner's (2026-10-27): "don't delete the glass code or remove any of it
+permanently, for testing purposes I want you to make the cards a solid color
+just like the m3 buttons. Like it was before." `GLASS_CARDS` in
+`lib/page-color.ts` is `false`, so a game page's cards are the solid Material
+3 card they were before — the game's `primaryContainer` at half brightness,
+from the buttons' own scheme — while the page keeps its colour, its inks and
+its pinned hero. Set it `true` and everything below comes back. Do not delete
+`GLASS`, `glassMaterial`, the `glass` shape, `<Screen glass>` or the rating
+graph's glass track as unused.
+
 **The glass** (`GLASS`, `glassMaterial`): white at 12%, a 30% edge, a 1dp
 highlight inside the top edge and a soft 0 8 16 shadow at 15% — both
 `boxShadow`, because an Android elevation shows through a translucent card and
@@ -3386,8 +3397,10 @@ and an opaque `solid` (the page lifted 12%) for fades that end on a card.
 in the scroller. At rest it is exactly the old hero (38%, the owner's
 dissolve, the row set into it). Scrolled: the art drifts up at a fifth of the
 page's speed; the masthead (spacer, row, synopsis) is transparent and slides
-over it; a blurred copy comes in after a little scroll and is whole quickly
-(15% → 45% of the way); then the art drains into the page's colour and is
+over it; a blurred copy comes in after a little scroll and gently (15% → 75%
+of the way — it was 15% → 45%, and the owner found it harsh); then the art
+drains into the page's colour over the last quarter (it was the last half:
+"the solid color transition comes quicker") and is
 **solid once the page is past the title and onto the developer lines — which
 is where the top bar comes in**. The owner's, over three messages of
 2026-10-27: "solid when the developer names reach the top", "at the same
@@ -3417,7 +3430,7 @@ over 400 ms; every visit after, the colour is there before the first frame.
 **Not seen on a phone**, and the owner asked for no emulator here. Checked:
 types, lint, `npm test`, the worklets as the plugin ships them, and scroll
 states rendered from the real geometry and real heroes. To judge on a device:
-the drift (0.2), the blur's ramp (15% → 45%), how light the buttons go on the
+the drift (0.2), the blur's ramp (15% → 75%) and the drain's (75% → 100%), how light the buttons go on the
 brightest pages (tone 85–90 on Ark, Horizon, No Man's Sky), the lip's 40dp,
 the box shadow's look on Android, white at 60% on the brightest pages, and
 the first visit's 400 ms arrival.

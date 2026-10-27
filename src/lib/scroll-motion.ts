@@ -86,8 +86,9 @@ export const HERO_MOTION = {
  * So, in screen space: the art drifts up at a fifth of the page's speed
  * (`drift`; in the owner's frames a point on the art moved at about a third,
  * and their words were "mostly still"); the masthead slides over it; a
- * blurred copy fades in after a little scroll and is whole quickly
- * (`pinnedBlur`); and the art drains into the page's colour (`pinnedDrain`),
+ * blurred copy fades in after a little scroll, gently, over most of the way
+ * (`pinnedBlur`); and the art drains into the page's colour over the last
+ * quarter, quickly (`pinnedDrain`),
  * solid once the page is past the title and onto the developer lines, which
  * is where the top bar comes in — the owner's (2026-10-27): "it goes blurrier
  * quicker, by the time it gets past the title and onto the developer section
@@ -102,13 +103,18 @@ export const PINNED_HERO = {
   /**
    * Where the blur begins and where it is whole, as shares of the way to
    * solid. It begins after a little scroll, where it always did — "I don't
-   * want it to start sooner" — and is whole a third of a page later: "just
-   * that it goes blurrier quicker" (2026-10-27).
+   * want it to start sooner" — and takes most of the way to come in: "the
+   * blur strength transition is slower, not as harsh" (2026-10-27). It was
+   * 0.15 → 0.45 for one build.
    */
   blurFrom: 0.15,
-  blurUntil: 0.45,
-  /** Where the drain into the page's colour begins, as a share of the way to solid. */
-  drainFrom: 0.5,
+  blurUntil: 0.75,
+  /**
+   * Where the drain into the page's colour begins, as a share of the way to
+   * solid: the last quarter, once the blur is whole — "the solid color
+   * transition comes quicker" (2026-10-27). It was the last half.
+   */
+  drainFrom: 0.75,
   /** The blurred copy, drawn this much past its frame so its darkened edge is never seen. */
   blurScale: 1.1,
   /** How long the art, and the page's colour, take to come in when first known. */

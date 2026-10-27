@@ -169,7 +169,7 @@ describe('the game page’s hero, pinned behind the page', () => {
     assert.equal(pinnedDrift(1e6, PINNED_HERO.drift, HERO), -HERO);
   });
 
-  it('blurs after a little scroll, and is whole quickly', () => {
+  it('blurs after a little scroll, gently, and is whole before it drains', () => {
     const blur = (offset: number) =>
       pinnedBlur(offset, SOLID_AT, PINNED_HERO.blurFrom, PINNED_HERO.blurUntil);
     assert.equal(blur(0), 0, 'sharp at rest');
@@ -177,9 +177,14 @@ describe('the game page’s hero, pinned behind the page', () => {
     /* "I don't want it to start sooner": not from the first pixel. */
     assert.equal(blur(SOLID_AT * PINNED_HERO.blurFrom), 0);
     assert.ok(PINNED_HERO.blurFrom >= 0.1, 'a little scroll first');
-    /* "Just that it goes blurrier quicker": whole well before solid. */
+    /* Whole before solid, and gently: "the blur strength transition is
+       slower, not as harsh", while "the solid color transition comes
+       quicker" — the blur's ramp is the longer of the two. */
     assert.equal(blur(SOLID_AT * PINNED_HERO.blurUntil), 1);
-    assert.ok(PINNED_HERO.blurUntil - PINNED_HERO.blurFrom <= 0.35, 'a short ramp');
+    assert.ok(
+      PINNED_HERO.blurUntil - PINNED_HERO.blurFrom > 1 - PINNED_HERO.drainFrom,
+      'the blur comes in more slowly than the colour'
+    );
     const curve = steps(40).map((t) => blur(t * SOLID_AT));
     for (let i = 1; i < curve.length; i += 1) assert.ok(curve[i] >= curve[i - 1]);
   });
@@ -189,7 +194,8 @@ describe('the game page’s hero, pinned behind the page', () => {
     /* The drain never starts before the blur is whole. */
     assert.ok(PINNED_HERO.drainFrom >= PINNED_HERO.blurUntil);
     assert.equal(drain(SOLID_AT * PINNED_HERO.drainFrom), 0);
-    assert.ok(drain(SOLID_AT * 0.75) > 0 && drain(SOLID_AT * 0.75) < 1);
+    const middle = SOLID_AT * ((PINNED_HERO.drainFrom + 1) / 2);
+    assert.ok(drain(middle) > 0 && drain(middle) < 1, 'between, it is crossing');
     assert.equal(drain(SOLID_AT), 1, 'solid as the bar arrives');
     assert.equal(drain(SOLID_AT * 2), 1, 'and stays solid');
   });

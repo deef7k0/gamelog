@@ -113,6 +113,19 @@ export const GLASS = {
   shadowBlur: 16,
 } as const;
 
+/**
+ * Whether a game page's cards are glass (`GLASS`, `glassMaterial`).
+ *
+ * **Off, for the owner's test** (2026-10-27): "don't delete the glass code or
+ * remove any of it permanently, for testing purposes I want you to make the
+ * cards a solid color just like the m3 buttons. Like it was before." Off, a
+ * game page's cards are the solid Material 3 card they were before the glass
+ * — the game's `primaryContainer` at half brightness (`cardMaterialFor`),
+ * from the same scheme as the buttons. Every line of the glass is still in
+ * place; this is the one switch back to it.
+ */
+export const GLASS_CARDS = false;
+
 export type Region = { left: number; top: number; right: number; bottom: number };
 
 export type SwatchName =

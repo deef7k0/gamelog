@@ -2,8 +2,16 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { memo, useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { Share, StyleSheet, View, useWindowDimensions, type ScrollView } from 'react-native';
+import { memo, useCallback, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  Share,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type ScrollView,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -30,7 +38,7 @@ import { useCriticSummary } from '@/components/critic-reviews';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
-import { CARD_INSET, cardMaterialFor, glassMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
 import { CoverHalo } from '@/components/ui/cover-halo';
 import { TrailerBackdrop } from '@/components/trailer-backdrop';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
@@ -71,7 +79,7 @@ import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
 import { usePageColor } from '@/hooks/use-page-color';
 import { ThemeInks, useTheme } from '@/hooks/use-theme';
 import { smoothScrimStops } from '@/lib/immersive-color';
-import { pageInks } from '@/lib/page-color';
+import { GLASS_CARDS, pageInks } from '@/lib/page-color';
 import { PINNED_HERO } from '@/lib/scroll-motion';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
@@ -516,7 +524,8 @@ export default function GameDetailScreen() {
      grey room's own. */
   const titleInk = inks?.primary ?? theme.white;
   const quietInk = inks?.secondary ?? accentRoles(theme.gameNeutral).quietInk;
-  const logMaterial = colour.glass ? glassMaterial(page) : cardMaterialFor(null, theme);
+  /* Glass cards, or solid Material 3 ones — one switch (`GLASS_CARDS`). */
+  const glassCards = colour.glass && GLASS_CARDS;
 
   /*
    * Where the pinned hero is solid page colour, in how far the page has
@@ -1005,12 +1014,7 @@ export default function GameDetailScreen() {
         empty tinted rectangle above the actions.
       */}
       {logged && (hasWriting(logged) || logged.rating !== null || logged.platinum) && (
-        <View
-          style={[
-            logMaterial.shape,
-            styles.myLog,
-            { backgroundColor: logMaterial.fill, borderColor: logMaterial.edge },
-          ]}>
+        <MaterialCard style={styles.myLog}>
           {hasWriting(logged) ? (
             /*
              * You wrote about this — so the block says so in a sentence and
@@ -1073,7 +1077,7 @@ export default function GameDetailScreen() {
               {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
             </>
           )}
-        </View>
+        </MaterialCard>
       )}
     </View>
   );
@@ -1386,7 +1390,7 @@ export default function GameDetailScreen() {
               is gone. What the scroll moves is the art behind the page.
             */
             background={page}
-            glass={colour.glass}
+            glass={glassCards}
             /*
               Behind the page, outside its inset: the page's colour (which
               takes the colour over 400ms the first time it is read), then the
@@ -1528,6 +1532,27 @@ export default function GameDetailScreen() {
  * Subscribed to the page's sheet store, so that opening one re-renders this and
  * not the page under it. See the note where the page creates the store.
  */
+/**
+ * A card drawn by this page itself — your own log, in the masthead — in
+ * whatever every other card on the page is made of (`useCardMaterial`): the
+ * glass, or the solid Material 3 card. The page renders the provider and the
+ * screen these are read from, so it cannot read them itself; this sits under
+ * both.
+ */
+function MaterialCard({ style, children }: { style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const material = useCardMaterial();
+  return (
+    <View
+      style={[
+        material.shape,
+        { backgroundColor: material.fill, borderColor: material.edge },
+        style,
+      ]}>
+      {children}
+    </View>
+  );
+}
+
 /**
  * A company's name in the header, as the way to its games.
  *

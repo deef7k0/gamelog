@@ -82,8 +82,9 @@ export type PinnedHeroProps = {
  * before blurring it (`BlurTransformation(min(radius, 25), 4)`), so a 180-wide
  * copy became a 45-pixel smear — a flat grey, "no blur at all" on the owner's
  * phone (2026-10-27). It lies over the art, so it softens a trailer too. It
- * comes in after a little scroll and is whole quickly; the art then drains
- * into the page's colour, solid at `solidAt` — where the top bar comes in.
+ * comes in after a little scroll, gently, over most of the way; the art then
+ * drains into the page's colour over the last quarter, solid at `solidAt` —
+ * where the top bar comes in.
  *
  * **One foot fade, over both copies.** The sharp art and the blurred one
  * dissolve into the page by exactly the same curve, so the art is seamless

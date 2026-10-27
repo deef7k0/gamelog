@@ -207,16 +207,17 @@ class Vbox {
   }
 }
 
-/** One of Palette's swatches: a quantised colour and how many pixels it covers. */
-export type PaletteSwatch = Swatch;
-
 /**
- * Every swatch Palette's quantiser produces for an RGBA image — up to sixteen,
- * after its default filter — which is what `Palette.generate()` scores its
- * named targets against (`lib/page-color`). Empty when every pixel was
- * filtered out.
+ * The swatch covering the most of an RGBA image, as Palette computes it — or
+ * null when every pixel was filtered out (an all-black, all-white or
+ * all-skin-tone image), which is where SimpMusic falls back to black.
+ *
+ * Fed a 90×90 thumbnail: under Palette's own 112×112 resize area, so the pixel
+ * set is exactly what Palette would have counted.
  */
-export function paletteSwatches(data: Uint8Array | Uint8ClampedArray): PaletteSwatch[] {
+export function dominantSwatch(
+  data: Uint8Array | Uint8ClampedArray
+): { color: string; population: number } | null {
   const histogram = new Int32Array(1 << (WORD_WIDTH * 3));
   for (let i = 0; i + 2 < data.length; i += 4) {
     const quantized =
@@ -237,44 +238,32 @@ export function paletteSwatches(data: Uint8Array | Uint8ClampedArray): PaletteSw
     if (allowed) colors.push(color);
     else histogram[color] = 0;
   }
-  if (colors.length === 0) return [];
+  if (colors.length === 0) return null;
 
+  let swatches: Swatch[];
   if (colors.length <= MAX_COLORS) {
-    return colors.map((color) => ({
+    swatches = colors.map((color) => ({
       rgb: [widen(quantizedRed(color)), widen(quantizedGreen(color)), widen(quantizedBlue(color))],
       population: histogram[color],
     }));
-  }
-
-  /* The priority queue by volume: split the largest box until there are
-     sixteen, stopping as soon as the largest one cannot split. */
-  const boxes = [new Vbox(0, colors.length - 1, colors, histogram)];
-  while (boxes.length < MAX_COLORS) {
-    let largest = 0;
-    for (let i = 1; i < boxes.length; i += 1) {
-      if (boxes[i].volume > boxes[largest].volume) largest = i;
+  } else {
+    /* The priority queue by volume: split the largest box until there are
+       sixteen, stopping as soon as the largest one cannot split. */
+    const boxes = [new Vbox(0, colors.length - 1, colors, histogram)];
+    while (boxes.length < MAX_COLORS) {
+      let largest = 0;
+      for (let i = 1; i < boxes.length; i += 1) {
+        if (boxes[i].volume > boxes[largest].volume) largest = i;
+      }
+      const box = boxes[largest];
+      if (!box.canSplit()) break;
+      boxes.push(box.split());
     }
-    const box = boxes[largest];
-    if (!box.canSplit()) break;
-    boxes.push(box.split());
+    swatches = boxes
+      .map((box) => box.average())
+      .filter((swatch) => isAllowed(swatch.rgb[0], swatch.rgb[1], swatch.rgb[2]));
   }
-  return boxes
-    .map((box) => box.average())
-    .filter((swatch) => isAllowed(swatch.rgb[0], swatch.rgb[1], swatch.rgb[2]));
-}
 
-/**
- * The swatch covering the most of an RGBA image, as Palette computes it — or
- * null when every pixel was filtered out (an all-black, all-white or
- * all-skin-tone image), which is where SimpMusic falls back to black.
- *
- * Fed a 90×90 thumbnail: under Palette's own 112×112 resize area, so the pixel
- * set is exactly what Palette would have counted.
- */
-export function dominantSwatch(
-  data: Uint8Array | Uint8ClampedArray
-): { color: string; population: number } | null {
-  const swatches = paletteSwatches(data);
   let best: Swatch | null = null;
   for (const swatch of swatches) {
     if (!best || swatch.population > best.population) best = swatch;

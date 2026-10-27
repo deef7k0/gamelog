@@ -5,7 +5,6 @@ import { Link, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { memo, useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { Share, StyleSheet, View, useWindowDimensions, type ScrollView } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import { ExternalLink } from '@/components/external-link';
 import { GameActions, formatReleaseDate } from '@/components/game-actions';
@@ -30,13 +29,17 @@ import { useCriticSummary } from '@/components/critic-reviews';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
-import { CARD_INSET, cardMaterialFor, glassMaterial } from '@/components/ui/card-material';
+import {
+  CARD_INSET,
+  cardMaterialFor,
+  cardShape,
+  useCardAnimatedStyle,
+} from '@/components/ui/card-material';
 import { CoverHalo } from '@/components/ui/cover-halo';
 import { TrailerBackdrop } from '@/components/trailer-backdrop';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { heroHeightFor } from '@/components/ui/hero-art';
-import { MASTHEAD_FADE } from '@/components/ui/key-color-hero';
-import { PageFill, PinnedHero } from '@/components/ui/pinned-hero';
+import { KeyColorHero, MASTHEAD_FADE } from '@/components/ui/key-color-hero';
 import { RevealScope } from '@/components/ui/reveal';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
@@ -61,18 +64,15 @@ import { copyStateLine, releaseLine } from '@/constants/physical';
 import { labelFor, scoreColor } from '@/constants/score';
 import { hasCase, platformKeysFor, type PlatformKey } from '@/constants/platform-cases';
 import { platformKeyForStored } from '@/constants/platform-family';
-import { TOP_BAR_ROW } from '@/constants/top-bar';
-import { FontFamily, PosterAspectRatio, Spacing, accentRoles, withAlpha } from '@/constants/theme';
+import { FontFamily, PosterAspectRatio, Spacing } from '@/constants/theme';
 import { AccentProvider } from '@/hooks/use-accent';
 import { useLandingArrival } from '@/hooks/use-arrival';
-import { useHeaderHeight, useTopBarInset } from '@/hooks/use-header-height';
+import { useHeaderHeight } from '@/hooks/use-header-height';
 import { useGameStorefronts } from '@/hooks/use-game-prices';
 import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
-import { usePageColor } from '@/hooks/use-page-color';
-import { ThemeInks, useTheme } from '@/hooks/use-theme';
-import { smoothScrimStops } from '@/lib/immersive-color';
-import { pageInks } from '@/lib/page-color';
-import { PINNED_HERO } from '@/lib/scroll-motion';
+import { useKeyColor } from '@/hooks/use-key-color';
+import { getSecondaryTextColor, getTextColor } from '@/lib/key-color';
+import { useTheme } from '@/hooks/use-theme';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
 import { getGameById, getSimilarTo, parseGameId, type Game } from '@/lib/games';
@@ -127,21 +127,6 @@ const CASE_MAX_WIDTH = 200;
  * its spacing and the block does not grow a band of dead space.
  */
 const REVIEW_LINK_SLOP = { top: 15, bottom: 15, left: 8, right: 8 };
-
-/**
- * The lip of the page's solid part: how tall the soft edge is where it meets
- * the art the masthead floats on — under the synopsis's last line, which
- * fades into the page by its own veil, and the gap after it.
- */
-const LIP = 40;
-const LIP_STOPS = smoothScrimStops();
-function lipColours(page: string) {
-  return LIP_STOPS.alphas.map((alpha) => withAlpha(page, alpha)) as unknown as readonly [
-    string,
-    string,
-    ...string[],
-  ];
-}
 
 /**
  * How far a company's name in the header can be touched past its own line.
@@ -320,7 +305,7 @@ export default function GameDetailScreen() {
   const [tab, setTab] = useState<GameTab>('overview');
   /* Where the tabs sit in the page, for their pinned copy; and the page's
      scroller, which a tab chosen there scrolls back to them. */
-  const [tabsY, setTabsY] = useState<number | null>(null);
+  const [tabsAt, setTabsAt] = useState<number | null>(null);
   const scroller = useRef<ScrollView>(null);
   const headerHeight = useHeaderHeight();
   /*
@@ -478,59 +463,21 @@ export default function GameDetailScreen() {
   });
 
   /*
-   * The page's colours, from its hero (`usePageColor`, `lib/page-color`) —
-   * the owner's brief of 2026-10-27, Apple Music's artist page:
+   * The page's colour, from the hero's key colour — read off the edges of the
+   * part of the art this frame shows, its foot above all (`useKeyColor`).
    *
-   *  - **The page is one colour, and it never changes.** Palette's swatches of
-   *    the hero, through the brief's filter — saturated enough, not near
-   *    black or white, vibrant preferred, darkened until white holds 3:1.
-   *    Nothing on the page moves it: the art drifts and blurs over it and is
-   *    swallowed by it, and that is all the scroll does.
-   *  - **The buttons are Material 3, seeded from the hero** — never the
-   *    cover: Material's own seed choice off the same art, held apart from
-   *    the page (rule 5). That seed is the `<AccentProvider>`'s below.
-   *  - **The type is white, and white at 60%** (`pageInks`, `<ThemeInks>`).
-   *  - **The cards are glass** (`<Screen glass>`).
-   *
-   * Game colours off (Settings): the app's own page, its inks, its cards.
+   * Apple Music adaptive color is the single source of truth: `bright` at rest
+   * and `dark` once scrolled. Primary and secondary text colors adapt via WCAG
+   * relative luminance.
    */
-  const colour = usePageColor(game.data?.heroUrl, {
+  const key = useKeyColor(game.data?.heroUrl, {
     frame: { width, height: heroHeight },
   });
-  const page = colour.page;
-  const inks = colour.glass ? pageInks(page) : null;
-  /* What `<ThemeInks>` hands the page: opaque inks, for the components that
-     do colour maths on a token. */
-  const themeInks = inks
-    ? { text: inks.primary, secondary: inks.secondarySolid, rule: inks.rule }
-    : null;
-  /* The masthead's two inks. Over the art it floats on, the quiet one is
-     white at 60%, as the brief has it; with game colours off, the owner's
-     grey room's own. */
-  const titleInk = inks?.primary ?? theme.white;
-  const quietInk = inks?.secondary ?? accentRoles(theme.gameNeutral).quietInk;
-  const logMaterial = colour.glass ? glassMaterial(page) : cardMaterialFor(null, theme);
-
-  /*
-   * Where the pinned hero's motion turns, in how far the page has scrolled.
-   *
-   * **Blurred through, as the title reaches the top of the screen**: the
-   * title's capitals are the billing's twelve under the row's top, which is
-   * the hero's height less the row's rise into it. **Covered** once the
-   * page's solid part — from the rule under the synopsis — reaches the foot
-   * of the bar; measured, with an estimate of the masthead until it is.
-   */
-  const topInset = useTopBarInset();
-  const blurAt = Math.max(1, heroHeight - overlap + Spacing.x12 - topInset);
-  const [solidAt, setSolidAt] = useState<number | null>(null);
-  /* The tabs are inside the solid part, so their place in the page is its
-     place plus theirs in it. */
-  const tabsAt = solidAt !== null && tabsY !== null ? solidAt + tabsY : null;
-  const coverAt = Math.max(
-    blurAt + Spacing.x48,
-    (solidAt ?? heroHeight - overlap + coverHeight + Spacing.x16 + ABOUT_LINES * 20) -
-      (topInset + TOP_BAR_ROW)
-  );
+  const page = key.dark ?? theme.surface;
+  const cardMaterial = cardMaterialFor(key, theme);
+  const primaryText = getTextColor(key.bright ?? '#000000');
+  const secondaryText = getSecondaryTextColor(key.bright ?? '#000000');
+  const animatedCardFill = useCardAnimatedStyle();
 
   /*
    * Which platform's box the Platforms section shows, and prices.
@@ -650,53 +597,47 @@ export default function GameDetailScreen() {
     data.releaseDate || data.releaseYear || data.developer || data.publisher
   );
 
-  /**
-   * The masthead, above every tab: the room the pinned hero shows through,
-   * then what the game is — the row of name and cover, and the synopsis —
-   * floating on the art once the page has scrolled.
-   */
-  const masthead = (
-    <View>
-      {/*
-        The page's solid part rising, in its last few dp: a lip of the page's
-        colour from nothing to all of it, under the synopsis's last line and
-        the gap after it — so the art the masthead floats on gives way to the
-        solid part softly, and never at an edge. First, so it is under the
-        masthead's type. At rest it lies on the page's own colour and is not
-        there to see; it comes in with the colour (`ready`).
-      */}
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.lip,
-          {
-            opacity: colour.resolved ? 1 : 0,
-            transitionProperty: 'opacity',
-            transitionDuration: PINNED_HERO.arriveMs,
-          },
-        ]}>
-        <LinearGradient
-          colors={lipColours(page)}
-          locations={LIP_STOPS.locations as unknown as readonly [number, number, ...number[]]}
-          style={styles.fill}
+  /** The masthead, rendered above every tab. */
+  const header = (
+    <View style={styles.header}>
+      <View style={styles.hero}>
+        {/*
+          Apple Music's hero (2026-10-23, the owner's direction): the art
+          melting into its own key colour, sharp at rest, softening and then
+          draining to the game's page as the page scrolls, the glass bar coming
+          in over the colour it is tinted with (`<KeyColorHero>`).
+
+          Still the app's backdrop hero — 38% of the display, the art cropped
+          to fill it — and still the owner's soft dissolve at its foot
+          (`MASTHEAD_FADE`, `dissolveAt`), so the masthead's row is set into
+          the same last tenth of the art it always was. What changed is what it
+          dissolves *into*: the colour the art itself ends in, not the game's
+          page, so the picture has no edge. The fade is to a colour now, not
+          the art's own alpha: the ground under it is known and flat, and a
+          trailer cannot be drawn inside a mask on Android.
+
+          The image is the game's key art, chosen (`lib/games/hero-art.ts`),
+          not IGDB's first artwork — and the trailer runs under it when there
+          is one and it is switched on: the art fades off it at its first
+          frame, and the foot fade covers the video as it covers the art.
+        */}
+        <KeyColorHero
+          uri={data.heroUrl}
+          steamAppId={data.steamAppId}
+          height={heroHeight}
+          fade={MASTHEAD_FADE}
+          scrim={0.4}
+          media={(art) => (
+            <TrailerBackdrop
+              url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
+              height={heroHeight}>
+              {art}
+            </TrailerBackdrop>
+          )}
         />
-      </Animated.View>
+      </View>
 
-      {/* Twenty under the row with no synopsis, thirteen under the synopsis:
-          the gap before the rule, which is the solid part's top edge. */}
-      <View style={[styles.header, { paddingBottom: data.description ? 13 : Spacing.x20 }]}>
-        {/*
-        Where the hero shows through. The hero is not in the page any more: it
-        is pinned behind it (`<PinnedHero>`, the screen's backdrop), and this
-        is the room the page leaves it at rest — the app's backdrop hero, 38%
-        of the display, the owner's soft dissolve at its foot, the row set into
-        its last tenth as it always was. As the page scrolls the art stays
-        where it is, nearly; this masthead slides up over it and floats on it,
-        and the solid part under the synopsis rises and swallows it.
-      */}
-        <View style={{ height: heroHeight }} />
-
-        {/*
+      {/*
         Group 1 — identity, as one row set into the foot of the art: the
         billing from the page's margin, the cover against the far one.
 
@@ -727,12 +668,12 @@ export default function GameDetailScreen() {
         with one line under its name dropped out of the fade altogether; any
         slack falls under the billing instead, beside the foot of the cover.
       */}
-        <View style={[styles.identity, { marginTop: -overlap }]}>
-          {/* First, so it is under the cover and under the billing both — see
+      <View style={[styles.identity, { marginTop: -overlap }]}>
+        {/* First, so it is under the cover and under the billing both — see
             `<CoverHalo>`. */}
-          <CoverHalo width={coverWidth} height={coverHeight} />
+        <CoverHalo width={coverWidth} height={coverHeight} />
 
-          {/*
+        {/*
           The billing: the name, then what the game is in three quiet lines.
 
           Sizes are the reference's, matched by capital height (to Inter, since
@@ -758,32 +699,32 @@ export default function GameDetailScreen() {
           game's name is the one thing on its own page that must not end in an
           ellipsis.
         */}
-          <View style={styles.billing}>
-            {/* Pure white (`white`). `text` is a step under it, and the
+        <View style={styles.billing}>
+          {/* Pure white (`white`). `text` is a step under it, and the
               reference's title is not. */}
-            {/* The page's heading for a screen reader: the bar's title is not
+          {/* The page's heading for a screen reader: the bar's title is not
               there until it comes in. */}
-            <Text
-              variant="display"
-              accessibilityRole="header"
-              numberOfLines={4}
-              style={[styles.billingTitle, { color: titleInk }]}>
-              {data.title}
-            </Text>
+          <Text
+            variant="display"
+            accessibilityRole="header"
+            numberOfLines={4}
+            style={[styles.billingTitle, { color: primaryText }]}>
+            {data.title}
+          </Text>
 
-            {hasBillingLines && (
-              <View style={styles.billingLines}>
-                {data.releaseDate ? (
-                  <Text variant="body" style={{ color: quietInk }}>
-                    {formatReleaseDate(data.releaseDate)}
-                  </Text>
-                ) : data.releaseYear ? (
-                  <Text variant="body" style={{ color: quietInk }}>
-                    {data.releaseYear}
-                  </Text>
-                ) : null}
+          {hasBillingLines && (
+            <View style={styles.billingLines}>
+              {data.releaseDate ? (
+                <Text variant="body" style={{ color: secondaryText }}>
+                  {formatReleaseDate(data.releaseDate)}
+                </Text>
+              ) : data.releaseYear ? (
+                <Text variant="body" style={{ color: secondaryText }}>
+                  {data.releaseYear}
+                </Text>
+              ) : null}
 
-                {/*
+              {/*
                 Who made it, then who published it: a line each, and each a way
                 to that company's games.
 
@@ -800,65 +741,65 @@ export default function GameDetailScreen() {
                 are the record's own two names, set the same way and not
                 pressable.
               */}
-                {developers.length > 0
-                  ? developers.map((company, index) => (
-                      <CompanyLink
-                        key={company.id}
-                        company={company}
-                        /* The slop reaches up into the date's line and stops
+              {developers.length > 0
+                ? developers.map((company, index) => (
+                    <CompanyLink
+                      key={company.id}
+                      company={company}
+                      /* The slop reaches up into the date's line and stops
                          short of the next link, so two of them never overlap. */
-                        slop={index === 0 ? COMPANY_SLOP_FIRST : COMPANY_SLOP}
-                      />
-                    ))
-                  : data.developer && (
-                      <Text variant="body" style={styles.developer} numberOfLines={2}>
-                        {data.developer}
-                      </Text>
-                    )}
-                {publishers.length > 0
-                  ? publishers.map((company, index) => (
-                      <CompanyLink
-                        key={company.id}
-                        company={company}
-                        slop={index === publishers.length - 1 ? COMPANY_SLOP_LAST : COMPANY_SLOP}
-                      />
-                    ))
-                  : !extras.data &&
-                    data.publisher &&
-                    data.publisher !== data.developer && (
-                      <Text variant="body" style={styles.developer} numberOfLines={2}>
-                        {data.publisher}
-                      </Text>
-                    )}
-              </View>
-            )}
+                      slop={index === 0 ? COMPANY_SLOP_FIRST : COMPANY_SLOP}
+                    />
+                  ))
+                : data.developer && (
+                    <Text variant="body" style={styles.developer} numberOfLines={2}>
+                      {data.developer}
+                    </Text>
+                  )}
+              {publishers.length > 0
+                ? publishers.map((company, index) => (
+                    <CompanyLink
+                      key={company.id}
+                      company={company}
+                      slop={index === publishers.length - 1 ? COMPANY_SLOP_LAST : COMPANY_SLOP}
+                    />
+                  ))
+                : !extras.data &&
+                  data.publisher &&
+                  data.publisher !== data.developer && (
+                    <Text variant="body" style={styles.developer} numberOfLines={2}>
+                      {data.publisher}
+                    </Text>
+                  )}
+            </View>
+          )}
 
-            {/* IGDB's score, and only for a game nobody here has rated — see
+          {/* IGDB's score, and only for a game nobody here has rated — see
               `showCommunityScore`. The figure is the score ramp's colour and
               says its verdict to a screen reader, as `<ScoreBadge>` does; it is
               drawn here because that badge stops at 14. On the baseline of its
               label, not centred on it: the two are different sizes. */}
-            {showCommunityScore && data.score !== null && (
-              <View style={styles.scoreRow}>
-                <Text
-                  variant="h4"
-                  accessibilityLabel={`IGDB: ${Math.round(data.score)} out of 100 — ${labelFor(Math.round(data.score))}`}
-                  style={{ color: scoreColor(data.score, theme) }}>
-                  {Math.round(data.score)}
-                </Text>
-                {/* A quiet sentence-case label beside a bold figure — the owner's
+          {showCommunityScore && data.score !== null && (
+            <View style={styles.scoreRow}>
+              <Text
+                variant="h4"
+                accessibilityLabel={`IGDB: ${Math.round(data.score)} out of 100 — ${labelFor(Math.round(data.score))}`}
+                style={{ color: scoreColor(data.score, theme) }}>
+                {Math.round(data.score)}
+              </Text>
+              {/* A quiet sentence-case label beside a bold figure — the owner's
                   reference sets numbers that way, and keeps caps for nothing.
                   Named for whose number it is: "Community" read as GameLog's
                   own, one line above the strip saying nobody here has rated
                   it (critique, 2026-10-21). */}
-                <Text variant="body" style={{ color: quietInk }}>
-                  IGDB
-                </Text>
-              </View>
-            )}
-          </View>
+              <Text variant="body" style={{ color: secondaryText }}>
+                IGDB
+              </Text>
+            </View>
+          )}
+        </View>
 
-          {/*
+        {/*
           The cover: still on the page, and a door to itself, larger.
 
           The case is in the Overview's Platforms section, with the platform
@@ -872,20 +813,20 @@ export default function GameDetailScreen() {
           from assistive tech so the art is read once, with the edition the case
           would have printed.
         */}
-          <MastheadCoverButton
-            gameId={data.id}
-            title={data.title}
-            coverUrl={data.coverUrl}
-            heroUrl={data.heroUrl}
-            width={coverWidth}
-            page={page}
-            label={[data.title, data.edition ? editionLabel(data.edition) : null, 'cover art']
-              .filter(Boolean)
-              .join(', ')}
-          />
-        </View>
+        <MastheadCoverButton
+          gameId={data.id}
+          title={data.title}
+          coverUrl={data.coverUrl}
+          heroUrl={data.heroUrl}
+          width={coverWidth}
+          page={page}
+          label={[data.title, data.edition ? editionLabel(data.edition) : null, 'cover art']
+            .filter(Boolean)
+            .join(', ')}
+        />
+      </View>
 
-        {/*
+      {/*
         Group 2 — what the game is, in its own words: the synopsis, standing on
         the page under the row.
 
@@ -901,33 +842,29 @@ export default function GameDetailScreen() {
         masthead. The full IGDB record this used to lead to is a card of its own
         in the Overview now, where About was.
       */}
-        {data.description ? (
-          <View style={styles.about}>
-            <ExpandableText
-              lines={ABOUT_LINES}
-              style={[styles.aboutText, { color: quietInk }]}
-              fade={{ to: page, ...ABOUT_FADE }}
-              subject="the description">
-              {data.description}
-            </ExpandableText>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  );
+      {data.description ? (
+        <View style={styles.about}>
+          <ExpandableText
+            lines={ABOUT_LINES}
+            style={[styles.aboutText, { color: secondaryText }]}
+            fade={{ to: page, ...ABOUT_FADE }}
+            subject="the description">
+            {data.description}
+          </ExpandableText>
+        </View>
+      ) : null}
 
-  /**
-   * The masthead's foot: the first of the page's solid part, under the
-   * synopsis — the numbers, the actions, your own record.
-   */
-  const mastheadFoot = (
-    <View style={styles.mastheadFoot}>
       {/* The reference's rule: one hairline, edge to edge, between what the
-          thing is and its numbers. It is what the fading text stands on, and
-          the top edge of the page's solid part — and the only rule in the
-          masthead, which is why it may run the full width where the strip's
-          own stop short. */}
-      <View style={[styles.rule, { backgroundColor: inks?.rule ?? theme.borderStrong }]} />
+          thing is and its numbers. It is what the fading text stands on — and
+          the only rule in the masthead, which is why it may run the full width
+          where the strip's own stop short. */}
+      <View
+        style={[
+          styles.rule,
+          !data.description && styles.ruleUnderRow,
+          { backgroundColor: 'rgba(255, 255, 255, 0.12)' },
+        ]}
+      />
 
       {/*
         Group 3 — the numbers, between the identity block and the actions.
@@ -993,11 +930,12 @@ export default function GameDetailScreen() {
         empty tinted rectangle above the actions.
       */}
       {logged && (hasWriting(logged) || logged.rating !== null || logged.platinum) && (
-        <View
+        <Animated.View
           style={[
-            logMaterial.shape,
+            cardShape,
             styles.myLog,
-            { backgroundColor: logMaterial.fill, borderColor: logMaterial.edge },
+            { backgroundColor: cardMaterial.fill, borderColor: cardMaterial.edge },
+            animatedCardFill,
           ]}>
           {hasWriting(logged) ? (
             /*
@@ -1061,7 +999,7 @@ export default function GameDetailScreen() {
               {logged.rating !== null && <ScorePill score={logged.rating} size="large" showLabel />}
             </>
           )}
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -1339,7 +1277,7 @@ export default function GameDetailScreen() {
                   <ExternalLink
                     href={data.storeUrl as Href & string}
                     label={`Open ${data.title} on ${data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}`}>
-                    <Text variant="h5" style={{ color: titleInk }}>
+                    <Text variant="h5" style={{ color: primaryText }}>
                       Open on {data.source === 'steam' ? 'Steam' : data.source.toUpperCase()}
                     </Text>
                   </ExternalLink>
@@ -1354,93 +1292,74 @@ export default function GameDetailScreen() {
   return (
     /* Everything below here runs on this game's colour rather than the app's.
        The provider is what makes that a one-line change instead of a prop on
-       every control: the tab bar, the log button, the chips and the action
-       keys all read the accent from context. Its seed is the hero's — Material
-       3's own choice off the art, held apart from the page — and, until that
-       is known or where the art has none, the genre's hue. Never the cover. */
-    <AccentProvider color={colour.seed} genres={data.genres}>
+       every control: the tab bar, the log button, the chips and the ambient
+       wash all read the accent from context. */
+    <AccentProvider
+      color={key.bright ?? key.dark}
+      artwork={data.coverUrl ?? data.heroUrl}
+      genres={data.genres}>
       <>
-        {/* The page's inks — white, and white at 60% — for everything on it.
-            The protected case resets them where it is drawn (`ThemeInks`). */}
-        <ThemeInks inks={themeInks}>
-          <Screen
-            edges={[]}
-            /*
-              One colour, the hero's, from the top of the page to its foot —
-              and it does not change as the page is read: the owner's
-              (2026-10-27), "I don't want the game page to have a color
-              transition on the background. The color will stay the same."
-              The page darkened as its art reached the bar for a few days; that
-              is gone. What the scroll moves is the art behind the page.
-            */
-            background={page}
-            glass={colour.glass}
-            /*
-              Behind the page, outside its inset: the page's colour (which
-              takes the colour over 400ms the first time it is read), then the
-              hero pinned at the top of the display (`<PinnedHero>`).
-            */
-            backdrop={
-              <>
-                <PageFill color={page} />
-                <PinnedHero
-                  uri={data.heroUrl}
-                  steamAppId={data.steamAppId}
-                  height={heroHeight}
-                  page={page}
-                  fade={MASTHEAD_FADE}
-                  blurAt={blurAt}
-                  coverAt={coverAt}
-                  scrim={0.4}
-                  ready={colour.resolved}
-                  media={(art) => (
-                    <TrailerBackdrop
-                      url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
-                      height={heroHeight}
-                      until={coverAt}>
-                      {art}
-                    </TrailerBackdrop>
-                  )}
-                />
-              </>
-            }
-            /* Over the hero there is no bar, only the glass discs, and they stay
-               where they are — Apple's bar (`glass`): there is always a way back.
-               The bar's glass fades in under them, with the game's name centred,
-               once the masthead's row (the name and the cover) has gone under
-               where it sits: the hero, less how far the row rises into it, plus
-               the cover. By then the art has blurred and is draining into the
-               page's colour. */
-            topBar={
-              <FrostedTopBar
-                back
-                glass
-                title={data.title}
-                header={heroHeight - overlap + coverHeight}
-                /* The trailer on and off, opposite the back disc — the studio
-                   page's key — shown only when there is a trailer to switch. */
-                right={
-                  <>
-                    {trailer && (
-                      <TopBarDisc
-                        icon={trailers.on ? 'videocam-off-outline' : 'videocam-outline'}
-                        label={trailers.on ? 'Stop the trailer' : 'Play the trailer'}
-                        onPress={() => trailers.setOn(!trailers.on)}
-                      />
-                    )}
-                    {/* Share, at the top right as on every other page that has
-                        it — the action row gave its slot to Collect, and the
-                        page had none until the owner put it here (2026-10-21). */}
+        <Screen
+          edges={[]}
+          /*
+            One colour, the art's own, which darkens as the page is read
+            (`<Screen tone>`, § Apple Music's hero): the key colour of the hero
+            from the top of the page to its foot, crossing to its darker tone
+            as the hero reaches the bar.
+
+            **One colour, and not a gradient.** This page has had three page
+            treatments now. A scroll-driven gradient came first, and put the
+            brightest colour directly behind the masthead, so the review
+            button, the lit action keys and the platform key were all competing
+            with a backdrop made of their own hue — every "this measures 2.02:1
+            on the brightest stop" note in this file is from that. A flat
+            `accent.page` replaced it. Then the key colour arrived as a ground
+            behind the masthead alone, which put a seam across the page where
+            it ran out — the owner's words (2026-10-23): "The page must be one
+            color, all the same." So the colour is the page's, everywhere, and
+            the only thing that changes it is the scroll.
+
+            Nothing is measured against a moving surface still: the two tones
+            are both known, both hold the type they carry, and the darker one
+            is what every control was already judged on.
+          */
+          tone={{ bright: key.bright, dark: page, header: heroHeight }}
+          /* Over the hero there is no bar, only the glass discs, and they stay
+             where they are — Apple's bar (`glass`): there is always a way back.
+             The bar's glass fades in under them, with the game's name centred,
+             once the masthead's row (the name and the cover) has gone under
+             where it sits: the hero, less how far the row rises into it, plus
+             the cover. By then the hero has drained to the page's colour. */
+          topBar={
+            <FrostedTopBar
+              back
+              glass
+              title={data.title}
+              header={heroHeight - overlap + coverHeight}
+              /* The trailer on and off, opposite the back disc — the studio
+                 page's key — shown only when there is a trailer to switch. */
+              right={
+                <>
+                  {trailer && (
                     <TopBarDisc
-                      icon="share-outline"
-                      label={`Share ${data.title}`}
-                      onPress={() => shareGame(data)}
+                      icon={trailers.on ? 'videocam-off-outline' : 'videocam-outline'}
+                      label={trailers.on ? 'Stop the trailer' : 'Play the trailer'}
+                      onPress={() => trailers.setOn(!trailers.on)}
                     />
-                  </>
-                }
-              />
-            }>
-            {/*
+                  )}
+                  {/* Share, at the top right as on every other page that has
+                      it — the action row gave its slot to Collect, and the
+                      page had none until the owner put it here (2026-10-21). */}
+                  <TopBarDisc
+                    icon="share-outline"
+                    label={`Share ${data.title}`}
+                    onPress={() => shareGame(data)}
+                  />
+                </>
+              }
+            />
+          }>
+          {/*
             A ScrollView, not a one-item FlatList.
 
             The page was a FlatList whose single cell was the whole active tab,
@@ -1452,55 +1371,36 @@ export default function GameDetailScreen() {
             Nothing inside the tabs is a vertical list; the rails are horizontal,
             which nests inside a ScrollView without complaint.
           */}
-            <PageScrollView
-              ref={scroller}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.content}>
-              {masthead}
-              {/*
-              The page's solid part: everything from the rule under the
-              synopsis to the foot, on the page's colour, opaque. It is what
-              rises over the pinned hero and swallows it. Its colour comes in
-              over 400ms the first time it is read, with the page's own.
-              Measured, so the hero knows when it is covered.
-            */}
-              <Animated.View
-                onLayout={(event) => setSolidAt(event.nativeEvent.layout.y)}
-                style={[
-                  {
-                    backgroundColor: page,
-                    transitionProperty: 'backgroundColor',
-                    transitionDuration: PINNED_HERO.arriveMs,
-                  },
-                ]}>
-                {mastheadFoot}
-                {/* `spread`: three equal tabs across the column, barely touching
-                  — the owner's, over two passes (see `TabBarProps.align`).
-                  Measured, so the pinned copy below knows where it takes over. */}
-                <View onLayout={(event) => setTabsY(event.nativeEvent.layout.y)}>
-                  <TabBar tabs={TABS} value={tab} onChange={setTab} align="spread" />
-                </View>
-                {/* The Overview's shelves rise into place as they scroll into view. */}
-                <RevealScope>{renderTab()}</RevealScope>
-              </Animated.View>
-            </PageScrollView>
-            {/* The same tabs, held under the bar once the page has scrolled them
+          <PageScrollView
+            ref={scroller}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.content}>
+            {header}
+            {/* `spread`: three equal tabs across the column, barely touching —
+                the owner's, over two passes (see `TabBarProps.align`). Measured,
+                so the pinned copy below knows where it takes over. */}
+            <View onLayout={(event) => setTabsAt(event.nativeEvent.layout.y)}>
+              <TabBar tabs={TABS} value={tab} onChange={setTab} align="spread" />
+            </View>
+            {/* The Overview's shelves rise into place as they scroll into view. */}
+            <RevealScope>{renderTab()}</RevealScope>
+          </PageScrollView>
+          {/* The same tabs, held under the bar once the page has scrolled them
               up to it (critique, 2026-10-21). Switching there starts the new
               tab at its top, under the tabs, rather than mid-way down it. */}
-            <PinnedTabBar
-              at={tabsAt}
-              background={page}
-              tabs={TABS}
-              value={tab}
-              onChange={(next) => {
-                setTab(next);
-                if (tabsAt !== null)
-                  scroller.current?.scrollTo({ y: tabsAt - headerHeight, animated: false });
-              }}
-              align="spread"
-            />
-          </Screen>
-        </ThemeInks>
+          <PinnedTabBar
+            at={tabsAt}
+            background={page}
+            tabs={TABS}
+            value={tab}
+            onChange={(next) => {
+              setTab(next);
+              if (tabsAt !== null)
+                scroller.current?.scrollTo({ y: tabsAt - headerHeight, animated: false });
+            }}
+            align="spread"
+          />
+        </Screen>
 
         {/* A sibling of `<Screen>`, not a child: the floating back disc is
             rendered by the screen *after* its content, so a sheet mounted inside
@@ -1637,11 +1537,8 @@ const styles = StyleSheet.create({
    * hero, the billing, the synopsis and the actions all get equal weight; this
    * is tight inside a group and open between them, to the reference's measure.
    */
-  header: { paddingHorizontal: Spacing.x16 },
-  /* Under the rule: the numbers, the actions, your log — then the tabs. */
-  mastheadFoot: { paddingHorizontal: Spacing.x16, marginBottom: Spacing.x20 },
-  lip: { position: 'absolute', left: 0, right: 0, bottom: 0, height: LIP },
-  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  header: { paddingHorizontal: Spacing.x16, marginBottom: Spacing.x20 },
+  hero: { marginHorizontal: -Spacing.x16 },
   /* Top-aligned, so the cover is held at the top of the row whatever the
      billing's length, and the billing starts a fixed step under that top — the
      reference's: its title's capitals are eighteen under its poster's top
@@ -1677,14 +1574,16 @@ const styles = StyleSheet.create({
   /* The reference's measure: 13 on a 20dp line, one more than `body`'s. */
   aboutText: { lineHeight: 20 },
   /* Edge to edge: the header's own margin, undone. Thirteen under the synopsis
-     (the masthead's own foot) is eighteen under its last baseline, and the two
-     under it stand the strip's figures nineteen below — both the reference's.
-     With no synopsis it follows the row, a step further off: twenty. */
+     is eighteen under its last baseline, and the two under it stand the strip's
+     figures nineteen below — both the reference's. */
   rule: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: -Spacing.x16,
+    marginTop: 13,
     marginBottom: 2,
   },
+  /* With no synopsis the rule follows the row itself, a step further off. */
+  ruleUnderRow: { marginTop: Spacing.x20 },
   /* The strip pads its own cells by twelve, so this is twenty-four from its
      labels to the buttons. */
   actions: { marginTop: Spacing.x12 },

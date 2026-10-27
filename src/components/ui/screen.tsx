@@ -1,6 +1,7 @@
 import { BlurTargetView } from 'expo-blur';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-area-context';
 
 import { useTabBarClearance } from '@/components/app-tab-bar';
@@ -8,9 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { MINI_PLAYER_BAND } from '@/constants/player';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { usePulse } from '@/hooks/use-pulse';
 import { useHeaderHeight } from '@/hooks/use-header-height';
-import { ScreenChromeProvider } from '@/hooks/use-screen-chrome';
+import { ScreenChromeProvider, useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
+import { HERO_MOTION } from '@/lib/scroll-motion';
 import { useMiniPlayerActive } from '@/store/player';
 
 export type ScreenProps = {
@@ -94,12 +97,6 @@ export type ScreenProps = {
    */
   tone?: { bright: string | null; dark: string; header: number };
   /**
-   * The page is one flat colour read from its artwork, and every card on it
-   * is a pane of glass (`useCardMaterial`). The game page's, with `background`
-   * as that colour.
-   */
-  glass?: boolean;
-  /**
    * Whether this page makes room for the mini player while music is being kept
    * playing. On by default, and a page almost never says otherwise.
    *
@@ -117,6 +114,8 @@ export type ScreenProps = {
   miniPlayer?: boolean;
 };
 
+
+
 /** Page shell: themed background, safe-area insets, centred max-width column. */
 export function Screen({
   children,
@@ -128,7 +127,6 @@ export function Screen({
   modal = false,
   background,
   tone,
-  glass = false,
   miniPlayer = true,
 }: ScreenProps) {
   const theme = useTheme();
@@ -158,12 +156,7 @@ export function Screen({
       : 0;
 
   return (
-    <ScreenChromeProvider
-      modal={modal}
-      background={fill}
-      insetHeader={insetHeader}
-      glass={glass}
-      tone={tone}>
+    <ScreenChromeProvider modal={modal} background={fill} insetHeader={insetHeader} tone={tone}>
       {({ blurTargetRef }) => (
         <View style={styles.flex}>
           {/*
@@ -297,6 +290,7 @@ export function ErrorState({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  wash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   column: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   padded: { paddingHorizontal: Spacing.x16 },
   centered: {

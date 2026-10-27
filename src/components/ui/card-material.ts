@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
-import { StyleSheet, type ViewStyle } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { interpolateColor, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { Elevation, Palette, Radius, Spacing, type AccentRoles } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { usePulse } from '@/hooks/use-pulse';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { mix } from '@/lib/color';
-import { GLASS } from '@/lib/page-color';
 
 /**
  * The review card's material, which every card in the app is made of.
@@ -32,41 +33,12 @@ import { GLASS } from '@/lib/page-color';
  * app's own room, so its cards are `surface` too.
  *
  * `border` is white at 7%, so the one edge reads on either fill.
- *
- * ## Glass, on a game's page
- *
- * The owner's brief of 2026-10-27: on a game's page — one flat colour, the
- * hero's (`lib/page-color`) — every card is a pane of glass. White at 12%
- * for the body, so the page shows through and is lifted; a 1dp edge at 30%,
- * brighter than the body, for the bevel; a 1dp highlight inside the top edge,
- * the brightest thing on it; and a large soft shadow, so it floats. Brightest
- * to darkest is what reads as glass (`GLASS`, tested). A page asks for it with
- * `<Screen glass>`; the game page is the one that does.
- *
- * The shadow and the highlight are `boxShadow`, not `Elevation.card`: an
- * Android elevation is drawn under the whole card and shows through a
- * translucent one, where React Native's box shadow clips itself out of the
- * card's own box (`OutsetBoxShadowDrawable`, `clipOutPath`).
  */
 export type CardMaterial = {
   /** The card's fill. */
   fill: string;
   /** Its 1dp hairline. */
   edge: string;
-  /**
-   * The corner, the edge's width and the shadow — spread it where `cardShape`
-   * was. Glass's own on a glass page.
-   */
-  shape: ViewStyle;
-  /** A rule inside the card, between its parts, when the card's own is not the default. */
-  rule?: string;
-  /**
-   * The colour the card is seen as, opaque — for a fade that ends on it. The
-   * fill itself on a solid card; on glass, the page with its 12% of white.
-   */
-  solid: string;
-  /** Whether this is the glass. */
-  glass: boolean;
 };
 
 export function useCardMaterial(): CardMaterial {
@@ -74,26 +46,29 @@ export function useCardMaterial(): CardMaterial {
   const chrome = useScreenChrome();
   const accent = useAccent();
 
-  const glass = chrome?.glass ?? false;
-  const page = chrome?.background ?? theme.background;
-  const bright = chrome?.tone?.bright ?? null;
-  const dark = chrome?.tone?.dark ?? null;
-
   return useMemo(() => {
-    if (glass) return glassMaterial(page);
-    if (bright) {
+    if (chrome?.tone?.bright) {
       return {
-        fill: bright,
+        fill: chrome.tone.bright,
         edge: 'rgba(255, 255, 255, 0.1)',
-        shape: cardShape,
-        solid: bright,
-        glass: false,
       };
     }
-    if (dark)
-      return { fill: dark, edge: theme.border, shape: cardShape, solid: dark, glass: false };
+    if (chrome?.tone?.dark) {
+      return {
+        fill: chrome.tone.dark,
+        edge: theme.border,
+      };
+    }
     return cardMaterialFor(accent, theme);
-  }, [glass, page, bright, dark, accent, theme]);
+  }, [chrome?.tone?.bright, chrome?.tone?.dark, accent, theme]);
+}
+
+/**
+ * On an adaptive page with an always-dark background, cards maintain the primary
+ * color with high luminance and high saturation consistently without scroll transition.
+ */
+export function useCardAnimatedStyle() {
+  return useAnimatedStyle(() => ({}));
 }
 
 /**
@@ -109,18 +84,22 @@ export function cardMaterialFor(
   theme: { surface: string; border: string }
 ): CardMaterial {
   if (accent && 'bright' in accent && accent.bright) {
-    const fill = accent.bright;
-    return { fill, edge: 'rgba(255, 255, 255, 0.1)', shape: cardShape, solid: fill, glass: false };
+    return {
+      fill: accent.bright,
+      edge: 'rgba(255, 255, 255, 0.1)',
+    };
   }
   if (accent && 'dark' in accent) {
-    const fill = accent.dark ?? theme.surface;
-    return { fill, edge: theme.border, shape: cardShape, solid: fill, glass: false };
+    return {
+      fill: accent.dark ?? theme.surface,
+      edge: theme.border,
+    };
   }
   const roles = accent as AccentRoles | null | undefined;
-  const fill = roles?.tonal
-    ? mix(roles.m3.primaryContainer, Palette.shadowInk, 0.5)
-    : theme.surface;
-  return { fill, edge: theme.border, shape: cardShape, solid: fill, glass: false };
+  return {
+    fill: roles?.tonal ? mix(roles.m3.primaryContainer, Palette.shadowInk, 0.5) : theme.surface,
+    edge: theme.border,
+  };
 }
 
 /** Fifteen in — the reference's card inset, and the page margin. */
@@ -137,50 +116,10 @@ export const CARD_GAP = Spacing.x12;
  * `overflow: 'hidden'`, so a card that must clip its contents (art to its
  * corner) clips on an inner view, as `<Card>` does.
  */
-const shapes = StyleSheet.create({
-  card: {
+export const cardShape = StyleSheet.create({
+  shape: {
     borderRadius: Radius.review,
     borderWidth: 1,
     ...Elevation.card,
   },
-  glass: {
-    borderRadius: Radius.review,
-    borderWidth: 1,
-    boxShadow: [
-      {
-        offsetX: 0,
-        offsetY: GLASS.shadowOffset,
-        blurRadius: GLASS.shadowBlur,
-        color: GLASS.shadow,
-      },
-      /* The light on the bevel: one dp inside the top edge. */
-      { inset: true, offsetX: 0, offsetY: 1, blurRadius: 0, color: GLASS.highlight },
-    ],
-  },
-});
-
-export const cardShape = shapes.card;
-
-const glassCache = new Map<string, CardMaterial>();
-
-/**
- * The glass card on `page` — `useCardMaterial`'s on a glass page, and for a
- * screen that draws a card before its own `<Screen>`'s context exists (the
- * game page's own log, in its masthead). One object per page colour.
- */
-export function glassMaterial(page: string): CardMaterial {
-  let material = glassCache.get(page);
-  if (!material) {
-    material = {
-      fill: GLASS.fill,
-      edge: GLASS.edge,
-      shape: shapes.glass,
-      rule: 'rgba(255, 255, 255, 0.12)',
-      /* The renderer composites in sRGB, as `mix` does. */
-      solid: mix(page, '#FFFFFF', GLASS.fillAlpha),
-      glass: true,
-    };
-    glassCache.set(page, material);
-  }
-  return material;
-}
+}).shape;

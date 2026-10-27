@@ -1,6 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { ActivityIndicator, StyleSheet, Text, View, type PressableProps } from 'react-native';
 
+import { interpolateColor, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+
 import { PressableScale } from '@/components/ui/pressable-scale';
 import {
   ControlHeight,
@@ -12,8 +14,11 @@ import {
   withAlpha,
 } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
+import { usePulse } from '@/hooks/use-pulse';
+import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useTheme } from '@/hooks/use-theme';
 import { filledRoles } from '@/lib/filled';
+import { getTextColor } from '@/lib/key-color';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'large' | 'medium' | 'small';
@@ -125,6 +130,14 @@ export function Button({
   const vivid = tone === 'vivid';
   const filled = filledRoles(accent);
 
+  const chrome = useScreenChrome();
+  const dark = chrome?.tone?.dark;
+  const bright = chrome?.tone?.bright;
+
+  const buttonAnimatedStyle = useAnimatedStyle(() => ({}));
+
+  const vividBackground = bright ?? dark ?? filled.fill;
+
   /*
    * One look for every action, the owner's reference measured: SimpMusic's
    * "Create room" — a grey pill (`controlFill`, #181818 on black) with a small
@@ -144,12 +157,12 @@ export function Button({
       }
     : vivid
       ? {
-          background: filled.fill,
+          background: vividBackground,
           /* Transparent rather than the fill: the background paints under the
              border, so the edge deepens with the fill while held instead of
              staying behind as a lighter 1px ring. */
           edge: 'transparent',
-          foreground: filled.ink,
+          foreground: getTextColor(vividBackground),
           pressed: filled.pressed,
         }
       : {
@@ -190,7 +203,7 @@ export function Button({
       focusRing={accent.ring}
       /* A small button is drawn at 32 and touched at the platform floor. */
       hitSlop={hitSlop ?? (small ? SmallControlSlop : undefined)}
-      style={StyleSheet.flatten([
+      style={[
         styles.base,
         small ? styles.small : large ? styles.large : styles.medium,
         /* Ghost has no fill, so it stays flat — Android's elevation needs an
@@ -199,7 +212,8 @@ export function Button({
         variant === 'ghost' || unavailable ? Elevation.none : Elevation[elevation],
         { backgroundColor: look.background, borderColor: look.edge },
         fullWidth && styles.fullWidth,
-      ])}
+        buttonAnimatedStyle,
+      ]}
       {...rest}>
       {/* Keep the label mounted while loading so the button does not resize. */}
       {loading && (

@@ -4,7 +4,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { QuoteBlock } from '@/components/quote-block';
 import { Avatar } from '@/components/ui/avatar';
-import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, cardShape, useCardMaterial } from '@/components/ui/card-material';
 import { Text } from '@/components/ui/text';
 import { scoreColor } from '@/constants/score';
 import { Spacing, Type } from '@/constants/theme';
@@ -110,7 +110,7 @@ export const ReviewQuote = memo(function ReviewQuote({
     <View
       style={[
         size,
-        material.shape,
+        cardShape,
         styles.card,
         { backgroundColor: fill ?? material.fill, borderColor: material.edge },
         style,

@@ -4,7 +4,10 @@ import { describe, it } from 'node:test';
 
 import jpeg from 'jpeg-js';
 
+import { Hct, argbFromHex } from '@material/material-color-utilities';
+
 import { generateDynamicTheme } from '../theme/dynamic-color.ts';
+import { VIVID_FLOOR } from './filled.ts';
 import { contrast, luminance, mix, saturate, toHsl } from './color.ts';
 import { visibleRegion } from './key-color.ts';
 import {
@@ -16,7 +19,9 @@ import {
   m3Seeds,
   pageInks,
   paletteOf,
-  pickAccentSeed,
+  buttonTone,
+  harmonySeed,
+  HARMONY,
   pickPageColor,
   type Candidate,
 } from './page-color.ts';
@@ -168,6 +173,8 @@ const HEROES = {
   witcher: 'the-witcher-3.jpg',
   stardew: 'stardew-valley.jpg',
   doom: 'doom-eternal.jpg',
+  /* A blue page whose buttons came out olive (the owner's, 2026-10-27). */
+  ark: 'ark-survival-evolved.jpg',
 } as const;
 
 const FRAME = { width: 1.18, height: 1 };
@@ -273,27 +280,71 @@ describe('m3Seeds — Material’s own seed for the buttons', () => {
   });
 });
 
-describe('pickAccentSeed — rule 5', () => {
-  /* The button's own arithmetic: M3's dark primary, lifted as `filledRoles` lifts it. */
-  const fillOf = (seed: string) => saturate(generateDynamicTheme(seed, true).primary, 0.72);
+describe('the buttons: of the page’s family, apart by tone', () => {
+  /* The button's own arithmetic (`filledRoles`): the scheme's primary at a
+     tone, lifted to the vivid floor. */
+  const fillAt = (seed: string, tone?: number) =>
+    saturate(generateDynamicTheme(seed, true, { primaryTone: tone }).primary, VIVID_FLOOR);
+  const hueGap = (a: string, b: string) => {
+    const d = Math.abs(Hct.fromInt(argbFromHex(a)).hue - Hct.fromInt(argbFromHex(b)).hue) % 360;
+    return d > 180 ? 360 - d : d;
+  };
+  const buttonsFor = (file: string) => {
+    const { page: pagePixels, seed: seedPixels } = read(file);
+    const page = pickPageColor(paletteOf(pagePixels)).color;
+    const harmony = harmonySeed(m3Seeds(seedPixels), page)!;
+    const tone = buttonTone(page, (at) => fillAt(harmony.seed, at));
+    return { page, seed: harmony.seed, tone, fill: fillAt(harmony.seed, tone) };
+  };
 
-  it('keeps the first seed whose button stands ΔE 30 from the page', () => {
-    const page = '#082060';
-    /* A blue seed's button on a blue page, then an orange one. */
-    const picked = pickAccentSeed(['#1B57E8', '#E06020'], page, fillOf);
-    assert.ok(picked);
-    assert.ok(deltaE(fillOf(picked.seed), page) >= PAGE_COLOR.accentDistance);
+  it('ARK: Survival Evolved’s buttons are its blue, not earth (the owner’s, 2026-10-27)', () => {
+    const ark = buttonsFor(HEROES.ark);
+    /* The page is the sky's blue; the buttons were an olive #9FA21A. */
+    assert.ok(hueGap(ark.fill, ark.page) < 40, `${ark.fill} on ${ark.page}`);
+    assert.ok(deltaE(ark.fill, ark.page) >= PAGE_COLOR.accentDistance, 'and still stand apart');
   });
 
-  it('turns the hue 180° when no seed stands apart', () => {
-    const picked = pickAccentSeed(['#3060C0'], '#3060C0', () => '#3264C0');
-    assert.ok(picked?.rotated);
-    const turned = hueOf(picked!.seed);
-    const turn = (((turned - hueOf('#3060C0')) % 360) + 360) % 360;
-    assert.ok(Math.abs(turn - 180) < 2, `${turn}°`);
+  it('God of War’s are its blue-grey’s family, not its logo’s red', () => {
+    const gow = buttonsFor(HEROES.godOfWar);
+    assert.ok(hueGap(gow.fill, gow.page) < 40, `${gow.fill} on ${gow.page}`);
   });
 
-  it('has nothing to say without seeds', () => {
-    assert.equal(pickAccentSeed([], '#3060C0', fillOf), null);
+  it('every hero’s buttons stand ΔE 30 from its page, and read their own ink', () => {
+    for (const file of Object.values(HEROES)) {
+      const buttons = buttonsFor(file);
+      const ink = generateDynamicTheme(buttons.seed, true, { primaryTone: buttons.tone }).onPrimary;
+      assert.ok(deltaE(buttons.fill, buttons.page) >= PAGE_COLOR.accentDistance, file);
+      assert.ok(contrast(ink, buttons.fill) >= 4.5, `${file}: ink on its button`);
+    }
+  });
+
+  it('a grey page takes the art’s best seed, whatever its hue', () => {
+    assert.deepEqual(harmonySeed(['#C02030', '#2050C0'], '#5A5A5C'), {
+      seed: '#C02030',
+      from: 'art',
+    });
+  });
+
+  it('a seed near the page is harmonized toward it; none near, the page seeds it', () => {
+    const page = '#2060B0';
+    const near = harmonySeed(['#C02030', '#3070D0'], page)!;
+    assert.equal(near.from, 'art');
+    assert.ok(hueGap(near.seed, page) <= hueGap('#3070D0', page), 'pulled toward the page');
+    assert.deepEqual(harmonySeed(['#C02030'], page), { seed: page, from: 'page' });
+  });
+
+  it('keeps the scheme’s own tone on a dark page, and goes lighter on a mid one', () => {
+    const fill = (at: number) => fillAt('#2060B0', at);
+    assert.equal(buttonTone('#101828', fill), HARMONY.toneFrom);
+    assert.ok(buttonTone('#4070B0', fill) > HARMONY.toneFrom);
+  });
+
+  it('moves the primary alone: every other role of the scheme is the same', () => {
+    const plain = generateDynamicTheme('#2060B0', true);
+    const lifted = generateDynamicTheme('#2060B0', true, { primaryTone: 85 });
+    assert.notEqual(lifted.primary, plain.primary);
+    for (const role of Object.keys(plain) as (keyof typeof plain)[]) {
+      if (role !== 'primary') assert.equal(lifted[role], plain[role], role);
+    }
   });
 });

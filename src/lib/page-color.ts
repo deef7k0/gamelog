@@ -1,4 +1,6 @@
 import {
+  Blend,
+  Hct,
   QuantizerCelebi,
   Score,
   argbFromHex,
@@ -40,15 +42,16 @@ import { paletteSwatches } from './immersive-color';
  *  4. **Failure**: an image that will not load is `FAILED`, a neutral dark
  *     grey; the glass still works on it.
  *
- * ## The buttons: Material 3, from the same art
+ * ## The buttons: Material 3, from the same art, of the page's family
  *
  * `m3Seeds` is Android's own wallpaper-colour path — Material's Celebi
  * quantiser (Wu, then weighted k-means) to 128 colours, then `Score`, which
- * ranks them for a UI theme — on the part of the hero that is on screen. The
- * first seed whose filled button is perceptibly apart from the page (CIELAB
- * ΔE ≥ 30, the brief's rule 5) seeds the page's scheme (`pickAccentSeed`); if
- * none is, the first seed's complement. **The page colour never seeds the
- * buttons**: they would be the page's colour on the page.
+ * ranks them for a UI theme — on the part of the hero that is on screen. Of
+ * those, the one nearest the page's hue seeds the buttons, harmonized toward
+ * it; with none near, the page's own colour does (`harmonySeed`). The brief's
+ * rule 5 — the button ΔE 30 from the page — is then kept by **tone**: the same
+ * palette, lighter (`buttonTone`). Followed literally, rule 5 reached for
+ * another seed or the complement, and a cyan page wore earth buttons.
  *
  * Pure: no React Native and no `@/`, so `npm test` loads it.
  */
@@ -414,22 +417,93 @@ export function deltaE(a: string, b: string): number {
 }
 
 /**
- * Rule 5: the seed for the page's buttons. The first of `seeds` whose filled
- * button (`fillOf`, the same arithmetic the button itself uses) stands at
- * least `accentDistance` from the page; failing every one, the first seed's
- * complement — its hue turned 180° at S 0.8, L 0.55, the brief's fallback.
- * Null with no seeds at all: the caller has its own fallback (the genre's).
+ * How the buttons are made to belong to the page — the owner's (2026-10-27),
+ * after ARK: Survival Evolved, whose page came out cyan and whose buttons came
+ * out earth: "They just dont blend at all."
+ *
+ * The two came from two algorithms reading the same art for different things:
+ * the page from Palette's swatches by the brief's rules, the buttons from
+ * Material's `Score`, which favours chroma — so a small vivid thing in the
+ * picture (God of War's red logo, Persona 5's teal) could seed buttons of a
+ * hue the page has nothing of. And the brief's rule 5, followed literally,
+ * pushes *apart*: a button too like the page takes the next seed, or the
+ * complement.
  */
-export function pickAccentSeed(
+export const HARMONY = {
+  /**
+   * Within this many degrees of the page's hue (HCT), a seed of the art's own
+   * is of the page's family, and is used — pulled the rest of the way by
+   * Material's own `Blend.harmonize`. Further than this, the page's colour is
+   * the seed.
+   */
+  range: 30,
+  /**
+   * A page greyer than this (HCT chroma) has no family to keep to, and takes
+   * the art's own best seed, whatever its hue: a vivid button on a grey page
+   * is the classic pairing, not a clash.
+   */
+  neutralChroma: 12,
+  /** The button's tone: the scheme's own first, and lighter in steps to the ceiling. */
+  toneFrom: 60,
+  toneTo: 95,
+  toneStep: 5,
+} as const;
+
+/** The shortest way round the hue circle between two hues, in degrees. */
+function hueDistance(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/**
+ * The seed for the page's buttons: one of Material's seeds for the art
+ * (`m3Seeds`) that belongs to the page's family, harmonized toward it — or,
+ * when none does, the page's own colour. Null without a page colour's worth
+ * of anything (no seeds and a grey page): the caller keeps its fallback.
+ */
+export function harmonySeed(
   seeds: readonly string[],
-  page: string,
-  fillOf: (seed: string) => string
-): { seed: string; rotated: boolean } | null {
-  for (const seed of seeds) {
-    if (deltaE(fillOf(seed), page) >= PAGE_COLOR.accentDistance) return { seed, rotated: false };
+  page: string
+): { seed: string; from: 'art' | 'page' } | null {
+  const pageHct = Hct.fromInt(argbFromHex(page));
+  if (pageHct.chroma < HARMONY.neutralChroma) {
+    return seeds[0] ? { seed: seeds[0], from: 'art' } : null;
   }
-  const first = seeds[0];
-  if (!first) return null;
-  const hsl = toHsl(first)!;
-  return { seed: fromHsl({ h: (hsl.h + 180) % 360, s: 0.8, l: 0.55 }), rotated: true };
+
+  let nearest: string | null = null;
+  let distance = Infinity;
+  for (const seed of seeds) {
+    const hct = Hct.fromInt(argbFromHex(seed));
+    /* A grey seed has no hue to agree with. */
+    if (hct.chroma < HARMONY.neutralChroma) continue;
+    const d = hueDistance(hct.hue, pageHct.hue);
+    if (d < distance) {
+      distance = d;
+      nearest = seed;
+    }
+  }
+  if (nearest && distance <= HARMONY.range) {
+    const harmonized = Blend.harmonize(argbFromHex(nearest), argbFromHex(page));
+    return { seed: hexFromArgb(harmonized).toUpperCase(), from: 'art' };
+  }
+  return { seed: page, from: 'page' };
+}
+
+/**
+ * Rule 5, kept by **tone** rather than by hue: the tone the page's buttons
+ * take their palette's primary at — the scheme's own 60 when that already
+ * stands ΔE 30 from the page, else lighter, a step at a time, until it does.
+ * The brief's own remedy (the next seed, or the complement) is what made a
+ * cyan page wear earth buttons; a lighter button of the page's own family
+ * stands apart and still belongs.
+ *
+ * `fillAt` is the button's own arithmetic at a tone (`filledRoles` over the
+ * scheme's primary). Every page holds white at 3:1, so it is never light:
+ * lighter is always away from it.
+ */
+export function buttonTone(page: string, fillAt: (tone: number) => string): number {
+  for (let tone = HARMONY.toneFrom; tone < HARMONY.toneTo; tone += HARMONY.toneStep) {
+    if (deltaE(fillAt(tone), page) >= PAGE_COLOR.accentDistance) return tone;
+  }
+  return HARMONY.toneTo;
 }

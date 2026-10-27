@@ -3340,18 +3340,29 @@ if the image fails. **One addition, measured**: a swatch must cover 5% of
 what Palette counted (`minShare`) — "prefer vibrant" otherwise gave God of
 War its logo's red, The Witcher 3 its blood, Ghost of Tsushima its leaves.
 
-**The buttons** are `<AccentProvider color={seed}>`: Material's Celebi (128
-colours) and `Score` on the hero's visible part — Android's wallpaper path —
-then the first seed whose review-button fill is ΔE 30 from the page (rule 5),
-else its complement. Things that are easy to break:
+**The buttons** are `<AccentProvider color={seed} primaryTone={tone}>`:
+Material's Celebi (128 colours) and `Score` on the hero's visible part —
+Android's wallpaper path — **kept to the page's family** (`harmonySeed`): the
+seed nearest the page's hue, if within 30°, pulled toward it by Material's
+own `Blend.harmonize`; else the page's colour itself; a grey page (HCT chroma
+under 12) takes the art's best seed, whatever its hue. The brief's rule 5
+(the button ΔE 30 from the page) is then kept by **tone** (`buttonTone`):
+the same palette, lighter, in steps from the scheme's 60 — `primaryTone`
+through `accentRoles` into `generateDynamicTheme`, which moves `primary` and
+nothing else. Why, measured on 26 live heroes: the page and the buttons came
+from two algorithms reading the art for different things, `Score` favours
+chroma (God of War's red logo, Persona 5's teal), and rule 5 taken literally
+reaches for the next seed or the complement — so ARK: Survival Evolved's blue
+page wore olive buttons (the owner's, 2026-10-27: "They just dont blend at
+all"), and five others clashed the same way. Ark is a fixture now. Things that
+are easy to break:
 
 - **Celebi's JS port is random.** Its k-means starts from `Math.random()`
   (Java seeds `0x42688`); two reads of one hero disagreed by ΔE 17 one time in
   ten. `m3Seeds` runs it under a fixed seed, so it is deterministic.
 - **It is the slow part**: ~200 ms on an interpreter for 1,000 pixels (most
   of it is the 128 clusters, which are Android's and kept), once per hero.
-- **`Button` and `TonalKey` read the accent again** — the backup commit had
-  them read the screen's tone; both are back to `filledRoles(accent)`.
+- **`Button` and `TonalKey` read the accent**, never the screen's tone.
 
 **The inks**: white and white at 60% (`pageInks`), handed to everything on the
 page by `<ThemeInks>` — `useTheme()` reads it, so every `<Text color>` follows.
@@ -3375,14 +3386,17 @@ and an opaque `solid` (the page lifted 12%) for fades that end on a card.
 in the scroller. At rest it is exactly the old hero (38%, the owner's
 dissolve, the row set into it). Scrolled: the art drifts up at a fifth of the
 page's speed; the masthead (spacer, row, synopsis) is transparent and slides
-over it; a blurred copy comes in **from the first pixel of scroll**, eased out
-so it is three quarters in by a quarter of the way, and whole halfway; then the
-art drains into the page's colour and is **solid exactly where the top bar
-comes in** — the owner's corrections of 2026-10-27, "start sooner and
-stronger" and "at the same level where the top bar comes into screen". One
-number, `solidAt`, is `revealOffset` of the very `header` the page hands the
-bar, so the two cannot disagree. No zoom. The trailer pauses at `solidAt`
-(`TrailerBackdrop until`). Things that are easy to break:
+over it; a blurred copy comes in after a little scroll and is whole quickly
+(15% → 45% of the way); then the art drains into the page's colour and is
+**solid once the page is past the title and onto the developer lines — which
+is where the top bar comes in**. The owner's, over three messages of
+2026-10-27: "solid when the developer names reach the top", "at the same
+level where the top bar comes into screen", "I don't want it to start sooner,
+just that it goes blurrier quicker". One measured point — the top of the
+lines under the name reaching the bar's foot — is the bar's `header` and,
+through `revealOffset`, the art's `solidAt`. **The bar used to come in once
+the cover had gone under it (2026-10-23); it now comes in once the name has.**
+No zoom. The trailer pauses at `solidAt`. Things that are easy to break:
 
 - **One foot fade, over both copies.** For one build the blurred copy had a
   shorter fade of its own, so as it came in the art stopped dissolving and
@@ -3391,11 +3405,11 @@ bar, so the two cannot disagree. No zoom. The trailer pauses at `solidAt`
 - **The clip is on the box that drifts, not the frame.** The blurred copy is
   drawn 10% oversize; the art moves up inside the frame, so a frame clip let
   the overhang show as a band under the foot once the art had drifted 15dp.
-- **The blur is a small copy** (`blurUri`: IGDB's `t_cover_small_2x`, the
-  file the page colour is read from) at radius 24 — stretched six times across
-  the display it is far softer than any radius on the full-size file, and
-  Android's cap of 25 still allows it. A Steam hero is another picture, so it
-  blurs its own full-size file.
+- **The blur is the full-size file, never a small copy.** expo-image's
+  Android blur is `BlurTransformation(min(radius, 25), 4)` — it shrinks the
+  bitmap to a quarter *before* blurring — so a 180-wide copy became a
+  45-pixel smear: a flat grey, "no blur at all" on the owner's phone. The
+  full-size file decodes at the view's size and keeps its shapes.
 
 The first time a hero's colour is read the art and the page's colour come in
 over 400 ms; every visit after, the colour is there before the first frame.
@@ -3403,9 +3417,10 @@ over 400 ms; every visit after, the colour is there before the first frame.
 **Not seen on a phone**, and the owner asked for no emulator here. Checked:
 types, lint, `npm test`, the worklets as the plugin ships them, and scroll
 states rendered from the real geometry and real heroes. To judge on a device:
-the drift (0.2), the blur's strength on the small copy (radius 24) on each
-platform, the lip's 40dp, the box shadow's look on Android, white at 60% on
-the brightest pages, and the first visit's 400 ms arrival.
+the drift (0.2), the blur's ramp (15% → 45%), how light the buttons go on the
+brightest pages (tone 85–90 on Ark, Horizon, No Man's Sky), the lip's 40dp,
+the box shadow's look on Android, white at 60% on the brightest pages, and
+the first visit's 400 ms arrival.
 
 ## Home: SimpMusic's header, glow and moods
 

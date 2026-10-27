@@ -11,9 +11,10 @@ import { visibleRegion, type Anchor, type Size } from '@/lib/key-color';
 import {
   PAGE_COLOR,
   cropPixels,
+  buttonTone,
+  harmonySeed,
   m3Seeds,
   paletteOf,
-  pickAccentSeed,
   pickPageColor,
 } from '@/lib/page-color';
 
@@ -51,11 +52,16 @@ export type PageColor = {
   /** The page's one colour, top to foot, at rest and scrolled. */
   page: string;
   /**
-   * The seed of the page's Material 3 scheme — its buttons — already held
-   * apart from the page (rule 5). Null where the art gave none: the caller's
-   * own fallback (the genre's hue) stands.
+   * The seed of the page's Material 3 scheme — its buttons — in the page's own
+   * family (`harmonySeed`). Null where the art gave none: the caller's own
+   * fallback (the genre's hue) stands.
    */
   seed: string | null;
+  /**
+   * The tone the buttons' fill is taken at, so it stands apart from the page
+   * by lightness rather than by hue (`buttonTone`). Undefined with no seed.
+   */
+  tone?: number;
   /**
    * Whether the page is the art's colour, so its cards are glass. False while
    * game colours are off: the page is then the app's own room, cards and all.
@@ -68,7 +74,8 @@ export type PageColor = {
 /**
  * A game page's colours, from its hero (`lib/page-color`): the page by the
  * brief's filter over Palette's swatches, the buttons by Material 3's own
- * seed choice — both read off the part of the hero `frame` shows, once per
+ * seed choice kept to the page's family — both read off the part of the hero
+ * `frame` shows, once per
  * hero and kept for good (the query is saved with the app's cache; the device
  * keeps its own copy for when that cache has let it go).
  *
@@ -103,22 +110,24 @@ export function usePageColor(
     ? theme.background
     : (data?.page ?? (source && read.isPending ? theme.background : PAGE_COLOR.failed));
 
-  /* Rule 5 with the button's own arithmetic: the fill a seed's scheme gives
-     the review button (`filledRoles`), held ΔE 30 from the page. */
-  const seed = useMemo(() => {
-    if (!data || data.seeds.length === 0) return null;
-    return (
-      pickAccentSeed(
-        data.seeds,
-        data.page,
-        (candidate) => filledRoles(accentRoles(candidate, { tonal: true })).fill
-      )?.seed ?? null
+  /* The buttons: the art's seed of the page's family, and the tone that holds
+     the brief's ΔE 30 from the page — measured on the button's own fill
+     (`filledRoles`), the arithmetic the review button draws with. */
+  const buttons = useMemo(() => {
+    if (!data) return null;
+    const harmony = harmonySeed(data.seeds, data.page);
+    if (!harmony) return null;
+    const tone = buttonTone(
+      data.page,
+      (at) => filledRoles(accentRoles(harmony.seed, { tonal: true, primaryTone: at })).fill
     );
+    return { seed: harmony.seed, tone };
   }, [data]);
 
   return {
     page,
-    seed,
+    seed: buttons?.seed ?? null,
+    tone: buttons?.tone,
     glass: colours.on,
     resolved: !colours.on || !source || !read.isPending,
   };

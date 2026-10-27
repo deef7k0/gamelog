@@ -46,6 +46,12 @@ export type AccentProviderProps = {
   /** Bypass everything with an explicit hue. For a tier row or a preview. */
   color?: string | null;
   /**
+   * The tone the loud fill — the review button, a lit key, the chosen tab —
+   * is taken at, when the page is not the scheme's own dark one: the game
+   * page's, whose colour is its hero's (`usePageColor`, `buttonTone`).
+   */
+  primaryTone?: number;
+  /**
    * Provide the house accent instead — the app's own page and its white — as
    * if there were no provider at all. A review's page switches this from its
    * top bar (`useReviewColour`); keeping the provider mounted is what lets the
@@ -61,6 +67,7 @@ export function AccentProvider({
   artwork,
   genres,
   color,
+  primaryTone,
   neutral = false,
 }: AccentProviderProps) {
   const theme = useTheme();
@@ -80,8 +87,8 @@ export function AccentProvider({
         ? accentRoles(theme.gameNeutral)
         : neutral
           ? accentRoles(theme.primary)
-          : accentRoles(hue, { tonal: true }),
-    [hue, neutral, colours.on, theme.primary, theme.gameNeutral]
+          : accentRoles(hue, { tonal: true, primaryTone }),
+    [hue, neutral, colours.on, theme.primary, theme.gameNeutral, primaryTone]
   );
 
   /* Both contexts, from one extraction. `useAccent()` is what the app's own

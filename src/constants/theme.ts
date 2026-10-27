@@ -776,12 +776,15 @@ const TONAL_STATES = { wash: 0.14, edge: 0.45, ring: 0.22 } as const;
  * every control that reads `useAccent()` — so the result is cached, and callers
  * get the same object back. Treat it as immutable.
  */
-export function accentRoles(hue: string, { tonal = false }: { tonal?: boolean } = {}): AccentRoles {
-  const key = `${tonal ? 'tonal' : 'house'}:${hue}`;
+export function accentRoles(
+  hue: string,
+  { tonal = false, primaryTone }: { tonal?: boolean; primaryTone?: number } = {}
+): AccentRoles {
+  const key = `${tonal ? 'tonal' : 'house'}:${hue}:${primaryTone ?? ''}`;
   const cached = accentCache.get(key);
   if (cached) return cached;
 
-  const roles = buildAccentRoles(hue, tonal);
+  const roles = buildAccentRoles(hue, tonal, primaryTone);
   /* Oldest first out; a Map iterates in insertion order. A game's hue is read
      off its box art, so a long session would otherwise keep every one it saw. */
   if (accentCache.size >= ACCENT_CACHE_SIZE) {
@@ -824,7 +827,12 @@ function neutralM3(hue: string, ink: string): DynamicThemeColors {
   };
 }
 
-function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
+/**
+ * `primaryTone`: the loud fill at another tone of its own palette — the game
+ * page's, whose page is a mid-tone colour of its own (`lib/page-color`,
+ * `buttonTone`). Tonal only; every other role is the scheme's.
+ */
+function buildAccentRoles(hue: string, tonal: boolean, primaryTone?: number): AccentRoles {
   if (!tonal) {
     /* The house blue. `primary` is a chosen brand colour sitting on a fixed
        `background`, not a measurement, so there is nothing for a tonal palette
@@ -894,7 +902,7 @@ function buildAccentRoles(hue: string, tonal: boolean): AccentRoles {
    * the page back up means raising the neutral palettes' chroma in
    * `dynamic-color.ts`, in one place, for every role at once.
    */
-  const m3 = generateDynamicTheme(hue, true);
+  const m3 = generateDynamicTheme(hue, true, { primaryTone });
 
   return {
     color: m3.primary,

@@ -68,7 +68,7 @@ import { useLandingArrival } from '@/hooks/use-arrival';
 import { useHeaderHeight, useTopBarInset } from '@/hooks/use-header-height';
 import { useGameStorefronts } from '@/hooks/use-game-prices';
 import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
-import { pageColorSource, usePageColor } from '@/hooks/use-page-color';
+import { usePageColor } from '@/hooks/use-page-color';
 import { ThemeInks, useTheme } from '@/hooks/use-theme';
 import { smoothScrimStops } from '@/lib/immersive-color';
 import { pageInks } from '@/lib/page-color';
@@ -152,6 +152,13 @@ function lipColours(page: string) {
  * as far toward the tap floor as a stack of 19dp lines allows.
  */
 const COMPANY_SLOP = { top: 2, bottom: 2, left: 8, right: 8 };
+
+/**
+ * Where the lines under the name start in the billing, before they are
+ * measured: its twelve of padding, one 27dp line of name, and the twenty under
+ * it (`styles.billing`, `billingTitle`, `billingLines`).
+ */
+const BILLING_LINES_ESTIMATE = Spacing.x12 + 27 + Spacing.x20;
 const COMPANY_SLOP_FIRST = { ...COMPANY_SLOP, top: 12 };
 const COMPANY_SLOP_LAST = { ...COMPANY_SLOP, bottom: 12 };
 
@@ -513,15 +520,20 @@ export default function GameDetailScreen() {
 
   /*
    * Where the pinned hero is solid page colour, in how far the page has
-   * scrolled: **exactly where the top bar comes in** — the owner's
-   * (2026-10-27), "at the same level where the top bar comes into screen".
-   * One header for both, so the bar and the art cannot disagree: the bar
-   * arrives once the masthead's row (the name and the cover) has gone under
-   * it, and `revealOffset` of that is the scroll it arrives at. The blur and
-   * the drain are shares of it (`PINNED_HERO`).
+   * scrolled: once the page is **past the title and onto the developer
+   * lines** — the owner's (2026-10-27), "by the time it gets past the title
+   * and onto the developer section of the masthead it should already be
+   * solid" — which is also **where the top bar comes in**: "at the same level
+   * where the top bar comes into screen". So one point in the masthead is
+   * the bar's `header` and, through `revealOffset`, the art's `solidAt`: the
+   * top of the lines under the name (the date, then the companies), reaching
+   * the foot of the bar. Measured, since the name can run to four lines; an
+   * estimate of a one-line name until it is. The blur and the drain are
+   * shares of it (`PINNED_HERO`).
    */
   const topInset = useTopBarInset();
-  const barHeader = heroHeight - overlap + coverHeight;
+  const [linesY, setLinesY] = useState<number | null>(null);
+  const barHeader = heroHeight - overlap + (linesY ?? BILLING_LINES_ESTIMATE);
   const solidAt = Math.max(1, revealOffset(barHeader, topInset + TOP_BAR_ROW));
   /* Where the page's solid part starts: the tabs are inside it, so their
      place in the page is its place plus theirs in it. */
@@ -768,7 +780,11 @@ export default function GameDetailScreen() {
             </Text>
 
             {hasBillingLines && (
-              <View style={styles.billingLines}>
+              /* Measured: its top is where the art is solid and the bar comes
+                 in (`solidAt`). */
+              <View
+                style={styles.billingLines}
+                onLayout={(event) => setLinesY(event.nativeEvent.layout.y)}>
                 {data.releaseDate ? (
                   <Text variant="body" style={{ color: quietInk }}>
                     {formatReleaseDate(data.releaseDate)}
@@ -1386,7 +1402,6 @@ export default function GameDetailScreen() {
                   page={page}
                   fade={MASTHEAD_FADE}
                   solidAt={solidAt}
-                  blurUri={pageColorSource(data.heroUrl)}
                   scrim={0.4}
                   ready={colour.resolved}
                   media={(art) => (
@@ -1403,10 +1418,10 @@ export default function GameDetailScreen() {
             /* Over the hero there is no bar, only the glass discs, and they stay
                where they are — Apple's bar (`glass`): there is always a way back.
                The bar's glass fades in under them, with the game's name centred,
-               once the masthead's row (the name and the cover) has gone under
-               where it sits: the hero, less how far the row rises into it, plus
-               the cover. At that same scroll the art has finished draining:
-               it is solid page colour as the bar arrives (`solidAt`). */
+               once the name has gone under it — the lines under the name
+               reaching the bar's foot (`barHeader`). At that same scroll the
+               art has finished draining: it is solid page colour as the bar
+               arrives (`solidAt`). */
             topBar={
               <FrostedTopBar
                 back

@@ -86,33 +86,31 @@ export const HERO_MOTION = {
  * So, in screen space: the art drifts up at a fifth of the page's speed
  * (`drift`; in the owner's frames a point on the art moved at about a third,
  * and their words were "mostly still"); the masthead slides over it; a
- * blurred copy fades in from the first pixel of scroll (`pinnedBlur`); and
- * the art drains into the page's colour (`pinnedDrain`), solid exactly as the
- * top bar comes in — the owner's (2026-10-27): "at the same level where the
- * top bar comes into screen". One offset runs both, `solidAt`, and it is the
- * bar's own (`revealOffset` of the header the page hands the bar).
+ * blurred copy fades in after a little scroll and is whole quickly
+ * (`pinnedBlur`); and the art drains into the page's colour (`pinnedDrain`),
+ * solid once the page is past the title and onto the developer lines, which
+ * is where the top bar comes in — the owner's (2026-10-27): "it goes blurrier
+ * quicker, by the time it gets past the title and onto the developer section
+ * of the masthead it should already be solid", and "at the same level where
+ * the top bar comes into screen". One offset runs the bar, the blur and the
+ * drain: `solidAt`.
  * No zoom: "the hero never moves".
  */
 export const PINNED_HERO = {
   /** How fast the art moves up the display, as a share of the page's speed. */
   drift: 0.2,
   /**
-   * Where the blur is whole, as a share of the way to solid. It starts at the
-   * first pixel and is eased out, so most of it is in by a quarter of the way:
-   * "the blur needs to start sooner and stronger" (2026-10-27).
+   * Where the blur begins and where it is whole, as shares of the way to
+   * solid. It begins after a little scroll, where it always did — "I don't
+   * want it to start sooner" — and is whole a third of a page later: "just
+   * that it goes blurrier quicker" (2026-10-27).
    */
-  blurUntil: 0.5,
+  blurFrom: 0.15,
+  blurUntil: 0.45,
   /** Where the drain into the page's colour begins, as a share of the way to solid. */
   drainFrom: 0.5,
   /** The blurred copy, drawn this much past its frame so its darkened edge is never seen. */
   blurScale: 1.1,
-  /**
-   * The blurred copy's radius, on a 180-wide copy of the art: drawn across the
-   * display that is about six times its own size, so the blur is several
-   * times the full-size copy's — and Android, which caps a radius at 25,
-   * still gets it.
-   */
-  blurRadius: 24,
   /** How long the art, and the page's colour, take to come in when first known. */
   arriveMs: 400,
 } as const;
@@ -162,18 +160,10 @@ export function pinnedStretch(
   return { scale: (height - offset) / height, translateY: -offset / 2 };
 }
 
-/**
- * How much of the blurred copy shows: from the first pixel of scroll, eased
- * out — fast at first, so the softening is seen at once — and whole at
- * `until` of the way to `solidAt`.
- */
-export function pinnedBlur(offset: number, solidAt: number, until: number): number {
+/** How much of the blurred copy shows: from `from` of the way to `solidAt`, whole at `until`. */
+export function pinnedBlur(offset: number, solidAt: number, from: number, until: number): number {
   'worklet';
-  if (offset <= 0) return 0;
-  const end = solidAt * until;
-  if (end <= 0) return 1;
-  const t = Math.min(1, offset / end);
-  return 1 - (1 - t) * (1 - t);
+  return smoothstep(solidAt * from, solidAt * until, offset);
 }
 
 /** How far the art has drained into the page's colour: from `from` of the way, solid at `solidAt`. */

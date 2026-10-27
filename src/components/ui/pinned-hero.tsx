@@ -42,12 +42,7 @@ export type PinnedHeroProps = {
    * the top bar comes in. The blur and the drain are both shares of it.
    */
   solidAt: number;
-  /**
-   * A small copy of the same picture for the blur — IGDB's 180-wide fit. Drawn
-   * across the display it is far softer than a blur of the full-size file can
-   * be, and it is a few kilobytes. Without one, the full-size file is blurred.
-   */
-  blurUri?: string | null;
+
   /** How much of the frame, from the top, is darkened for the status bar and the discs. */
   scrim?: number;
   /**
@@ -81,12 +76,14 @@ export type PinnedHeroProps = {
  * ```
  *
  * The blur is a blurred copy whose opacity moves — a radius that moved would
- * be a new bitmap a frame. It is a *small* copy (`blurUri`), which is what
- * makes it strong: a 180-wide picture drawn across the display is soft before
- * any radius is applied. It lies over the art, so it softens a trailer too.
- * It comes in from the first pixel of scroll, and the art drains into the
- * page's colour over the second half of the way, solid at `solidAt` — where
- * the top bar comes in.
+ * be a new bitmap a frame. It is the full-size file, mounted once the sharp
+ * copy has loaded so Android decodes it from the cache that load filled. **Not
+ * a small copy**: expo-image's Android blur shrinks the bitmap to a quarter
+ * before blurring it (`BlurTransformation(min(radius, 25), 4)`), so a 180-wide
+ * copy became a 45-pixel smear — a flat grey, "no blur at all" on the owner's
+ * phone (2026-10-27). It lies over the art, so it softens a trailer too. It
+ * comes in after a little scroll and is whole quickly; the art then drains
+ * into the page's colour, solid at `solidAt` — where the top bar comes in.
  *
  * **One foot fade, over both copies.** The sharp art and the blurred one
  * dissolve into the page by exactly the same curve, so the art is seamless
@@ -107,7 +104,6 @@ export const PinnedHero = memo(function PinnedHero({
   page,
   fade,
   solidAt,
-  blurUri = null,
   scrim = 0,
   ready = true,
   media,
@@ -123,12 +119,7 @@ export const PinnedHero = memo(function PinnedHero({
   const steamSource = steam && !steamFailed ? steam.hero : null;
   const source = steamSource ?? uri ?? null;
   const [loaded, setLoaded] = useState<string | null>(null);
-  /* The small copy when the art on screen is the one it was made from (a
-     Steam hero is another picture); otherwise the full-size file, once it has
-     loaded, so Android decodes it from the cache that load filled. */
-  const blurSource =
-    !steamSource && blurUri ? blurUri : source && loaded === source ? source : null;
-  const blurRadius = blurSource === blurUri ? PINNED_HERO.blurRadius : BLUR_RADIUS;
+  const blurReady = !!source && loaded === source;
 
   const footColours = useMemo(() => colours(fade, page), [fade, page]);
 
@@ -144,7 +135,7 @@ export const PinnedHero = memo(function PinnedHero({
   const blurStyle = useAnimatedStyle(() => {
     pulse.get();
     return {
-      opacity: pinnedBlur(scrollY.get(), solidAt, PINNED_HERO.blurUntil),
+      opacity: pinnedBlur(scrollY.get(), solidAt, PINNED_HERO.blurFrom, PINNED_HERO.blurUntil),
       transform: [{ scale: PINNED_HERO.blurScale }],
     };
   });
@@ -202,13 +193,13 @@ export const PinnedHero = memo(function PinnedHero({
           {media ? media(art) : art}
 
           {/* The art softening: over the art, and over a trailer. */}
-          {blurSource && (
+          {blurReady && (
             <Animated.View style={[styles.fill, blurStyle]}>
               <Image
-                source={{ uri: blurSource }}
+                source={{ uri: source }}
                 style={styles.fill}
                 contentFit="cover"
-                blurRadius={blurRadius}
+                blurRadius={BLUR_RADIUS}
                 cachePolicy="memory-disk"
                 accessibilityIgnoresInvertColors
               />

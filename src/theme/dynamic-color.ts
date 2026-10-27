@@ -209,12 +209,16 @@ function paletteFor(scheme: DynamicScheme, name: PaletteName): TonalPalette {
  * `react-native-image-colors` or the JPEG decoder handed back, and a malformed
  * hex reaching it should cost the page its colour, not its render.
  */
-export function generateDynamicTheme(seedColor: string, isDark: boolean): DynamicThemeColors {
-  const key = `${isDark ? 'dark' : 'light'}:${seedColor}`;
+export function generateDynamicTheme(
+  seedColor: string,
+  isDark: boolean,
+  { primaryTone }: { primaryTone?: number } = {}
+): DynamicThemeColors {
+  const key = `${isDark ? 'dark' : 'light'}:${seedColor}:${primaryTone ?? ''}`;
   const cached = schemes.get(key);
   if (cached) return cached;
 
-  const colors = buildScheme(seedColor, isDark);
+  const colors = buildScheme(seedColor, isDark, primaryTone);
   /* Oldest first out: a Map iterates in insertion order. */
   if (schemes.size >= SCHEME_CACHE_SIZE) schemes.delete(schemes.keys().next().value as string);
   schemes.set(key, colors);
@@ -240,7 +244,15 @@ export function generateDynamicTheme(seedColor: string, isDark: boolean): Dynami
 const schemes = new Map<string, DynamicThemeColors>();
 const SCHEME_CACHE_SIZE = 64;
 
-function buildScheme(seedColor: string, isDark: boolean): DynamicThemeColors {
+/**
+ * `primaryTone` takes `primary` — the one loud fill — at another tone of the
+ * same palette: the game page's, whose page is a mid-tone colour of its own
+ * (`lib/page-color`), where the scheme's tone 60 would sit at the page's own
+ * lightness. Choosing a tone for contrast against a background is what
+ * Material's own contrast system does; the palette, the hue and every other
+ * role are unchanged.
+ */
+function buildScheme(seedColor: string, isDark: boolean, primaryTone?: number): DynamicThemeColors {
   const source = Hct.fromInt(argbOf(seedColor));
 
   /*
@@ -282,6 +294,9 @@ function buildScheme(seedColor: string, isDark: boolean): DynamicThemeColors {
   for (const role of DYNAMIC_ROLES) {
     const { palette, light, dark } = ROLES[role];
     out[role] = hexFromArgb(paletteFor(scheme, palette).tone(isDark ? dark : light));
+  }
+  if (primaryTone !== undefined) {
+    out.primary = hexFromArgb(scheme.primaryPalette.tone(primaryTone));
   }
   return out;
 }

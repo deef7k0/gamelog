@@ -1,15 +1,13 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
 
-import { CARD_INSET, cardShape, useCardAnimatedStyle, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Reveal, useRevealing } from '@/components/ui/reveal';
 import { useSectionInset } from '@/components/ui/section';
 import { Text } from '@/components/ui/text';
 import { Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
-import { getTextColor } from '@/lib/key-color';
 
 export type PanelProps = {
   title: string;
@@ -65,12 +63,11 @@ export function Panel({
 }: PanelProps) {
   const accent = useAccent();
   const material = useCardMaterial();
-  const animatedFill = useCardAnimatedStyle();
   const sectionInset = useSectionInset();
   const revealing = useRevealing();
 
   const shell = StyleSheet.flatten([
-    cardShape,
+    material.shape,
     {
       marginHorizontal: margin ?? sectionInset,
       backgroundColor: material.fill,
@@ -80,10 +77,6 @@ export function Panel({
     styles.shell,
     style,
   ]);
-
-  const titleColor = getTextColor(material.fill);
-  const ruleColor =
-    titleColor === '#1c1c1e' ? 'rgba(0, 0, 0, 0.12)' : accent.m3.outlineVariant;
 
   const body = (
     <>
@@ -96,12 +89,12 @@ export function Panel({
              gives up its last word. */
           adjustsFontSizeToFit
           minimumFontScale={0.8}
-          style={[styles.title, { color: titleColor }]}>
+          style={styles.title}>
           {title}
         </Text>
         {trailing}
       </View>
-      <View style={[styles.rule, { backgroundColor: ruleColor }]} />
+      <View style={[styles.rule, { backgroundColor: material.rule ?? accent.m3.outlineVariant }]} />
       {children}
     </>
   );
@@ -111,7 +104,7 @@ export function Panel({
      is a door keeps its press on the card itself, so the reveal goes round it
      there — and only there, where a box round it costs nothing. */
   if (!onPress) {
-    return <Reveal style={[shell, animatedFill]}>{body}</Reveal>;
+    return <Reveal style={shell}>{body}</Reveal>;
   }
 
   const door = (
@@ -120,7 +113,7 @@ export function Panel({
       accessibilityLabel={accessibilityLabel ?? title}
       onPress={onPress}
       scaleTo={0.98}
-      style={[shell, animatedFill]}>
+      style={shell}>
       {body}
     </PressableScale>
   );

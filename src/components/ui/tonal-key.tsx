@@ -1,15 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { interpolateColor, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Text } from '@/components/ui/text';
 import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useAccent } from '@/hooks/use-accent';
-import { usePulse } from '@/hooks/use-pulse';
-import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { filledRoles } from '@/lib/filled';
-import { getTextColor } from '@/lib/key-color';
 
 /**
  * Where a key sits in its group, which is the only thing that decides its shape.
@@ -99,20 +95,7 @@ export function TonalKey({
   const accent = useAccent();
   const filled = filledRoles(accent);
   const lit = active === true;
-
-  const chrome = useScreenChrome();
-  const dark = chrome?.tone?.dark;
-  const bright = chrome?.tone?.bright;
-
-  const keyAnimatedStyle = useAnimatedStyle(() => ({}));
-
-  const activeColor = bright ?? dark ?? filled.fill;
-
-  const ink = lit
-    ? getTextColor(activeColor)
-    : dark
-      ? 'rgba(235, 235, 245, 0.65)'
-      : accent.m3.onSurfaceVariant;
+  const ink = lit ? filled.ink : accent.m3.onSurfaceVariant;
 
   return (
     <PressableScale
@@ -124,23 +107,20 @@ export function TonalKey({
       disabled={busy}
       onPress={onPress}
       scaleTo={0.92}
-      style={[
-        StyleSheet.flatten([
-          styles.key,
-          keyCorners(position),
-          /* Raised when lit: a solid block of the accent where depth is the only
-             edge it has. */
-          lit ? Elevation.raised : Elevation.none,
-          {
-            backgroundColor: lit ? activeColor : accent.m3.surfaceContainerHigh,
-            borderColor: lit ? activeColor : accent.m3.surfaceContainerHigh,
-          },
-          caption ? styles.captioned : null,
-          busy && styles.busy,
-          style,
-        ]),
-        keyAnimatedStyle,
-      ]}>
+      style={StyleSheet.flatten([
+        styles.key,
+        keyCorners(position),
+        /* Raised when lit: a solid block of the accent where depth is the only
+           edge it has. */
+        lit ? Elevation.raised : Elevation.none,
+        {
+          backgroundColor: lit ? filled.fill : accent.m3.surfaceContainerHigh,
+          borderColor: lit ? filled.fill : accent.m3.surfaceContainerHigh,
+        },
+        caption ? styles.captioned : null,
+        busy && styles.busy,
+        style,
+      ])}>
       <Ionicons name={lit ? icon : (outline ?? icon)} size={caption ? 20 : 22} color={ink} />
       {caption && (
         <Text variant="tab" numberOfLines={1} style={{ color: ink }}>

@@ -34,6 +34,12 @@ export type TrailerBackdropProps = {
   url: string | null;
   /** The artwork's height: once the page has scrolled this far, the video pauses. */
   height: number;
+  /**
+   * How far the page scrolls before the artwork is out of sight, when that is
+   * not its height — the game page's hero is pinned behind the page and seen
+   * until the page has covered it (`<PinnedHero coverAt>`).
+   */
+  until?: number;
   /** The artwork, drawn over the video until the video's first frame. */
   children: ReactNode;
 };
@@ -65,7 +71,7 @@ export type TrailerBackdropProps = {
  * pages that use this lay their hero's foot fade over it, into the key colour
  * (`<KeyColorHero>`), and the blur and the drain go over it too.
  */
-export function TrailerBackdrop({ url, height, children }: TrailerBackdropProps) {
+export function TrailerBackdrop({ url, height, until, children }: TrailerBackdropProps) {
   const chrome = useScreenChrome();
   const resting = useSharedValue(0);
   const scrollY = chrome?.scrollY ?? resting;
@@ -77,8 +83,9 @@ export function TrailerBackdrop({ url, height, children }: TrailerBackdropProps)
      mounted again on return, starts behind the picture. */
   const [drawn, setDrawn] = useState<string | null>(null);
 
+  const visibleFor = until ?? height;
   useAnimatedReaction(
-    () => scrollY.get() < height,
+    () => scrollY.get() < visibleFor,
     (now, was) => {
       if (now !== was) runOnJS(setInView)(now);
     }

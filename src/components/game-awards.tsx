@@ -124,7 +124,9 @@ export function GameAwards({ appId, title }: { appId: string | null; title: stri
  */
 function AwardImages({ images, title }: { images: SteamAwardImage[]; title: string }) {
   const accent = useAccent();
-  const fill = useCardMaterial().fill;
+  /* Opaque: the fold fades into the colour the card is seen as — on glass,
+     the page with its white. */
+  const fill = useCardMaterial().solid;
   const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
   const [open, setOpen] = useState(false);

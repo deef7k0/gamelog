@@ -1,13 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, View } from 'react-native';
 
+import { useCardMaterial } from '@/components/ui/card-material';
 import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import { scoreColor } from '@/constants/score';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getRatingDistribution } from '@/lib/api';
+import { GLASS } from '@/lib/page-color';
 import { DISTRIBUTION_BANDS, barShare, toneScore } from '@/lib/rating-distribution';
+
+/** A bar's empty track on a glass card: the glass's own white, once more. */
+const GLASS_TRACK = GLASS.fill;
 
 /** The label column: as wide as "90–99" in `caption`, as How ratings work's. */
 const LABEL_WIDTH = 48;
@@ -69,6 +74,8 @@ export function RatingDistributionGraph({
   card?: boolean;
 }) {
   const theme = useTheme();
+  /* On glass the track is a little more glass; on a solid card, a step up. */
+  const glass = useCardMaterial().glass;
   const total = counts.reduce((sum, count) => sum + count, 0);
 
   const graph = (
@@ -85,7 +92,11 @@ export function RatingDistributionGraph({
             <Text variant="caption" color="textMuted" numberOfLines={1} style={styles.label}>
               {band.label}
             </Text>
-            <View style={[styles.track, { backgroundColor: theme.surfaceElevated }]}>
+            <View
+              style={[
+                styles.track,
+                { backgroundColor: glass ? GLASS_TRACK : theme.surfaceElevated },
+              ]}>
               {count > 0 && (
                 <View
                   style={[

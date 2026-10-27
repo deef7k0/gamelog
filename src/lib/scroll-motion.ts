@@ -75,6 +75,67 @@ export const HERO_MOTION = {
   groundMs: 600,
 } as const;
 
+/**
+ * The game page's hero, pinned behind the page — the owner's brief of
+ * 2026-10-27, with frames of Apple Music's artist page scrolling: "The hero
+ * stays pinned behind the game page… it's the game page that moves up making
+ * the hero be swallowed… It's not completely still." And: "When the game
+ * title reaches the top of the screen, the blur should already be at the
+ * strongest and transition into solid background color."
+ *
+ * So, in screen space: the art drifts up at a fifth of the page's speed
+ * (`drift`; in the owner's frames a point on the art moved at about a third,
+ * and their words were "mostly still"); the masthead slides over it; a
+ * blurred copy fades in from `blurFrom` of the way to the title reaching the
+ * top, and is whole there (`pinnedBlur`); from there the art drains into the
+ * page's colour (`pinnedDrain`) while the page's solid part rises over it.
+ * No zoom: "the hero never moves".
+ */
+export const PINNED_HERO = {
+  /** How fast the art moves up the display, as a share of the page's speed. */
+  drift: 0.2,
+  /** Where the blur begins, as a share of the way to the title reaching the top. */
+  blurFrom: 0.15,
+  /** The blurred copy, drawn this much past its frame so its darkened edge is never seen. */
+  blurScale: 1.1,
+  /** How long the art, and the page's colour, take to come in when first known. */
+  arriveMs: 400,
+} as const;
+
+/** How far up the display the pinned art has drifted, in dp (never past its own height). */
+export function pinnedDrift(offset: number, factor: number, height: number): number {
+  'worklet';
+  if (offset <= 0) return 0;
+  return -Math.min(offset * factor, height);
+}
+
+/**
+ * The pinned art pulled past the top of the page (iOS's bounce): drawn larger
+ * about its centre and moved down by half the pull, so its top stays at the
+ * top of the display and its foot follows the page. Nothing at rest or
+ * scrolled.
+ */
+export function pinnedStretch(
+  offset: number,
+  height: number
+): { scale: number; translateY: number } {
+  'worklet';
+  if (offset >= 0 || height <= 0) return { scale: 1, translateY: 0 };
+  return { scale: (height - offset) / height, translateY: -offset / 2 };
+}
+
+/** How much of the blurred copy shows: whole once the page has scrolled `at`. */
+export function pinnedBlur(offset: number, at: number, from: number): number {
+  'worklet';
+  return smoothstep(at * from, at, offset);
+}
+
+/** How far the art has drained into the page's colour: from `from` to `to` scrolled. */
+export function pinnedDrain(offset: number, from: number, to: number): number {
+  'worklet';
+  return smoothstep(from, to, offset);
+}
+
 export const SHELF_REVEAL = {
   /** How far a shelf rises as it arrives, in dp. Enough to read as arriving, not as moving. */
   rise: 16,

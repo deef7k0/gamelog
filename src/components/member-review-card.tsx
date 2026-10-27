@@ -1,16 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { memo } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated from 'react-native-reanimated';
 
 import { QuoteBlock } from '@/components/quote-block';
 import { Avatar } from '@/components/ui/avatar';
-import { CARD_INSET, cardShape, useCardAnimatedStyle, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
 import { ScoreLine } from '@/components/ui/score';
 import { Text } from '@/components/ui/text';
 import { Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { getSecondaryTextColor, getTextColor } from '@/lib/key-color';
 import { cardShows } from '@/lib/review-quote';
 
 export type MemberReviewCardProps = {
@@ -116,23 +114,18 @@ export const MemberReviewCard = memo(function MemberReviewCard({
 }: MemberReviewCardProps) {
   const theme = useTheme();
   const material = useCardMaterial();
-  const animatedFill = useCardAnimatedStyle();
 
   const rounded = score === null ? null : Math.round(score);
   const words = text.trim();
   const shows = cardShows({ review: words, review_title: quote, review_display: display });
-  const cardBg = fill ?? material.fill;
-  const primaryText = getTextColor(cardBg);
-  const secondaryText = getSecondaryTextColor(cardBg);
-  const isAdaptive = cardBg !== theme.surface;
-  const ink = isAdaptive ? (primaryText === '#1c1c1e' ? 'rgba(28, 28, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)') : theme.proseInk;
+  /* The quote is the words' ink, so the card reads as one voice. */
+  const ink = theme.proseInk;
 
   return (
-    <Animated.View
+    <View
       style={[
-        cardShape,
-        { backgroundColor: cardBg, borderColor: material.edge },
-        !fill && animatedFill,
+        material.shape,
+        { backgroundColor: fill ?? material.fill, borderColor: material.edge },
         styles.card,
         style,
       ]}>
@@ -141,7 +134,7 @@ export const MemberReviewCard = memo(function MemberReviewCard({
           {/* `danger`, as `<SpoilerNotice>` uses it: read this before you act.
               The glyph and the sentence say it too. */}
           <Ionicons name="eye-off-outline" size={16} color={theme.danger} />
-          <Text variant="bodySmall" style={[styles.coveredText, { color: secondaryText }]}>
+          <Text variant="bodySmall" color="textSecondary" style={styles.coveredText}>
             This review contains spoilers
           </Text>
         </View>
@@ -150,24 +143,13 @@ export const MemberReviewCard = memo(function MemberReviewCard({
            words' place, between its drawn marks. */
         <QuoteBlock text={quote} size="card" color={ink} accessible={false} />
       ) : (
-        <Text variant="reviewExcerpt" style={{ color: ink }} numberOfLines={lines}>
+        <Text variant="reviewExcerpt" color="proseInk" numberOfLines={lines}>
           {words}
         </Text>
       )}
 
       {/* The reference's rule between the writing and whoever wrote it. */}
-      <View
-        style={[
-          styles.rule,
-          {
-            backgroundColor: isAdaptive
-              ? primaryText === '#1c1c1e'
-                ? 'rgba(0, 0, 0, 0.12)'
-                : 'rgba(255, 255, 255, 0.12)'
-              : theme.border,
-          },
-        ]}
-      />
+      <View style={[styles.rule, { backgroundColor: material.rule ?? theme.border }]} />
 
       <View style={styles.foot}>
         <View style={styles.who}>
@@ -175,7 +157,7 @@ export const MemberReviewCard = memo(function MemberReviewCard({
           {/* The brightest thing in the row, as it is in the reference, where
               the name measures ~#D0D5DD against the writing's ~#99A3AE — the
               writing is quiet (`proseInk`) and the signature is not. */}
-          <Text variant="reviewByline" numberOfLines={1} style={[styles.name, { color: primaryText }]}>
+          <Text variant="reviewByline" numberOfLines={1} style={styles.name}>
             {name}
           </Text>
           {/* Where the reference sets its stars. */}
@@ -189,17 +171,17 @@ export const MemberReviewCard = memo(function MemberReviewCard({
                 <Ionicons
                   name="heart"
                   size={12}
-                  color={likedByViewer ? theme.liked : secondaryText}
+                  color={likedByViewer ? theme.liked : theme.textSecondary}
                 />
-                <Text variant="bodySmall" style={[styles.figure, { color: secondaryText }]}>
+                <Text variant="bodySmall" color="textSecondary" style={styles.figure}>
                   {likes.toLocaleString()}
                 </Text>
               </View>
             )}
             {comments > 0 && (
               <View style={styles.count}>
-                <Ionicons name="chatbubble" size={12} color={secondaryText} />
-                <Text variant="bodySmall" style={[styles.figure, { color: secondaryText }]}>
+                <Ionicons name="chatbubble" size={12} color={theme.textSecondary} />
+                <Text variant="bodySmall" color="textSecondary" style={styles.figure}>
                   {comments.toLocaleString()}
                 </Text>
               </View>
@@ -207,7 +189,7 @@ export const MemberReviewCard = memo(function MemberReviewCard({
           </View>
         )}
       </View>
-    </Animated.View>
+    </View>
   );
 });
 

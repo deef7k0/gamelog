@@ -7,7 +7,8 @@ import { PORTRAIT_COLUMNS, gridItemWidth } from '@/components/gaming/game-tile';
 import { GameCoverRail } from '@/components/game-rail';
 import { HomeSection } from '@/components/home-section';
 import { LOGO_WIDTH_RATIO, StudioIdentity } from '@/components/studio-identity';
-import { TrailerBackdrop } from '@/components/trailer-backdrop';
+import { TrailerBackdrop, type TrailerFrame } from '@/components/trailer-backdrop';
+import { ArtworkField } from '@/components/ui/artwork-field';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { footFade } from '@/components/ui/key-color-hero';
 import { PageFill, PinnedHero } from '@/components/ui/pinned-hero';
@@ -31,6 +32,7 @@ import { AccentProvider } from '@/hooks/use-accent';
 import { useTopBarInset } from '@/hooks/use-header-height';
 import { TOP_BAR_ROW, revealOffset } from '@/constants/top-bar';
 import { smoothScrimStops } from '@/lib/immersive-color';
+import { frameFieldColors } from '@/lib/artwork-field';
 import { pageInks } from '@/lib/page-color';
 import { gameSortOptions, sortGames, type GameSearchResult, type GameSort } from '@/lib/games';
 import type { StudioGame } from '@/lib/games/igdb';
@@ -385,6 +387,23 @@ export default function StudioScreen() {
     ? { text: inks.primary, secondary: inks.secondarySolid, rule: inks.rule }
     : null;
 
+  /* The art's colours as a field behind the page, following the banner's
+     trailer while it plays — the game page's (`<ArtworkField>`). Over it the
+     page's parts are not solid: the rails and the grid stand on the field. */
+  const fielded = colour.artColoured;
+  const playingTrailer = trailers.ready && trailers.on ? (trailer?.url ?? null) : null;
+  const [clipField, setClipField] = useState<{ url: string; colors: string[] } | null>(null);
+  const onTrailerFrame = useCallback(
+    (frame: TrailerFrame) => {
+      if (!playingTrailer) return;
+      const colors = frameFieldColors(frame.data, frame.width, frame.height, page);
+      if (colors) setClipField({ url: playingTrailer, colors });
+    },
+    [page, playingTrailer]
+  );
+  const field = clipField && clipField.url === playingTrailer ? clipField.colors : colour.field;
+  const solidFill = fielded ? 'transparent' : page;
+
   /* Solid page colour, and the top bar in, once the name has gone under the
      bar — the line under it reaching the bar's foot — as on the game page. */
   const topInset = useTopBarInset();
@@ -424,8 +443,9 @@ export default function StudioScreen() {
              the display (`<PinnedHero>`) — the game page's, here too. */
           backdrop={
             <>
-              <PageFill color={page} />
+              {fielded ? <ArtworkField page={page} colors={field} /> : <PageFill color={page} />}
               <PinnedHero
+                over={fielded ? 'field' : 'page'}
                 uri={bannerUrl}
                 height={bannerHeight}
                 page={page}
@@ -446,9 +466,10 @@ export default function StudioScreen() {
                 }}
                 media={(art) => (
                   <TrailerBackdrop
-                    url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
+                    url={playingTrailer}
                     height={bannerHeight}
-                    until={solidAt}>
+                    until={solidAt}
+                    onFrame={fielded ? onTrailerFrame : undefined}>
                     {art}
                   </TrailerBackdrop>
                 )}
@@ -481,7 +502,7 @@ export default function StudioScreen() {
             keyExtractor={keyExtractor}
             /* Opaque, edge to edge, and spaced by their own padding rather than
                the list's gap, which would leave slits of the art between rows. */
-            columnWrapperStyle={[styles.column, { backgroundColor: page }]}
+            columnWrapperStyle={[styles.column, { backgroundColor: solidFill }]}
             contentContainerStyle={styles.grid}
             showsVerticalScrollIndicator={false}
             initialNumToRender={GRID_INITIAL_ITEMS}
@@ -493,15 +514,17 @@ export default function StudioScreen() {
               <View>
                 {/* The solid part's soft top edge, under the name block: the art
                     the name floats on gives way to the page here. */}
-                <View pointerEvents="none" style={[styles.lip, { top: bannerHeight - LIP }]}>
-                  <LinearGradient
-                    colors={lipColours(page)}
-                    locations={
-                      LIP_STOPS.locations as unknown as readonly [number, number, ...number[]]
-                    }
-                    style={styles.fill}
-                  />
-                </View>
+                {!fielded && (
+                  <View pointerEvents="none" style={[styles.lip, { top: bannerHeight - LIP }]}>
+                    <LinearGradient
+                      colors={lipColours(page)}
+                      locations={
+                        LIP_STOPS.locations as unknown as readonly [number, number, ...number[]]
+                      }
+                      style={styles.fill}
+                    />
+                  </View>
+                )}
 
                 {/* Where the banner shows through, with the studio's name over its
                     foot — in the page, so it floats up over the art as the page
@@ -538,7 +561,7 @@ export default function StudioScreen() {
                 </View>
 
                 {/* The page's solid part: the rails, opaque, rising over the art. */}
-                <View style={[styles.solid, { backgroundColor: page }]}>
+                <View style={[styles.solid, { backgroundColor: solidFill }]}>
                   {/* The rails rise into place as they scroll into view. */}
                   <RevealScope>
                     <StudioShelves

@@ -225,6 +225,7 @@ export function SectionCard({
     },
     padded && { padding: CARD_INSET },
     style,
+    material.strip,
   ]);
 
   /* The card's own inks under it, when it is in the filled colour. */

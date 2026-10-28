@@ -215,8 +215,18 @@ export type PaletteSwatch = Swatch;
  * after its default filter — which is what `Palette.generate()` scores its
  * named targets against (`lib/page-color`). Empty when every pixel was
  * filtered out.
+ *
+ * `filter: false` is Palette's `clearFilters()`: near-black, near-white and
+ * the skin tones are counted too. That is the question "what is this picture
+ * mostly made of?" — which the filter answers wrongly for a dark picture, by
+ * reducing it to whatever warm detail survived (BitChord's `ArtworkPalette`,
+ * which asks it both ways; `lib/page-color`).
  */
-export function paletteSwatches(data: Uint8Array | Uint8ClampedArray): PaletteSwatch[] {
+export function paletteSwatches(
+  data: Uint8Array | Uint8ClampedArray,
+  { filter = true }: { filter?: boolean } = {}
+): PaletteSwatch[] {
+  const allowed = filter ? isAllowed : () => true;
   const histogram = new Int32Array(1 << (WORD_WIDTH * 3));
   for (let i = 0; i + 2 < data.length; i += 4) {
     const quantized =
@@ -229,12 +239,12 @@ export function paletteSwatches(data: Uint8Array | Uint8ClampedArray): PaletteSw
   const colors: number[] = [];
   for (let color = 0; color < histogram.length; color += 1) {
     if (histogram[color] === 0) continue;
-    const allowed = isAllowed(
+    const kept = allowed(
       widen(quantizedRed(color)),
       widen(quantizedGreen(color)),
       widen(quantizedBlue(color))
     );
-    if (allowed) colors.push(color);
+    if (kept) colors.push(color);
     else histogram[color] = 0;
   }
   if (colors.length === 0) return [];
@@ -260,7 +270,7 @@ export function paletteSwatches(data: Uint8Array | Uint8ClampedArray): PaletteSw
   }
   return boxes
     .map((box) => box.average())
-    .filter((swatch) => isAllowed(swatch.rgb[0], swatch.rgb[1], swatch.rgb[2]));
+    .filter((swatch) => allowed(swatch.rgb[0], swatch.rgb[1], swatch.rgb[2]));
 }
 
 /**

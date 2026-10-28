@@ -122,6 +122,7 @@ export const ReviewQuote = memo(function ReviewQuote({
         styles.card,
         { backgroundColor: fill ?? material.fill, borderColor: material.edge },
         style,
+        material.strip,
       ]}>
       {/* The card's own inks under it, when it is in the filled colour — and
           not when the caller painted it another fill. */}

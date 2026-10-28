@@ -11,6 +11,7 @@ import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/screen';
 import { SortBar, type SortOption } from '@/components/ui/sort-bar';
+import { useBareCards } from '@/components/ui/card-material';
 import { Card, Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
 import type { EditionKind } from '@/constants/game-editions';
@@ -276,6 +277,7 @@ const PickRow = memo(function PickRow({
   onOpen: () => void;
 }) {
   const theme = useTheme();
+  const bare = useBareCards();
   /* The 0030 sentence when the database can say it, and 0029's share of
      agreement when it cannot — never a count it does not have. */
   const support = supportLine(pick) ?? agreementLine(pick);
@@ -306,7 +308,8 @@ const PickRow = memo(function PickRow({
             inner one, so `flexDirection` there reached nothing and the text
             stacked under the art. */}
         <Card padded={false}>
-          <View style={styles.row}>
+          {/* On the page itself (`<BareCards>`), the row starts at the inset. */}
+          <View style={[styles.row, bare && styles.bareRow]}>
             <Poster
               coverUrl={pick.cover_url}
               heroUrl={pick.hero_url}
@@ -373,6 +376,7 @@ const styles = StyleSheet.create({
   /* `flex-start`: the art and the title share a top edge, and a long quote grows
      the row downwards rather than pushing the cover into the middle. */
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.x12, padding: Spacing.x12 },
+  bareRow: { padding: 0 },
   /* `minWidth: 0` beside `flex: 1`, so a long unbroken title wraps inside the
      column instead of measuring at its natural width and pushing the chevron
      off the card. */

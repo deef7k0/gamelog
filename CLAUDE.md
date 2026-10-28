@@ -170,11 +170,17 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # and the game page's pinned hero — its drift, its blur
                    # whole as the title reaches the top, its drain, its
                    # stretch (lib/scroll-motion); and the art-coloured
-                   # pages' colours — Palette's named swatches, the brief's
-                   # filter on synthetic images and on six real heroes,
-                   # Material's seed (fixed-seed, so deterministic), the
-                   # buttons kept to the page's family and apart by tone,
-                   # and the cards' inks at AA (lib/page-color)
+                   # pages' colours — BitChord's page (the dominant re-lit,
+                   # the grey guard, the quiet ink, both inks held over
+                   # every hue), the accent by saturation × √population, on
+                   # six real heroes, Material's seed (fixed-seed, so
+                   # deterministic), the buttons kept to the page's family
+                   # — or the accent's on a neutral page — and apart by tone,
+                   # and the cards' inks at AA (lib/page-color); and the
+                   # colour field behind them — four blobs held to the
+                   # inks on every hero and every blend of them, a frame of
+                   # a trailer from JPEG to base64 and back, the black-frame
+                   # guard, BitChord's geometry (lib/artwork-field)
 
 node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
                    # (PGlite, in-process) over every migration, with seven
@@ -452,6 +458,11 @@ src/
                                         (SimpMusic's `AnimatedVisibility`,
                                         300ms), and `stagger` for a run of
                                         them. See § Loading
+                     ui/artwork-field   the colour field behind a game's and
+                                        a studio's page: four blobs of the
+                                        art's colours, drifting once and
+                                        cross-fading. See § The art-coloured
+                                        pages
                      ui/pinned-hero     the art-coloured pages' hero — a
                                         game's, a studio's, a collection's:
                                         pinned behind the page as `<Screen
@@ -934,10 +945,15 @@ src/
                      ends in, read off the edges of the part on screen, and
                      the two page tones it becomes in a dark room (`keyPage`).
                      Pure, tested against real heroes
-    page-color.ts    the art-coloured pages' colours: Palette's named
-                     swatches, the owner's filter, the page's inks, and
-                     Material 3's own seed for the buttons, kept to the
-                     page's family. Pure, tested
+    page-color.ts    the art-coloured pages' colours: BitChord's page (what
+                     the art is mostly made of, re-lit), its quiet ink, the
+                     accent (saturation × √population), and Material 3's
+                     own seed for the buttons, kept to the page's family.
+                     Pure, tested
+    artwork-field.ts the colour field behind an art-coloured page —
+                     BitChord's legacy Now Playing backdrop: the blobs'
+                     colours held to the page's inks, their geometry, a
+                     trailer frame's colours. Pure, tested
     scroll-motion.ts how an Apple Music hero answers the scroll, and a shelf
                      arriving: the curves, as worklets. Pure, tested
     immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
@@ -2453,6 +2469,8 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
   every card is the review button's colour, exactly** (2026-10-27, § The
   art-coloured pages): `useCardMaterial()` answers it there, with the
   button's ink, and its `shape` is what a card spreads.
+- **Except on the game page, which has no cards at all** (2026-10-28,
+  `<BareCards>`, § The art-coloured pages).
 - **Every card in the app is this card** — the owner's direction
   (2026-10-20): "make all the cards in the app with that style of the review
   ones, with the same size and corner ratio and stuff. Even the ones in the
@@ -3326,6 +3344,72 @@ bar's 60% wash, and the shelves' 560 ms.
 
 ## The art-coloured pages: a game, a studio, a collection (2026-10-27)
 
+**2026-10-28 — BitChord's page, a colour field, and no cards on the game
+page.** The owner, having read how BitChord colours its artist page and Now
+Playing screen: "integrate the findings from bitchord… The legacy blob
+backdrop, seamless shade switch, and the two pure bits… Bitchord's background
+colors seem to be nicer to read than gamelog's, so make sure to apply their
+same logic"; and "remove the cards from the game page and leave the
+information as standalone text floating in the background", with a reference
+of the details as two columns of bold headings over pale values. What
+follows in this section from 2026-10-27 still holds except where this says
+otherwise — the page colour and the inks below it are replaced.
+
+- **The page is BitChord's** (`lib/page-color`, its docblock): the most
+  populous swatch *with Palette's filter off*, its hue kept, saturation into
+  0.20–0.62 and lightness into 0.13–0.24, then lowered until white holds 7:1
+  and the quiet ink 4.5:1. White holds 11–17:1 on the six fixture heroes,
+  where the brief's page held 3:1 and its quiet type was 2:1. **A grey is not
+  given a hue** (`adaptedSaturation`, under 0.12): a mostly-black hero —
+  Persona 5 Royal, ARK — gives a neutral dark page, and its colour is in the
+  field. The `minShare` floor, "prefer vibrant" and `darkenForWhite` are gone.
+- **The quiet ink is the page's own hue lifted pale** (`quietInk`, L 0.80):
+  the owner's reference is `#D69BA1` on `#5D1C24`, which is that rule.
+  `pageInks().secondary` is it, so every `textSecondary`/`textMuted`/
+  `proseInk` on the page is.
+- **The accent is saturation × √population** (`readArtwork`): the continuous
+  answer to the fleck that the 5% floor was a hard one to. It leads the field,
+  and **on a neutral page the buttons keep to its family** (`buttonFamily`) —
+  without that, ARK's grey page took Material's top seed, the olive the owner
+  rejected, beside its blue field.
+- **The field** (`<ArtworkField>`, `lib/artwork-field`) is BitChord's legacy
+  `MeshGradientBackground` on the **game page and the studio page**: four
+  radial gradients of the art's colours over the page's colour, filling the
+  screen as `<Screen backdrop>`'s first layer, their geometry BitChord's
+  number for number. Each blob is darkened until both inks hold on it, and a
+  blend is never brighter than its brightest colour, so the text reads
+  anywhere on it. It drifts once as the page opens, and a change of colour is
+  a 1.4 s cross-fade of whole layers — both CSS keyframe animations that end
+  on React's own style, so neither can lose its end value. **Not on the
+  collection**, which has no trailer; it keeps its flat page.
+- **The field follows the trailer** (`<TrailerBackdrop onFrame>`): every 3 s
+  while it plays in view, the video's own view — not the art over it — is
+  captured at 64 px by `react-native-view-shot` (lazily imported; it draws a
+  TextureView's bitmap on Android, ViewShot.java), decoded, rejected if black,
+  and quantised into new blob colours. The page and its inks stay the still's.
+- **Over the field the hero dissolves** (`<PinnedHero over="field">`): its
+  foot fades into the page's colour, which eases to nothing over 160dp
+  (`fieldHold`), and where it used to drain it fades out. The page's "solid
+  part" is transparent and the lip is gone; the pinned tab bar keeps the
+  page's colour.
+- **No cards on the game page** (`<BareCards>`, `card-material`): every card
+  there reads `useCardMaterial()`, which under the provider is bare —
+  transparent, no corner, edge or shadow, and `strip` takes the inset away —
+  so a section is its heading and its content at the page's inset. Panels
+  lose their rule. The sheets the page opens are outside it and keep theirs.
+- **Details is the reference's grid** (`<GameDetailsCard companies>`): two
+  entries a row, `h5` heading over values in the quiet ink, one a line;
+  Developers, Genres, Themes, Game modes, then "Show all"; tags, age ratings
+  and languages (over six values) run full width. **This brings the
+  developers back** (removed 2026-10-15) **and unbolds the values** (bold was
+  the 2026-10-16 sign of a link) — both because the reference does. Every
+  value is still a link.
+- **Not seen on a phone.** Types, lint, `npm test` and an Android bundle.
+  To judge on a device: the field's strength and whether it reads as light
+  or as blotches; the hero dissolving into it; frames being captured at all
+  (iOS may give black — the guard then keeps the still's colours); the cost
+  of four full-screen gradients under a scroll on an older Android.
+
 The owner's direction (2026-10-27), with frames of Apple Music's artist page
 scrolling: no colour transition on the page — "The color will stay the same";
 the page's colour picked by a pasted pipeline of "anti-ugly" rules; the
@@ -3339,7 +3423,8 @@ reverses the immersive pages' older rule** that a studio and a collection
 keep the app's controls (§ Immersive pages): they wear their art's Material 3
 now, kept to the page's family.
 
-**The page colour** (`lib/page-color.ts`, `usePageColor`) is the brief's
+**The page colour — replaced on 2026-10-28 by BitChord's (above); kept as the
+record of what was tried.** (`lib/page-color.ts`, `usePageColor`) It was the brief's
 pipeline, in JavaScript rather than through `react-native-image-colors`: the
 native module returns bare hexes with no populations and cannot crop, iOS's
 answer is not Palette's at all, and Expo Go has none — so Palette's quantiser
@@ -3377,7 +3462,8 @@ are easy to break:
   of it is the 128 clusters, which are Android's and kept), once per hero.
 - **`Button` and `TonalKey` read the accent**, never the screen's tone.
 
-**The inks**: white and white at 60% (`pageInks`), handed to everything on the
+**The inks — the 60% white replaced on 2026-10-28 by the quiet ink (above).**
+White and white at 60% (`pageInks`), handed to everything on the
 page by `<ThemeInks>` — `useTheme()` reads it, so every `<Text color>` follows.
 **The protected case's printed back is set in those inks**, so the Platforms
 section wraps the case in `<ThemeInks inks={null}>`; none of the case's own
@@ -3935,8 +4021,10 @@ and the event page's foot bar are all for a device.
   on a cold start; nothing invalidates it.
   `['key-color', source, aspect, ax, ay]` is a hero's key colour — kept on
   the device, nothing invalidates it (a picture's edges do not change).
-  `['page-color', source, aspect, ax, ay]` is an art-coloured page's colours (the
-  page and Material's seeds) — the same: kept, never invalidated.
+  `['page-color', 2, source, aspect, ax, ay]` is an art-coloured page's colours (the
+  page, its accent, Material's seeds and the field) — the same: kept, never
+  invalidated. The `2` is the rules' version: BitChord's page replaced the
+  brief's on 2026-10-28, so a row saved under the old rules is never read.
   `['artwork-mesh', thumbnail]` is the cover viewer's page, never persisted;
   `['onboarding-examples', 'colours' | 'animated']` the look questions'
   games.
@@ -5601,6 +5689,13 @@ was not this app's code. The rules that keep it that way:
   React-known positions (the tab bar's indicator) uses a Reanimated CSS
   transition instead, whose target is a React prop. The real fix is the static
   flag `FORCE_REACT_RENDER_FOR_SETTLED_ANIMATIONS`, which Expo Go cannot change.
+- **A Reanimated CSS ease is `cubicBezier(…)`, never a `'cubic-bezier(…)'`
+  string.** As a string its CSS animations and transitions accept only the
+  predefined names (`ease`, `linear`, `ease-in-out`…) and throw at the first
+  render — typecheck, lint, `npm test` and an Android bundle all pass it. The
+  colour field (`<ArtworkField>`) shipped one and the game page would not
+  open (2026-10-28). Import `cubicBezier` from `react-native-reanimated`, as
+  `paint-fill` and `reveal` do.
 - **A worklet's parameter default cannot name anything outside the worklet.**
   On the UI thread the names a worklet captures — a constant, another function —
   are unpacked from its closure by the first statement of its body, and a

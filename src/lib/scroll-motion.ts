@@ -125,6 +125,13 @@ export const PINNED_HERO = {
    * fighting", the owner, 2026-10-27).
    */
   footHold: 32,
+  /**
+   * Over the colour field (`<PinnedHero over="field">`), how far the page's
+   * colour hangs under the art before it has given way to the field — eased,
+   * so the art dissolves into the page's colour and the field's blobs come up
+   * out of it, with no edge between the three.
+   */
+  fieldHold: 160,
   /** How long the art, and the page's colour, take to come in when first known. */
   arriveMs: 400,
 } as const;

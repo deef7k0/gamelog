@@ -1,4 +1,4 @@
-import { createElement, useMemo, type ReactNode } from 'react';
+import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react';
 import { StyleSheet, type ViewStyle } from 'react-native';
 
 import { Elevation, Palette, Radius, Spacing, type AccentRoles } from '@/constants/theme';
@@ -61,18 +61,75 @@ export type CardMaterial = {
    * colour's. `<CardInks>` hands them down.
    */
   inks: FilledInks | null;
+  /**
+   * Whether there is no card at all (`<BareCards>`): the content stands on the
+   * page. Its fill and edge are transparent and its shape has no corner, edge
+   * or shadow; `strip` takes its inset away.
+   */
+  bare: boolean;
+  /**
+   * Spread last on a card's own style when it is bare: no padding, so the
+   * content stands where the card stood, at the section's inset. Null for a card.
+   */
+  strip: ViewStyle | null;
 };
+
+/**
+ * No cards under this — the game page's, at the owner's direction
+ * (2026-10-28): "I want you to remove the cards from the game page and leave
+ * the information as standalone text floating in the background… remove the
+ * information being contained inside a card and leave it as plain text in the
+ * background." Every card the page draws reads its material here, so one
+ * provider takes them all off: a section's heading stands on the page and its
+ * content under it, at the same inset, in the page's own inks.
+ */
+const Bare = createContext(false);
+
+export function BareCards({ children }: { children: ReactNode }) {
+  return createElement(Bare.Provider, { value: true }, children);
+}
+
+/** Whether cards are drawn bare here (`<BareCards>`). */
+export function useBareCards(): boolean {
+  return useContext(Bare);
+}
+
+const BARE_STRIP: ViewStyle = {
+  padding: 0,
+  paddingHorizontal: 0,
+  paddingVertical: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  paddingLeft: 0,
+  paddingRight: 0,
+};
+
+const bareShape: ViewStyle = { borderRadius: 0, borderWidth: 0 };
 
 export function useCardMaterial(): CardMaterial {
   const theme = useTheme();
   const chrome = useScreenChrome();
   const accent = useAccent();
+  const bare = useBareCards();
 
   const artColoured = chrome?.artColoured ?? false;
   const bright = chrome?.tone?.bright ?? null;
   const dark = chrome?.tone?.dark ?? null;
+  const page = chrome?.background ?? theme.background;
 
   return useMemo(() => {
+    if (bare) {
+      return {
+        fill: 'transparent',
+        edge: 'transparent',
+        shape: bareShape,
+        rule: theme.border,
+        solid: page,
+        inks: null,
+        bare: true,
+        strip: BARE_STRIP,
+      };
+    }
     if (artColoured) return filledMaterial(accent);
     if (bright) {
       return {
@@ -81,11 +138,23 @@ export function useCardMaterial(): CardMaterial {
         shape: cardShape,
         solid: bright,
         inks: null,
+        bare: false,
+        strip: null,
       };
     }
-    if (dark) return { fill: dark, edge: theme.border, shape: cardShape, solid: dark, inks: null };
+    if (dark) {
+      return {
+        fill: dark,
+        edge: theme.border,
+        shape: cardShape,
+        solid: dark,
+        inks: null,
+        bare: false,
+        strip: null,
+      };
+    }
     return cardMaterialFor(accent, theme);
-  }, [artColoured, bright, dark, accent, theme]);
+  }, [bare, page, artColoured, bright, dark, accent, theme]);
 }
 
 const filledCache = new WeakMap<AccentRoles, CardMaterial>();
@@ -100,7 +169,16 @@ export function filledMaterial(accent: AccentRoles): CardMaterial {
   if (!material) {
     const { fill, ink } = filledRoles(accent);
     const inks = filledInks(fill, ink);
-    material = { fill, edge: fill, shape: cardShape, rule: inks.rule, solid: fill, inks };
+    material = {
+      fill,
+      edge: fill,
+      shape: cardShape,
+      rule: inks.rule,
+      solid: fill,
+      inks,
+      bare: false,
+      strip: null,
+    };
     filledCache.set(accent, material);
   }
   return material;
@@ -142,17 +220,41 @@ export function cardMaterialFor(
 ): CardMaterial {
   if (accent && 'bright' in accent && accent.bright) {
     const fill = accent.bright;
-    return { fill, edge: 'rgba(255, 255, 255, 0.1)', shape: cardShape, solid: fill, inks: null };
+    return {
+      fill,
+      edge: 'rgba(255, 255, 255, 0.1)',
+      shape: cardShape,
+      solid: fill,
+      inks: null,
+      bare: false,
+      strip: null,
+    };
   }
   if (accent && 'dark' in accent) {
     const fill = accent.dark ?? theme.surface;
-    return { fill, edge: theme.border, shape: cardShape, solid: fill, inks: null };
+    return {
+      fill,
+      edge: theme.border,
+      shape: cardShape,
+      solid: fill,
+      inks: null,
+      bare: false,
+      strip: null,
+    };
   }
   const roles = accent as AccentRoles | null | undefined;
   const fill = roles?.tonal
     ? mix(roles.m3.primaryContainer, Palette.shadowInk, 0.5)
     : theme.surface;
-  return { fill, edge: theme.border, shape: cardShape, solid: fill, inks: null };
+  return {
+    fill,
+    edge: theme.border,
+    shape: cardShape,
+    solid: fill,
+    inks: null,
+    bare: false,
+    strip: null,
+  };
 }
 
 /** Fifteen in — the reference's card inset, and the page margin. */

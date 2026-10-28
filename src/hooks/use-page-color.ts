@@ -8,14 +8,16 @@ import { useGameColours } from '@/hooks/use-game-colours';
 import { useTheme } from '@/hooks/use-theme';
 import { filledRoles } from '@/lib/filled';
 import { visibleRegion, type Anchor, type Size } from '@/lib/key-color';
+import { fieldColors } from '@/lib/artwork-field';
 import {
   PAGE_COLOR,
-  cropPixels,
+  buttonFamily,
   buttonTone,
+  cropPixels,
   harmonySeed,
   m3Seeds,
-  paletteOf,
-  pickPageColor,
+  pageFrom,
+  readArtwork,
 } from '@/lib/page-color';
 
 /**
@@ -39,11 +41,19 @@ export function pageColorSource(uri: string | null | undefined): string | null {
     .replace(/\.(png|webp)(\?.*)?$/i, '.jpg');
 }
 
-/** What is kept per hero: the page and Material's seeds, best first. Plain JSON. */
-type Read = { page: string; seeds: string[] };
+/**
+ * What is kept per hero: the page, Material's seeds (best first) and the
+ * field's four colours. Plain JSON.
+ */
+type Read = { page: string; accent: string | null; seeds: string[]; field: string[] };
 
-/** Bump when what is read, or how, changes. */
-const CACHE_PREFIX = 'page-color:v1:';
+/**
+ * Bump when what is read, or how, changes — and the query key's version with
+ * it (`PAGE_COLOR_VERSION`). v2: BitChord's page (2026-10-28), and the field.
+ */
+const CACHE_PREFIX = 'page-color:v2:';
+/** In the query key, so a row the app's cache saved under the old rules is never read. */
+const PAGE_COLOR_VERSION = 2;
 /** A 180-wide fit is ~5 KB and 0.02 MP; these only stop a host that ignored the size. */
 const MAX_BYTES = 60_000;
 const MAX_MP = 0.06;
@@ -70,14 +80,20 @@ export type PageColor = {
   artColoured: boolean;
   /** Whether `page` is the answer, and not the placeholder before it. */
   resolved: boolean;
+  /**
+   * The colour field behind the page (`lib/artwork-field`): four colours of
+   * the art, held to the page's inks. Empty until the art is read, and while
+   * game colours are off — the field is then the page's colour alone.
+   */
+  field: string[];
 };
 
 /**
- * A game page's colours, from its hero (`lib/page-color`): the page by the
- * brief's filter over Palette's swatches, the buttons by Material 3's own
- * seed choice kept to the page's family — both read off the part of the hero
- * `frame` shows, once per
- * hero and kept for good (the query is saved with the app's cache; the device
+ * A game page's colours, from its hero (`lib/page-color`): the page by
+ * BitChord's rule — what the art is mostly made of, re-lit to be read on —
+ * the field behind it from the art's colours (`lib/artwork-field`), the
+ * buttons by Material 3's own seed choice kept to the page's family — all
+ * read off the part of the hero `frame` shows, once per hero and kept for good (the query is saved with the app's cache; the device
  * keeps its own copy for when that cache has let it go).
  *
  * Off with game colours (Settings): the app's page, no seed, the app's cards.
@@ -97,7 +113,7 @@ export function usePageColor(
   const ay = Math.round((anchor?.y ?? 0.5) * 100) / 100;
 
   const read = useQuery({
-    queryKey: ['page-color', source, aspect, ax, ay],
+    queryKey: ['page-color', PAGE_COLOR_VERSION, source, aspect, ax, ay],
     queryFn: () => readPageColor(source!, aspect, { x: ax, y: ay }),
     enabled: !!source,
     /* A picture does not change. */
@@ -120,7 +136,9 @@ export function usePageColor(
      (`filledRoles`), the arithmetic the review button draws with. */
   const buttons = useMemo(() => {
     if (!data) return null;
-    const harmony = harmonySeed(data.seeds, data.page);
+    /* Of the page's family — or, on a neutral page, of the accent's, which
+       leads the field behind it (`buttonFamily`). Held apart from the page. */
+    const harmony = harmonySeed(data.seeds, buttonFamily(data.page, data.accent));
     if (!harmony) return null;
     const tone = buttonTone(
       data.page,
@@ -135,8 +153,12 @@ export function usePageColor(
     tone: buttons?.tone,
     artColoured: coloured,
     resolved: !coloured || !source || !read.isPending,
+    /* A row saved before the field existed has none: the page alone. */
+    field: (coloured && data?.field) || NO_FIELD,
   };
 }
+
+const NO_FIELD: string[] = [];
 
 async function readPageColor(source: string, aspect: number, anchor: Anchor): Promise<Read> {
   const cacheKey = `${CACHE_PREFIX}${source}:${aspect}:${anchor.x}:${anchor.y}`;
@@ -162,15 +184,17 @@ async function readPageColor(source: string, aspect: number, anchor: Anchor): Pr
 
   const frame: Size = { width: aspect, height: 1 };
   const region = visibleRegion(image, frame, anchor);
-  /* The page from the part on screen less its 10% ring (rule 1); the seed from
-     all of the part on screen — Material's `Score` drops a border's black or
-     white by itself. */
-  const page = pickPageColor(
-    paletteOf(cropPixels(image.data, image.width, image.height, region, PAGE_COLOR.crop))
-  ).color;
+  /* The page and the field from the part on screen less its 10% ring; the
+     seed from all of the part on screen — Material's `Score` drops a border's
+     black or white by itself. */
+  const artwork = readArtwork(
+    cropPixels(image.data, image.width, image.height, region, PAGE_COLOR.crop)
+  );
+  const page = artwork ? pageFrom(artwork.dominant) : PAGE_COLOR.rejected;
+  const field = fieldColors(artwork, page);
   const seeds = m3Seeds(cropPixels(image.data, image.width, image.height, region, 0));
 
-  const result: Read = { page, seeds };
+  const result: Read = { page, accent: artwork?.accent ?? null, seeds, field };
   try {
     await AsyncStorage.setItem(cacheKey, JSON.stringify(result));
   } catch {

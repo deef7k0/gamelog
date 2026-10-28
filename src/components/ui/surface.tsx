@@ -71,7 +71,7 @@ export function Card({ children, elevated = false, padded = true, style }: CardP
         },
         style,
       ]}>
-      <View style={[styles.cardClip, padded && styles.cardPadded]}>
+      <View style={[styles.cardClip, padded && styles.cardPadded, material.strip]}>
         {/* The card's own inks under it, when it is in the filled colour. */}
         {elevated ? children : <CardInks material={material}>{children}</CardInks>}
       </View>

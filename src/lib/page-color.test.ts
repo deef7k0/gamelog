@@ -8,21 +8,24 @@ import { Hct, argbFromHex } from '@material/material-color-utilities';
 
 import { generateDynamicTheme } from '../theme/dynamic-color.ts';
 import { VIVID_FLOOR, filledInks } from './filled.ts';
-import { contrast, ensureContrast, luminance, mix, saturate, toHsl } from './color.ts';
+import { contrast, ensureContrast, fromHsl, luminance, saturate, toHsl } from './color.ts';
 import { visibleRegion } from './key-color.ts';
 import {
+  ARTWORK_PALETTE,
   PAGE_COLOR,
-  cropPixels,
-  darkenForWhite,
-  deltaE,
-  m3Seeds,
-  pageInks,
-  paletteOf,
+  adaptedSaturation,
+  buttonFamily,
   buttonTone,
+  cropPixels,
+  deltaE,
   harmonySeed,
   HARMONY,
-  pickPageColor,
-  type Candidate,
+  holdsInks,
+  m3Seeds,
+  pageFrom,
+  pageInks,
+  quietInk,
+  readArtwork,
 } from './page-color.ts';
 
 /** An RGBA image `width` × `height`, each pixel painted by `paint`. */
@@ -40,12 +43,6 @@ function image(width: number, height: number, paint: (x: number, y: number) => s
   }
   return data;
 }
-
-const candidate = (color: string, population: number, ...names: Candidate['names']) => ({
-  color,
-  population,
-  names,
-});
 
 describe('cropPixels', () => {
   it('cuts a ring of the region off each side before anything is counted', () => {
@@ -68,93 +65,80 @@ describe('cropPixels', () => {
   });
 });
 
-describe('paletteOf', () => {
-  it('names Palette’s targets and counts what it counted', () => {
-    /* Three quarters a mid saturated blue, a quarter a dark muted grey-green. */
-    const data = image(40, 40, (x, y) => (y < 30 ? '#2060D0' : '#303828'));
-    const { candidates, counted } = paletteOf(data);
-    const blue = candidates.find((entry) => entry.color.startsWith('#2'));
-    assert.ok(blue, 'the blue is a candidate');
-    assert.ok(blue.names.includes('dominant'));
-    assert.ok(blue.names.includes('vibrant') || blue.names.includes('darkVibrant'));
-    assert.equal(counted, 40 * 40);
-    /* The mean is offered last, with no population of its own. */
-    assert.deepEqual(candidates.at(-1)?.names, ['average']);
+describe('adaptedSaturation — BitChord’s grey guard', () => {
+  it('clamps a colour into the band', () => {
+    assert.equal(adaptedSaturation(0.9, [0.2, 0.62]), 0.62);
+    assert.equal(adaptedSaturation(0.15, [0.2, 0.62]), 0.2);
+    assert.equal(adaptedSaturation(0.4, [0.2, 0.62]), 0.4);
   });
 
-  it('is sorted by population', () => {
-    const data = image(30, 30, (x) => (x < 5 ? '#C02020' : x < 15 ? '#20A040' : '#2040A0'));
-    const { candidates } = paletteOf(data);
-    const swatches = candidates.filter((entry) => !entry.names.includes('average'));
-    for (let i = 1; i < swatches.length; i += 1) {
-      assert.ok(swatches[i - 1].population >= swatches[i].population);
-    }
+  it('leaves a grey grey: under 0.12 the saturation is not raised to the floor', () => {
+    assert.equal(adaptedSaturation(0, [0.2, 0.62]), 0);
+    assert.equal(adaptedSaturation(0.11, [0.2, 0.62]), 0.11);
   });
 });
 
-describe('pickPageColor — the brief’s rules', () => {
-  const counted = 1000;
-
-  it('rule 2: a grey under the saturation floor is not a page', () => {
-    const pick = pickPageColor({
-      candidates: [candidate('#606060', 900, 'dominant'), candidate('#2A5590', 100, 'muted')],
-      counted,
-    });
-    assert.equal(pick.from?.color, '#2A5590');
+describe('readArtwork — the picture asked twice', () => {
+  it('the dominant is what it is mostly made of, near-black included (the filter off)', () => {
+    /* Nine tenths near-black, a tenth warm orange: the filter would drop the
+       black and call the picture orange. */
+    const data = image(20, 20, (x, y) => (y < 18 ? '#080808' : '#D08030'));
+    const read = readArtwork(data)!;
+    assert.ok(luminance(read.dominant) < 0.01, read.dominant);
   });
 
-  it('rule 3: near-black and near-white are not pages', () => {
-    const pick = pickPageColor({
-      candidates: [
-        candidate('#100808', 500, 'dominant'),
-        candidate('#F8F0F0', 300, 'lightMuted'),
-        candidate('#7A3040', 200, 'muted'),
-      ],
-      counted,
-    });
-    assert.equal(pick.from?.color, '#7A3040');
+  it('the accent is saturation × √population: a fleck loses to a colour that is there', () => {
+    /* 1% vivid red, 30% a moderately saturated blue, the rest grey. */
+    const data = image(40, 40, (x, y) =>
+      y === 0 && x < 16 ? '#E01010' : y < 13 ? '#3060A0' : '#606060'
+    );
+    const read = readArtwork(data)!;
+    assert.ok(hueOf(read.accent) > 190 && hueOf(read.accent) < 240, read.accent);
   });
 
-  it('rule 4: the page is darkened until white holds 3:1, and no further', () => {
-    const pick = pickPageColor({ candidates: [candidate('#80C8F0', 1000, 'dominant')], counted });
-    assert.ok(pick.darkened);
-    assert.ok(contrast(pick.color, '#FFFFFF') >= PAGE_COLOR.whiteContrast);
-    /* One step lighter would not have held. */
-    const hsl = toHsl(pick.color)!;
-    assert.equal(Math.round(toHsl(pick.from!.color)!.h), Math.round(hsl.h));
-    assert.equal(darkenForWhite(pick.color), pick.color);
+  it('and a vivid colour with enough of it wins over a large grey-blue', () => {
+    const data = image(40, 40, (x, y) => (y < 8 ? '#E01010' : '#505868'));
+    assert.ok(isRed(readArtwork(data)!.accent), readArtwork(data)!.accent);
   });
 
-  it('rule 6: a vibrant swatch beats a larger muted one', () => {
-    const pick = pickPageColor({
-      candidates: [candidate('#506070', 600, 'muted'), candidate('#2050C0', 300, 'vibrant')],
-      counted,
-    });
-    assert.equal(pick.from?.color, '#2050C0');
+  it('an image with no pixel to count gives nothing', () => {
+    assert.equal(readArtwork(new Uint8Array(0)), null);
+  });
+});
+
+describe('pageFrom — BitChord’s page, which reads', () => {
+  const hues = Array.from({ length: 36 }, (_, i) => i * 10);
+  const sats = [0, 0.05, 0.3, 0.6, 1];
+  const lights = [0.02, 0.1, 0.3, 0.5, 0.7, 0.95];
+
+  it('every page holds white at 7:1 and its quiet ink at 4.5:1, whatever the picture', () => {
+    for (const h of hues)
+      for (const s of sats)
+        for (const l of lights) {
+          const page = pageFrom(fromHsl({ h, s, l }));
+          assert.ok(holdsInks(page), `${page} from h${h} s${s} l${l}`);
+          assert.ok(contrast(page, '#FFFFFF') >= ARTWORK_PALETTE.read.white, page);
+          assert.ok(contrast(page, quietInk(page)) >= ARTWORK_PALETTE.read.quiet, page);
+        }
   });
 
-  it('a fleck is not a page, however vibrant (under 5% of the picture)', () => {
-    const pick = pickPageColor({
-      candidates: [candidate('#587890', 600, 'muted'), candidate('#C01020', 20, 'vibrant')],
-      counted,
-    });
-    assert.equal(pick.from?.color, '#587890');
+  it('keeps the picture’s hue, re-lit into BitChord’s band', () => {
+    const page = pageFrom('#2060D0');
+    const hsl = toHsl(page)!;
+    assert.ok(Math.abs(hsl.h - toHsl('#2060D0')!.h) < 2, page);
+    assert.ok(hsl.l >= 0.13 - 1e-9 && hsl.l <= 0.24 + 1e-9, `${page} at ${hsl.l}`);
+    assert.ok(hsl.s <= 0.62 + 0.01, `${page} at ${hsl.s}`);
   });
 
-  it('nothing saturated enough: the most saturated, rather than a flat grey', () => {
-    const pick = pickPageColor({
-      candidates: [candidate('#606060', 600, 'dominant'), candidate('#5A6066', 400, 'muted')],
-      counted,
-    });
-    assert.equal(pick.by, 'most-saturated');
-    assert.equal(pick.from?.color, '#5A6066');
+  it('a dark picture gives a dark page, and a bright one is brought down', () => {
+    assert.ok(toHsl(pageFrom('#06080A'))!.l <= 0.13 + 1e-9);
+    assert.ok(toHsl(pageFrom('#F0E0A0'))!.l <= 0.24 + 1e-9);
   });
 
-  it('nothing at all: Apple’s system dark grey', () => {
-    const white = image(20, 20, () => '#FFFFFF');
-    const pick = pickPageColor(paletteOf(cropPixels(white, 20, 20, undefined, PAGE_COLOR.crop)));
-    assert.equal(pick.by, 'rejected');
-    assert.equal(pick.color, PAGE_COLOR.rejected);
+  it('a grey is not given a hue: near-black gives a neutral page, not maroon', () => {
+    const page = pageFrom('#0B0B0B');
+    const rgb = [page.slice(1, 3), page.slice(3, 5), page.slice(5, 7)].map((c) => parseInt(c, 16));
+    assert.ok(Math.max(...rgb) - Math.min(...rgb) <= 1, page);
   });
 });
 
@@ -195,46 +179,70 @@ function read(file: string) {
 const hueOf = (color: string) => toHsl(color)!.h;
 const isRed = (color: string) => hueOf(color) < 15 || hueOf(color) > 340;
 
-describe('pickPageColor — on real heroes', () => {
-  const picks = Object.fromEntries(
-    Object.entries(HEROES).map(([name, file]) => [name, pickPageColor(paletteOf(read(file).page))])
-  ) as Record<keyof typeof HEROES, ReturnType<typeof pickPageColor>>;
+const artworkOf = (file: string) => readArtwork(read(file).page)!;
 
-  it('every page holds white at 3:1', () => {
-    for (const pick of Object.values(picks)) {
-      assert.ok(contrast(pick.color, '#FFFFFF') >= PAGE_COLOR.whiteContrast, pick.color);
-    }
+describe('the page, on real heroes', () => {
+  const pages = Object.fromEntries(
+    Object.entries(HEROES).map(([name, file]) => [name, pageFrom(artworkOf(file).dominant)])
+  ) as Record<keyof typeof HEROES, string>;
+
+  it('every page holds white at 7:1 and its quiet ink at 4.5:1', () => {
+    for (const page of Object.values(pages)) assert.ok(holdsInks(page), page);
   });
 
-  it('God of War is its blue-grey, not its logo', () => {
-    const hue = hueOf(picks.godOfWar.color);
-    assert.ok(hue > 180 && hue < 240, `${picks.godOfWar.color} at ${hue}°`);
+  it('God of War is its dark blue-grey, not its logo', () => {
+    assert.ok(!isRed(pages.godOfWar), pages.godOfWar);
+    const hue = hueOf(pages.godOfWar);
+    assert.ok(hue >= 170 && hue <= 240, `${pages.godOfWar} at ${hue}°`);
   });
 
-  it('Persona 5 Royal is red', () => assert.ok(isRed(picks.persona.color), picks.persona.color));
-
-  it('The Witcher 3 is not the colour of its blood', () => {
-    assert.ok(!isRed(picks.witcher.color) || toHsl(picks.witcher.color)!.s < 0.4);
-    assert.ok(luminance(picks.witcher.color) < 0.05, 'a dark picture gives a dark page');
+  it('The Witcher 3 is dark and not the colour of its blood', () => {
+    assert.ok(luminance(pages.witcher) < 0.05, pages.witcher);
+    assert.ok(toHsl(pages.witcher)!.s < 0.4, pages.witcher);
   });
 
   it('Stardew Valley is blue and DOOM Eternal is red-orange', () => {
-    const blue = hueOf(picks.stardew.color);
-    assert.ok(blue > 200 && blue < 250, picks.stardew.color);
-    const doom = hueOf(picks.doom.color);
-    assert.ok(doom < 40 || doom > 345, picks.doom.color);
+    const blue = hueOf(pages.stardew);
+    assert.ok(blue > 200 && blue < 250, pages.stardew);
+    const doom = hueOf(pages.doom);
+    assert.ok(doom < 40 || doom > 345, pages.doom);
+  });
+
+  it('Persona 5 Royal and ARK, mostly black, are neutral — and their colour is the accent', () => {
+    for (const name of ['persona', 'ark'] as const) {
+      const hsl = toHsl(pages[name])!;
+      assert.ok(hsl.s < ARTWORK_PALETTE.greyGuard, `${name}: ${pages[name]}`);
+    }
+    assert.ok(isRed(artworkOf(HEROES.persona).accent), artworkOf(HEROES.persona).accent);
+    const ark = hueOf(artworkOf(HEROES.ark).accent);
+    assert.ok(ark > 190 && ark < 240, `ARK’s accent at ${ark}°`);
   });
 });
 
-describe('pageInks', () => {
-  it('white on every page the filter can return, the secondary at 60%', () => {
-    const inks = pageInks('#587890');
+describe('pageInks — BitChord’s quiet ink', () => {
+  it('white, and the page’s own hue lifted pale', () => {
+    const page = '#5D1C24';
+    const inks = pageInks(page);
     assert.equal(inks.primary, '#FFFFFF');
-    assert.equal(inks.secondary, 'rgba(255, 255, 255, 0.6)');
-    assert.equal(inks.secondarySolid, mix('#587890', '#FFFFFF', 0.6));
+    assert.equal(inks.secondary, quietInk(page));
+    assert.ok(Math.abs(hueOf(inks.secondary) - hueOf(page)) < 3, inks.secondary);
+    assert.ok(Math.abs(toHsl(inks.secondary)!.l - ARTWORK_PALETTE.quiet.lightness) < 0.01);
   });
 
-  it('black on a light page', () => assert.equal(pageInks('#E8E8E8').primary, '#000000'));
+  it('the owner’s reference: their value ink is within reach of ours on their page', () => {
+    /* `#D69BA1` on `#5D1C24`, measured off the owner's image (2026-10-28). */
+    const ours = quietInk('#5D1C24');
+    assert.ok(deltaE(ours, '#D69BA1') < 12, `${ours} against #D69BA1`);
+    assert.ok(
+      contrast(ours, '#5D1C24') >= contrast('#D69BA1', '#5D1C24'),
+      'and reads at least as well'
+    );
+  });
+
+  it('a grey page’s quiet ink is grey', () => {
+    const quiet = quietInk('#212121');
+    assert.ok(toHsl(quiet)!.s < ARTWORK_PALETTE.greyGuard, quiet);
+  });
 });
 
 describe('m3Seeds — Material’s own seed for the buttons', () => {
@@ -269,22 +277,33 @@ describe('the buttons: of the page’s family, apart by tone', () => {
   };
   const buttonsFor = (file: string) => {
     const { page: pagePixels, seed: seedPixels } = read(file);
-    const page = pickPageColor(paletteOf(pagePixels)).color;
-    const harmony = harmonySeed(m3Seeds(seedPixels), page)!;
+    const artwork = readArtwork(pagePixels)!;
+    const page = pageFrom(artwork.dominant);
+    const family = buttonFamily(page, artwork.accent);
+    const harmony = harmonySeed(m3Seeds(seedPixels), family)!;
     const tone = buttonTone(page, (at) => fillAt(harmony.seed, at));
-    return { page, seed: harmony.seed, tone, fill: fillAt(harmony.seed, tone) };
+    return { page, family, seed: harmony.seed, tone, fill: fillAt(harmony.seed, tone) };
   };
 
   it('ARK: Survival Evolved’s buttons are its blue, not earth (the owner’s, 2026-10-27)', () => {
     const ark = buttonsFor(HEROES.ark);
-    /* The page is the sky's blue; the buttons were an olive #9FA21A. */
-    assert.ok(hueGap(ark.fill, ark.page) < 40, `${ark.fill} on ${ark.page}`);
+    /* Its page is neutral now, so the buttons keep to the accent — the sky's
+       blue, which leads the field. They were an olive #9FA21A. */
+    assert.notEqual(ark.family, ark.page, 'a neutral page hands the family to the accent');
+    assert.ok(hueGap(ark.fill, ark.family) < 40, `${ark.fill} for ${ark.family}`);
     assert.ok(deltaE(ark.fill, ark.page) >= PAGE_COLOR.accentDistance, 'and still stand apart');
   });
 
-  it('God of War’s are its blue-grey’s family, not its logo’s red', () => {
+  it('a neutral page keeps its buttons to the accent; a coloured one to itself', () => {
+    assert.equal(buttonFamily('#212121', '#2060D0'), '#2060D0');
+    assert.equal(buttonFamily('#173F63', '#E01010'), '#173F63');
+    assert.equal(buttonFamily('#212121', '#5A5A5A'), '#212121');
+    assert.equal(buttonFamily('#212121', null), '#212121');
+  });
+
+  it('God of War’s are not its logo’s red', () => {
     const gow = buttonsFor(HEROES.godOfWar);
-    assert.ok(hueGap(gow.fill, gow.page) < 40, `${gow.fill} on ${gow.page}`);
+    assert.ok(!isRed(gow.fill), `${gow.fill} on ${gow.page}`);
   });
 
   it('every hero’s buttons stand ΔE 30 from its page, and read their own ink', () => {

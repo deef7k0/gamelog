@@ -136,6 +136,7 @@ export const MemberReviewCard = memo(function MemberReviewCard({
         { backgroundColor: fill ?? material.fill, borderColor: material.edge },
         styles.card,
         style,
+        material.strip,
       ]}>
       {/* The card's own inks under it, when it is in the filled colour — and
           not when the caller painted it another fill. */}

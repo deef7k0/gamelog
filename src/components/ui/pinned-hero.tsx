@@ -7,6 +7,7 @@ import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanima
 import { BLUR_RADIUS } from '@/components/ui/hero-art';
 import type { FootFade } from '@/components/ui/key-color-hero';
 import { Palette, withAlpha } from '@/constants/theme';
+import { smoothScrimStops } from '@/lib/immersive-color';
 import { usePulse } from '@/hooks/use-pulse';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
 import { useSteamArtwork } from '@/hooks/use-steam-artwork';
@@ -25,6 +26,12 @@ type Stops = readonly [number, number, ...number[]];
 const colours = (fade: FootFade, page: string) =>
   fade.alphas.map((alpha) => withAlpha(page, alpha)) as unknown as Colours;
 const locations = (fade: FootFade) => fade.locations as unknown as Stops;
+
+/** The page's colour easing to nothing under the art, over the field (`over="field"`). */
+const HOLD = smoothScrimStops(12);
+const holdColours = (page: string) =>
+  HOLD.alphas.map((alpha) => withAlpha(page, 1 - alpha)) as unknown as Colours;
+const HOLD_STOPS = HOLD.locations as unknown as Stops;
 
 export type PinnedHeroProps = {
   /** The art. IGDB's, unless a Steam hero takes its place (`steamAppId`). */
@@ -59,6 +66,15 @@ export type PinnedHeroProps = {
   veil?: number;
   /** The loaded image's size, for a caller that has to reject art it cannot use. */
   onLoad?: (size: { width: number; height: number }) => void;
+  /**
+   * What is behind the hero. `page` (the default): the page's flat colour, and
+   * the art drains into it. `field`: the colour field (`<ArtworkField>`) — the
+   * art's foot still dissolves into the page's colour, which then eases to
+   * nothing over `PINNED_HERO.fieldHold` so the field comes up out of it, and
+   * instead of draining the whole hero dissolves, so what is left once it is
+   * gone is the field.
+   */
+  over?: 'page' | 'field';
 };
 
 /**
@@ -122,7 +138,9 @@ export const PinnedHero = memo(function PinnedHero({
   contentPosition,
   veil = 0,
   onLoad,
+  over = 'page',
 }: PinnedHeroProps) {
+  const fielded = over === 'field';
   const chrome = useScreenChrome();
   const still = useSharedValue(0);
   const scrollY = chrome?.scrollY ?? still;
@@ -137,11 +155,18 @@ export const PinnedHero = memo(function PinnedHero({
   const blurReady = !!source && loaded === source;
 
   const footColours = useMemo(() => colours(fade, page), [fade, page]);
+  const fieldHold = useMemo(() => holdColours(page), [page]);
 
   const frameStyle = useAnimatedStyle(() => {
     pulse.get();
-    const stretch = pinnedStretch(scrollY.get(), height);
-    return { transform: [{ translateY: stretch.translateY }, { scale: stretch.scale }] };
+    const offset = scrollY.get();
+    const stretch = pinnedStretch(offset, height);
+    return {
+      /* Over the field the hero dissolves where it would have drained, so what
+         is left is the field and not a slab of the page's colour. */
+      opacity: fielded ? 1 - pinnedDrain(offset, solidAt, PINNED_HERO.drainFrom) : 1,
+      transform: [{ translateY: stretch.translateY }, { scale: stretch.scale }],
+    };
   });
   const driftStyle = useAnimatedStyle(() => {
     pulse.get();
@@ -200,7 +225,7 @@ export const PinnedHero = memo(function PinnedHero({
       style={[
         styles.layer,
         {
-          height: height + PINNED_HERO.footHold,
+          height: height + (fielded ? PINNED_HERO.fieldHold : PINNED_HERO.footHold),
           opacity: ready ? 1 : 0,
           transitionProperty: 'opacity',
           transitionDuration: PINNED_HERO.arriveMs,
@@ -239,12 +264,20 @@ export const PinnedHero = memo(function PinnedHero({
             )}
             <LinearGradient colors={footColours} locations={locations(fade)} style={styles.fill} />
           </View>
-          <View
-            style={[
-              styles.hold,
-              { top: height, height: PINNED_HERO.footHold, backgroundColor: page },
-            ]}
-          />
+          {fielded ? (
+            <LinearGradient
+              colors={fieldHold}
+              locations={HOLD_STOPS}
+              style={[styles.hold, { top: height, height: PINNED_HERO.fieldHold }]}
+            />
+          ) : (
+            <View
+              style={[
+                styles.hold,
+                { top: height, height: PINNED_HERO.footHold, backgroundColor: page },
+              ]}
+            />
+          )}
         </Animated.View>
 
         {scrim > 0 && (
@@ -254,7 +287,7 @@ export const PinnedHero = memo(function PinnedHero({
           />
         )}
 
-        <Animated.View style={[styles.fill, { backgroundColor: page }, drainStyle]} />
+        {!fielded && <Animated.View style={[styles.fill, { backgroundColor: page }, drainStyle]} />}
       </Animated.View>
     </Animated.View>
   );

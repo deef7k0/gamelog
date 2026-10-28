@@ -91,7 +91,16 @@ export function RatingDistributionGraph({
             <View
               style={[
                 styles.track,
-                { backgroundColor: material.inks ? material.rule : theme.surfaceElevated },
+                {
+                  /* On the page itself (`<BareCards>`), the page's own rule:
+                     the app's ladder step is a blue-grey that is not this
+                     page's colour. */
+                  backgroundColor: material.inks
+                    ? material.rule
+                    : material.bare
+                      ? theme.border
+                      : theme.surfaceElevated,
+                },
               ]}>
               {count > 0 && (
                 <View

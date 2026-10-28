@@ -156,6 +156,7 @@ function Shell({
   const card = StyleSheet.flatten([
     material.shape,
     { backgroundColor: material.fill, borderColor: material.edge, padding: CARD_INSET },
+    material.strip,
   ]);
 
   if (!onPress) return <View style={card}>{children}</View>;

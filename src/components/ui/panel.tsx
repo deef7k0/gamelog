@@ -76,6 +76,7 @@ export function Panel({
     },
     styles.shell,
     style,
+    material.strip,
   ]);
 
   /* The card's own inks under it, when it is in the filled colour. */
@@ -95,7 +96,14 @@ export function Panel({
         </Text>
         {trailing}
       </View>
-      <View style={[styles.rule, { backgroundColor: material.rule ?? accent.m3.outlineVariant }]} />
+      {/* No card, no rule: the title is a heading on the page. */}
+      {material.bare ? (
+        <View style={styles.bareGap} />
+      ) : (
+        <View
+          style={[styles.rule, { backgroundColor: material.rule ?? accent.m3.outlineVariant }]}
+        />
+      )}
       {children}
     </CardInks>
   );
@@ -130,4 +138,5 @@ const styles = StyleSheet.create({
   /* Takes the line, so whatever follows it sits at the far end. */
   title: { flex: 1 },
   rule: { height: StyleSheet.hairlineWidth, marginTop: Spacing.x8, marginBottom: Spacing.x12 },
+  bareGap: { height: Spacing.x8 },
 });

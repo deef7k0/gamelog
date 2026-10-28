@@ -38,9 +38,10 @@ import { useCriticSummary } from '@/components/critic-reviews';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
-import { CARD_INSET, CardInks, useCardMaterial } from '@/components/ui/card-material';
+import { ArtworkField } from '@/components/ui/artwork-field';
+import { BareCards, CARD_INSET, CardInks, useCardMaterial } from '@/components/ui/card-material';
 import { CoverHalo } from '@/components/ui/cover-halo';
-import { TrailerBackdrop } from '@/components/trailer-backdrop';
+import { TrailerBackdrop, type TrailerFrame } from '@/components/trailer-backdrop';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { heroHeightFor } from '@/components/ui/hero-art';
 import { MASTHEAD_FADE } from '@/components/ui/key-color-hero';
@@ -79,6 +80,7 @@ import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
 import { usePageColor } from '@/hooks/use-page-color';
 import { ThemeInks, useTheme } from '@/hooks/use-theme';
 import { smoothScrimStops } from '@/lib/immersive-color';
+import { frameFieldColors } from '@/lib/artwork-field';
 import { pageInks } from '@/lib/page-color';
 import { PINNED_HERO } from '@/lib/scroll-motion';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
@@ -475,6 +477,11 @@ export default function GameDetailScreen() {
      a day and nothing from IGDB. One switch for both pages. */
   const trailer = useGameTrailer(id ?? null);
   const trailers = useTrailerSetting();
+  /* The trailer that is playing, if one is: the field follows its frames. */
+  const playingTrailer = trailers.ready && trailers.on ? (trailer?.url ?? null) : null;
+  /* The field's colours off the clip, for the clip they came from — a trailer
+     switched off, or another one, goes back to the still's. */
+  const [clipField, setClipField] = useState<{ url: string; colors: string[] } | null>(null);
 
   const collectionId = extras.data?.collection?.id ?? null;
   const franchiseId = extras.data?.franchises[0]?.id ?? null;
@@ -504,8 +511,14 @@ export default function GameDetailScreen() {
    *  - **The buttons are Material 3, seeded from the hero** — never the
    *    cover: Material's own seed choice off the same art, held apart from
    *    the page (rule 5). That seed is the `<AccentProvider>`'s below.
-   *  - **The type is white, and white at 60%** (`pageInks`, `<ThemeInks>`).
-   *  - **The cards are glass** (`<Screen glass>`).
+   *  - **The type is white, and the page's own hue lifted pale** — BitChord's
+   *    page (2026-10-28, `pageInks`, `<ThemeInks>`): the page re-lit dark
+   *    enough that white holds 7:1 and the quiet ink 4.5:1.
+   *  - **Behind it, the art's colours as a field** (`<ArtworkField>`,
+   *    BitChord's legacy Now Playing backdrop), which follows the trailer
+   *    while it plays. The page and its inks stay the still's.
+   *  - **There are no cards** (`<BareCards>`, the owner's, 2026-10-28):
+   *    every section is text on the page.
    *
    * Game colours off (Settings): the app's own page, its inks, its cards.
    */
@@ -514,6 +527,17 @@ export default function GameDetailScreen() {
   });
   const page = colour.page;
   const inks = colour.artColoured ? pageInks(page) : null;
+  /* The field behind the page: only on a page in the art's colours. */
+  const fielded = colour.artColoured;
+  const onTrailerFrame = useCallback(
+    (frame: TrailerFrame) => {
+      if (!playingTrailer) return;
+      const colors = frameFieldColors(frame.data, frame.width, frame.height, page);
+      if (colors) setClipField({ url: playingTrailer, colors });
+    },
+    [page, playingTrailer]
+  );
+  const field = clipField && clipField.url === playingTrailer ? clipField.colors : colour.field;
   /* What `<ThemeInks>` hands the page: opaque inks, for the components that
      do colour maths on a token. */
   const themeInks = inks
@@ -685,7 +709,8 @@ export default function GameDetailScreen() {
         style={[
           styles.lip,
           {
-            opacity: colour.resolved ? 1 : 0,
+            /* Over the field there is no solid part to rise, so no lip. */
+            opacity: colour.resolved && !fielded ? 1 : 0,
             transitionProperty: 'opacity',
             transitionDuration: PINNED_HERO.arriveMs,
           },
@@ -1196,7 +1221,12 @@ export default function GameDetailScreen() {
                 own, so nothing that could be reached from here was lost in the
                 move. Absent for a game that is not IGDB's, which has no record.
               */}
-              <GameDetailsCard gameId={data.id} title={data.title} year={data.releaseYear} />
+              <GameDetailsCard
+                gameId={data.id}
+                title={data.title}
+                year={data.releaseYear}
+                companies={companies}
+              />
 
               {/* What the critics and the shows gave it, as the publisher
                   shows it on Steam — the graphic from the store page's Awards
@@ -1393,8 +1423,9 @@ export default function GameDetailScreen() {
             */
             backdrop={
               <>
-                <PageFill color={page} />
+                {fielded ? <ArtworkField page={page} colors={field} /> : <PageFill color={page} />}
                 <PinnedHero
+                  over={fielded ? 'field' : 'page'}
                   uri={data.heroUrl}
                   steamAppId={data.steamAppId}
                   height={heroHeight}
@@ -1405,9 +1436,10 @@ export default function GameDetailScreen() {
                   ready={colour.resolved}
                   media={(art) => (
                     <TrailerBackdrop
-                      url={trailers.ready && trailers.on ? (trailer?.url ?? null) : null}
+                      url={playingTrailer}
                       height={heroHeight}
-                      until={solidAt}>
+                      until={solidAt}
+                      onFrame={fielded ? onTrailerFrame : undefined}>
                       {art}
                     </TrailerBackdrop>
                   )}
@@ -1478,20 +1510,24 @@ export default function GameDetailScreen() {
                 onLayout={(event) => setSolidPartAt(event.nativeEvent.layout.y)}
                 style={[
                   {
-                    backgroundColor: page,
+                    /* Over the field the page is the field: nothing solid
+                       rises, and the text stands on the art's colours. */
+                    backgroundColor: fielded ? 'transparent' : page,
                     transitionProperty: 'backgroundColor',
                     transitionDuration: PINNED_HERO.arriveMs,
                   },
                 ]}>
-                {mastheadFoot}
-                {/* `spread`: three equal tabs across the column, barely touching
+                <BareCards>
+                  {mastheadFoot}
+                  {/* `spread`: three equal tabs across the column, barely touching
                   — the owner's, over two passes (see `TabBarProps.align`).
                   Measured, so the pinned copy below knows where it takes over. */}
-                <View onLayout={(event) => setTabsY(event.nativeEvent.layout.y)}>
-                  <TabBar tabs={TABS} value={tab} onChange={setTab} align="spread" />
-                </View>
-                {/* The Overview's shelves rise into place as they scroll into view. */}
-                <RevealScope>{renderTab()}</RevealScope>
+                  <View onLayout={(event) => setTabsY(event.nativeEvent.layout.y)}>
+                    <TabBar tabs={TABS} value={tab} onChange={setTab} align="spread" />
+                  </View>
+                  {/* The Overview's shelves rise into place as they scroll into view. */}
+                  <RevealScope>{renderTab()}</RevealScope>
+                </BareCards>
               </Animated.View>
             </PageScrollView>
             {/* The same tabs, held under the bar once the page has scrolled them
@@ -1542,6 +1578,7 @@ function MaterialCard({ style, children }: { style?: StyleProp<ViewStyle>; child
         material.shape,
         { backgroundColor: material.fill, borderColor: material.edge },
         style,
+        material.strip,
       ]}>
       <CardInks material={material}>{children}</CardInks>
     </View>

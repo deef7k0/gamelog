@@ -9,38 +9,55 @@ import {
   labFromArgb,
 } from '@material/material-color-utilities';
 
-import { contrast, fromHsl, luminance, mix, rgbToHex, toHsl, withAlpha } from './color';
+import { contrast, fromHsl, rgbToHex, toHsl, withAlpha } from './color';
 import { paletteSwatches } from './immersive-color';
 
 /**
- * A game page's colours, read off its hero art — the owner's brief of
- * 2026-10-27, which is Apple Music's artist page: **one page colour that never
- * changes**, picked from the art's palette by a set of "anti-ugly" rules, and
- * the page's buttons in **Material 3**, seeded by the same art.
+ * The art-coloured pages' colours — a game's, a studio's, a collection's —
+ * read off their hero art.
  *
- * ## The page colour, in four steps
+ * ## BitChord's page, not the brief's filter (2026-10-28)
  *
- *  1. **Extraction** — Android Palette's named swatches (`paletteOf`):
- *     `dominant`, `vibrant`, `darkVibrant`, `lightVibrant`, `muted`,
- *     `darkMuted`, `lightMuted`, and the `average`. Palette's own quantiser
- *     (`paletteSwatches`, ported in `lib/immersive-color`) and Palette's own
- *     target scoring (`TARGETS`), so the swatches are the ones
- *     `react-native-image-colors` returns on Android — but computed here, in
- *     JavaScript, for three reasons the brief's own rules need: the image can
- *     be **cropped before extraction** (rule 1), every swatch carries its
- *     **population** (the native module returns bare hexes), and the answer is
- *     the same on Android, iOS (whose native result is not Palette's at all)
- *     and Expo Go (which has no native module).
- *  2. **The filter** (`pickPageColor`): a 10% ring cropped off first, then
- *     saturation ≥ 0.15, lightness 0.08–0.92 (HSL), `vibrant` / `darkVibrant`
- *     preferred over the rest, and the survivor darkened in HSL until white
- *     holds 3:1 on it. Nothing survives the saturation floor: the most
- *     saturated candidate inside the lightness bounds. Nothing at all:
- *     `REJECTED`, Apple's system dark grey.
- *  3. **The page's inks** (`pageInks`): white or black by the page's
- *     luminance, the secondary at 60% of it.
- *  4. **Failure**: an image that will not load is `FAILED`, a neutral dark
- *     grey.
+ * The owner, having read how BitChord colours an artist page: "Bitchord's
+ * background colors seem to be nicer to read than gamelog's, so make sure to
+ * apply their same logic". This is BitChord's `ArtworkPalette` (`seedOf` and
+ * `toPalette(dark)`, sharedUi/…/ui/theme/ArtworkPalette.kt), ported:
+ *
+ *  1. **The page is what the picture is mostly made of** — the most populous
+ *     of Palette's swatches *with its filter off* (`paletteSwatches(…, {
+ *     filter: false })`). The filter drops near-black and near-white, which
+ *     is right while looking for an accent and wrong for "what colour is
+ *     this?": a dark picture is reduced to whatever warm detail survived it.
+ *  2. **It keeps its hue and is re-lit**: saturation into 0.20–0.62, lightness
+ *     into 0.13–0.24 (`ARTWORK_PALETTE.page`) — BitChord's page at 0.13 and
+ *     its wash's ceiling at 0.24. That is what makes it read: white holds
+ *     about 11–17:1 on every live hero measured, where the brief's page was
+ *     darkened only until white held 3:1 and its quiet type was white at 60%,
+ *     2:1 on the brightest pages.
+ *  3. **A grey is not given a hue** (`adaptedSaturation`): below 0.12 HSL
+ *     saturation, saturation is left alone. HSL calls grey hue 0, so raising
+ *     a grey to a floor manufactures red — maroon, once darkened. A near-black
+ *     hero gives a near-black neutral page, and its colour is carried by the
+ *     field behind it (`fieldColors`, `lib/artwork-field`).
+ *  4. **The quiet ink is the page's own hue, lifted** (`quietInk`): saturation
+ *     0.22–0.50, lightness 0.80 — Apple Music's secondary lines, "the
+ *     sleeve's colour, lifted, so a blue record's credits read light blue on
+ *     its blue page". The owner's reference for the game page's details
+ *     (`#D69BA1` on `#5D1C24`) is exactly that.
+ *  5. **Both inks are held** (`ARTWORK_PALETTE.read`): the page's lightness is
+ *     lowered until white holds 7:1 and the quiet ink 4.5:1. On the live
+ *     heroes it never has to move.
+ *
+ * ## The accent: saturation × √population
+ *
+ * The one vivid colour the art gives (`readArtwork().accent`) is BitChord's:
+ * Palette's filtered swatches, scored by saturation times the *square root*
+ * of their population. Saturation alone hands it to a fleck — The Witcher 3's
+ * blood, God of War's logo, Ghost of Tsushima's leaves, each 1–2% of their
+ * heroes, which is why the brief's pipeline needed a hard 5% floor; population
+ * alone hands a sleeve that is four-fifths black sky a black accent. The root
+ * makes a colour earn its place twice, continuously, with no floor to tune.
+ * It leads the field behind the page.
  *
  * ## The buttons: Material 3, from the same art, of the page's family
  *
@@ -48,40 +65,22 @@ import { paletteSwatches } from './immersive-color';
  * quantiser (Wu, then weighted k-means) to 128 colours, then `Score`, which
  * ranks them for a UI theme — on the part of the hero that is on screen. Of
  * those, the one nearest the page's hue seeds the buttons, harmonized toward
- * it; with none near, the page's own colour does (`harmonySeed`). The brief's
- * rule 5 — the button ΔE 30 from the page — is then kept by **tone**: the same
- * palette, lighter (`buttonTone`). Followed literally, rule 5 reached for
- * another seed or the complement, and a cyan page wore earth buttons.
+ * it; with none near, the page's own colour does (`harmonySeed`). A neutral
+ * page takes the art's best seed. They are then held ΔE 30 from the page by
+ * **tone** (`buttonTone`).
  *
  * Pure: no React Native and no `@/`, so `npm test` loads it.
  */
 
-/** The parameters, each the brief's own number. */
+/** The parameters of the crop and the fallbacks. */
 export const PAGE_COLOR = {
-  /** How much of each side is cropped off before extraction (rule 1). */
+  /** How much of each side is cropped off before the page is read. */
   crop: 0.1,
-  /** HSL saturation a page colour must reach (rule 2). */
-  saturationFloor: 0.15,
-  /** HSL lightness bounds (rule 3). */
-  lightnessMin: 0.08,
-  lightnessMax: 0.92,
-  /** White on the page must hold this; the page is darkened until it does (rule 4). */
-  whiteContrast: 3,
-  /** How far apart, in CIELAB, the page and its filled button must be (rule 5). */
+  /** How far apart, in CIELAB, the page and its filled button must be. */
   accentDistance: 30,
-  /** The darkening step, in HSL lightness. */
-  darkenStep: 0.01,
-  /**
-   * How much of the picture a swatch must cover to be its page — rule 1's
-   * reasoning carried past the border: a colour on 1–2% of the art is a fleck
-   * (The Witcher 3's blood, God of War's logo, Ghost of Tsushima's leaves,
-   * measured on their live heroes), and "prefer vibrant" would otherwise hand
-   * the whole page to it. The image's mean colour is exempt; it is all of it.
-   */
-  minShare: 0.05,
-  /** The image could not be read (step 4). */
+  /** The image could not be read. */
   failed: '#1C1C1E',
-  /** Nothing in the image could be a page (step 4): Apple's system dark grey. */
+  /** Nothing in the image could be read for a colour: Apple's system dark grey. */
   rejected: '#2C2C2E',
   /** How many seeds Material's `Score` is asked for. */
   seeds: 4,
@@ -91,30 +90,29 @@ export const PAGE_COLOR = {
   seedPixels: 1000,
 } as const;
 
-export type Region = { left: number; top: number; right: number; bottom: number };
-
-export type SwatchName =
-  | 'dominant'
-  | 'vibrant'
-  | 'darkVibrant'
-  | 'lightVibrant'
-  | 'muted'
-  | 'darkMuted'
-  | 'lightMuted'
-  | 'average';
-
-/** A candidate page colour: one colour, every swatch name it answers to, and its pixel count. */
-export type Candidate = { color: string; population: number; names: SwatchName[] };
-
 /**
- * Palette's candidates, and how many pixels it counted — every swatch's
- * population, the unnamed ones too. Less than the image: Palette's filter
- * drops near-black, near-white and a band of oranges before counting.
+ * BitChord's numbers (`toPalette(dark)`), each with where it was read.
+ * `[min, max]` pairs clamp; a single number sets.
  */
-export type PaletteResult = { candidates: Candidate[]; counted: number };
+export const ARTWORK_PALETTE = {
+  /** `CHROMATIC_SATURATION_THRESHOLD`: under this a swatch is grey, and stays grey. */
+  greyGuard: 0.12,
+  /** The page: `background`'s saturation band, lightness from its 0.13 to `wash`'s 0.24. */
+  page: { saturation: [0.2, 0.62], lightness: [0.13, 0.24] },
+  /** The quiet ink: `onBackgroundVariant`. */
+  quiet: { saturation: [0.22, 0.5], lightness: 0.8 },
+  /** What the page must hold: white, and the quiet ink. */
+  read: { white: 7, quiet: 4.5 },
+  /** The lightness step the page is lowered by when it does not. */
+  step: 0.01,
+} as const;
+
+export type Region = { left: number; top: number; right: number; bottom: number };
 
 const WHOLE: Region = { left: 0, top: 0, right: 1, bottom: 1 };
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+const clamp = (value: number, [min, max]: readonly [number, number]) =>
+  Math.min(max, Math.max(min, value));
 
 /**
  * The RGBA pixels of `region` (fractions of the image), with `ring` of the
@@ -154,172 +152,116 @@ export function cropPixels(
 }
 
 /**
- * AndroidX Palette's default targets (`Target.java`): lightness and saturation
- * as minimum, target and maximum, in the order `Palette.generate()` walks
- * them. Each is exclusive — a swatch one target took is not offered to the
- * next.
+ * BitChord's `adaptedArtworkSaturation`: a colour's saturation clamped into a
+ * band — unless it is a grey, which keeps the little it has. HSL represents
+ * grey with hue 0, so raising a grey to a floor does not make it more
+ * colourful; it manufactures red, which becomes brown or maroon once the page
+ * is darkened.
  */
-const TARGETS: readonly {
-  name: Exclude<SwatchName, 'dominant' | 'average'>;
-  light: readonly [number, number, number];
-  sat: readonly [number, number, number];
-}[] = [
-  { name: 'lightVibrant', light: [0.55, 0.74, 1], sat: [0.35, 1, 1] },
-  { name: 'vibrant', light: [0.3, 0.5, 0.7], sat: [0.35, 1, 1] },
-  { name: 'darkVibrant', light: [0, 0.26, 0.45], sat: [0.35, 1, 1] },
-  { name: 'lightMuted', light: [0.55, 0.74, 1], sat: [0, 0.3, 0.4] },
-  { name: 'muted', light: [0.3, 0.5, 0.7], sat: [0, 0.3, 0.4] },
-  { name: 'darkMuted', light: [0, 0.26, 0.45], sat: [0, 0.3, 0.4] },
-];
-
-/** `Target`'s default weights: saturation, lightness, population. They sum to 1. */
-const WEIGHT = { sat: 0.24, light: 0.52, population: 0.24 } as const;
-
-/**
- * Palette's named swatches of an RGBA image, as candidates — one per colour,
- * carrying every name it answers to, sorted by population (the `average`,
- * which is not a swatch, last). No candidates for an image with no usable pixel.
- */
-export function paletteOf(data: Uint8Array | Uint8ClampedArray): PaletteResult {
-  const swatches = paletteSwatches(data).map((swatch) => {
-    const color = rgbToHex({ r: swatch.rgb[0], g: swatch.rgb[1], b: swatch.rgb[2] });
-    return { color, population: swatch.population, hsl: toHsl(color)! };
-  });
-
-  const named = new Map<string, Candidate>();
-  const add = (color: string, population: number, name: SwatchName) => {
-    const known = named.get(color);
-    if (known) known.names.push(name);
-    else named.set(color, { color, population, names: [name] });
-  };
-
-  if (swatches.length > 0) {
-    const dominant = swatches.reduce((best, next) =>
-      next.population > best.population ? next : best
-    );
-    add(dominant.color, dominant.population, 'dominant');
-
-    const used = new Set<string>();
-    for (const target of TARGETS) {
-      let best: (typeof swatches)[number] | null = null;
-      let bestScore = -Infinity;
-      for (const swatch of swatches) {
-        const { s, l } = swatch.hsl;
-        if (used.has(swatch.color)) continue;
-        if (s < target.sat[0] || s > target.sat[2]) continue;
-        if (l < target.light[0] || l > target.light[2]) continue;
-        const score =
-          WEIGHT.sat * (1 - Math.abs(s - target.sat[1])) +
-          WEIGHT.light * (1 - Math.abs(l - target.light[1])) +
-          WEIGHT.population * (swatch.population / dominant.population);
-        if (score > bestScore) {
-          bestScore = score;
-          best = swatch;
-        }
-      }
-      if (best) {
-        used.add(best.color);
-        add(best.color, best.population, target.name);
-      }
-    }
-  }
-
-  /* The image's mean colour, as `react-native-image-colors` adds it. */
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  let count = 0;
-  for (let i = 0; i + 3 < data.length; i += 4) {
-    if (data[i + 3] < 128) continue;
-    r += data[i];
-    g += data[i + 1];
-    b += data[i + 2];
-    count += 1;
-  }
-  const candidates = [...named.values()].sort((p, q) => q.population - p.population);
-  if (count > 0) {
-    const average = rgbToHex({ r: r / count, g: g / count, b: b / count });
-    if (!named.has(average)) candidates.push({ color: average, population: 0, names: ['average'] });
-  }
-  const counted = swatches.reduce((sum, swatch) => sum + swatch.population, 0);
-  return { candidates, counted };
+export function adaptedSaturation(source: number, band: readonly [number, number]): number {
+  const saturation = clamp01(source);
+  return saturation < ARTWORK_PALETTE.greyGuard ? saturation : clamp(saturation, band);
 }
 
-export type PagePick = {
-  /** The page colour. */
-  color: string;
-  /** The candidate it came from, before any darkening; null for a fallback. */
-  from: Candidate | null;
-  /** Which rule chose it. */
-  by: 'rules' | 'most-saturated' | 'rejected' | 'failed';
-  /** Whether rule 4 darkened it. */
-  darkened: boolean;
-};
-
-function withinLightness(candidate: Candidate): boolean {
-  const { l } = toHsl(candidate.color)!;
-  return l >= PAGE_COLOR.lightnessMin && l <= PAGE_COLOR.lightnessMax;
-}
-
-function saturated(candidate: Candidate): boolean {
-  return toHsl(candidate.color)!.s >= PAGE_COLOR.saturationFloor;
-}
-
-const vivid = (candidate: Candidate) =>
-  candidate.names.includes('vibrant') || candidate.names.includes('darkVibrant');
-
-/**
- * Rule 4: the colour, its HSL lightness lowered a step at a time until white
- * holds `whiteContrast` on it. Apple adjusts rather than rejects.
- */
-export function darkenForWhite(color: string): string {
+/** `color` with its saturation adapted into `saturation` and its lightness set or clamped. */
+export function relight(
+  color: string,
+  saturation: readonly [number, number],
+  lightness: number | readonly [number, number]
+): string {
   const hsl = toHsl(color);
   if (!hsl) return color;
-  let page = color;
+  return fromHsl({
+    h: hsl.h,
+    s: adaptedSaturation(hsl.s, saturation),
+    l: typeof lightness === 'number' ? lightness : clamp(hsl.l, lightness),
+  });
+}
+
+/** One swatch: a colour, and how many of the picture's pixels it stands for. */
+export type Swatch = { color: string; population: number };
+
+/** What a picture gives the page, before anything is re-lit. */
+export type ArtworkRead = {
+  /** The most populous swatch, the filter off: what the picture is mostly made of. */
+  dominant: string;
+  /** Saturation × √population over the filtered swatches: its one vivid colour. */
+  accent: string;
+  /** The filtered swatches (all of them when the filter left none), most populous first. */
+  swatches: Swatch[];
+};
+
+const toSwatches = (data: Uint8Array | Uint8ClampedArray, filter: boolean): Swatch[] =>
+  paletteSwatches(data, { filter })
+    .map((swatch) => ({
+      color: rgbToHex({ r: swatch.rgb[0], g: swatch.rgb[1], b: swatch.rgb[2] }),
+      population: swatch.population,
+    }))
+    .sort((a, b) => b.population - a.population);
+
+/**
+ * BitChord's `seedOf`: the picture asked twice. Null for an image with no
+ * pixel to count.
+ */
+export function readArtwork(data: Uint8Array | Uint8ClampedArray): ArtworkRead | null {
+  const all = toSwatches(data, false);
+  if (all.length === 0) return null;
+  const filtered = toSwatches(data, true);
+  const pool = filtered.length > 0 ? filtered : all;
+
+  /* `hsl.s × sqrt(population)`: a colour nobody sees enough of reads as
+     arbitrary, and a grey one is not an accent at all. */
+  let accent = pool[0];
+  let best = -Infinity;
+  for (const swatch of pool) {
+    const score = (toHsl(swatch.color)?.s ?? 0) * Math.sqrt(swatch.population);
+    if (score > best) {
+      best = score;
+      accent = swatch;
+    }
+  }
+  return { dominant: all[0].color, accent: accent.color, swatches: pool };
+}
+
+/** The page's quiet ink: its own hue, lifted pale (`ARTWORK_PALETTE.quiet`). */
+export function quietInk(page: string): string {
+  return relight(page, ARTWORK_PALETTE.quiet.saturation, ARTWORK_PALETTE.quiet.lightness);
+}
+
+/** Whether a page holds both its inks (`ARTWORK_PALETTE.read`). */
+export function holdsInks(page: string, quiet = quietInk(page)): boolean {
+  return (
+    contrast(page, '#FFFFFF') >= ARTWORK_PALETTE.read.white &&
+    contrast(page, quiet) >= ARTWORK_PALETTE.read.quiet
+  );
+}
+
+/**
+ * The page from a picture's dominant colour: re-lit (`ARTWORK_PALETTE.page`),
+ * then lowered until both its inks hold — which on every live hero measured
+ * it already did.
+ */
+export function pageFrom(dominant: string): string {
+  let page = relight(dominant, ARTWORK_PALETTE.page.saturation, ARTWORK_PALETTE.page.lightness);
+  const hsl = toHsl(page);
+  if (!hsl) return page;
+  /* The quiet ink is read off the page's hue and saturation, which lowering
+     its lightness does not move. */
+  const quiet = quietInk(page);
   let l = hsl.l;
-  while (contrast(page, '#FFFFFF') < PAGE_COLOR.whiteContrast && l > 0) {
-    l = Math.max(0, l - PAGE_COLOR.darkenStep);
+  while (!holdsInks(page, quiet) && l > 0) {
+    l = Math.max(0, l - ARTWORK_PALETTE.step);
     page = fromHsl({ h: hsl.h, s: hsl.s, l });
   }
   return page;
 }
 
-/** The page colour from Palette's candidates (`paletteOf`), by the brief's rules. */
-export function pickPageColor({ candidates, counted }: PaletteResult): PagePick {
-  const floor = counted * PAGE_COLOR.minShare;
-  const lit = candidates.filter(
-    (candidate) =>
-      withinLightness(candidate) &&
-      (candidate.names.includes('average') || candidate.population >= floor)
-  );
-  const passing = lit.filter(saturated);
-
-  let from: Candidate | undefined;
-  let by: PagePick['by'] = 'rules';
-  if (passing.length > 0) {
-    /* Rule 6: the vibrant swatches first — a vivid page carries the page's
-       colour, a muted one reads flat — then everything else, each by how
-       much of the picture it covers. The list is already in that order. */
-    from = passing.find(vivid) ?? passing[0];
-  } else if (lit.length > 0) {
-    /* Nothing reached the saturation floor: the most saturated, rather than a
-       flat grey. */
-    by = 'most-saturated';
-    from = lit.reduce((best, next) => (toHsl(next.color)!.s > toHsl(best.color)!.s ? next : best));
-  }
-
-  if (!from) return { color: PAGE_COLOR.rejected, from: null, by: 'rejected', darkened: false };
-  const color = darkenForWhite(from.color);
-  return { color, from, by, darkened: color !== from.color };
-}
-
 /**
- * The page's inks, from its colour alone: white on a dark page and black on a
- * light one, the secondary at 60%. Every page the filter returns holds 3:1
- * against white, so in practice these are always the white ones.
- *
- * `secondarySolid` is the secondary composited onto the page — the same
- * colour, opaque, for a token that colour maths will be done on.
+ * The page's inks: white, the quiet ink (its own hue, lifted), and a rule of
+ * white at 12%. Every page `pageFrom` returns is dark, so these are always
+ * the light ones. `secondarySolid` is the quiet ink again — it was the white
+ * at 60% composited onto the page, for a token colour maths is done on; the
+ * quiet ink is opaque already.
  */
 export function pageInks(page: string): {
   primary: string;
@@ -327,12 +269,12 @@ export function pageInks(page: string): {
   secondarySolid: string;
   rule: string;
 } {
-  const primary = luminance(page) < 0.5 ? '#FFFFFF' : '#000000';
+  const quiet = quietInk(page);
   return {
-    primary,
-    secondary: withAlpha(primary, 0.6),
-    secondarySolid: mix(page, primary, 0.6),
-    rule: withAlpha(primary, 0.12),
+    primary: '#FFFFFF',
+    secondary: quiet,
+    secondarySolid: quiet,
+    rule: withAlpha('#FFFFFF', 0.12),
   };
 }
 
@@ -465,6 +407,20 @@ export function harmonySeed(
     return { seed: hexFromArgb(harmonized).toUpperCase(), from: 'art' };
   }
   return { seed: page, from: 'page' };
+}
+
+/**
+ * The colour the buttons keep to (`harmonySeed`'s `page`): the page, unless
+ * it is neutral — then the art's accent, the colour that leads the field
+ * behind it. BitChord's page leaves a near-black picture's page near-black
+ * and grey, and its colour in the field; buttons that took Material's best
+ * seed whatever its hue there gave ARK: Survival Evolved olive buttons over
+ * its blue field — the pairing the owner rejected on 2026-10-27.
+ */
+export function buttonFamily(page: string, accent: string | null | undefined): string {
+  const neutral = (color: string) => Hct.fromInt(argbFromHex(color)).chroma < HARMONY.neutralChroma;
+  if (!neutral(page) || !accent || neutral(accent)) return page;
+  return accent;
 }
 
 /**

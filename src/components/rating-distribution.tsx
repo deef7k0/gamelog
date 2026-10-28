@@ -8,11 +8,7 @@ import { scoreColor } from '@/constants/score';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getRatingDistribution } from '@/lib/api';
-import { GLASS } from '@/lib/page-color';
 import { DISTRIBUTION_BANDS, barShare, toneScore } from '@/lib/rating-distribution';
-
-/** A bar's empty track on a glass card: the glass's own white, once more. */
-const GLASS_TRACK = GLASS.fill;
 
 /** The label column: as wide as "90–99" in `caption`, as How ratings work's. */
 const LABEL_WIDTH = 48;
@@ -74,8 +70,8 @@ export function RatingDistributionGraph({
   card?: boolean;
 }) {
   const theme = useTheme();
-  /* On glass the track is a little more glass; on a solid card, a step up. */
-  const glass = useCardMaterial().glass;
+  /* A step up on a card of the room; on a card in the filled colour, its rule. */
+  const material = useCardMaterial();
   const total = counts.reduce((sum, count) => sum + count, 0);
 
   const graph = (
@@ -95,7 +91,7 @@ export function RatingDistributionGraph({
             <View
               style={[
                 styles.track,
-                { backgroundColor: glass ? GLASS_TRACK : theme.surfaceElevated },
+                { backgroundColor: material.inks ? material.rule : theme.surfaceElevated },
               ]}>
               {count > 0 && (
                 <View

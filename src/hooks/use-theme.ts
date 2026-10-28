@@ -32,7 +32,16 @@ export function useTheme(): ThemeColors {
  * everything quieter, the brief's two levels. Every `<Text>` and every
  * component reading `useTheme()` below takes them; nothing else changes.
  */
-export type PageInks = { text: string; secondary: string; rule: string };
+export type PageInks = {
+  text: string;
+  secondary: string;
+  rule: string;
+  /**
+   * The grey action pill's fill and label, where a page's own would not read
+   * — inside a card in the filled colour (`CardInks`), which is light.
+   */
+  control?: { fill: string; ink: string };
+};
 
 /**
  * Sets the page's inks for everything under it, or — with `inks={null}` —
@@ -44,10 +53,12 @@ export type PageInks = { text: string; secondary: string; rule: string };
  * its own inks draws a case, the case is wrapped in `<ThemeInks inks={null}>`
  * — the Platforms section does — and the case's own files are not touched.
  */
-export function ThemeInks({ inks, children }: { inks: PageInks | null; children: ReactNode }) {
+export function ThemeInks({ inks, children }: { inks: PageInks | null; children?: ReactNode }) {
   const text = inks?.text;
   const secondary = inks?.secondary;
   const rule = inks?.rule;
+  const controlFill = inks?.control?.fill;
+  const controlInk = inks?.control?.ink;
   const value = useMemo<ThemeColors | null>(
     () =>
       text && secondary && rule
@@ -58,9 +69,12 @@ export function ThemeInks({ inks, children }: { inks: PageInks | null; children:
             textMuted: secondary,
             proseInk: secondary,
             border: rule,
+            ...(controlFill && controlInk
+              ? { controlFill, controlPressed: controlFill, controlInk }
+              : null),
           } as unknown as ThemeColors)
         : null,
-    [text, secondary, rule]
+    [text, secondary, rule, controlFill, controlInk]
   );
   return createElement(ThemeContext.Provider, { value }, children);
 }

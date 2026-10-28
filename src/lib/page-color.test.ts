@@ -7,11 +7,10 @@ import jpeg from 'jpeg-js';
 import { Hct, argbFromHex } from '@material/material-color-utilities';
 
 import { generateDynamicTheme } from '../theme/dynamic-color.ts';
-import { VIVID_FLOOR } from './filled.ts';
-import { contrast, luminance, mix, saturate, toHsl } from './color.ts';
+import { VIVID_FLOOR, filledInks } from './filled.ts';
+import { contrast, ensureContrast, luminance, mix, saturate, toHsl } from './color.ts';
 import { visibleRegion } from './key-color.ts';
 import {
-  GLASS,
   PAGE_COLOR,
   cropPixels,
   darkenForWhite,
@@ -238,27 +237,6 @@ describe('pageInks', () => {
   it('black on a light page', () => assert.equal(pageInks('#E8E8E8').primary, '#000000'));
 });
 
-describe('the glass', () => {
-  it('reads brightest to darkest: highlight, edge, fill, page', () => {
-    const over = (alpha: number, page: string) => mix(page, '#FFFFFF', alpha);
-    const alphaOf = (rgba: string) => Number(rgba.match(/[\d.]+\)$/)![0].slice(0, -1));
-    for (const page of ['#587890', '#A80008', '#082060', '#301F16']) {
-      const fill = over(alphaOf(GLASS.fill), page);
-      const edge = over(alphaOf(GLASS.edge), page);
-      /* The highlight is drawn inside the edge, over the fill. */
-      const highlight = over(alphaOf(GLASS.highlight), edge);
-      assert.ok(luminance(fill) > luminance(page), `fill on ${page}`);
-      assert.ok(luminance(edge) > luminance(fill), `edge on ${page}`);
-      assert.ok(luminance(highlight) > luminance(edge), `highlight on ${page}`);
-    }
-  });
-
-  it('is see-through: the fill sits in the brief’s 0.10–0.15, and says so twice alike', () => {
-    assert.ok(GLASS.fillAlpha >= 0.1 && GLASS.fillAlpha <= 0.15);
-    assert.equal(GLASS.fill, `rgba(255, 255, 255, ${GLASS.fillAlpha})`);
-  });
-});
-
 describe('m3Seeds — Material’s own seed for the buttons', () => {
   it('is deterministic, and leaves Math.random as it found it', () => {
     const { seed } = read(HEROES.godOfWar);
@@ -315,6 +293,21 @@ describe('the buttons: of the page’s family, apart by tone', () => {
       const ink = generateDynamicTheme(buttons.seed, true, { primaryTone: buttons.tone }).onPrimary;
       assert.ok(deltaE(buttons.fill, buttons.page) >= PAGE_COLOR.accentDistance, file);
       assert.ok(contrast(ink, buttons.fill) >= 4.5, `${file}: ink on its button`);
+    }
+  });
+
+  it('a card in the button’s colour reads: its ink and its quieter ink hold AA', () => {
+    for (const file of Object.values(HEROES)) {
+      const buttons = buttonsFor(file);
+      const onPrimary = generateDynamicTheme(buttons.seed, true, {
+        primaryTone: buttons.tone,
+      }).onPrimary;
+      /* `filledRoles`' ink, then the card's (`filledInks`). */
+      const ink = ensureContrast(onPrimary, buttons.fill, 4.5);
+      const inks = filledInks(buttons.fill, ink);
+      assert.ok(contrast(inks.text, buttons.fill) >= 4.5, `${file}: text`);
+      assert.ok(contrast(inks.secondary, buttons.fill) >= 4.5, `${file}: secondary`);
+      assert.notEqual(inks.secondary, inks.text, `${file}: quieter than the text`);
     }
   });
 

@@ -87,8 +87,8 @@ export const HERO_MOTION = {
  * (`drift`; in the owner's frames a point on the art moved at about a third,
  * and their words were "mostly still"); the masthead slides over it; a
  * blurred copy fades in after a little scroll, gently, over most of the way
- * (`pinnedBlur`); and the art drains into the page's colour over the last
- * quarter, quickly (`pinnedDrain`),
+ * (`pinnedBlur`); and the art drains into the page's colour from a third of
+ * the way, slowly (`pinnedDrain`),
  * solid once the page is past the title and onto the developer lines, which
  * is where the top bar comes in — the owner's (2026-10-27): "it goes blurrier
  * quicker, by the time it gets past the title and onto the developer section
@@ -111,12 +111,20 @@ export const PINNED_HERO = {
   blurUntil: 0.75,
   /**
    * Where the drain into the page's colour begins, as a share of the way to
-   * solid: the last quarter, once the blur is whole — "the solid color
-   * transition comes quicker" (2026-10-27). It was the last half.
+   * solid: early, and slowly — a long ramp that begins gently while the blur
+   * is still coming in. The owner's (2026-10-27): "I want it to start slower,
+   * not faster" — it had been made the last quarter, which started late and
+   * went fast.
    */
-  drainFrom: 0.75,
-  /** The blurred copy, drawn this much past its frame so its darkened edge is never seen. */
-  blurScale: 1.1,
+  drainFrom: 0.35,
+  /**
+   * How far a strip of the page's own colour hangs under the art, on the box
+   * that drifts with it — so the art's foot is inside page colour on both
+   * sides and no layer's edge lands on it. Without it the foot was a line
+   * that moved at the art's speed and not the page's ("some kind of z
+   * fighting", the owner, 2026-10-27).
+   */
+  footHold: 32,
   /** How long the art, and the page's colour, take to come in when first known. */
   arriveMs: 400,
 } as const;

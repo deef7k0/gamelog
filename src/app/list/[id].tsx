@@ -2,14 +2,27 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, BackHandler, Platform, Share, StyleSheet, View, useWindowDimensions } from 'react-native';
+import {
+  Alert,
+  BackHandler,
+  Platform,
+  Share,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { AwardShow } from '@/components/award-show';
 import {
   COLLECTION_BOX_ANCHOR,
+  COLLECTION_COVER_FADE,
   COLLECTION_COVER_RATIO,
+  COLLECTION_META_LINE,
+  COLLECTION_SCRIM_TOP,
+  COLLECTION_TITLE_FOOT,
   CollectionHeader,
   CollectionOwnerMenu,
+  collectionArt,
   collectionCover,
 } from '@/components/collection-header';
 import { CaptionedGrid } from '@/components/captioned-grid';
@@ -21,16 +34,20 @@ import { Button } from '@/components/ui/button';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
 import { IconButton } from '@/components/ui/icon-button';
 import { PageFlatList } from '@/components/ui/page-scroll';
+import { PageFill, PinnedHero } from '@/components/ui/pinned-hero';
 import { Poster } from '@/components/ui/poster';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { EmptyState, ErrorState, LoadingState, Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { ArtRowWindow, CoverGridWindow } from '@/constants/list-window';
 import { ControlHeight, Radius, Spacing, type ThemePalette } from '@/constants/theme';
-import { useImmersiveBackground } from '@/hooks/use-immersive-background';
-import { useKeyColor } from '@/hooks/use-key-color';
+import { AccentProvider } from '@/hooks/use-accent';
+import { useTopBarInset } from '@/hooks/use-header-height';
+import { usePageColor } from '@/hooks/use-page-color';
 import { useSquareCover } from '@/hooks/use-square-cover';
-import { useTheme } from '@/hooks/use-theme';
+import { ThemeInks, useTheme } from '@/hooks/use-theme';
+import { TOP_BAR_ROW, revealOffset } from '@/constants/top-bar';
+import { pageInks } from '@/lib/page-color';
 import {
   deleteList,
   getEngagement,
@@ -170,14 +187,32 @@ export default function ListDetailScreen() {
    */
   const square = useSquareCover({ gameId: cover?.id, title: cover?.title, enabled: !!cover });
   const coverHeight = Math.round(windowHeight * COLLECTION_COVER_RATIO);
-  const key = useKeyColor(square.resolved && !square.uri ? boxArt : null, {
+  /* The hero: which picture, and where it sits — the header's own rule, so
+     the art pinned behind the page is the one the header leaves room for. */
+  const heroArt = collectionArt(cover, square);
+  /*
+   * The page's colours, as the game page reads its hero (`usePageColor`,
+   * CLAUDE.md § The game page's colours): one colour that does not change as
+   * the page is read, white type, the controls Material 3 from the same art,
+   * the cards and the chosen tab the review button's colour — the owner's
+   * (2026-10-27), "integrate all of this into the other pages". Read from the
+   * cover's box art whatever the hero draws: SteamGridDB's square is 400px,
+   * too large to decode on the phone, and it is the same game's palette.
+   */
+  const colour = usePageColor(boxArt, {
     frame: { width, height: coverHeight },
     anchor: { x: 0.5, y: COLLECTION_BOX_ANCHOR },
-    ink: theme.textSecondary,
   });
-  const immersive = useImmersiveBackground(boxArt);
-  const page = key.dark ?? immersive ?? theme.background;
-  const tone = { bright: key.bright, dark: page, header: coverHeight };
+  const page = colour.page;
+  const inks = colour.artColoured ? pageInks(page) : null;
+  const themeInks = inks
+    ? { text: inks.primary, secondary: inks.secondarySolid, rule: inks.rule }
+    : null;
+  /* Solid page colour, and the bar in, once the name has gone under the bar
+     — the line under it reaching the bar's foot — as on the game page. */
+  const topInset = useTopBarInset();
+  const barHeader = coverHeight - COLLECTION_TITLE_FOOT - COLLECTION_META_LINE;
+  const solidAt = Math.max(1, revealOffset(barHeader, topInset + TOP_BAR_ROW));
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['list', id] });
@@ -408,7 +443,7 @@ export default function ListDetailScreen() {
       back
       glass
       title={list.data?.title}
-      header={coverHeight}
+      header={barHeader}
       right={
         isOwner ? (
           <TopBarDisc
@@ -420,6 +455,35 @@ export default function ListDetailScreen() {
       }
     />
   );
+
+  /*
+   * What every branch's screen is: the page's colour, art-coloured cards and
+   * tabs, and behind the page its colour and the cover pinned at the top of
+   * the display (`<PinnedHero>`) — the game page's, here too.
+   */
+  const screenProps = {
+    edges: ['bottom'] as const,
+    background: page,
+    artColoured: colour.artColoured,
+    topBar,
+    backdrop: (
+      <>
+        <PageFill color={page} />
+        {heroArt.uri && (
+          <PinnedHero
+            uri={heroArt.uri}
+            height={coverHeight}
+            page={page}
+            fade={COLLECTION_COVER_FADE}
+            solidAt={solidAt}
+            scrim={COLLECTION_SCRIM_TOP}
+            contentPosition={heroArt.contentPosition}
+            ready={colour.resolved}
+          />
+        )}
+      </>
+    ),
+  };
 
   const header = (
     /* Cancels the list's horizontal padding so the hero reaches both edges and
@@ -571,9 +635,13 @@ export default function ListDetailScreen() {
    */
   if (isAwards) {
     return (
-      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
-        <AwardShow listId={id!} isOwner={isOwner} header={header} />
-      </Screen>
+      <AccentProvider color={colour.seed} primaryTone={colour.tone}>
+        <ThemeInks inks={themeInks}>
+          <Screen {...screenProps}>
+            <AwardShow listId={id!} isOwner={isOwner} header={header} />
+          </Screen>
+        </ThemeInks>
+      </AccentProvider>
     );
   }
 
@@ -593,30 +661,34 @@ export default function ListDetailScreen() {
    */
   if (isCaptioned) {
     return (
-      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
-        <PageFlatList
-          data={[null]}
-          keyExtractor={() => 'board'}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={header}
-          ListFooterComponent={footer}
-          /* No wrapper and no second padding. `styles.content` already insets
+      <AccentProvider color={colour.seed} primaryTone={colour.tone}>
+        <ThemeInks inks={themeInks}>
+          <Screen {...screenProps}>
+            <PageFlatList
+              data={[null]}
+              keyExtractor={() => 'board'}
+              contentContainerStyle={styles.content}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={header}
+              ListFooterComponent={footer}
+              /* No wrapper and no second padding. `styles.content` already insets
              this list by `Spacing.x16` on both sides; a `board` View adding its
              own put 48dp of padding between the screen edges and the grid while
              the grid was told it had only 24dp taken — so on a 360dp phone it
              sized three 108dp tiles into 312dp of space and the third wrapped.
              The width handed down has to be the width that actually exists. */
-          renderItem={() => (
-            <CaptionedGrid
-              listId={data.id}
-              items={ordered}
-              isOwner={isOwner}
-              width={width - Spacing.x16 * 2}
+              renderItem={() => (
+                <CaptionedGrid
+                  listId={data.id}
+                  items={ordered}
+                  isOwner={isOwner}
+                  width={width - Spacing.x16 * 2}
+                />
+              )}
             />
-          )}
-        />
-      </Screen>
+          </Screen>
+        </ThemeInks>
+      </AccentProvider>
     );
   }
 
@@ -635,49 +707,53 @@ export default function ListDetailScreen() {
    */
   if (!isTierList && layout === 'rows' && !pickingCover) {
     return (
-      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
-        <PageFlatList
-          data={ordered}
-          key="collection-rows"
-          keyExtractor={(item) => item.game_id}
-          {...ArtRowWindow}
-          /* The set is not in `data`, so the list is told it matters. */
-          extraData={selected}
-          contentContainerStyle={[styles.content, selecting && styles.underBar]}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={header}
-          ListFooterComponent={footer}
-          ItemSeparatorComponent={RowRule}
-          renderItem={({ item }) => (
-            <CollectionRow
-              item={item}
-              /* The stored rank, not the rendered index — a ranked collection
+      <AccentProvider color={colour.seed} primaryTone={colour.tone}>
+        <ThemeInks inks={themeInks}>
+          <Screen {...screenProps}>
+            <PageFlatList
+              data={ordered}
+              key="collection-rows"
+              keyExtractor={(item) => item.game_id}
+              {...ArtRowWindow}
+              /* The set is not in `data`, so the list is told it matters. */
+              extraData={selected}
+              contentContainerStyle={[styles.content, selecting && styles.underBar]}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={header}
+              ListFooterComponent={footer}
+              ItemSeparatorComponent={RowRule}
+              renderItem={({ item }) => (
+                <CollectionRow
+                  item={item}
+                  /* The stored rank, not the rendered index — a ranked collection
                  sorted by year still shows each game the number its owner gave
                  it. Unranked collections show none at all rather than numbering
                  a set, which would claim an order that is not there. */
-              rank={data.is_ranked ? (rankOf.get(item.game_id) ?? null) : null}
-              selecting={selecting}
-              selected={selected.has(item.game_id)}
-              onToggle={toggleSelected}
-              onStartSelecting={canSelect ? toggleSelected : undefined}
-              /* One way to remove at a time: the row's own cross steps aside
+                  rank={data.is_ranked ? (rankOf.get(item.game_id) ?? null) : null}
+                  selecting={selecting}
+                  selected={selected.has(item.game_id)}
+                  onToggle={toggleSelected}
+                  onStartSelecting={canSelect ? toggleSelected : undefined}
+                  /* One way to remove at a time: the row's own cross steps aside
                  while a selection is being made. */
-              onRemove={isOwner && !selecting ? removeGame : undefined}
-            />
-          )}
-          ListEmptyComponent={
-            <EmptyState
-              title="Nothing here yet"
-              message={
-                isOwner
-                  ? 'Tap "Add games", then tap a search result to add it.'
-                  : 'This collection is empty.'
+                  onRemove={isOwner && !selecting ? removeGame : undefined}
+                />
+              )}
+              ListEmptyComponent={
+                <EmptyState
+                  title="Nothing here yet"
+                  message={
+                    isOwner
+                      ? 'Tap "Add games", then tap a search result to add it.'
+                      : 'This collection is empty.'
+                  }
+                />
               }
             />
-          }
-        />
-        {selectionBar}
-      </Screen>
+            {selectionBar}
+          </Screen>
+        </ThemeInks>
+      </AccentProvider>
     );
   }
 
@@ -718,214 +794,231 @@ export default function ListDetailScreen() {
     return (
       /* The cover runs full-bleed under the bar, so no `insetHeader` and no
          title: the collection's name is set over its own artwork right below. */
-      <Screen edges={['bottom']} tone={tone} topBar={topBar}>
-        <PageFlatList
-          data={ordered}
-          key="collection-grid"
-          numColumns={GRID_COLUMNS}
-          keyExtractor={keyExtractor}
-          {...CoverGridWindow}
-          /* The set is not in `data`, so the list is told it matters. */
-          extraData={selected}
-          columnWrapperStyle={styles.column}
-          contentContainerStyle={[styles.grid, selecting && styles.underBar]}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={header}
-          ListFooterComponent={footer}
-          renderItem={renderGridItem}
-          removeClippedSubviews={Platform.OS === 'android'}
-          ListEmptyComponent={
-            <EmptyState
-              title="Nothing here yet"
-              message={
-                isOwner
-                  ? 'Tap “Add games”, then tap a search result to add it.'
-                  : 'This collection is empty.'
+      <AccentProvider color={colour.seed} primaryTone={colour.tone}>
+        <ThemeInks inks={themeInks}>
+          <Screen {...screenProps}>
+            <PageFlatList
+              data={ordered}
+              key="collection-grid"
+              numColumns={GRID_COLUMNS}
+              keyExtractor={keyExtractor}
+              {...CoverGridWindow}
+              /* The set is not in `data`, so the list is told it matters. */
+              extraData={selected}
+              columnWrapperStyle={styles.column}
+              contentContainerStyle={[styles.grid, selecting && styles.underBar]}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={header}
+              ListFooterComponent={footer}
+              renderItem={renderGridItem}
+              removeClippedSubviews={Platform.OS === 'android'}
+              ListEmptyComponent={
+                <EmptyState
+                  title="Nothing here yet"
+                  message={
+                    isOwner
+                      ? 'Tap “Add games”, then tap a search result to add it.'
+                      : 'This collection is empty.'
+                  }
+                />
               }
             />
-          }
-        />
-        {selectionBar}
-      </Screen>
+            {selectionBar}
+          </Screen>
+        </ThemeInks>
+      </AccentProvider>
     );
   }
 
   return (
-    <Screen edges={['bottom']} tone={tone} topBar={topBar}>
-      <PageFlatList
-        data={items}
-        keyExtractor={(item) => item.game_id}
-        {...ArtRowWindow}
-        extraData={selected}
-        contentContainerStyle={[
-          items.length === 0 ? styles.empty : styles.content,
-          selecting && styles.underBar,
-        ]}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={header}
-        ListFooterComponent={footer}
-        renderItem={({ item, index }) => (
-          <View style={[styles.row, { borderTopColor: theme.border }]}>
-            {data.is_ranked && !isTierList && (
-              <Text variant="h3" color="textMuted" style={styles.rank}>
-                {index + 1}
-              </Text>
-            )}
+    <AccentProvider color={colour.seed} primaryTone={colour.tone}>
+      <ThemeInks inks={themeInks}>
+        <Screen {...screenProps}>
+          <PageFlatList
+            data={items}
+            keyExtractor={(item) => item.game_id}
+            {...ArtRowWindow}
+            extraData={selected}
+            contentContainerStyle={[
+              items.length === 0 ? styles.empty : styles.content,
+              selecting && styles.underBar,
+            ]}
+            showsVerticalScrollIndicator={false}
+            ListHeaderComponent={header}
+            ListFooterComponent={footer}
+            renderItem={({ item, index }) => (
+              <View style={[styles.row, { borderTopColor: theme.border }]}>
+                {data.is_ranked && !isTierList && (
+                  <Text variant="h3" color="textMuted" style={styles.rank}>
+                    {index + 1}
+                  </Text>
+                )}
 
-            {isTierList && item.tier && (
-              <View style={[styles.tierBadge, { backgroundColor: tierColor(item.tier, theme) }]}>
-                <Text variant="h5" color="background">
-                  {item.tier}
-                </Text>
-              </View>
-            )}
+                {isTierList && item.tier && (
+                  <View
+                    style={[styles.tierBadge, { backgroundColor: tierColor(item.tier, theme) }]}>
+                    <Text variant="h5" color="background">
+                      {item.tier}
+                    </Text>
+                  </View>
+                )}
 
-            {/* The art is the row's one pressable that is about the game: it
+                {/* The art is the row's one pressable that is about the game: it
                 opens it, picks it as the cover, or — once a selection has been
                 started by holding one — ticks it. */}
-            <PressableScale
-              accessibilityRole={selecting ? 'checkbox' : 'button'}
-              accessibilityState={selecting ? { checked: selected.has(item.game_id) } : undefined}
-              accessibilityLabel={
-                pickingCover
-                  ? `Use ${item.game?.title ?? 'this game'} as the preview`
-                  : (item.game?.title ?? 'Game')
-              }
-              accessibilityHint={
-                canSelect && !selecting ? 'Hold to choose games to remove' : undefined
-              }
-              scaleTo={0.96}
-              onPress={
-                pickingCover
-                  ? () => setCover.mutate(item.game_id)
-                  : selecting
-                    ? () => toggleSelected(item.game_id)
-                    : () => router.push({ pathname: '/game/[id]', params: { id: item.game_id } })
-              }
-              onLongPress={
-                canSelect && !selecting ? () => toggleSelected(item.game_id) : undefined
-              }>
-              <Poster
-                coverUrl={item.game?.cover_url}
-                heroUrl={item.game?.hero_url}
-                title={item.game?.title}
-                width={POSTER}
-                rounded="image"
-              />
-              {pickingCover && data.cover_game_id === item.game_id && (
-                <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
-                  <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
-                </View>
-              )}
-              {selecting && (
-                <View
-                  style={[
-                    styles.selectMark,
-                    selected.has(item.game_id)
-                      ? { backgroundColor: theme.primary, borderColor: theme.primary }
-                      : { backgroundColor: theme.scrim, borderColor: theme.text },
-                  ]}
-                  pointerEvents="none">
-                  {selected.has(item.game_id) && (
-                    <Ionicons name="checkmark" size={15} color={theme.onPrimary} />
+                <PressableScale
+                  accessibilityRole={selecting ? 'checkbox' : 'button'}
+                  accessibilityState={
+                    selecting ? { checked: selected.has(item.game_id) } : undefined
+                  }
+                  accessibilityLabel={
+                    pickingCover
+                      ? `Use ${item.game?.title ?? 'this game'} as the preview`
+                      : (item.game?.title ?? 'Game')
+                  }
+                  accessibilityHint={
+                    canSelect && !selecting ? 'Hold to choose games to remove' : undefined
+                  }
+                  scaleTo={0.96}
+                  onPress={
+                    pickingCover
+                      ? () => setCover.mutate(item.game_id)
+                      : selecting
+                        ? () => toggleSelected(item.game_id)
+                        : () =>
+                            router.push({ pathname: '/game/[id]', params: { id: item.game_id } })
+                  }
+                  onLongPress={
+                    canSelect && !selecting ? () => toggleSelected(item.game_id) : undefined
+                  }>
+                  <Poster
+                    coverUrl={item.game?.cover_url}
+                    heroUrl={item.game?.hero_url}
+                    title={item.game?.title}
+                    width={POSTER}
+                    rounded="image"
+                  />
+                  {pickingCover && data.cover_game_id === item.game_id && (
+                    <View style={[styles.coverMark, { backgroundColor: theme.primary }]}>
+                      <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+                    </View>
+                  )}
+                  {selecting && (
+                    <View
+                      style={[
+                        styles.selectMark,
+                        selected.has(item.game_id)
+                          ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                          : { backgroundColor: theme.scrim, borderColor: theme.text },
+                      ]}
+                      pointerEvents="none">
+                      {selected.has(item.game_id) && (
+                        <Ionicons name="checkmark" size={15} color={theme.onPrimary} />
+                      )}
+                    </View>
+                  )}
+                </PressableScale>
+
+                {/* The reference's row: a semibold title over a quiet regular
+                line, 2 apart. */}
+                <View style={styles.rowBody}>
+                  <Text variant="itemTitle" numberOfLines={2}>
+                    {item.game?.title ?? 'Unknown game'}
+                  </Text>
+                  {item.game?.release_year && (
+                    <Text variant="bodySmall" color="textMuted">
+                      {item.game.release_year}
+                    </Text>
+                  )}
+
+                  {isOwner && isTierList && (
+                    <View style={styles.tierPicker}>
+                      {TIERS.map((tier) => (
+                        <PressableScale
+                          key={tier}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Set tier ${tier}`}
+                          onPress={() =>
+                            setTier.mutate({ item, tier: item.tier === tier ? null : tier })
+                          }
+                          scaleTo={0.88}
+                          /* A choice: outlined at rest, filled with the tier's own
+                         colour once it is this row's tier. */
+                          style={StyleSheet.flatten([
+                            styles.tierChip,
+                            item.tier === tier
+                              ? {
+                                  backgroundColor: tierColor(tier, theme),
+                                  borderColor: 'transparent',
+                                }
+                              : { backgroundColor: 'transparent', borderColor: theme.outline },
+                          ])}>
+                          <Text
+                            variant="caption"
+                            style={{
+                              color: item.tier === tier ? theme.background : theme.textMuted,
+                            }}>
+                            {tier}
+                          </Text>
+                        </PressableScale>
+                      ))}
+                    </View>
                   )}
                 </View>
-              )}
-            </PressableScale>
 
-            {/* The reference's row: a semibold title over a quiet regular
-                line, 2 apart. */}
-            <View style={styles.rowBody}>
-              <Text variant="itemTitle" numberOfLines={2}>
-                {item.game?.title ?? 'Unknown game'}
-              </Text>
-              {item.game?.release_year && (
-                <Text variant="bodySmall" color="textMuted">
-                  {item.game.release_year}
-                </Text>
-              )}
-
-              {isOwner && isTierList && (
-                <View style={styles.tierPicker}>
-                  {TIERS.map((tier) => (
-                    <PressableScale
-                      key={tier}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Set tier ${tier}`}
-                      onPress={() =>
-                        setTier.mutate({ item, tier: item.tier === tier ? null : tier })
-                      }
-                      scaleTo={0.88}
-                      /* A choice: outlined at rest, filled with the tier's own
-                         colour once it is this row's tier. */
-                      style={StyleSheet.flatten([
-                        styles.tierChip,
-                        item.tier === tier
-                          ? { backgroundColor: tierColor(tier, theme), borderColor: 'transparent' }
-                          : { backgroundColor: 'transparent', borderColor: theme.outline },
-                      ])}>
-                      <Text
-                        variant="caption"
-                        style={{ color: item.tier === tier ? theme.background : theme.textMuted }}>
-                        {tier}
-                      </Text>
-                    </PressableScale>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* The row's own controls step aside while a selection is being
+                {/* The row's own controls step aside while a selection is being
                 made: one way to remove at a time. */}
-            {isOwner && !selecting && (
-              <View style={styles.rowActions}>
-                {!isTierList && (
-                  <>
-                    <IconButton
-                      icon="chevron-up"
-                      accessibilityLabel="Move up"
-                      size="small"
-                      tone="plain"
-                      disabled={index === 0}
-                      onPress={() => move.mutate({ index, direction: -1 })}
-                    />
-                    <IconButton
-                      icon="chevron-down"
-                      accessibilityLabel="Move down"
-                      size="small"
-                      tone="plain"
-                      disabled={index === items.length - 1}
-                      onPress={() => move.mutate({ index, direction: 1 })}
-                    />
-                  </>
-                )}
-                {/* `plain`: the row already has its own surface, and a boxed
+                {isOwner && !selecting && (
+                  <View style={styles.rowActions}>
+                    {!isTierList && (
+                      <>
+                        <IconButton
+                          icon="chevron-up"
+                          accessibilityLabel="Move up"
+                          size="small"
+                          tone="plain"
+                          disabled={index === 0}
+                          onPress={() => move.mutate({ index, direction: -1 })}
+                        />
+                        <IconButton
+                          icon="chevron-down"
+                          accessibilityLabel="Move down"
+                          size="small"
+                          tone="plain"
+                          disabled={index === items.length - 1}
+                          onPress={() => move.mutate({ index, direction: 1 })}
+                        />
+                      </>
+                    )}
+                    {/* `plain`: the row already has its own surface, and a boxed
                     outline around each glyph would make it a grid. */}
-                <IconButton
-                  icon="close"
-                  accessibilityLabel="Remove from collection"
-                  size="small"
-                  tone="danger"
-                  onPress={() => remove.mutate(item.game_id)}
-                />
+                    <IconButton
+                      icon="close"
+                      accessibilityLabel="Remove from collection"
+                      size="small"
+                      tone="danger"
+                      onPress={() => remove.mutate(item.game_id)}
+                    />
+                  </View>
+                )}
               </View>
             )}
-          </View>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            title="Nothing in this list yet"
-            message={isOwner ? 'Search for a game and tap it to add it here.' : undefined}
-            action={
-              isOwner ? (
-                <Button title="Find games" variant="secondary" onPress={openPicker} />
-              ) : undefined
+            ListEmptyComponent={
+              <EmptyState
+                title="Nothing in this list yet"
+                message={isOwner ? 'Search for a game and tap it to add it here.' : undefined}
+                action={
+                  isOwner ? (
+                    <Button title="Find games" variant="secondary" onPress={openPicker} />
+                  ) : undefined
+                }
+              />
             }
           />
-        }
-      />
-      {selectionBar}
-    </Screen>
+          {selectionBar}
+        </Screen>
+      </ThemeInks>
+    </AccentProvider>
   );
 }
 

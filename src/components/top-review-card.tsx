@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { MemberReviewCard } from '@/components/member-review-card';
-import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, CardInks, useCardMaterial } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Skeleton } from '@/components/ui/surface';
 import { Text } from '@/components/ui/text';
@@ -167,7 +167,8 @@ function Shell({
       onPress={onPress}
       scaleTo={0.99}
       style={card}>
-      {children}
+      {/* The card's own inks under it, when it is in the filled colour. */}
+      <CardInks material={material}>{children}</CardInks>
     </PressableScale>
   );
 }

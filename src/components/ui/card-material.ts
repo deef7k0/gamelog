@@ -1,12 +1,12 @@
-import { useMemo } from 'react';
+import { createElement, useMemo, type ReactNode } from 'react';
 import { StyleSheet, type ViewStyle } from 'react-native';
 
 import { Elevation, Palette, Radius, Spacing, type AccentRoles } from '@/constants/theme';
-import { useAccent } from '@/hooks/use-accent';
+import { AccentInks, useAccent } from '@/hooks/use-accent';
 import { useScreenChrome } from '@/hooks/use-screen-chrome';
-import { useTheme } from '@/hooks/use-theme';
-import { mix } from '@/lib/color';
-import { GLASS } from '@/lib/page-color';
+import { ThemeInks, useTheme } from '@/hooks/use-theme';
+import { mix, withAlpha } from '@/lib/color';
+import { filledInks, filledRoles, type FilledInks } from '@/lib/filled';
 
 /**
  * The review card's material, which every card in the app is made of.
@@ -33,40 +33,34 @@ import { GLASS } from '@/lib/page-color';
  *
  * `border` is white at 7%, so the one edge reads on either fill.
  *
- * ## Glass, on a game's page
+ * ## The filled colour, on a page coloured from its art
  *
- * The owner's brief of 2026-10-27: on a game's page — one flat colour, the
- * hero's (`lib/page-color`) — every card is a pane of glass. White at 12%
- * for the body, so the page shows through and is lifted; a 1dp edge at 30%,
- * brighter than the body, for the bevel; a 1dp highlight inside the top edge,
- * the brightest thing on it; and a large soft shadow, so it floats. Brightest
- * to darkest is what reads as glass (`GLASS`, tested). A page asks for it with
- * `<Screen glass>`; the game page is the one that does.
- *
- * The shadow and the highlight are `boxShadow`, not `Elevation.card`: an
- * Android elevation is drawn under the whole card and shows through a
- * translucent one, where React Native's box shadow clips itself out of the
- * card's own box (`OutsetBoxShadowDrawable`, `clipOutPath`).
+ * On the pages whose colour is their artwork's — a game, a studio, a
+ * collection (`<Screen artColoured>`) — a card is **exactly the review
+ * button's colour**: `filledRoles(accent).fill`, the same value the button and
+ * the selected tab paint (the owner's, 2026-10-27: "they have to be EXACTLY
+ * the same as the review button and tab color. The exact same one"). It takes
+ * the button's ink with it (`filledInks`), handed to everything inside by
+ * `<CardInks>` — the theme's type, the accent's type roles and the grey
+ * action pill — because the page's own white would not read on it. The card
+ * was glass for a few builds; that is gone.
  */
 export type CardMaterial = {
   /** The card's fill. */
   fill: string;
   /** Its 1dp hairline. */
   edge: string;
-  /**
-   * The corner, the edge's width and the shadow — spread it where `cardShape`
-   * was. Glass's own on a glass page.
-   */
+  /** The corner, the edge's width and the shadow — spread it where `cardShape` was. */
   shape: ViewStyle;
   /** A rule inside the card, between its parts, when the card's own is not the default. */
   rule?: string;
-  /**
-   * The colour the card is seen as, opaque — for a fade that ends on it. The
-   * fill itself on a solid card; on glass, the page with its 12% of white.
-   */
+  /** The colour the card is seen as, opaque — for a fade that ends on it. */
   solid: string;
-  /** Whether this is the glass. */
-  glass: boolean;
+  /**
+   * The inks written on it, when they are not the page's: a card in the filled
+   * colour's. `<CardInks>` hands them down.
+   */
+  inks: FilledInks | null;
 };
 
 export function useCardMaterial(): CardMaterial {
@@ -74,26 +68,64 @@ export function useCardMaterial(): CardMaterial {
   const chrome = useScreenChrome();
   const accent = useAccent();
 
-  const glass = chrome?.glass ?? false;
-  const page = chrome?.background ?? theme.background;
+  const artColoured = chrome?.artColoured ?? false;
   const bright = chrome?.tone?.bright ?? null;
   const dark = chrome?.tone?.dark ?? null;
 
   return useMemo(() => {
-    if (glass) return glassMaterial(page);
+    if (artColoured) return filledMaterial(accent);
     if (bright) {
       return {
         fill: bright,
         edge: 'rgba(255, 255, 255, 0.1)',
         shape: cardShape,
         solid: bright,
-        glass: false,
+        inks: null,
       };
     }
-    if (dark)
-      return { fill: dark, edge: theme.border, shape: cardShape, solid: dark, glass: false };
+    if (dark) return { fill: dark, edge: theme.border, shape: cardShape, solid: dark, inks: null };
     return cardMaterialFor(accent, theme);
-  }, [glass, page, bright, dark, accent, theme]);
+  }, [artColoured, bright, dark, accent, theme]);
+}
+
+const filledCache = new WeakMap<AccentRoles, CardMaterial>();
+
+/**
+ * A card in the filled colour — the review button's, to the value — with its
+ * ink and no visible edge (the edge is the fill, as the button's is). One
+ * object per accent.
+ */
+export function filledMaterial(accent: AccentRoles): CardMaterial {
+  let material = filledCache.get(accent);
+  if (!material) {
+    const { fill, ink } = filledRoles(accent);
+    const inks = filledInks(fill, ink);
+    material = { fill, edge: fill, shape: cardShape, rule: inks.rule, solid: fill, inks };
+    filledCache.set(accent, material);
+  }
+  return material;
+}
+
+/**
+ * Hands a card's inks to everything inside it — the theme's type
+ * (`ThemeInks`), the accent's type roles (`AccentInks`) and the grey action
+ * pill — when they are not the page's. Nothing at all otherwise.
+ */
+export function CardInks({ material, children }: { material: CardMaterial; children: ReactNode }) {
+  const inks = material.inks;
+  if (!inks) return children;
+  return createElement(
+    ThemeInks,
+    {
+      inks: {
+        text: inks.text,
+        secondary: inks.secondary,
+        rule: inks.rule,
+        control: { fill: withAlpha(inks.text, 0.12), ink: inks.text },
+      },
+    },
+    createElement(AccentInks, { ink: inks.text, quiet: inks.secondary }, children)
+  );
 }
 
 /**
@@ -110,17 +142,17 @@ export function cardMaterialFor(
 ): CardMaterial {
   if (accent && 'bright' in accent && accent.bright) {
     const fill = accent.bright;
-    return { fill, edge: 'rgba(255, 255, 255, 0.1)', shape: cardShape, solid: fill, glass: false };
+    return { fill, edge: 'rgba(255, 255, 255, 0.1)', shape: cardShape, solid: fill, inks: null };
   }
   if (accent && 'dark' in accent) {
     const fill = accent.dark ?? theme.surface;
-    return { fill, edge: theme.border, shape: cardShape, solid: fill, glass: false };
+    return { fill, edge: theme.border, shape: cardShape, solid: fill, inks: null };
   }
   const roles = accent as AccentRoles | null | undefined;
   const fill = roles?.tonal
     ? mix(roles.m3.primaryContainer, Palette.shadowInk, 0.5)
     : theme.surface;
-  return { fill, edge: theme.border, shape: cardShape, solid: fill, glass: false };
+  return { fill, edge: theme.border, shape: cardShape, solid: fill, inks: null };
 }
 
 /** Fifteen in — the reference's card inset, and the page margin. */
@@ -137,50 +169,10 @@ export const CARD_GAP = Spacing.x12;
  * `overflow: 'hidden'`, so a card that must clip its contents (art to its
  * corner) clips on an inner view, as `<Card>` does.
  */
-const shapes = StyleSheet.create({
-  card: {
+export const cardShape = StyleSheet.create({
+  shape: {
     borderRadius: Radius.review,
     borderWidth: 1,
     ...Elevation.card,
   },
-  glass: {
-    borderRadius: Radius.review,
-    borderWidth: 1,
-    boxShadow: [
-      {
-        offsetX: 0,
-        offsetY: GLASS.shadowOffset,
-        blurRadius: GLASS.shadowBlur,
-        color: GLASS.shadow,
-      },
-      /* The light on the bevel: one dp inside the top edge. */
-      { inset: true, offsetX: 0, offsetY: 1, blurRadius: 0, color: GLASS.highlight },
-    ],
-  },
-});
-
-export const cardShape = shapes.card;
-
-const glassCache = new Map<string, CardMaterial>();
-
-/**
- * The glass card on `page` — `useCardMaterial`'s on a glass page, and for a
- * screen that draws a card before its own `<Screen>`'s context exists (the
- * game page's own log, in its masthead). One object per page colour.
- */
-export function glassMaterial(page: string): CardMaterial {
-  let material = glassCache.get(page);
-  if (!material) {
-    material = {
-      fill: GLASS.fill,
-      edge: GLASS.edge,
-      shape: shapes.glass,
-      rule: 'rgba(255, 255, 255, 0.12)',
-      /* The renderer composites in sRGB, as `mix` does. */
-      solid: mix(page, '#FFFFFF', GLASS.fillAlpha),
-      glass: true,
-    };
-    glassCache.set(page, material);
-  }
-  return material;
-}
+}).shape;

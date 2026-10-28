@@ -78,10 +78,11 @@ export type ScreenChrome = {
   /** The page reserves the bar's row at its top. */
   insetHeader: boolean;
   /**
-   * The page is one flat colour from its artwork and its cards are glass
-   * (`<Screen glass>`, `useCardMaterial`): the game page.
+   * The page is one flat colour from its artwork, and its cards and selected
+   * tabs wear the filled colour — the review button's (`<Screen artColoured>`,
+   * `useCardMaterial`, `<TabBar>`): a game, a studio, a collection.
    */
-  glass: boolean;
+  artColoured: boolean;
 };
 
 const ScreenChromeContext = createContext<ScreenChrome | null>(null);
@@ -99,7 +100,7 @@ export type ScreenChromeProviderProps = {
   modal?: boolean;
   background: string;
   insetHeader?: boolean;
-  glass?: boolean;
+  artColoured?: boolean;
   /** The page's own tones, and how tall the artwork they were read from is. */
   tone?: { bright: string | null; dark: string; header: number };
   children: (chrome: ScreenChrome & { blurTargetRef: { current: View | null } }) => ReactNode;
@@ -117,7 +118,7 @@ export function ScreenChromeProvider({
   modal = false,
   background,
   insetHeader = false,
-  glass = false,
+  artColoured = false,
   tone,
   children,
 }: ScreenChromeProviderProps) {
@@ -180,10 +181,10 @@ export function ScreenChromeProvider({
       layout,
       background,
       insetHeader,
-      glass,
+      artColoured,
       tone: tones,
     }),
-    [target, modal, scrollY, layout, background, insetHeader, glass, tones]
+    [target, modal, scrollY, layout, background, insetHeader, artColoured, tones]
   );
 
   return (

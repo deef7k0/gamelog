@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, CardInks, useCardMaterial } from '@/components/ui/card-material';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { Reveal, useRevealing } from '@/components/ui/reveal';
 import { useSectionInset } from '@/components/ui/section';
@@ -78,8 +78,9 @@ export function Panel({
     style,
   ]);
 
+  /* The card's own inks under it, when it is in the filled colour. */
   const body = (
-    <>
+    <CardInks material={material}>
       <View style={styles.head}>
         <Text
           variant="h5"
@@ -96,7 +97,7 @@ export function Panel({
       </View>
       <View style={[styles.rule, { backgroundColor: material.rule ?? accent.m3.outlineVariant }]} />
       {children}
-    </>
+    </CardInks>
   );
 
   /* A `<Reveal>`: on a page that opts in (`<RevealScope>`, a game's

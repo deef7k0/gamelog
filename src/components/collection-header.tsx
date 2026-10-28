@@ -1,20 +1,22 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { type ImageContentPosition } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { Avatar } from '@/components/ui/avatar';
 import { ExpandableText } from '@/components/ui/expandable-text';
-import { KeyColorHero, footFade } from '@/components/ui/key-color-hero';
+import { footFade } from '@/components/ui/key-color-hero';
 import { PressableScale } from '@/components/ui/pressable-scale';
 import { useSectionMetrics } from '@/components/ui/section';
 import { SmoothScrim } from '@/components/ui/smooth-scrim';
 import { Text } from '@/components/ui/text';
 import { HEADER_ART_SHARE } from '@/constants/header-art';
-import { Palette, Radius, Spacing, TapTarget, withAlpha } from '@/constants/theme';
+import { Palette, Radius, Spacing, TapTarget, Type, withAlpha } from '@/constants/theme';
 import { useLikeToggle } from '@/hooks/use-like-toggle';
-import { useSquareCover } from '@/hooks/use-square-cover';
 import { useTheme } from '@/hooks/use-theme';
 import { displayNameFor } from '@/lib/format';
+import { smoothScrimStops } from '@/lib/immersive-color';
 import type { Engagement, ListCover, ListItem, ListWithItems } from '@/lib/api';
 import type { Profile } from '@/lib/database.types';
 
@@ -49,10 +51,10 @@ export const COLLECTION_BOX_ANCHOR = 0.22;
 const SINGLE_ANCHOR = `${COLLECTION_BOX_ANCHOR * 100}%` as const;
 
 /** The art giving way to its ground over its bottom `SCRIM_RATIO`, eased at both ends. */
-const COVER_FADE = footFade(SCRIM_RATIO);
+export const COLLECTION_COVER_FADE = footFade(SCRIM_RATIO);
 
 /** How much of the cover, from the top, is darkened for the status bar and the glass discs. */
-const SCRIM_TOP = 0.22;
+export const COLLECTION_SCRIM_TOP = 0.22;
 
 /**
  * The two actions under the art: the reference album's 48dp circles
@@ -171,6 +173,42 @@ export type CollectionHeaderProps = {
  * drains to the page, finished as the glass bar comes in. Square art has no
  * key colour (`useKeyColor` says why) and melts into the page's own colour.
  */
+/**
+ * Which picture a collection's hero is, and where it sits: its cover game's
+ * square art where SteamGridDB has any, from its centre; else the box,
+ * anchored a fifth of the way down (`COLLECTION_BOX_ANCHOR`). Null until the
+ * square lookup has answered, so the box is never drawn and then swapped. The
+ * header and the page's pinned hero both read it, so they cannot disagree.
+ */
+export function collectionArt(
+  cover: { cover_url?: string | null; hero_url?: string | null } | null,
+  square: { uri: string | null; resolved: boolean }
+): { uri: string | null; contentPosition: ImageContentPosition } {
+  const uri =
+    cover && square.resolved ? (square.uri ?? cover.cover_url ?? cover.hero_url ?? null) : null;
+  return {
+    uri,
+    contentPosition: square.uri ? 'center' : { top: SINGLE_ANCHOR, left: '50%' },
+  };
+}
+
+/** The line under the title, and the four above it: where the name ends, for the bar. */
+export const COLLECTION_META_LINE = (Type.body.lineHeight ?? 19) + Spacing.x4;
+
+/** Where the title block's foot is above the art's: its padding. */
+export const COLLECTION_TITLE_FOOT = Spacing.x24;
+
+/** The solid part's soft top edge, and its stops. */
+const LIP = 40;
+const LIP_STOPS = smoothScrimStops();
+function lipColours(page: string) {
+  return LIP_STOPS.alphas.map((alpha) => withAlpha(page, alpha)) as unknown as readonly [
+    string,
+    string,
+    ...string[],
+  ];
+}
+
 export function CollectionHeader({
   collection,
   owner,
@@ -184,15 +222,6 @@ export function CollectionHeader({
 
   const items = collection.items ?? [];
   const cover = collectionCover(collection);
-  /*
-   * The cover as square art, where SteamGridDB has any. This header is the one
-   * place a collection is drawn square, by the owner's rule: its stack outside
-   * (`<ListTile>`) and the games under it are box art. Nothing is drawn until
-   * the lookup has answered, so the box is never painted and then swapped; a
-   * miss draws the box, anchored.
-   */
-  const square = useSquareCover({ gameId: cover?.id, title: cover?.title, enabled: !!cover });
-  const art = cover && square.resolved ? (square.uri ?? cover.cover_url ?? cover.hero_url) : null;
   const page = pageColor ?? theme.background;
   const description = collection.description?.trim();
 
@@ -217,6 +246,18 @@ export function CollectionHeader({
 
   return (
     <View>
+      {/* The solid part's soft top edge, under the name: the art the name
+          floats on gives way to the page here. First, so it is under it. */}
+      {cover && (
+        <View pointerEvents="none" style={[styles.lip, { top: coverHeight - LIP }]}>
+          <LinearGradient
+            colors={lipColours(page)}
+            locations={LIP_STOPS.locations as unknown as readonly [number, number, ...number[]]}
+            style={styles.fill}
+          />
+        </View>
+      )}
+
       {/*
         The name and what it is, set over the artwork.
 
@@ -233,26 +274,15 @@ export function CollectionHeader({
       */}
       {cover ? (
         /*
-          The artwork: one game's, full width and cropped to the banner —
-          square art from its centre, a stand-in box anchored high
-          (`SINGLE_ANCHOR`) — as Apple Music's artist hero (2026-10-23, the
-          owner's direction): melting into its own key colour, sharp at rest,
-          softening and draining to the page as the page scrolls, the glass bar
-          coming in over the colour it is tinted with (`<KeyColorHero>`).
+          Where the artwork shows through, with the name over its foot.
 
-          The fade is SimpMusic's album scrim, over the bottom 70% and nothing
-          else, so the top of the cover shows at full strength — into the key
-          colour of the box, or the page's own colour for square art, whose
-          400px file is too large to read in JavaScript (`useKeyColor`).
+          The art is not drawn here any more: it is pinned behind the page
+          (`<PinnedHero>`, the screen's backdrop — `collectionArt` is which
+          picture), as the game page's and the studio's are, so the name
+          floats up over it as the page scrolls and the page's solid part
+          rises and swallows it. This is the room the page leaves it at rest.
         */
-        <KeyColorHero
-          uri={art}
-          height={coverHeight}
-          fade={COVER_FADE}
-          scrim={SCRIM_TOP}
-          contentPosition={square.uri ? 'center' : { top: SINGLE_ANCHOR, left: '50%' }}>
-          {titleBlock}
-        </KeyColorHero>
+        <View style={{ height: coverHeight }}>{titleBlock}</View>
       ) : (
         /*
           A collection with no games in it yet has no cover to draw. It gets the
@@ -277,7 +307,7 @@ export function CollectionHeader({
 
       {/* Under the art, on the page's own colour, at the page's margin — the
           left edge the sort tools and the games below it keep. */}
-      <View style={[styles.body, { paddingTop: sections.cardGap }]}>
+      <View style={[styles.body, { paddingTop: sections.cardGap, backgroundColor: page }]}>
         {/*
           Who made it, and the two things a reader can do about it.
 
@@ -566,6 +596,8 @@ const styles = StyleSheet.create({
 
   /* The reference's title block: 20 in from each side, 16 up from the edge
      (`x24`, the ladder's 15), and 4 between its two lines. */
+  lip: { position: 'absolute', left: 0, right: 0, height: LIP },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   titleBlock: {
     position: 'absolute',
     left: 0,

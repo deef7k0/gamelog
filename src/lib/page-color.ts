@@ -40,7 +40,7 @@ import { paletteSwatches } from './immersive-color';
  *  3. **The page's inks** (`pageInks`): white or black by the page's
  *     luminance, the secondary at 60% of it.
  *  4. **Failure**: an image that will not load is `FAILED`, a neutral dark
- *     grey; the glass still works on it.
+ *     grey.
  *
  * ## The buttons: Material 3, from the same art, of the page's family
  *
@@ -90,41 +90,6 @@ export const PAGE_COLOR = {
   /** The most pixels the seed is read from; more are sampled evenly. */
   seedPixels: 1000,
 } as const;
-
-/**
- * The glass card — a fixed recipe, the brief's Step 3: only the page colour is
- * dynamic, and this works on any page that passed the filter.
- *
- * Brightest to darkest, which is what reads as glass: the top highlight (the
- * light on the bevel), the edge, the fill, the page, the shadow.
- */
-export const GLASS = {
-  /** The body: the page shows through, a little lifted. 0.10–0.15 is glass; 0.25 is a white panel. */
-  fill: 'rgba(255, 255, 255, 0.12)',
-  /** The body's alpha, for the colour it is seen as (`mix(page, white, fillAlpha)`). */
-  fillAlpha: 0.12,
-  /** The bevel: brighter than the fill, or the card is a lighter rectangle and not an object. */
-  edge: 'rgba(255, 255, 255, 0.3)',
-  /** The specular line along the top edge, drawn inside it. */
-  highlight: 'rgba(255, 255, 255, 0.25)',
-  /** The float: large and soft, never sharp. */
-  shadow: 'rgba(0, 0, 0, 0.15)',
-  shadowOffset: 8,
-  shadowBlur: 16,
-} as const;
-
-/**
- * Whether a game page's cards are glass (`GLASS`, `glassMaterial`).
- *
- * **Off, for the owner's test** (2026-10-27): "don't delete the glass code or
- * remove any of it permanently, for testing purposes I want you to make the
- * cards a solid color just like the m3 buttons. Like it was before." Off, a
- * game page's cards are the solid Material 3 card they were before the glass
- * — the game's `primaryContainer` at half brightness (`cardMaterialFor`),
- * from the same scheme as the buttons. Every line of the glass is still in
- * place; this is the one switch back to it.
- */
-export const GLASS_CARDS = false;
 
 export type Region = { left: number; top: number; right: number; bottom: number };
 
@@ -332,8 +297,8 @@ export function pickPageColor({ candidates, counted }: PaletteResult): PagePick 
   let from: Candidate | undefined;
   let by: PagePick['by'] = 'rules';
   if (passing.length > 0) {
-    /* Rule 6: the vibrant swatches first — the glass's white lifts a vivid
-       colour and flattens a muted one — then everything else, each by how
+    /* Rule 6: the vibrant swatches first — a vivid page carries the page's
+       colour, a muted one reads flat — then everything else, each by how
        much of the picture it covers. The list is already in that order. */
     from = passing.find(vivid) ?? passing[0];
   } else if (lit.length > 0) {

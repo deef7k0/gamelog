@@ -63,10 +63,11 @@ export type PageColor = {
    */
   tone?: number;
   /**
-   * Whether the page is the art's colour, so its cards are glass. False while
-   * game colours are off: the page is then the app's own room, cards and all.
+   * Whether the page is the art's colour, so its cards and selected tabs wear
+   * the filled colour (`<Screen artColoured>`). False while game colours are
+   * off: the page is then the app's own room, cards and all.
    */
-  glass: boolean;
+  artColoured: boolean;
   /** Whether `page` is the answer, and not the placeholder before it. */
   resolved: boolean;
 };
@@ -79,7 +80,7 @@ export type PageColor = {
  * hero and kept for good (the query is saved with the app's cache; the device
  * keeps its own copy for when that cache has let it go).
  *
- * Off with game colours (Settings): the app's page, no seed, no glass.
+ * Off with game colours (Settings): the app's page, no seed, the app's cards.
  */
 export function usePageColor(
   uri: string | null | undefined,
@@ -105,8 +106,12 @@ export function usePageColor(
     retry: false,
   });
 
+  /* No art at all — an empty collection — is the app's own page, not a
+     failure: there was nothing to read. Art that could not be read (not
+     IGDB's, or the request failed) is the brief's neutral grey. */
+  const coloured = colours.on && !!uri;
   const data = source ? read.data : undefined;
-  const page = !colours.on
+  const page = !coloured
     ? theme.background
     : (data?.page ?? (source && read.isPending ? theme.background : PAGE_COLOR.failed));
 
@@ -128,8 +133,8 @@ export function usePageColor(
     page,
     seed: buttons?.seed ?? null,
     tone: buttons?.tone,
-    glass: colours.on,
-    resolved: !colours.on || !source || !read.isPending,
+    artColoured: coloured,
+    resolved: !coloured || !source || !read.isPending,
   };
 }
 

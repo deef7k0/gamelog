@@ -1,7 +1,7 @@
-import { Image } from 'expo-image';
+import { Image, type ImageContentPosition } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { BLUR_RADIUS } from '@/components/ui/hero-art';
@@ -53,6 +53,12 @@ export type PinnedHeroProps = {
   ready?: boolean;
   /** Wraps the art — the trailer under it (`<TrailerBackdrop>`), which drifts and blurs with it. */
   media?: (art: ReactNode) => ReactNode;
+  /** Where the image sits in the frame: `contentPosition` (a collection anchors its box art). */
+  contentPosition?: ImageContentPosition;
+  /** Black over the art, 0–1: a studio's 5%, so a bright banner sits back behind the name. */
+  veil?: number;
+  /** The loaded image's size, for a caller that has to reject art it cannot use. */
+  onLoad?: (size: { width: number; height: number }) => void;
 };
 
 /**
@@ -91,9 +97,14 @@ export type PinnedHeroProps = {
  * with the page at every point of the crossfade. For one build the blurred
  * copy carried a shorter fade of its own, and as it came in the art stopped
  * dissolving and read "as if it was pasted onto the page raw" (the owner,
- * 2026-10-27). The drifting box clips, so the blurred copy's 10% overscale
- * never shows below the foot — the frame cannot, since the art moves inside
- * it.
+ * 2026-10-27).
+ *
+ * **Nothing has an edge at the art's foot.** The blurred copy is drawn at the
+ * art's own size — it was 10% oversize and clipped, and the clip's edge let a
+ * sliver of it through at fractional scroll positions: a line under the art
+ * that moved at the art's speed, "some kind of z fighting" (the owner,
+ * 2026-10-27) — and a strip of page colour hangs under the art on the box that
+ * drifts with it (`footHold`), so the foot is page colour on both sides.
  *
  * Every scroll-driven style reads `pulse` and carries a transform: a render
  * re-applies them all (`usePulse`, CLAUDE.md § Gotchas, the lost end value).
@@ -108,6 +119,9 @@ export const PinnedHero = memo(function PinnedHero({
   scrim = 0,
   ready = true,
   media,
+  contentPosition,
+  veil = 0,
+  onLoad,
 }: PinnedHeroProps) {
   const chrome = useScreenChrome();
   const still = useSharedValue(0);
@@ -137,7 +151,10 @@ export const PinnedHero = memo(function PinnedHero({
     pulse.get();
     return {
       opacity: pinnedBlur(scrollY.get(), solidAt, PINNED_HERO.blurFrom, PINNED_HERO.blurUntil),
-      transform: [{ scale: PINNED_HERO.blurScale }],
+      /* Not overscaled: the copy ends exactly where the art does, so nothing
+         of it can show past the art's foot. Both platforms' blurs extend an
+         image's edge rather than darkening it. */
+      transform: [{ translateY: 0 }],
     };
   });
   const drainStyle = useAnimatedStyle(() => {
@@ -155,10 +172,14 @@ export const PinnedHero = memo(function PinnedHero({
       style={styles.fill}
       cachePolicy="memory-disk"
       contentFit="cover"
+      contentPosition={contentPosition}
       transition={280}
       /* The largest thing on the screen: ahead of every cover beside it. */
       priority="high"
-      onLoad={() => setLoaded(source)}
+      onLoad={(event) => {
+        setLoaded(source);
+        onLoad?.({ width: event.source.width, height: event.source.height });
+      }}
       onError={() => {
         if (!steamSource) return;
         steam?.onFailed();
@@ -179,38 +200,51 @@ export const PinnedHero = memo(function PinnedHero({
       style={[
         styles.layer,
         {
-          height,
+          height: height + PINNED_HERO.footHold,
           opacity: ready ? 1 : 0,
           transitionProperty: 'opacity',
           transitionDuration: PINNED_HERO.arriveMs,
         },
       ]}>
       <Animated.View style={[styles.fill, frameStyle]}>
-        {/* Clipped here, on the box that drifts — not on the frame: the art
-            moves up inside the frame, and a clip that stayed put would let
-            the blurred copy's overhang show under the art's foot once it had
-            drifted past it. */}
-        <Animated.View style={[styles.fill, styles.clip, driftStyle]}>
-          {media ? media(art) : art}
+        {/* The box that drifts: the art, its blurred copy and its fade, then a
+            strip of the page's own colour under them (`footHold`), so the
+            art's foot is inside page colour on both sides. */}
+        <Animated.View style={[styles.fill, driftStyle]}>
+          <View style={[styles.art, { height }]}>
+            {media ? media(art) : art}
 
-          {/* The art softening: over the art, and over a trailer. */}
-          {blurReady && (
-            <Animated.View style={[styles.fill, blurStyle]}>
-              <Image
-                source={{ uri: source }}
-                style={styles.fill}
-                contentFit="cover"
-                blurRadius={BLUR_RADIUS}
-                cachePolicy="memory-disk"
-                accessibilityIgnoresInvertColors
-              />
-            </Animated.View>
-          )}
+            {/* The art softening: over the art, and over a trailer. */}
+            {blurReady && (
+              <Animated.View style={[styles.fill, blurStyle]}>
+                <Image
+                  source={{ uri: source }}
+                  style={styles.fill}
+                  contentFit="cover"
+                  contentPosition={contentPosition}
+                  blurRadius={BLUR_RADIUS}
+                  cachePolicy="memory-disk"
+                  accessibilityIgnoresInvertColors
+                />
+              </Animated.View>
+            )}
 
-          {/* The art's foot giving way to the page — over both copies, so the
+            {/* The art's foot giving way to the page — over both copies, so the
               art dissolves by the same curve sharp or blurred, and on the art,
               so it drifts with it and the art never shows an edge of its own. */}
-          <LinearGradient colors={footColours} locations={locations(fade)} style={styles.fill} />
+            {veil > 0 && (
+              <View
+                style={[styles.fill, { backgroundColor: withAlpha(Palette.shadowInk, veil) }]}
+              />
+            )}
+            <LinearGradient colors={footColours} locations={locations(fade)} style={styles.fill} />
+          </View>
+          <View
+            style={[
+              styles.hold,
+              { top: height, height: PINNED_HERO.footHold, backgroundColor: page },
+            ]}
+          />
         </Animated.View>
 
         {scrim > 0 && (
@@ -229,9 +263,9 @@ export const PinnedHero = memo(function PinnedHero({
 const styles = StyleSheet.create({
   layer: { position: 'absolute', top: 0, left: 0, right: 0 },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  /* The blurred copy is drawn 10% past its box; it must never show below the
-     art's foot, where the fade has already given way to the page. */
-  clip: { overflow: 'hidden' },
+  /* The art at its own height, inside the taller box that drifts. */
+  art: { position: 'absolute', top: 0, left: 0, right: 0 },
+  hold: { position: 'absolute', left: 0, right: 0 },
   scrim: { position: 'absolute', left: 0, right: 0, top: 0 },
 });
 

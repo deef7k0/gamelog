@@ -4,7 +4,7 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { QuoteBlock } from '@/components/quote-block';
 import { Avatar } from '@/components/ui/avatar';
-import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, CardInks, useCardMaterial } from '@/components/ui/card-material';
 import { ScoreLine } from '@/components/ui/score';
 import { Text } from '@/components/ui/text';
 import { Spacing, Type } from '@/constants/theme';
@@ -112,14 +112,22 @@ export const MemberReviewCard = memo(function MemberReviewCard({
   fill,
   style,
 }: MemberReviewCardProps) {
-  const theme = useTheme();
   const material = useCardMaterial();
-
-  const rounded = score === null ? null : Math.round(score);
-  const words = text.trim();
-  const shows = cardShows({ review: words, review_title: quote, review_display: display });
-  /* The quote is the words' ink, so the card reads as one voice. */
-  const ink = theme.proseInk;
+  const body = (
+    <MemberReviewBody
+      name={name}
+      avatarUrl={avatarUrl}
+      text={text}
+      quote={quote}
+      display={display}
+      score={score}
+      likes={likes}
+      comments={comments}
+      likedByViewer={likedByViewer}
+      lines={lines}
+      spoiler={spoiler}
+    />
+  );
 
   return (
     <View
@@ -129,6 +137,46 @@ export const MemberReviewCard = memo(function MemberReviewCard({
         styles.card,
         style,
       ]}>
+      {/* The card's own inks under it, when it is in the filled colour — and
+          not when the caller painted it another fill. */}
+      {fill ? body : <CardInks material={material}>{body}</CardInks>}
+    </View>
+  );
+});
+
+/**
+ * Everything on the card, drawn inside its inks: its own `useTheme()` is read
+ * here, under `<CardInks>`, so the icons and the quote follow the card's ink
+ * and not the page's.
+ */
+function MemberReviewBody({
+  name,
+  avatarUrl,
+  text,
+  quote,
+  display,
+  score,
+  likes,
+  comments,
+  likedByViewer,
+  lines,
+  spoiler,
+}: Omit<MemberReviewCardProps, 'fill' | 'style'>) {
+  const theme = useTheme();
+  const material = useCardMaterial();
+
+  const rounded = score === null ? null : Math.round(score);
+  const words = text.trim();
+  const shows = cardShows({
+    review: words,
+    review_title: quote ?? null,
+    review_display: display ?? null,
+  });
+  /* The quote is the words' ink, so the card reads as one voice. */
+  const ink = theme.proseInk;
+
+  return (
+    <>
       {spoiler ? (
         <View style={styles.covered}>
           {/* `danger`, as `<SpoilerNotice>` uses it: read this before you act.
@@ -189,9 +237,9 @@ export const MemberReviewCard = memo(function MemberReviewCard({
           </View>
         )}
       </View>
-    </View>
+    </>
   );
-});
+}
 
 /** The writer's face at the foot: the reference's 40px at its own scale, ~27dp. */
 const AVATAR = 28;

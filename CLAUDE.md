@@ -169,11 +169,12 @@ npm test           # node:test — pure modules only: the M3 scheme generator, t
                    # softening, the drain, the iOS stretch, a shelf arriving,
                    # and the game page's pinned hero — its drift, its blur
                    # whole as the title reaches the top, its drain, its
-                   # stretch (lib/scroll-motion); and the game page's
-                   # colours — Palette's named swatches, the brief's filter
-                   # on synthetic images and on five real heroes, the glass
-                   # recipe's brightness order, Material's seed (fixed-seed,
-                   # so deterministic) and rule 5 (lib/page-color)
+                   # stretch (lib/scroll-motion); and the art-coloured
+                   # pages' colours — Palette's named swatches, the brief's
+                   # filter on synthetic images and on six real heroes,
+                   # Material's seed (fixed-seed, so deterministic), the
+                   # buttons kept to the page's family and apart by tone,
+                   # and the cards' inks at AA (lib/page-color)
 
 node scripts/discovery-sql.mjs   # 0038's functions on a real Postgres
                    # (PGlite, in-process) over every migration, with seven
@@ -451,14 +452,17 @@ src/
                                         (SimpMusic's `AnimatedVisibility`,
                                         300ms), and `stagger` for a run of
                                         them. See § Loading
-                     ui/pinned-hero     the game page's hero: pinned behind
-                                        the page as `<Screen backdrop>`,
+                     ui/pinned-hero     the art-coloured pages' hero — a
+                                        game's, a studio's, a collection's:
+                                        pinned behind the page as `<Screen
+                                        backdrop>`,
                                         nearly still, blurring and draining
                                         as the page slides over it — and
                                         `<PageFill>`. See § The game page's
                                         colours
-                     ui/key-color-hero  Apple Music's hero — a studio's and
-                                        a collection's: the art
+                     ui/key-color-hero  Apple Music's hero — unused since
+                                        2026-10-27; its fades are still read.
+                                        It drew the art
                                         melting into its key colour, a blurred
                                         copy fading in and the colour draining
                                         as the page scrolls, the iOS stretch.
@@ -818,15 +822,15 @@ src/
     use-pulse           `usePulse()`: a value that changes on every render, so
                         a scroll-driven animated style is re-applied after one.
                         See § Gotchas, the lost end value
-    use-page-color      the game page's colours from its hero: the page, the
-                        Material 3 seed for its buttons, whether its cards
-                        are glass — IGDB's `t_cover_small_2x`, decoded in
+    use-page-color      an art-coloured page's colours from its hero: the page, the
+                        Material 3 seed and tone for its buttons, whether it
+                        is art-coloured — IGDB's `t_cover_small_2x`, decoded in
                         JavaScript, kept for good. See § The game page's
                         colours
     use-theme           `useTheme()` — and `<ThemeInks>`, a page's own inks
                         for everything under it (`inks={null}` puts the
                         app's back, round the protected case)
-    use-key-color       a studio's and a collection's two tones from a hero's key colour — IGDB's
+    use-key-color       unused since 2026-10-27 — two tones from a hero's key colour — IGDB's
                         `t_cover_small` of the art, decoded in JavaScript,
                         kept on the device for good. See § Apple Music's hero
     use-immersive-background  a page colour from one piece of artwork, or null
@@ -930,9 +934,10 @@ src/
                      ends in, read off the edges of the part on screen, and
                      the two page tones it becomes in a dark room (`keyPage`).
                      Pure, tested against real heroes
-    page-color.ts    the game page's colours: Palette's named swatches, the
-                     owner's filter, the page's inks, the glass recipe, and
-                     Material 3's own seed for the buttons. Pure, tested
+    page-color.ts    the art-coloured pages' colours: Palette's named
+                     swatches, the owner's filter, the page's inks, and
+                     Material 3's own seed for the buttons, kept to the
+                     page's family. Pure, tested
     scroll-motion.ts how an Apple Music hero answers the scroll, and a shelf
                      arriving: the curves, as worklets. Pure, tested
     immersive-color.ts  SimpMusic's page colour: Palette's dominant swatch,
@@ -2444,10 +2449,10 @@ reviews about many games* is `<LogCard>`; a review on *a game's own screens* is
   card as the review card in the home page"): `<ListTile>` restates the fill,
   the corner, the inset, the twelve between parts and the shadow. Change one
   and change the other. See the bullet on collections under § Conventions.
-- **Except on a game's page, where every card is glass** (2026-10-27,
-  § The game page's colours): `useCardMaterial()` answers the glass there,
-  and its `shape` — not `cardShape` — is what a card spreads, so the same
-  components draw both.
+- **Except on an art-coloured page — a game, a studio, a collection — where
+  every card is the review button's colour, exactly** (2026-10-27, § The
+  art-coloured pages): `useCardMaterial()` answers it there, with the
+  button's ink, and its `shape` is what a card spreads.
 - **Every card in the app is this card** — the owner's direction
   (2026-10-20): "make all the cards in the app with that style of the review
   ones, with the same size and corner ratio and stuff. Even the ones in the
@@ -3153,10 +3158,12 @@ page pasted in: its hero, its `keyColor`, the blur from hero to content, the
 colour shift, the frosted bar and the shelves arriving — "for the game page,
 studio page and collection page… It needs to read as an apple product".
 Then, mid-build: "make sure it works for animated banners". `<KeyColorHero>`
-drew all three heroes; **since 2026-10-27 it draws the studio's and the
-collection's, and the game page has its own** — a pinned hero over one
-unchanging colour (§ The game page's colours). DESIGN.md § 13.1 is the visual
-statement.
+drew all three heroes. **Since 2026-10-27 no page uses any of this section**:
+the game page, the studio and the collection are all a pinned hero over one
+unchanging colour (§ The art-coloured pages). `<KeyColorHero>`, `useKeyColor`,
+the key colour itself and `<Screen tone>` are still in the code, unused; the
+fades in `key-color-hero` (`footFade`, `MASTHEAD_FADE`) are still read.
+DESIGN.md § 13.1 is the visual statement of the old one.
 
 **The key colour** (`lib/key-color.ts`, pure, tested) is iTunes 11's: crop the
 border, sample a band of each edge, cluster, take the largest — with iTunes'
@@ -3317,14 +3324,20 @@ with a knob on it — the ink), the parallax at 0.4, the blur's strength at 72
 blurred copy over a sharp one is a blend, not a growing radius — the glass
 bar's 60% wash, and the shelves' 560 ms.
 
-## The game page's colours, and its pinned hero (2026-10-27)
+## The art-coloured pages: a game, a studio, a collection (2026-10-27)
 
 The owner's direction (2026-10-27), with frames of Apple Music's artist page
 scrolling: no colour transition on the page — "The color will stay the same";
 the page's colour picked by a pasted pipeline of "anti-ugly" rules; the
-buttons Material 3 from the hero art, "not the game cover"; the cards glass;
-and the hero pinned behind the page. The studio and the collection keep
-§ Apple Music's hero as it was — only the game page moved.
+buttons Material 3 from the hero art, "not the game cover"; and the hero
+pinned behind the page. Built for the game page, then — "integrate all of
+this into the other pages that had the same thing, studio and collection
+screen" — the studio and the collection the same way. All three are
+`<Screen artColoured>` over `usePageColor`, `<AccentProvider color={seed}
+primaryTone={tone}>`, `<ThemeInks>` and a `<PinnedHero>` backdrop. **This
+reverses the immersive pages' older rule** that a studio and a collection
+keep the app's controls (§ Immersive pages): they wear their art's Material 3
+now, kept to the page's family.
 
 **The page colour** (`lib/page-color.ts`, `usePageColor`) is the brief's
 pipeline, in JavaScript rather than through `react-native-image-colors`: the
@@ -3371,36 +3384,50 @@ section wraps the case in `<ThemeInks inks={null}>`; none of the case's own
 files changed. **The 3:1 floor and the 60% are the owner's numbers, and on a
 bright page they make the quiet type faint**: white at 60% is 2.0:1 on
 Cyberpunk 2077's, Disco Elysium's and Ghost of Tsushima's pages (each right at
-3:1), 1.8:1 on a glass card there; 2.8:1 on God of War's, 5:1 and up on dark
+3:1); 2.8:1 on God of War's, 5:1 and up on dark
 pages (measured on the live heroes). `PAGE_COLOR.whiteContrast` is the one
-number to raise if the owner wants AA back.
+number to raise if the owner wants AA back. Inside a card the inks are the
+button's, not the page's, and hold AA (below).
 
-**The glass is switched off for now, and none of it is dead code.** The
-owner's (2026-10-27): "don't delete the glass code or remove any of it
-permanently, for testing purposes I want you to make the cards a solid color
-just like the m3 buttons. Like it was before." `GLASS_CARDS` in
-`lib/page-color.ts` is `false`, so a game page's cards are the solid Material
-3 card they were before — the game's `primaryContainer` at half brightness,
-from the buttons' own scheme — while the page keeps its colour, its inks and
-its pinned hero. Set it `true` and everything below comes back. Do not delete
-`GLASS`, `glassMaterial`, the `glass` shape, `<Screen glass>` or the rating
-graph's glass track as unused.
+**The cards are the review button's colour, exactly** — the owner's
+(2026-10-27): "Solid colored cards will remain, but they have to be EXACTLY
+the same as the review button and tab color. The exact same one." On an
+art-coloured page `useCardMaterial()` answers `filledMaterial(accent)`: the
+fill is `filledRoles(accent).fill`, the value the review button paints, and
+the edge is the fill too (the button has none). **The selected tab is the
+same value** there (`<TabBar>` reads `artColoured`) — it painted Material's
+`primary` as it is, where the button lifts it to a saturation floor, so the
+two could differ; every other screen's tabs are unchanged. A card takes the
+button's ink with it (`filledInks`: the ink, a quieter one eased toward the
+fill only as far as AA, a rule at 16%), and `<CardInks>` hands it to
+everything inside — the theme's type (`<ThemeInks>`, the grey action pill
+included) and the accent's type roles (`<AccentInks>`: `onSurface`,
+`quietInk`). Things that are easy to break:
 
-**The glass** (`GLASS`, `glassMaterial`): white at 12%, a 30% edge, a 1dp
-highlight inside the top edge and a soft 0 8 16 shadow at 15% — both
-`boxShadow`, because an Android elevation shows through a translucent card and
-React Native's box shadow clips itself out of the card (`clipOutPath`).
-`<Screen glass>` turns it on; `useCardMaterial()` returns it with its `shape`
-and an opaque `solid` (the page lifted 12%) for fades that end on a card.
+- **A card that reads `useTheme()` itself is split into a shell and a body**
+  (`MemberReviewCard` / `MemberReviewBody`, `ReviewQuote` /
+  `ReviewQuoteBody`): the shell paints the card and renders `<CardInks>`, the
+  body reads the inks from under it. A card whose own component reads the
+  theme for an icon, outside its provider, keeps the page's white on a light
+  fill.
+- **A caller that passes `fill`** (Surprise Me's review) gets no card inks:
+  the card is not the filled colour then.
+- The score ramp's colours inside a card are not inks and do not follow it.
+
+**The glass is gone.** For a few builds the cards were glass (white at 12%, a
+30% edge, a box-shadow highlight); the owner had it switched off, then
+removed: "remove the glass cards from the app officially, the code,
+everything". Nothing of it is left — do not bring it back.
 
 **The pinned hero** (`<PinnedHero>`, `PINNED_HERO`): `<Screen backdrop>`, not
 in the scroller. At rest it is exactly the old hero (38%, the owner's
 dissolve, the row set into it). Scrolled: the art drifts up at a fifth of the
 page's speed; the masthead (spacer, row, synopsis) is transparent and slides
 over it; a blurred copy comes in after a little scroll and gently (15% → 75%
-of the way — it was 15% → 45%, and the owner found it harsh); then the art
-drains into the page's colour over the last quarter (it was the last half:
-"the solid color transition comes quicker") and is
+of the way — it was 15% → 45%, and the owner found it harsh); the art drains
+into the page's colour from 35% of the way, slowly (`drainFrom`; it was made
+the last quarter for one build, which the owner called the opposite of what
+they meant: "I want it to start slower, not faster"), and is
 **solid once the page is past the title and onto the developer lines — which
 is where the top bar comes in**. The owner's, over three messages of
 2026-10-27: "solid when the developer names reach the top", "at the same
@@ -3415,9 +3442,29 @@ No zoom. The trailer pauses at `solidAt`. Things that are easy to break:
   shorter fade of its own, so as it came in the art stopped dissolving and
   read "as if it was pasted onto the page raw". The sharp art and the blur
   dissolve by the same curve, drawn once over both.
-- **The clip is on the box that drifts, not the frame.** The blurred copy is
-  drawn 10% oversize; the art moves up inside the frame, so a frame clip let
-  the overhang show as a band under the foot once the art had drifted 15dp.
+- **Nothing has an edge at the art's foot.** The blurred copy is drawn at the
+  art's own size, unclipped — it was 10% oversize and clipped, and the clip's
+  edge let a sliver of it through at fractional scroll positions: a line under
+  the art that moved at the art's speed, not the page's, "some kind of z
+  fighting" (the owner). Both platforms' blurs extend an edge rather than
+  darken it, so the overscale bought nothing. And a strip of page colour
+  hangs under the art on the box that drifts (`footHold`, 32dp), so the
+  foot is page colour on both sides.
+- **The studio and the collection** put the art behind the page the same
+  way: their name block is in a transparent spacer the height of the art, so
+  it floats up over it, and the solid part (with the same 40dp lip) starts
+  under it — the studio's rails, the collection's byline and description.
+  Both bars, and both `solidAt`s, are the name's foot reaching the bar's (the
+  line under the name, `META_LINE` / `COLLECTION_META_LINE`). The studio's
+  grid rows are opaque too, spaced by their own padding, since the list's gap
+  would leave slits of the art between them. The collection's art is still
+  `collectionArt` — square art, else the box anchored a fifth down — and its
+  colour still from the box, since a 400px square is too large to decode.
+- **The studio's rails are a memoised component** (`StudioShelves`). They
+  were the list's header inline, so every render of the screen as its
+  queries landed redrew seven rails of a dozen covers — on Sony's page three
+  seconds of a blocked JS thread ("VirtualizedList: You have a large list
+  that is slow to update", `dt` 3,023 ms, the owner's log).
 - **The blur is the full-size file, never a small copy.** expo-image's
   Android blur is `BlurTransformation(min(radius, 25), 4)` — it shrinks the
   bitmap to a quarter *before* blurring — so a 180-wide copy became a
@@ -3430,7 +3477,9 @@ over 400 ms; every visit after, the colour is there before the first frame.
 **Not seen on a phone**, and the owner asked for no emulator here. Checked:
 types, lint, `npm test`, the worklets as the plugin ships them, and scroll
 states rendered from the real geometry and real heroes. To judge on a device:
-the drift (0.2), the blur's ramp (15% → 75%) and the drain's (75% → 100%), how light the buttons go on the
+the drift (0.2), the blur's ramp (15% → 75%) and the drain's (35% → 100%),
+the cards in the button's colour with its ink, the studio's and the
+collection's names floating up over their art, how light the buttons go on the
 brightest pages (tone 85–90 on Ark, Horizon, No Man's Sky), the lip's 40dp,
 the box shadow's look on Android, white at 60% on the brightest pages, and
 the first visit's 400 ms arrival.
@@ -3886,7 +3935,7 @@ and the event page's foot bar are all for a device.
   on a cold start; nothing invalidates it.
   `['key-color', source, aspect, ax, ay]` is a hero's key colour — kept on
   the device, nothing invalidates it (a picture's edges do not change).
-  `['page-color', source, aspect, ax, ay]` is the game page's colours (the
+  `['page-color', source, aspect, ax, ay]` is an art-coloured page's colours (the
   page and Material's seeds) — the same: kept, never invalidated.
   `['artwork-mesh', thumbnail]` is the cover viewer's page, never persisted;
   `['onboarding-examples', 'colours' | 'animated']` the look questions'
@@ -4604,7 +4653,7 @@ and the event page's foot bar are all for a device.
   order back, and read a ranked collection's numbers from its stored sequence.
 - **A game's screens run Material 3 dynamic colour, seeded by its box art** —
   except the game page itself, whose seed is its *hero's* (Material's own
-  seed choice off the hero art, § The game page's colours) and whose page is
+  seed choice off the hero art, § The art-coloured pages) and whose page is
   not M3's at all.
   `theme/dynamic-color.ts` turns one seed hex into the twenty-three M3 roles via
   `DynamicScheme` + `Variant.TONAL_SPOT`. **The tones are read off the palettes,

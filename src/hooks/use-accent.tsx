@@ -151,6 +151,29 @@ function useArtworkHue({
 }
 
 /**
+ * The accent's type roles swapped for other inks, for everything under it —
+ * inside a card in the filled colour (`CardInks`), where the accent's own
+ * `onSurface` and `quietInk`, light type made for a dark room, would sit on a
+ * light fill. Every other role is the accent's own.
+ */
+export function AccentInks({
+  ink,
+  quiet,
+  children,
+}: {
+  ink: string;
+  quiet: string;
+  children?: ReactNode;
+}) {
+  const accent = useAccent();
+  const roles = useMemo(
+    () => ({ ...accent, onSurface: ink, quietInk: quiet }),
+    [accent, ink, quiet]
+  );
+  return <AccentContext.Provider value={roles}>{children}</AccentContext.Provider>;
+}
+
+/**
  * The accent roles for the current screen.
  *
  * Safe to call from any component: outside a provider it resolves to the house

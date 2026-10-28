@@ -178,26 +178,28 @@ describe('the game page’s hero, pinned behind the page', () => {
     assert.equal(blur(SOLID_AT * PINNED_HERO.blurFrom), 0);
     assert.ok(PINNED_HERO.blurFrom >= 0.1, 'a little scroll first');
     /* Whole before solid, and gently: "the blur strength transition is
-       slower, not as harsh", while "the solid color transition comes
-       quicker" — the blur's ramp is the longer of the two. */
+       slower, not as harsh" — its ramp is most of the way. */
     assert.equal(blur(SOLID_AT * PINNED_HERO.blurUntil), 1);
-    assert.ok(
-      PINNED_HERO.blurUntil - PINNED_HERO.blurFrom > 1 - PINNED_HERO.drainFrom,
-      'the blur comes in more slowly than the colour'
-    );
+    assert.ok(PINNED_HERO.blurUntil - PINNED_HERO.blurFrom >= 0.5, 'a long, gentle ramp');
     const curve = steps(40).map((t) => blur(t * SOLID_AT));
     for (let i = 1; i < curve.length; i += 1) assert.ok(curve[i] >= curve[i - 1]);
   });
 
-  it('is whole before it drains, and solid where the top bar comes in', () => {
+  it('drains early but slowly, and is solid where the top bar comes in', () => {
     const drain = (offset: number) => pinnedDrain(offset, SOLID_AT, PINNED_HERO.drainFrom);
-    /* The drain never starts before the blur is whole. */
-    assert.ok(PINNED_HERO.drainFrom >= PINNED_HERO.blurUntil);
-    assert.equal(drain(SOLID_AT * PINNED_HERO.drainFrom), 0);
+    const from = SOLID_AT * PINNED_HERO.drainFrom;
+    assert.equal(drain(from), 0);
+    /* "I want it to start slower, not faster": a long ramp, flat at its start. */
+    assert.ok(1 - PINNED_HERO.drainFrom >= 0.5, 'most of the way');
+    assert.ok(drain(from + (SOLID_AT - from) * 0.1) < 0.05, 'gentle at first');
     const middle = SOLID_AT * ((PINNED_HERO.drainFrom + 1) / 2);
     assert.ok(drain(middle) > 0 && drain(middle) < 1, 'between, it is crossing');
     assert.equal(drain(SOLID_AT), 1, 'solid as the bar arrives');
     assert.equal(drain(SOLID_AT * 2), 1, 'and stays solid');
+  });
+
+  it('hangs a strip of page colour under the art, so its foot has no edge', () => {
+    assert.ok(PINNED_HERO.footHold >= 16);
   });
 
   it('pulled past the top, keeps its top pinned and its foot with the page', () => {

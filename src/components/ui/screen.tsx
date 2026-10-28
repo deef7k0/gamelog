@@ -94,11 +94,11 @@ export type ScreenProps = {
    */
   tone?: { bright: string | null; dark: string; header: number };
   /**
-   * The page is one flat colour read from its artwork, and every card on it
-   * is a pane of glass (`useCardMaterial`). The game page's, with `background`
-   * as that colour.
+   * The page is one flat colour read from its artwork (`background`), and its
+   * cards and selected tabs wear the filled colour — the review button's,
+   * exactly (`useCardMaterial`, `<TabBar>`). A game, a studio, a collection.
    */
-  glass?: boolean;
+  artColoured?: boolean;
   /**
    * Whether this page makes room for the mini player while music is being kept
    * playing. On by default, and a page almost never says otherwise.
@@ -128,7 +128,7 @@ export function Screen({
   modal = false,
   background,
   tone,
-  glass = false,
+  artColoured = false,
   miniPlayer = true,
 }: ScreenProps) {
   const theme = useTheme();
@@ -162,7 +162,7 @@ export function Screen({
       modal={modal}
       background={fill}
       insetHeader={insetHeader}
-      glass={glass}
+      artColoured={artColoured}
       tone={tone}>
       {({ blurTargetRef }) => (
         <View style={styles.flex}>

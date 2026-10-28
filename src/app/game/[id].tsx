@@ -38,7 +38,7 @@ import { useCriticSummary } from '@/components/critic-reviews';
 import { GameReviewsSheet } from '@/components/game-reviews-sheet';
 import { SlideUpSheet } from '@/components/ui/slide-up-sheet';
 import { Button } from '@/components/ui/button';
-import { CARD_INSET, useCardMaterial } from '@/components/ui/card-material';
+import { CARD_INSET, CardInks, useCardMaterial } from '@/components/ui/card-material';
 import { CoverHalo } from '@/components/ui/cover-halo';
 import { TrailerBackdrop } from '@/components/trailer-backdrop';
 import { FrostedTopBar, TopBarDisc } from '@/components/ui/frosted-top-bar';
@@ -79,7 +79,7 @@ import { useGameTrailer, useTrailerSetting } from '@/hooks/use-game-trailer';
 import { usePageColor } from '@/hooks/use-page-color';
 import { ThemeInks, useTheme } from '@/hooks/use-theme';
 import { smoothScrimStops } from '@/lib/immersive-color';
-import { GLASS_CARDS, pageInks } from '@/lib/page-color';
+import { pageInks } from '@/lib/page-color';
 import { PINNED_HERO } from '@/lib/scroll-motion';
 import { getAchievementsForGame, getCopies, getMyLog, getRatingBreakdown } from '@/lib/api';
 import type { GameLog } from '@/lib/database.types';
@@ -513,7 +513,7 @@ export default function GameDetailScreen() {
     frame: { width, height: heroHeight },
   });
   const page = colour.page;
-  const inks = colour.glass ? pageInks(page) : null;
+  const inks = colour.artColoured ? pageInks(page) : null;
   /* What `<ThemeInks>` hands the page: opaque inks, for the components that
      do colour maths on a token. */
   const themeInks = inks
@@ -524,8 +524,6 @@ export default function GameDetailScreen() {
      grey room's own. */
   const titleInk = inks?.primary ?? theme.white;
   const quietInk = inks?.secondary ?? accentRoles(theme.gameNeutral).quietInk;
-  /* Glass cards, or solid Material 3 ones — one switch (`GLASS_CARDS`). */
-  const glassCards = colour.glass && GLASS_CARDS;
 
   /*
    * Where the pinned hero is solid page colour, in how far the page has
@@ -1049,10 +1047,7 @@ export default function GameDetailScreen() {
                   hitSlop={REVIEW_LINK_SLOP}
                   style={styles.reviewLink}
                   scaleTo={0.98}>
-                  <Ionicons name="eye-outline" size={16} color={theme.primaryText} />
-                  <Text variant="bodySmall" style={{ color: theme.primaryText }}>
-                    See your full review
-                  </Text>
+                  <ReviewLinkLabel />
                 </PressableScale>
               </Link>
             </>
@@ -1390,7 +1385,7 @@ export default function GameDetailScreen() {
               is gone. What the scroll moves is the art behind the page.
             */
             background={page}
-            glass={glassCards}
+            artColoured={colour.artColoured}
             /*
               Behind the page, outside its inset: the page's colour (which
               takes the colour over 400ms the first time it is read), then the
@@ -1548,8 +1543,27 @@ function MaterialCard({ style, children }: { style?: StyleProp<ViewStyle>; child
         { backgroundColor: material.fill, borderColor: material.edge },
         style,
       ]}>
-      {children}
+      <CardInks material={material}>{children}</CardInks>
     </View>
+  );
+}
+
+/**
+ * "See your full review", in the card's ink when the card is in the filled
+ * colour, and the house's link blue on a card of the room. A component, so it
+ * reads the card's material from inside the card.
+ */
+function ReviewLinkLabel() {
+  const theme = useTheme();
+  const material = useCardMaterial();
+  const color = material.inks?.text ?? theme.primaryText;
+  return (
+    <>
+      <Ionicons name="eye-outline" size={16} color={color} />
+      <Text variant="bodySmall" style={{ color }}>
+        See your full review
+      </Text>
+    </>
   );
 }
 
